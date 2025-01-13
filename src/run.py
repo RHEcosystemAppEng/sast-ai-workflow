@@ -13,6 +13,7 @@ from MainProcess import MainProcess
 from ReportReader import read_sast_report_html
 from Utils import read_cve_html_file, create_embeddings_for_all_project_files, extract_file_path, download_repo, \
     read_known_errors_file
+load_dotenv()  # take environment variables from .env.
 
 NVIDIA_URL = os.environ.get("NVIDIA_URL")
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
@@ -25,7 +26,6 @@ html_file_path = "/Users/jnirosha/Projects/morpheus/sast/Confluence.html"
 known_false_positive_file_path = "/Users/jnirosha/Projects/morpheus/sast/ignore.err"
 
 print(" Process started! ".center(80, '-'))
-load_dotenv()  # take environment variables from .env.
 main_process = MainProcess(base_url=NVIDIA_URL, llm_model_name=NVIDIA_LLM_MODEL_NAME,
                            embedding_llm_model_name=NVIDIA_EMBEDDINGS_LLM_MODEL_NAME, api_key=NVIDIA_API_KEY)
 issue_list = read_sast_report_html(report_file_path)
@@ -38,7 +38,7 @@ summary_data = []
 with tqdm(total=issue_count, file=sys.stdout, desc="Full report scanning progres: ") as pbar:
     print("\n")
 
-    if os.path.exists("./../faiss_index/index.faiss2"):
+    if os.path.exists("./../faiss_index/index.faiss"):
         embeddings = HuggingFaceEmbeddings(
             model_name="/Users/jnirosha/Projects/morpheus/all-mpnet-base-v2",
             model_kwargs={'device': 'mps'},
