@@ -45,10 +45,7 @@ The evaluations of the model responses are being done using the following metric
 - **Response Relevancy:**  
   Ensures that the generated answers are directly related to the query.  
   [Response Relevancy](https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/answer_relevance/).
-
-- **Faithfulness:**  
-  Checks the accuracy and truthfulness of the model’s responses.  
-  [Faithfulness](https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/faithfulness/).
+  
 
 ## Installation & Setup
 
