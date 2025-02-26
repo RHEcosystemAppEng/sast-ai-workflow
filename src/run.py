@@ -32,14 +32,13 @@ main_process = MainProcess(base_url=NVIDIA_URL, llm_model_name=NVIDIA_LLM_MODEL_
                            embedding_llm_model_name=NVIDIA_EMBEDDINGS_LLM_MODEL_NAME, api_key=NVIDIA_API_KEY)
 metric_handler = MetricHandler(main_process.get_main_llm(), main_process.get_embedding_llm())
 issue_list = read_sast_report_html(report_file_path)
-issue_count = len(issue_list)
 summary_data = []
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # downloading git repository for given project
 # download_repo(git_repo_path)
 
-with tqdm(total=issue_count, file=sys.stdout, desc="Full report scanning progres: ") as pbar:
+with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progres: ") as pbar:
     print("\n")
 
     if os.path.exists("./../faiss_index/index.faiss"):
