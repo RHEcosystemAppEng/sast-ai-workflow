@@ -2,7 +2,9 @@
 
 ## Overview
 
-sast-ai-workflow is an LLM-based tool designed to detect and flag suspected vulnerabilities through SAST scanning of RHEL systemd (source: [systemd GitHub](https://github.com/systemd/systemd)). By integrating SAST reports, source code analysis, and CVE data and other known examples, the tool aims to help and provide insights in the vulnerability detection precess.
+SAST-AI-Workflow is a LLM-based tool designed to detect and flag suspected vulnerabilities. It inspects suspicious lines of code in a given repository and deeply review legitimacy of the error. Workflow is capable of  integrating SAST reports, source code analysis, CVE data and other known examples. 
+
+SAST-AI-Workflow can be incorporated to help and provide insights in the vulnerability detection precess. As an instance, in this project we demonstrate SAST scanning of RHEL systemd (source: [systemd GitHub](https://github.com/systemd/systemd)) project.
 
 ## Architecture
 
@@ -32,7 +34,7 @@ Key components:
 
 ### Evaluation
 
-- Applies metrics (Response Relevancy and Faithfulness) to assess the quality of model outputs.
+- Applies metrics (from Ragas library) to assess the quality of model outputs.
 
 A detailed architecture diagram is provided in the `diagrams/` folder (e.g., `diagrams/architecture.png`).
 
@@ -62,7 +64,7 @@ Retrieve the secret configuration files from the project’s Google Drive and pl
 
 ### 3. Optional - Use Existing FAISS Index
 
-If you prefer not to recreate embeddings, download the index.faiss file from the drive and place it under the appropriate folder (e.g., the `src` folder).
+If you prefer not to generate embeddings for the source code files, download the index.faiss file from the drive and place it under the appropriate folder (e.g., the `src` folder).
 
 ### 4. Install Dependencies
 
