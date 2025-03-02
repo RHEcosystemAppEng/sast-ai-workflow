@@ -4,7 +4,6 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI
 
 
-
 class MainProcess:
 
     def __init__(self, base_url, llm_model_name, embedding_llm_model_name, api_key):
@@ -20,15 +19,15 @@ class MainProcess:
     def get_main_llm(self):
         if self.main_llm is None:
             self.main_llm = ChatNVIDIA(base_url=self.base_url, model=self.llm_model_name, api_key=self.api_key, temperature=0)
-            # main_llm = OpenAI(base_url=self.base_url, model=self.llm_model_name, api_key="dummy_key", temperature=0,
-            #                    top_p=0.01)
+            main_llm = OpenAI(base_url=self.base_url, model=self.llm_model_name, api_key="dummy_key", temperature=0,
+                               top_p=0.01)
         return self.main_llm
 
     def get_embedding_llm(self):
         if self.embedding_llm is None:
             self.embedding_llm = HuggingFaceEmbeddings(
-                model_name="/Users/jnirosha/Projects/morpheus/all-mpnet-base-v2",
-                model_kwargs={'device': 'mps'},
+                model_name="sentence-transformers/all-mpnet-base-v2",
+                model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': False}
             )
         return self.embedding_llm

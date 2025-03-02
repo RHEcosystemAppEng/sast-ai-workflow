@@ -3,7 +3,7 @@ from ragas.metrics import Faithfulness, ResponseRelevancy
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 
-from src.model.MetricRequest import MetricRequest
+from model.MetricRequest import MetricRequest
 
 
 class MetricHandler:

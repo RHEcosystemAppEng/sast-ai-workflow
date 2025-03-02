@@ -11,9 +11,9 @@ from tqdm import tqdm
 from ExcelWriter import write_to_excel_file
 from MainProcess import MainProcess
 from ReportReader import read_sast_report_html
-from Utils import read_cve_html_file, create_embeddings_for_all_project_files, read_known_errors_file
-from src.MetricHandler import metric_request_from_prompt, MetricHandler
-from src.model.SummaryInfo import SummaryInfo
+from Utils.utils import read_cve_html_file, create_embeddings_for_all_project_files, read_known_errors_file
+from MetricHandler import metric_request_from_prompt, MetricHandler
+from model.SummaryInfo import SummaryInfo
 
 load_dotenv()  # take environment variables from .env.
 
@@ -23,9 +23,9 @@ NVIDIA_LLM_MODEL_NAME = os.environ.get("NVIDIA_LLM_MODEL_NAME")
 NVIDIA_EMBEDDINGS_LLM_MODEL_NAME = os.environ.get("NVIDIA_EMBEDDINGS_LLM_MODEL_NAME")
 
 git_repo_path = "https://github.com/redhat-plumbers/systemd-rhel9/tree/v252-46.2"
-report_file_path = "/Users/jnirosha/Projects/morpheus/sast/systemd-252-46.el9_5.2.html"
-html_file_path = "/Users/jnirosha/Projects/morpheus/sast/Confluence.html"
-known_false_positive_file_path = "/Users/jnirosha/Projects/morpheus/sast/ignore.err"
+report_file_path = "/home/ikrispin/work/sast-ai-repos/systemd-252-46.el9_5.2.html"
+# html_file_path = "/Users/jnirosha/Projects/morpheus/sast/Confluence.html"
+known_false_positive_file_path = "/home/ikrispin/work/sast-ai-repos/ignore.err"
 
 print(" Process started! ".center(80, '-'))
 main_process = MainProcess(base_url=NVIDIA_URL, llm_model_name=NVIDIA_LLM_MODEL_NAME,
