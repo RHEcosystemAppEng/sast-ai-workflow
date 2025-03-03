@@ -80,6 +80,8 @@ NVIDIA_URL=<your_nvidia_url>
 NVIDIA_API_KEY=<your_nvidia_api_key>
 NVIDIA_LLM_MODEL_NAME=<your_nvidia_llm_model_name>
 NVIDIA_EMBEDDINGS_LLM_MODEL_NAME=<your_nvidia_embedding_model_name>
+OUTPUT_FILE_PATH=<path/to/results.xlsx>
+DEVICE_FOR_EMBEDDINGS=<cpu/gpu/mps>
 ```
 
 ### 6. Install the Embedding Model

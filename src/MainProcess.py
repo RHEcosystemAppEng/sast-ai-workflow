@@ -1,3 +1,4 @@
+import os
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -27,8 +28,8 @@ class MainProcess:
     def get_embedding_llm(self):
         if self.embedding_llm is None:
             self.embedding_llm = HuggingFaceEmbeddings(
-                model_name="/Users/jnirosha/Projects/morpheus/all-mpnet-base-v2",
-                model_kwargs={'device': 'mps'},
+                model_name="./downloads/all-mpnet-base-v2",
+                model_kwargs={'device': os.environ["DEVICE_FOR_EMBEDDINGS"]},
                 encode_kwargs={'normalize_embeddings': False}
             )
         return self.embedding_llm

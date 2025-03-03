@@ -23,9 +23,9 @@ NVIDIA_LLM_MODEL_NAME = os.environ.get("NVIDIA_LLM_MODEL_NAME")
 NVIDIA_EMBEDDINGS_LLM_MODEL_NAME = os.environ.get("NVIDIA_EMBEDDINGS_LLM_MODEL_NAME")
 
 git_repo_path = "https://github.com/redhat-plumbers/systemd-rhel9/tree/v252-46.2"
-report_file_path = "/Users/jnirosha/Projects/morpheus/sast/systemd-252-46.el9_5.2.html"
-html_file_path = "/Users/jnirosha/Projects/morpheus/sast/Confluence.html"
-known_false_positive_file_path = "/Users/jnirosha/Projects/morpheus/sast/ignore.err"
+report_file_path = "./downloads/systemd-252-46.el9_5.2.html"
+html_file_path = "./downloads/Confluence.html"
+known_false_positive_file_path = "./downloads/ignore.err"
 
 print(" Process started! ".center(80, '-'))
 main_process = MainProcess(base_url=NVIDIA_URL, llm_model_name=NVIDIA_LLM_MODEL_NAME,
