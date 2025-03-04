@@ -1,13 +1,23 @@
 import glob
 import os
 import re
+import sys
 
 import git
 import requests
+import torch
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
+
+def get_device():
+    if sys.platform == "darwin":
+        return "mps" if torch.backends.mps.is_available() else "cpu"
+    elif torch.cuda.is_available():
+        return "cuda"
+    else:
+        return "cpu"
 
 def download_repo(repo_url):
     try:
@@ -134,3 +144,4 @@ def read_known_errors_file(path):
         plain_text = f.read()
         doc_list = text_splitter.create_documents([plain_text])
         return doc_list
+    

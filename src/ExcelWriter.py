@@ -1,27 +1,42 @@
 import os
 import sys
-from decimal import Decimal
 
 import xlsxwriter
-import math
 from tqdm import tqdm
 
 from tornado.gen import sleep
+
+from Utils.ExcelWriter_utils import (
+    cell_formatting,
+    get_percentage_value,
+    count_predicted_values,
+    count_actual_values,
+    get_human_verified_results,
+    calculate_confusion_matrix_metrics,
+    print_confusion_matrix_and_model_performace,
+    get_metrics
+)
 
 
 def write_to_excel_file(data):
     filename = os.getenv("OUTPUT_FILE_PATH")
     print(f" Writing to {filename} ".center(80, '*'))
-    with tqdm(total=len(data), file=sys.stdout, desc="Writing to " + filename + ": ") as pbar:
-        workbook = xlsxwriter.Workbook(filename)
+    
+    try:
+        with tqdm(total=len(data), file=sys.stdout, desc="Writing to " + filename + ": ") as pbar:
+            workbook = xlsxwriter.Workbook(filename)
 
-        summary = write_ai_report_worksheet(data, workbook)
-        write_confusion_matrix_worksheet(summary, workbook)
-        workbook.close()
+            summary = write_ai_report_worksheet(data, workbook)
+            write_confusion_matrix_worksheet(summary, workbook)
+            print_confusion_matrix_and_model_performace(summary)
 
-        pbar.update(1)
-        sleep(1)
+            workbook.close()
 
+            pbar.update(1)
+            sleep(1)
+    except Exception as e:
+        print("Error occured during Ecxel writing:", e)
+    
 def write_ai_report_worksheet(data, workbook):
     worksheet = workbook.add_worksheet("AI report")
     worksheet.set_column(1, 1, 25)
@@ -48,69 +63,81 @@ def write_ai_report_worksheet(data, workbook):
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
     return summary
 
-def get_numeric_value(value):
-    return 0 if math.isnan(value) or math.isinf(value) else value
+def write_results_table(workbook, worksheet, actual_positives, actual_negatives, predicted_positives, predicted_negatives):
+    worksheet.merge_range("A1:B1", "Human Results", cell_formatting(workbook, "#4f8df1"))
+    worksheet.write(1, 0, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(1, 1, len(actual_positives), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(2, 0, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(2, 1, len(actual_negatives), cell_formatting(workbook, '#ffffff'))
 
-def get_percentage_value(n):
-    from decimal import Decimal
-    n = get_numeric_value(n)
-    n = n if isinstance(n, Decimal) else Decimal(str(n))
-    return round(n, 2) * 100
+    worksheet.merge_range("C1:D1", "AI Results", cell_formatting(workbook, "#4f8df1"))
+    worksheet.write(1, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(1, 3, len(predicted_positives), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(2, 2, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(2, 3, len(predicted_negatives), cell_formatting(workbook, '#ffffff'))
 
-def write_confusion_matrix_worksheet(data, workbook):
+def write_confusion_matrix(workbook, worksheet, tp, tn, fp, fn):
+    worksheet.merge_range("A8:A9", "Human Results", cell_formatting(workbook, "#00b903"))
+    worksheet.write(7, 1, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(7, 2, tp, cell_formatting(workbook, '#28A745'))
+    worksheet.write(8, 1, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(8, 2, fp, cell_formatting(workbook, '#FF0000'))
 
-    def cell_formatting(color):
-        return workbook.add_format({
-            "bold": 1,
-            "border": 1,
-            "align": "center",
-            "valign": "vcenter",
-            "fg_color": color,
-        })
+    worksheet.merge_range("C6:D6", "AI Results", cell_formatting(workbook, "#4f8df1"))
+    worksheet.write(6, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(7, 3, fn, cell_formatting(workbook, '#FF0000'))
+    worksheet.write(6, 3, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(8, 3, tn, cell_formatting(workbook, '#28A745'))
 
+def write_model_performance(workbook, worksheet, tp, tn, fp, fn, METRICS_START_ROW):
+    accuracy, recall, precision, f1_score = get_metrics(tp, tn, fp, fn)
+
+    worksheet.write(METRICS_START_ROW, 0, "Model's Performance:", workbook.add_format({"bold": 1}))
+    worksheet.write(METRICS_START_ROW + 1, 0, "Accuracy =", workbook.add_format({"bold": 1}))
+    worksheet.write(METRICS_START_ROW + 1, 1, accuracy, workbook.add_format({"italic": 1}))
+
+    worksheet.write(METRICS_START_ROW + 2, 0, "Recall =", workbook.add_format({"bold": 1}))
+    worksheet.write(METRICS_START_ROW + 2, 1, recall, workbook.add_format({"italic": 1}))
+
+    worksheet.write(METRICS_START_ROW + 3, 0, "Precision =", workbook.add_format({"bold": 1}))
+    worksheet.write(METRICS_START_ROW + 3, 1, precision, workbook.add_format({"italic": 1}))
+
+    worksheet.write(METRICS_START_ROW + 4, 0, "F1 Score =", workbook.add_format({"bold": 1}))
+    worksheet.write(METRICS_START_ROW + 4, 1, f1_score, workbook.add_format({"italic": 1}))
+
+def write_table_key(workbook, worksheet, KEY_START_ROW):
+    worksheet.write(KEY_START_ROW, 0, "Table Key:", workbook.add_format({"bold": 1}))
+    worksheet.write(KEY_START_ROW + 1, 0, "Verified True Positives =", workbook.add_format({"bold": 1}))
+    worksheet.write(KEY_START_ROW + 1, 1, "Human verified as a real issue (true positive)", workbook.add_format({"italic": 1}))
+
+    worksheet.write(KEY_START_ROW + 2, 0, "Verified False Positives =", workbook.add_format({"bold": 1}))
+    worksheet.write(KEY_START_ROW + 2, 1, "Human verified as not a real issue (false positive)", workbook.add_format({"italic": 1}))
+
+    worksheet.write(KEY_START_ROW + 3, 0, "Predicted True Positives =", workbook.add_format({"bold": 1}))
+    worksheet.write(KEY_START_ROW + 3, 1, "AI Predicted as a real issue (true positive)", workbook.add_format({"italic": 1}))
+
+    worksheet.write(KEY_START_ROW + 4, 0, "Predicted False Positives =", workbook.add_format({"bold": 1}))
+    worksheet.write(KEY_START_ROW + 4, 1, "AI Predicted as not a real issue (false positive)", workbook.add_format({"italic": 1}))
+
+def write_confusion_matrix_worksheet(data, workbook):    
+    METRICS_START_ROW = 11
+    KEY_START_ROW = 18
+      
     worksheet = workbook.add_worksheet("Confusion Matrix")
     worksheet.set_column("A:B", 20)
     worksheet.set_column("C:D", 40)
+
     for idx in range(5):
         worksheet.set_row(idx + 4, 30)
 
-    worksheet.merge_range("A1:B1", "Human Results", cell_formatting("#4f8df1"))
-    worksheet.write(1, 0, 'Actual Positives', cell_formatting('#bfbfbf'))
-    worksheet.write(2, 0, 'Actual Negatives', cell_formatting('#bfbfbf'))
+    ground_truth = get_human_verified_results()
+    actual_positives, actual_negatives = count_actual_values(data, ground_truth)
+    predicted_positives, predicted_negatives = count_predicted_values(data)
+    tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives)
+    
+    write_results_table(workbook, worksheet, actual_positives, actual_negatives, predicted_positives, predicted_negatives)
+    write_confusion_matrix(workbook, worksheet, tp, tn, fp, fn)
+    write_model_performance(workbook, worksheet, tp, tn, fp, fn, METRICS_START_ROW)
+    write_table_key(workbook, worksheet, KEY_START_ROW)
 
-    worksheet.merge_range("A8:A9", "Human Results", cell_formatting("#00b903"))
-    worksheet.write(7, 1, 'Actual Positives', cell_formatting('#bfbfbf'))
-    worksheet.write(8, 1, 'Actual Negatives', cell_formatting('#bfbfbf'))
-
-    ai_counts = count_predicted_values(data)
-    worksheet.merge_range("C1:D1", "AI Results", cell_formatting("#4f8df1"))
-    worksheet.write(1, 2, 'Predicted Positives', cell_formatting('#bfbfbf'))
-    worksheet.write(1, 3, len(ai_counts[0]), cell_formatting('#ffffff'))
-    worksheet.write(2, 2, 'Predicted Negatives', cell_formatting('#bfbfbf'))
-    worksheet.write(2, 3, len(ai_counts[1]), cell_formatting('#ffffff'))
-
-    worksheet.merge_range("C6:D6", "AI Results", cell_formatting("#4f8df1"))
-    worksheet.write(6, 2, 'Predicted Positives', cell_formatting('#bfbfbf'))
-    worksheet.write(6, 3, 'Predicted Negatives', cell_formatting('#bfbfbf'))
-
-
-
-def count_predicted_values(data):
-    positives = []
-    negatives = []
-    for (issue_id, llm_text, metric_ar) in data:
-        if "not a false positive" in str(llm_text).lower():
-            negatives.append(issue_id)
-        else:
-            positives.append(issue_id)
-    return positives, negatives
-
-def count_actual_values(data):
-    positives = []
-    negatives = []
-    for (issue_id, llm_text, metric_ar) in data:
-        if "not a false positive" in str(llm_text).lower():
-            negatives.append(issue_id)
-        else:
-            positives.append(issue_id)
-    return positives, negatives
+ 

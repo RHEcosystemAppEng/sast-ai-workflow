@@ -2,7 +2,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI
-
+from Utils.utils import get_device
 
 
 class MainProcess:
@@ -17,20 +17,43 @@ class MainProcess:
         self.embedding_llm = None
         self.vector_db = None
 
+    def create_main_llm(self):
+        # Decide which LLM to use based on the base_url
+        if "nvidia" in self.base_url.lower():
+            self.main_llm = ChatNVIDIA(
+                base_url=self.base_url, 
+                model=self.llm_model_name, 
+                api_key=self.api_key, 
+                temperature=0
+            )
+        else:
+            self.main_llm = OpenAI(
+                base_url=self.base_url, 
+                model=self.llm_model_name, 
+                api_key="dummy_key", 
+                temperature=0,
+                top_p=0.01
+            )
+        return self.main_llm
+    
+    def create_embedding_llm(self):
+        device = get_device()
+        self.embedding_llm = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-mpnet-base-v2",
+            model_kwargs={'device': device},
+            encode_kwargs={'normalize_embeddings': False}
+        )
+        print(f"-----Initializing {self.embedding_llm_model_name} embedding LLM on device: {device}-----")
+        return self.embedding_llm
+
     def get_main_llm(self):
         if self.main_llm is None:
-            self.main_llm = ChatNVIDIA(base_url=self.base_url, model=self.llm_model_name, api_key=self.api_key, temperature=0)
-            # main_llm = OpenAI(base_url=self.base_url, model=self.llm_model_name, api_key="dummy_key", temperature=0,
-            #                    top_p=0.01)
+            self.main_llm = self.create_main_llm()
         return self.main_llm
 
     def get_embedding_llm(self):
         if self.embedding_llm is None:
-            self.embedding_llm = HuggingFaceEmbeddings(
-                model_name="/Users/jnirosha/Projects/morpheus/all-mpnet-base-v2",
-                model_kwargs={'device': 'mps'},
-                encode_kwargs={'normalize_embeddings': False}
-            )
+            self.embedding_llm = self.create_embedding_llm()
         return self.embedding_llm
 
     def create_vdb(self, text_data):
