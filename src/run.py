@@ -17,21 +17,20 @@ from model.SummaryInfo import SummaryInfo
 
 load_dotenv()  # take environment variables from .env.
 
-NVIDIA_URL = os.environ.get("NVIDIA_URL")
-NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
-NVIDIA_LLM_MODEL_NAME = os.environ.get("NVIDIA_LLM_MODEL_NAME")
-NVIDIA_EMBEDDINGS_LLM_MODEL_NAME = os.environ.get("NVIDIA_EMBEDDINGS_LLM_MODEL_NAME")
+LLM_URL = os.environ.get("LLM_URL")
+LLM_API_KEY = os.environ.get("LLM_API_KEY")
+LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME")
+EMBEDDINGS_LLM_MODEL_NAME = os.environ.get("EMBEDDINGS_LLM_MODEL_NAME")
+REPORT_FILE_PATH = os.environ.get("REPORT_FILE_PATH")
+KNOWN_FALSE_POSITIVE_FILE_PATH = os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH")
 
 git_repo_path = "https://github.com/redhat-plumbers/systemd-rhel9/tree/v252-46.2"
-report_file_path = "/home/ikrispin/work/sast-ai-repos/systemd-252-46.el9_5.2.html"
-# html_file_path = "/Users/jnirosha/Projects/morpheus/sast/Confluence.html"
-known_false_positive_file_path = "/home/ikrispin/work/sast-ai-repos/ignore.err"
 
 print(" Process started! ".center(80, '-'))
-main_process = MainProcess(base_url=NVIDIA_URL, llm_model_name=NVIDIA_LLM_MODEL_NAME,
-                           embedding_llm_model_name=NVIDIA_EMBEDDINGS_LLM_MODEL_NAME, api_key=NVIDIA_API_KEY)
+main_process = MainProcess(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,
+                           embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY)
 metric_handler = MetricHandler(main_process.get_main_llm(), main_process.get_embedding_llm())
-issue_list = read_sast_report_html(report_file_path)
+issue_list = read_sast_report_html(REPORT_FILE_PATH)
 summary_data = []
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -58,24 +57,80 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
 
     # Reading known false-positives
     text_false_positives = []
-    for doc in read_known_errors_file(known_false_positive_file_path):
+    for doc in read_known_errors_file(KNOWN_FALSE_POSITIVE_FILE_PATH):
         text_false_positives.append(doc.page_content)
 
     false_positive_db = main_process.create_vdb(text_false_positives)
     src_db.merge_from(false_positive_db)
 
     # Main loop
+    # selected_issue_list = [
+    #     "def2",
+    #     "def133",
+    #     "def3",
+    #     "def134",
+    #     "def135",
+    #     "def136",
+    #     "def5",
+    #     "def137",
+    #     "def138",
+    #     "def10",
+    #     "def11",
+    #     "def12",
+    #     "def15",
+    #     "def16",
+    #     "def17",
+    #     "def18",
+    #     "def19",
+    #     "def24",
+    #     "def25",
+    #     "def26",
+    #     "def27",
+    #     "def33",
+    #     "def139",
+    #     "def37",
+    #     "def35",
+    #     "def36",
+    #     "def45",
+    #     "def44",
+    #     "def46",
+    #     "def140",
+    #     "def56",
+    #     "def59",
+    #     "def60",
+    #     "def61",
+    #     "def63",
+    #     "def65",
+    #     "def141",
+    #     "def67",
+    #     "def66",
+    #     "def69",
+    #     "def71",
+    #     "def72",
+    #     "def73",
+    #     "def74",
+    #     "def86",
+    #     "def90",
+    #     "def91",
+    #     "def89",
+    #     "def131"
+    # ]
+    # selected_issue_list = [
+    #     "def2",  # 1
+    #     "def133",  # 2
+    #     "def3",  # 3
+    #     "def134",  # 4
+    #     "def135",  # 5
+    #     "def136",  # 6
+    #     "def5",  # 7
+    #     "def137",  # 8
+    #     "def138",  # 9
+    #     "def10"  # 10
+    # ]
     selected_issue_list = [
-        "def11",  # 1
-        "def12",  # 2
-        "def13",  # 3
-        "def14",  # 4
-        "def15",  # 5
-        "def20",  # 6
-        "def23",  # 7
-        "def35",  # 8
-        "def50",  # 9
-        "def62"  # 10
+        "def2",  # 1
+        "def133",  # 2
+        "def5",  # 3
     ]
     for issue in issue_list:
         if issue.id not in selected_issue_list:

@@ -48,6 +48,7 @@ def get_human_verified_results():
     print(f" Reading ground truth from {filename} ".center(80, '*'))
     df = pd.read_excel(filename)
     ground_truth = dict(zip(df['Issue ID'], df['False Positive?']))
+    # print("ground truth = ", ground_truth)
     return ground_truth
 
 def calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives):
@@ -67,6 +68,34 @@ def calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predi
     
     return tp, tn, fp, fn
 
+def print_confusion_matrix_and_model_performace(data):
+    ground_truth = get_human_verified_results() 
+    actual_positives, actual_negatives = count_actual_values(data, ground_truth)
+    predicted_positives, predicted_negatives = count_predicted_values(data)
+    tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives)
+
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    RESET = "\033[0m"
+    
+    print("\n--- Confusion Matrix Data ---")
+    print(f"TP (True Positives): {GREEN}{tp}{RESET}")
+    print(f"FP (False Positives): {RED}{fp}{RESET}")
+    print(f"TN (True Negatives): {GREEN}{tn}{RESET}")
+    print(f"FN (False Negatives): {RED}{fn}{RESET}")
+
+    accuracy, recall, precision, f1_score = get_metrics(tp, tn, fp, fn)
+    print("\n--- Model Performance Metrics ---")
+    print(f"Accuracy: {accuracy}")
+    print(f"Recall: {recall}")
+    print(f"Precision: {precision}")
+    print(f"F1 Score: {f1_score}")
 
 
-
+def get_metrics(tp, tn, fp, fn):
+    EPSILON = 1e-11 
+    accuracy = (tp + tn) / (tp + tn + fp + fn + EPSILON)
+    recall = tp / (tp + fn + EPSILON)
+    precision = tp / (tp + fp + EPSILON)
+    f1_score = 2 * precision * recall / (precision + recall + EPSILON)
+    return accuracy, recall, precision, f1_score
