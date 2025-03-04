@@ -10,7 +10,7 @@ class MetricHandler:
     def __init__(self, main_llm, embedding_llm):
         self.wrapped_evaluator_llm = LangchainLLMWrapper(main_llm)
         self.wrapped_evaluator_embeddings = LangchainEmbeddingsWrapper(embedding_llm)
-        self.ragasMetricNameList = [ResponseRelevancy({}), Faithfulness({})]
+        self.ragasMetricNameList = [ResponseRelevancy({})]
 
     def evaluate_datasets(self, metric_request):
         evaluation_dataset = EvaluationDataset.from_list([metric_request.__dict__])

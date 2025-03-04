@@ -3,7 +3,6 @@ import sys
 import time
 
 from dotenv import load_dotenv
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from tornado.gen import sleep
 from tqdm import tqdm
@@ -17,25 +16,37 @@ from model.SummaryInfo import SummaryInfo
 
 load_dotenv()  # take environment variables from .env.
 
+def print_config():
+    print("".center(80, '-'))
+    print("LLM_URL=",os.environ.get("LLM_URL"))
+    print("LLM_API_KEY= ********")
+    print("LLM_MODEL_NAME=",os.environ.get("LLM_MODEL_NAME"))
+    print("GIT_REPO_PATH=",os.environ.get("GIT_REPO_PATH"))
+    print("EMBEDDINGS_LLM_MODEL_NAME=",os.environ.get("EMBEDDINGS_LLM_MODEL_NAME"))
+    print("REPORT_FILE_PATH=",os.environ.get("REPORT_FILE_PATH"))
+    print("KNOWN_FALSE_POSITIVE_FILE_PATH=",os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH"))
+    print("".center(80, '-'))
+
 LLM_URL = os.environ.get("LLM_URL")
 LLM_API_KEY = os.environ.get("LLM_API_KEY")
 LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME")
 EMBEDDINGS_LLM_MODEL_NAME = os.environ.get("EMBEDDINGS_LLM_MODEL_NAME")
 REPORT_FILE_PATH = os.environ.get("REPORT_FILE_PATH")
 KNOWN_FALSE_POSITIVE_FILE_PATH = os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH")
+GIT_REPO_PATH = os.environ.get("GIT_REPO_TAG_URL")
 
-git_repo_path = "https://github.com/redhat-plumbers/systemd-rhel9/tree/v252-46.2"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 print(" Process started! ".center(80, '-'))
+print_config()
 main_process = MainProcess(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,
                            embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY)
 metric_handler = MetricHandler(main_process.get_main_llm(), main_process.get_embedding_llm())
 issue_list = read_sast_report_html(REPORT_FILE_PATH)
 summary_data = []
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # downloading git repository for given project
-# download_repo(git_repo_path)
+# download_repo(GIT_REPO_PATH)
 
 with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progres: ") as pbar:
     print("\n")
@@ -115,22 +126,17 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
     #     "def89",
     #     "def131"
     # ]
-    # selected_issue_list = [
-    #     "def2",  # 1
-    #     "def133",  # 2
-    #     "def3",  # 3
-    #     "def134",  # 4
-    #     "def135",  # 5
-    #     "def136",  # 6
-    #     "def5",  # 7
-    #     "def137",  # 8
-    #     "def138",  # 9
-    #     "def10"  # 10
-    # ]
     selected_issue_list = [
-        "def2",  # 1
-        "def133",  # 2
-        "def5",  # 3
+        "def11",  # 1
+        "def12",  # 2
+        "def13",  # 3
+        # "def14",  # 4
+        # "def15",  # 5
+        # "def20",  # 6
+        # "def23",  # 7
+        # "def35",  # 8
+        # "def50",  # 9
+        # "def62"  # 10
     ]
     for issue in issue_list:
         if issue.id not in selected_issue_list:
@@ -156,3 +162,4 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         sleep(1)
 
 write_to_excel_file(summary_data)
+

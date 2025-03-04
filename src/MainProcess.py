@@ -21,29 +21,30 @@ class MainProcess:
         # Decide which LLM to use based on the base_url
         if "nvidia" in self.base_url.lower():
             self.main_llm = ChatNVIDIA(
-                base_url=self.base_url, 
-                model=self.llm_model_name, 
-                api_key=self.api_key, 
+                base_url=self.base_url,
+                model=self.llm_model_name,
+                api_key=self.api_key,
                 temperature=0
             )
         else:
             self.main_llm = OpenAI(
-                base_url=self.base_url, 
-                model=self.llm_model_name, 
-                api_key="dummy_key", 
+                base_url=self.base_url,
+                model=self.llm_model_name,
+                api_key="dummy_key",
                 temperature=0,
                 top_p=0.01
             )
         return self.main_llm
-    
+
     def create_embedding_llm(self):
         device = get_device()
+        print(
+            f"Embedding LLM model: {self.embedding_llm_model_name} || device: {device}".center(80, '-'))
         self.embedding_llm = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-mpnet-base-v2",
+            model_name=self.embedding_llm_model_name,
             model_kwargs={'device': device},
             encode_kwargs={'normalize_embeddings': False}
         )
-        print(f"-----Initializing {self.embedding_llm_model_name} embedding LLM on device: {device}-----")
         return self.embedding_llm
 
     def get_main_llm(self):
@@ -80,6 +81,9 @@ class MainProcess:
              "For the justification you can mention that Red Hat engineers have manually verified it as false positive error."
              "If you do not find exact error in the Context, you must perform an independent verification,"
              "and tell us precisely if the error is a false positive or not."
+             "Answer must have following sections:"
+             "Investigation Result, Justifications, Recommendations"
+             "Structure your output into JSON format"
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
@@ -97,6 +101,44 @@ class MainProcess:
         )
         actual_prompt = chain1.invoke(user_input)
         # print(f"JUDE ADDDED:   {actual_prompt.to_string()}")
+        chain2 = (
+                chain1
+                | self.main_llm
+                | StrOutputParser()
+        )
+        return actual_prompt.to_string(), chain2.invoke(user_input)
+
+    def filter_known_error(self, database, user_input):
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+        from langchain_core.output_parsers import StrOutputParser
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",
+             "You are an expert in identifying similar error stack traces. "
+             "Inside the context, you will provide existing set of error traces."
+             "Look very precisely into the context and tell us if you find similar error trace."
+             "Error traces should have exact number of lines. Same method names and order of method chains "
+             "must be identical."
+             "Answer the question using only the context."
+             "Answer only Yes or No. No additional words."
+             "\n\nContext:{context}"
+             ),
+            ("user", "{question}")
+        ])
+        retriever = database.as_retriever()
+        resp = retriever.invoke(user_input)
+        context_str = "".join(doc.page_content for doc in resp)
+
+        chain1 = (
+                {
+                    "context": RunnableLambda(lambda _: context_str),
+                    "question": RunnablePassthrough()
+                }
+                | prompt
+        )
+        actual_prompt = chain1.invoke(user_input)
+        print(f"JUDE ADDDED:   {actual_prompt.to_string()}")
         chain2 = (
                 chain1
                 | self.main_llm

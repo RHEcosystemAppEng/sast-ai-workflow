@@ -6,13 +6,13 @@ from model.Issue import Issue
 
 def read_sast_report_html(file_path) -> List[Issue]:
     issue_list = []
+    print(f"Reading => {file_path}")
     with open(file_path, "r", encoding='utf-8') as f:
         soup = BeautifulSoup(f.read(), 'html.parser')
         all_pre_tags = soup.findAll('pre')
         cur_issue = Issue(-1)
         for tag in all_pre_tags[0].children:
             if tag.name == 'a' and tag.has_attr('id'):
-                # print("Found an <a> tag:", tag)
                 if cur_issue.id != -1:
                     issue_list.append(cur_issue)
                 cur_issue = Issue(tag['id'])
@@ -24,7 +24,7 @@ def read_sast_report_html(file_path) -> List[Issue]:
                         cur_issue.issue_cve = tag.find('a').text
                         cur_issue.issue_cve_link = tag.find('a')['href']
                     except AttributeError:
-                        print("An exception occurred when trying to parse the issue subject line")
+                        print(f"Exception when parsing tag: {tag}")
                 else:
                     cur_issue.trace += tag.text
 

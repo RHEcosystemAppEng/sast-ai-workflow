@@ -14,10 +14,8 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 def get_device():
     if sys.platform == "darwin":
         return "mps" if torch.backends.mps.is_available() else "cpu"
-    elif torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
+
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 def download_repo(repo_url):
     try:
@@ -60,8 +58,6 @@ def create_embeddings_for_all_project_files():
 
         if (src_filename.endswith(".c") or src_filename.endswith(".h")) and os.path.isfile(src_filename):
             count = count + 1
-            # if count > 10:
-            #     break
             for k in read_source_code_file(src_filename):
                 res_list.append(k.page_content)  # adding source code file as text to embeddings
     print(f"Total files: {count}")
