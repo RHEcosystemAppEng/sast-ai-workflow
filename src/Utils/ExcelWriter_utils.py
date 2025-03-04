@@ -45,7 +45,7 @@ def count_actual_values(data, ground_truth):
 
 def get_human_verified_results():
     filename = os.getenv("HUMAN_VERIFIED_FILE_PATH")
-    print(f" Reading ground truth from {filename} ".center(80, '*'))
+    print(f"Reading file: {filename} ".center(80, '*'))
     df = pd.read_excel(filename)
     ground_truth = dict(zip(df['Issue ID'], df['False Positive?']))
     # print("ground truth = ", ground_truth)

@@ -35,7 +35,7 @@ def write_to_excel_file(data):
             pbar.update(1)
             sleep(1)
     except Exception as e:
-        print("Error occured during Ecxel writing:", e)
+        print("Error occurred during Excel writing:", e)
     
 def write_ai_report_worksheet(data, workbook):
     worksheet = workbook.add_worksheet("AI report")
@@ -130,7 +130,12 @@ def write_confusion_matrix_worksheet(data, workbook):
     for idx in range(5):
         worksheet.set_row(idx + 4, 30)
 
-    ground_truth = get_human_verified_results()
+    ground_truth = {}
+    try:
+        ground_truth = get_human_verified_results()
+    except Exception as e:
+        print("Error when reading human validated results excel file. ", e)
+
     actual_positives, actual_negatives = count_actual_values(data, ground_truth)
     predicted_positives, predicted_negatives = count_predicted_values(data)
     tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives)
