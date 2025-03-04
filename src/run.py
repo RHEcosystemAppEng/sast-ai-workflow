@@ -10,9 +10,20 @@ from tqdm import tqdm
 from ExcelWriter import write_to_excel_file
 from MainProcess import MainProcess
 from ReportReader import read_sast_report_html
-from Utils.utils import read_cve_html_file, create_embeddings_for_all_project_files, read_known_errors_file
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from model.SummaryInfo import SummaryInfo
+from Utils.utils import (
+    read_cve_html_file, 
+    create_embeddings_for_all_project_files, 
+    read_known_errors_file,
+    get_summary,
+    print_confusion_matrix_and_model_performace,
+    get_human_verified_results,
+    count_actual_values,
+    count_predicted_values,
+    calculate_confusion_matrix_metrics
+)
+
 
 load_dotenv()  # take environment variables from .env.
 
@@ -161,5 +172,27 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         pbar.update(1)
         sleep(1)
 
-write_to_excel_file(summary_data)
+summary = get_summary(summary_data)
+ground_truth = get_human_verified_results()
+actual_positives, actual_negatives = count_actual_values(summary, ground_truth)
+predicted_positives, predicted_negatives = count_predicted_values(summary)
+tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives)
 
+params = {
+    "summary_data": summary_data,
+    "actual_positives": actual_positives,
+    "actual_negatives": actual_negatives,
+    "predicted_positives": predicted_positives,
+    "predicted_negatives": predicted_negatives,
+    "tp": tp,
+    "tn": tn,
+    "fp": fp,
+    "fn": fn,
+}
+
+try: 
+    write_to_excel_file(summary_data, params)
+except Exception as e:
+    print("Error occured during Ecxel writing:", e)
+finally:
+    print_confusion_matrix_and_model_performace(params)
