@@ -71,7 +71,7 @@ def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_posit
     
     return tp, tn, fp, fn
 
-def print_confusion_matrix_and_model_performace(data):
+def print_conclusion(data):
     ground_truth = get_human_verified_results() 
     actual_true_positives, actual_false_positives = count_actual_values(data, ground_truth)
     predicted_true_positives, predicted_false_positives = count_predicted_values(data)
@@ -106,7 +106,7 @@ def get_metrics(params):
     f1_score = 2 * precision * recall / (precision + recall + EPSILON)
     return accuracy, recall, precision, f1_score
 
-def print_confusion_matrix_and_model_performace(params):
+def print_conclusion(params):
     GREEN = "\033[92m"
     RED = "\033[91m"
     RESET = "\033[0m"
@@ -132,7 +132,7 @@ def get_percentage_value(n):
     n = n if isinstance(n, Decimal) else Decimal(str(n))
     return round(n, 2) * 100
 
-def get_summary(data):
+def get_predicted_summary(data):
     summary = []
 
     for _, (issue, summary_info) in enumerate(data):

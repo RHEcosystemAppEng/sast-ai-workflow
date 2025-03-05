@@ -16,8 +16,8 @@ from Utils.utils import (
     read_cve_html_file, 
     create_embeddings_for_all_project_files, 
     read_known_errors_file,
-    get_summary,
-    print_confusion_matrix_and_model_performace,
+    get_predicted_summary,
+    print_conclusion,
     get_human_verified_results,
     count_actual_values,
     count_predicted_values,
@@ -172,10 +172,10 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         pbar.update(1)
         sleep(1)
 
-summary = get_summary(summary_data)
+predicted_summary = get_predicted_summary(summary_data)
 ground_truth = get_human_verified_results()
-actual_true_positives, actual_false_positives = count_actual_values(summary, ground_truth)
-predicted_true_positives, predicted_false_positives = count_predicted_values(summary)
+actual_true_positives, actual_false_positives = count_actual_values(predicted_summary, ground_truth)
+predicted_true_positives, predicted_false_positives = count_predicted_values(predicted_summary)
 tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives)
 
 params = {
@@ -193,6 +193,6 @@ params = {
 try: 
     write_to_excel_file(summary_data, params)
 except Exception as e:
-    print("Error occured during Ecxel writing:", e)
+    print("Error occurred while generating excel file:", e)
 finally:
-    print_confusion_matrix_and_model_performace(params)
+    print_conclusion(params)
