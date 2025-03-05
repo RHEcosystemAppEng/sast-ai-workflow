@@ -11,6 +11,7 @@ import torch
 import pandas as pd
 from bs4 import BeautifulSoup
 from bs4.element import Comment
+from prettytable import PrettyTable
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
 
@@ -71,28 +72,34 @@ def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_posit
     
     return tp, tn, fp, fn
 
-def print_conclusion(data):
-    ground_truth = get_human_verified_results() 
-    actual_true_positives, actual_false_positives = count_actual_values(data, ground_truth)
-    predicted_true_positives, predicted_false_positives = count_predicted_values(data)
-    tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives)
-
+def print_conclusion(params):
     GREEN = "\033[92m"
     RED = "\033[91m"
     RESET = "\033[0m"
-    
-    print("\n--- Confusion Matrix Data ---")
-    print(f"TP (True Positives): {GREEN}{tp}{RESET}")
-    print(f"FP (False Positives): {RED}{fp}{RESET}")
-    print(f"TN (True Negatives): {GREEN}{tn}{RESET}")
-    print(f"FN (False Negatives): {RED}{fn}{RESET}")
 
-    accuracy, recall, precision, f1_score = get_metrics(tp, tn, fp, fn)
+    # Table for confusion matrix data
+    cm_table = PrettyTable()
+    cm_table.field_names = ["Metric", "Value"]
+    cm_table.add_row(["TP (Both human and AI labeled as real issue)", f"{GREEN}{params['tp']}{RESET}"])
+    cm_table.add_row(["FP (AI falsely labeled as real issue)", f"{RED}{params['fp']}{RESET}"])
+    cm_table.add_row(["TN (Both human and AI labeled as not real issue)", f"{GREEN}{params['tn']}{RESET}"])
+    cm_table.add_row(["FN (AI falsely labeled as not real issue)", f"{RED}{params['fn']}{RESET}"])
+
+    print("\n--- Confusion Matrix Data ---")
+    print(cm_table)
+
+    accuracy, recall, precision, f1_score = get_metrics(params)
+
+    # Table for model performance metrics
+    perf_table = PrettyTable()
+    perf_table.field_names = ["Performance Metric", "Value"]
+    perf_table.add_row(["Accuracy", accuracy])
+    perf_table.add_row(["Recall", recall])
+    perf_table.add_row(["Precision", precision])
+    perf_table.add_row(["F1 Score", f1_score])
+
     print("\n--- Model Performance Metrics ---")
-    print(f"Accuracy: {accuracy}")
-    print(f"Recall: {recall}")
-    print(f"Precision: {precision}")
-    print(f"F1 Score: {f1_score}")
+    print(perf_table)
 
 def get_metrics(params):
     tp = params["tp"]
@@ -105,24 +112,6 @@ def get_metrics(params):
     precision = tp / (tp + fp + EPSILON)
     f1_score = 2 * precision * recall / (precision + recall + EPSILON)
     return accuracy, recall, precision, f1_score
-
-def print_conclusion(params):
-    GREEN = "\033[92m"
-    RED = "\033[91m"
-    RESET = "\033[0m"
-    
-    print("\n--- Confusion Matrix Data ---")
-    print(f"TP (Both human and AI labeled as real issue): {GREEN}{params["tp"]}{RESET}")
-    print(f"FP (AI falsely labeled as real issue): {RED}{params["fp"]}{RESET}")
-    print(f"TN (Both human and AI labeled as not real issue): {GREEN}{params["tn"]}{RESET}")
-    print(f"FN (AI falsely labeled as not real issue): {RED}{params["fn"]}{RESET}")
-
-    accuracy, recall, precision, f1_score = get_metrics(params)
-    print("\n--- Model Performance Metrics ---")
-    print(f"Accuracy: {accuracy}")
-    print(f"Recall: {recall}")
-    print(f"Precision: {precision}")
-    print(f"F1 Score: {f1_score}")
 
 def get_numeric_value(value):
     return 0 if math.isnan(value) or math.isinf(value) else value
