@@ -139,8 +139,8 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
     # ]
     selected_issue_list = [
         "def11",  # 1
-        "def12",  # 2
-        "def13",  # 3
+        # "def12",  # 2
+        # "def13",  # 3
         # "def14",  # 4
         # "def15",  # 5
         # "def20",  # 6
@@ -174,16 +174,16 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
 
 summary = get_summary(summary_data)
 ground_truth = get_human_verified_results()
-actual_positives, actual_negatives = count_actual_values(summary, ground_truth)
-predicted_positives, predicted_negatives = count_predicted_values(summary)
-tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives)
+actual_true_positives, actual_false_positives = count_actual_values(summary, ground_truth)
+predicted_true_positives, predicted_false_positives = count_predicted_values(summary)
+tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives)
 
 params = {
     "summary_data": summary_data,
-    "actual_positives": actual_positives,
-    "actual_negatives": actual_negatives,
-    "predicted_positives": predicted_positives,
-    "predicted_negatives": predicted_negatives,
+    "actual_true_positives": actual_true_positives,
+    "actual_false_positives": actual_false_positives,
+    "predicted_true_positives": predicted_true_positives,
+    "predicted_false_positives": predicted_false_positives,
     "tp": tp,
     "tn": tn,
     "fp": fp,

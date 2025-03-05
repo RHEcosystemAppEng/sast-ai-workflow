@@ -54,17 +54,17 @@ def get_human_verified_results():
     # print("ground truth = ", ground_truth)
     return ground_truth
 
-def calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives):
+def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives):
     tp, tn, fp, fn = 0, 0, 0, 0
 
-    for issue_id in actual_positives:
-        if issue_id in predicted_positives:
+    for issue_id in actual_true_positives:
+        if issue_id in predicted_true_positives:
             tp += 1
         else:
             fn += 1
 
-    for issue_id in actual_negatives:
-        if issue_id in predicted_negatives:
+    for issue_id in actual_false_positives:
+        if issue_id in predicted_false_positives:
             tn += 1
         else:
             fp += 1
@@ -73,9 +73,9 @@ def calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predi
 
 def print_confusion_matrix_and_model_performace(data):
     ground_truth = get_human_verified_results() 
-    actual_positives, actual_negatives = count_actual_values(data, ground_truth)
-    predicted_positives, predicted_negatives = count_predicted_values(data)
-    tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_positives, actual_negatives, predicted_positives, predicted_negatives)
+    actual_true_positives, actual_false_positives = count_actual_values(data, ground_truth)
+    predicted_true_positives, predicted_false_positives = count_predicted_values(data)
+    tp, tn, fp, fn = calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives)
 
     GREEN = "\033[92m"
     RED = "\033[91m"

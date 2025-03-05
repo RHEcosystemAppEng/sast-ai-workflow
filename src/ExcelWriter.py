@@ -56,15 +56,15 @@ def write_ai_report_worksheet(data, workbook):
 def write_results_table(workbook, worksheet, params):
     worksheet.merge_range("A1:B1", "Human Results", cell_formatting(workbook, "#4f8df1"))
     worksheet.write(1, 0, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(1, 1, len(params["actual_positives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(1, 1, len(params["actual_true_positives"]), cell_formatting(workbook, '#ffffff'))
     worksheet.write(2, 0, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(2, 1, len(params["actual_negatives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(2, 1, len(params["actual_false_positives"]), cell_formatting(workbook, '#ffffff'))
 
     worksheet.merge_range("C1:D1", "AI Results", cell_formatting(workbook, "#4f8df1"))
     worksheet.write(1, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(1, 3, len(params["predicted_positives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(1, 3, len(params["predicted_true_positives"]), cell_formatting(workbook, '#ffffff'))
     worksheet.write(2, 2, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(2, 3, len(params["predicted_negatives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(2, 3, len(params["predicted_false_positives"]), cell_formatting(workbook, '#ffffff'))
 
 def write_confusion_matrix(workbook, worksheet, params):
     worksheet.merge_range("A8:A9", "Human Results", cell_formatting(workbook, "#00b903"))
