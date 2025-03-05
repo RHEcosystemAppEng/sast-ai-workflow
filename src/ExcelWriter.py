@@ -24,7 +24,7 @@ def write_to_excel_file(data):
     
     try:
         with tqdm(total=len(data), file=sys.stdout, desc="Writing to " + filename + ": ") as pbar:
-            workbook = xlsxwriter.Workbook(filename)
+            workbook = xlsxwriter.Workbook(filename, {'nan_inf_to_errors': True})
 
             summary = write_ai_report_worksheet(data, workbook)
             write_confusion_matrix_worksheet(summary, workbook)

@@ -40,7 +40,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 print(" Process started! ".center(80, '-'))
 print_config()
 main_process = MainProcess(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,
-                           embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY)
+                           embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY,
+                           session_id=REPORT_FILE_PATH.split("/")[-1].split(".html")[0])
 metric_handler = MetricHandler(main_process.get_main_llm(), main_process.get_embedding_llm())
 issue_list = read_sast_report_html(REPORT_FILE_PATH)
 summary_data = []
