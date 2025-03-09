@@ -13,7 +13,7 @@ from Utils.utils import (
 )
 
 
-def write_to_excel_file(data, params):
+def write_to_excel_file(data, evaluation_summary):
     filename = os.getenv("OUTPUT_FILE_PATH")
     print(f" Writing to {filename} ".center(80, '*'))
     
@@ -22,7 +22,7 @@ def write_to_excel_file(data, params):
             workbook = xlsxwriter.Workbook(filename)
 
             write_ai_report_worksheet(data, workbook)
-            write_confusion_matrix_worksheet(workbook, params)
+            write_confusion_matrix_worksheet(workbook, evaluation_summary)
 
             workbook.close()
 
@@ -53,34 +53,39 @@ def write_ai_report_worksheet(data, workbook):
         worksheet.write(idx + 1, 4, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
 
-def write_results_table(workbook, worksheet, params):
+def write_results_table(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A1:B1", "Human Results", cell_formatting(workbook, "#4f8df1"))
     worksheet.write(1, 0, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(1, 1, len(params["actual_true_positives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(1, 1, len(evaluation_summary.actual_true_positives), cell_formatting(workbook, '#ffffff'))
     worksheet.write(2, 0, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(2, 1, len(params["actual_false_positives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(2, 1, len(evaluation_summary.actual_false_positives), cell_formatting(workbook, '#ffffff'))
 
     worksheet.merge_range("C1:D1", "AI Results", cell_formatting(workbook, "#4f8df1"))
     worksheet.write(1, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(1, 3, len(params["predicted_true_positives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(1, 3, len(evaluation_summary.predicted_true_positives), cell_formatting(workbook, '#ffffff'))
     worksheet.write(2, 2, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(2, 3, len(params["predicted_false_positives"]), cell_formatting(workbook, '#ffffff'))
+    worksheet.write(2, 3, len(evaluation_summary.predicted_false_positives), cell_formatting(workbook, '#ffffff'))
 
-def write_confusion_matrix(workbook, worksheet, params):
+def write_confusion_matrix(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A8:A9", "Human Results", cell_formatting(workbook, "#00b903"))
     worksheet.write(7, 1, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(7, 2, params["tp"], cell_formatting(workbook, '#28A745'))
+    worksheet.write(7, 2, evaluation_summary.tp, cell_formatting(workbook, '#28A745'))
     worksheet.write(8, 1, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(8, 2, params["fp"], cell_formatting(workbook, '#FF0000'))
+    worksheet.write(8, 2, evaluation_summary.fp, cell_formatting(workbook, '#FF0000'))
 
     worksheet.merge_range("C6:D6", "AI Results", cell_formatting(workbook, "#4f8df1"))
     worksheet.write(6, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(7, 3, params["fn"], cell_formatting(workbook, '#FF0000'))
+    worksheet.write(7, 3, evaluation_summary.fn, cell_formatting(workbook, '#FF0000'))
     worksheet.write(6, 3, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
-    worksheet.write(8, 3, params["tn"], cell_formatting(workbook, '#28A745'))
+    worksheet.write(8, 3, evaluation_summary.tn, cell_formatting(workbook, '#28A745'))
 
-def write_model_performance(workbook, worksheet, params, METRICS_START_ROW):
-    accuracy, recall, precision, f1_score = get_metrics(params)
+def write_model_performance(workbook, worksheet, evaluation_summary, METRICS_START_ROW):
+    accuracy, recall, precision, f1_score = get_metrics(        
+        evaluation_summary.tp, 
+        evaluation_summary.tn, 
+        evaluation_summary.fp, 
+        evaluation_summary.fn
+        )
 
     worksheet.write(METRICS_START_ROW, 0, "Model's Performance:", workbook.add_format({"bold": 1}))
     worksheet.write(METRICS_START_ROW + 1, 0, "Accuracy =", workbook.add_format({"bold": 1}))
@@ -109,7 +114,7 @@ def write_table_key(workbook, worksheet, KEY_START_ROW):
     worksheet.write(KEY_START_ROW + 4, 0, "Predicted False Positives =", workbook.add_format({"bold": 1}))
     worksheet.write(KEY_START_ROW + 4, 1, "AI Predicted as not a real issue (false positive)", workbook.add_format({"italic": 1}))
 
-def write_confusion_matrix_worksheet(workbook, params):    
+def write_confusion_matrix_worksheet(workbook, evaluation_summary):    
     METRICS_START_ROW = 11
     KEY_START_ROW = 18
       
@@ -120,9 +125,9 @@ def write_confusion_matrix_worksheet(workbook, params):
     for idx in range(5):
         worksheet.set_row(idx + 4, 30)
    
-    write_results_table(workbook, worksheet, params)
-    write_confusion_matrix(workbook, worksheet, params)
-    write_model_performance(workbook, worksheet, params, METRICS_START_ROW)
+    write_results_table(workbook, worksheet, evaluation_summary)
+    write_confusion_matrix(workbook, worksheet, evaluation_summary)
+    write_model_performance(workbook, worksheet, evaluation_summary, METRICS_START_ROW)
     write_table_key(workbook, worksheet, KEY_START_ROW)
 
  

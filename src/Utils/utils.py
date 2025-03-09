@@ -72,7 +72,7 @@ def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_posit
     
     return tp, tn, fp, fn
 
-def print_conclusion(params):
+def print_conclusion(evaluation_summary):
     GREEN = "\033[92m"
     RED = "\033[91m"
     RESET = "\033[0m"
@@ -80,15 +80,20 @@ def print_conclusion(params):
     # Table for confusion matrix data
     cm_table = PrettyTable()
     cm_table.field_names = ["Metric", "Value"]
-    cm_table.add_row(["TP (Both human and AI labeled as real issue)", f"{GREEN}{params['tp']}{RESET}"])
-    cm_table.add_row(["FP (AI falsely labeled as real issue)", f"{RED}{params['fp']}{RESET}"])
-    cm_table.add_row(["TN (Both human and AI labeled as not real issue)", f"{GREEN}{params['tn']}{RESET}"])
-    cm_table.add_row(["FN (AI falsely labeled as not real issue)", f"{RED}{params['fn']}{RESET}"])
+    cm_table.add_row(["TP (Both human and AI labeled as real issue)", f"{GREEN}{evaluation_summary.tp}{RESET}"])
+    cm_table.add_row(["FP (AI falsely labeled as real issue)", f"{RED}{evaluation_summary.fp}{RESET}"])
+    cm_table.add_row(["TN (Both human and AI labeled as not real issue)", f"{GREEN}{evaluation_summary.tn}{RESET}"])
+    cm_table.add_row(["FN (AI falsely labeled as not real issue)", f"{RED}{evaluation_summary.fn}{RESET}"])
 
     print("\n--- Confusion Matrix Data ---")
     print(cm_table)
 
-    accuracy, recall, precision, f1_score = get_metrics(params)
+    accuracy, recall, precision, f1_score = get_metrics(
+        evaluation_summary.tp, 
+        evaluation_summary.tn, 
+        evaluation_summary.fp, 
+        evaluation_summary.fn
+        )
 
     # Table for model performance metrics
     perf_table = PrettyTable()
@@ -101,11 +106,7 @@ def print_conclusion(params):
     print("\n--- Model Performance Metrics ---")
     print(perf_table)
 
-def get_metrics(params):
-    tp = params["tp"]
-    tn = params["tn"]
-    fp = params["fp"]
-    fn = params["fn"]
+def get_metrics(tp, tn, fp, fn):
     EPSILON = 1e-11 
     accuracy = (tp + tn) / (tp + tn + fp + fn + EPSILON)
     recall = tp / (tp + fn + EPSILON)
