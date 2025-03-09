@@ -54,6 +54,7 @@ orjson==3.10.12
 packaging==24.2
 pandas==2.2.3
 pillow==10.4.0
+prettytable==3.15.1
 propcache==0.2.1
 pyarrow==19.0.0
 pydantic==2.10.3

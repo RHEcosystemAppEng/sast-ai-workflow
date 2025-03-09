@@ -10,9 +10,15 @@ from tqdm import tqdm
 from ExcelWriter import write_to_excel_file
 from MainProcess import MainProcess
 from ReportReader import read_sast_report_html
-from Utils.utils import read_cve_html_file, create_embeddings_for_all_project_files, read_known_errors_file
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from model.SummaryInfo import SummaryInfo
+from model.EvaluationSummary import EvaluationSummary
+from Utils.utils import (
+    read_cve_html_file, 
+    create_embeddings_for_all_project_files, 
+    read_known_errors_file,
+    print_conclusion,
+)
 
 load_dotenv()  # take environment variables from .env.
 
@@ -128,8 +134,8 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
     # ]
     selected_issue_list = [
         "def11",  # 1
-        "def12",  # 2
-        "def13",  # 3
+        # "def12",  # 2
+        # "def13",  # 3
         # "def14",  # 4
         # "def15",  # 5
         # "def20",  # 6
@@ -161,5 +167,11 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         pbar.update(1)
         sleep(1)
 
-write_to_excel_file(summary_data)
+evaluation_summary = EvaluationSummary(summary_data)
 
+try: 
+    write_to_excel_file(summary_data, evaluation_summary)
+except Exception as e:
+    print("Error occurred while generating excel file:", e)
+finally:
+    print_conclusion(evaluation_summary)
