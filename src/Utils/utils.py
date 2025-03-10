@@ -15,6 +15,41 @@ from prettytable import PrettyTable
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
 
+def validate_environment():
+    # Check for required environment variables
+    required_env_vars = [
+        "LLM_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL_NAME",
+        "EMBEDDINGS_LLM_MODEL_NAME",
+        "REPORT_FILE_PATH",
+        "KNOWN_FALSE_POSITIVE_FILE_PATH",
+        "OUTPUT_FILE_PATH",
+        "HUMAN_VERIFIED_FILE_PATH"
+    ]
+    required_input_env_vars = [
+        "REPORT_FILE_PATH",
+        "KNOWN_FALSE_POSITIVE_FILE_PATH",
+        "HUMAN_VERIFIED_FILE_PATH"
+    ]
+    for var in required_env_vars:
+        value = os.getenv(var)
+        if not value:
+            raise ValueError(f"Environment variable '{var}' is not set or is empty.")
+
+    # Validate that input files exist and are accessible
+    for var in required_input_env_vars:
+        value = os.getenv(var)
+        if not os.path.exists(value):
+            raise FileNotFoundError(f"Environment variable '{var}' not found.")
+
+    # Validate that the output file exist and is accessible
+    output_file = os.getenv("OUTPUT_FILE_PATH")
+    if not os.path.exists(output_file):
+        raise FileNotFoundError(f"Output file not found: {output_file}")
+    
+    print("All required environment variables and files are valid and accessible.\n")
+
 def cell_formatting(workbook, color):
     return workbook.add_format({
         "bold": 1,
@@ -48,18 +83,7 @@ def count_actual_values(data, ground_truth):
     return positives, negatives
 
 def get_human_verified_results():
-    filename = os.getenv("HUMAN_VERIFIED_FILE_PATH")
-    if not filename:
-        raise ValueError(
-            "Environment variable 'HUMAN_VERIFIED_FILE_PATH' is not set. "
-            "Please provide the path to the human verified results file."
-        )
-    
-    if not os.path.exists(filename):
-        raise FileNotFoundError(
-            f"The file specified by 'HUMAN_VERIFIED_FILE_PATH' does not exist: {filename}"
-        )
-    
+    filename = os.getenv("HUMAN_VERIFIED_FILE_PATH")  
     try:
         df = pd.read_excel(filename)
     except Exception as e:

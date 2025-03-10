@@ -15,10 +15,10 @@ class EvaluationSummary:
 
     Expects summary_data to be a list of (issue, summary_info) tuples.
     """
-    def __init__(self, summary_data):
+    def __init__(self, summary_data, ground_truth):
         self.summary_data = summary_data
+        self.ground_truth = ground_truth
         self.predicted_summary = get_predicted_summary(summary_data)
-        self.ground_truth = get_human_verified_results()
         self.actual_true_positives, self.actual_false_positives = count_actual_values(self.predicted_summary, self.ground_truth)
         self.predicted_true_positives, self.predicted_false_positives = count_predicted_values(self.predicted_summary)
         self.tp, self.tn, self.fp, self.fn = calculate_confusion_matrix_metrics(
