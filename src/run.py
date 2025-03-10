@@ -10,9 +10,17 @@ from tqdm import tqdm
 from ExcelWriter import write_to_excel_file
 from MainProcess import MainProcess
 from ReportReader import read_sast_report_html
-from Utils.utils import read_cve_html_file, create_embeddings_for_all_project_files, read_known_errors_file
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from model.SummaryInfo import SummaryInfo
+from model.EvaluationSummary import EvaluationSummary
+from Utils.utils import (
+    read_cve_html_file, 
+    create_embeddings_for_all_project_files, 
+    read_known_errors_file,
+    print_conclusion,
+    get_human_verified_results,
+    validate_environment
+)
 
 load_dotenv()  # take environment variables from .env.
 
@@ -39,6 +47,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 print(" Process started! ".center(80, '-'))
 print_config()
+validate_environment() # Check for required environment variables
+
 main_process = MainProcess(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,
                            embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY)
 metric_handler = MetricHandler(main_process.get_main_llm(), main_process.get_embedding_llm())
@@ -128,8 +138,8 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
     # ]
     selected_issue_list = [
         "def11",  # 1
-        "def12",  # 2
-        "def13",  # 3
+        # "def12",  # 2
+        # "def13",  # 3
         # "def14",  # 4
         # "def15",  # 5
         # "def20",  # 6
@@ -161,5 +171,12 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         pbar.update(1)
         sleep(1)
 
-write_to_excel_file(summary_data)
+ground_truth = get_human_verified_results()
+evaluation_summary = EvaluationSummary(summary_data, ground_truth)
 
+try: 
+    write_to_excel_file(summary_data, evaluation_summary)
+except Exception as e:
+    print("Error occurred while generating excel file:", e)
+finally:
+    print_conclusion(evaluation_summary)
