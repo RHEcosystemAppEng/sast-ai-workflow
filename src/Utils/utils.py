@@ -25,51 +25,69 @@ def cell_formatting(workbook, color):
     })
 
 def count_predicted_values(data):
-    positives = []
-    negatives = []
+    positives = set()
+    negatives = set()
     for (issue_id, llm_text, metric_ar) in data:
         if "not a false positive" in str(llm_text).lower():
-            positives.append(issue_id)
+            positives.add(issue_id)
         else:
-            negatives.append(issue_id)
+            negatives.add(issue_id)
     return positives, negatives
 
 def count_actual_values(data, ground_truth):
-    positives = []
-    negatives = []
+    positives = set()
+    negatives = set()
     
     for (issue_id, _, _) in data:
         if not issue_id in ground_truth:
             print(f"WARNING: Issue ID {issue_id} does not exist in the human verified excel sheet")
         elif ground_truth[issue_id] == 'y':
-            negatives.append(issue_id)
+            negatives.add(issue_id)
         else:
-            positives.append(issue_id)
+            positives.add(issue_id)
     return positives, negatives
 
 def get_human_verified_results():
     filename = os.getenv("HUMAN_VERIFIED_FILE_PATH")
-    print(f" Reading ground truth from {filename} ".center(80, '*'))
-    df = pd.read_excel(filename)
-    ground_truth = dict(zip(df['Issue ID'], df['False Positive?']))
-    # print("ground truth = ", ground_truth)
+    if not filename:
+        raise ValueError(
+            "Environment variable 'HUMAN_VERIFIED_FILE_PATH' is not set. "
+            "Please provide the path to the human verified results file."
+        )
+    
+    if not os.path.exists(filename):
+        raise FileNotFoundError(
+            f"The file specified by 'HUMAN_VERIFIED_FILE_PATH' does not exist: {filename}"
+        )
+    
+    try:
+        df = pd.read_excel(filename)
+    except Exception as e:
+        raise ValueError(f"Failed to read Excel file at {filename}: {e}")
+    
+    df.columns = df.columns.str.strip().str.lower()
+    expected_issue_id = "issue id"
+    expected_false_positive = "false positive?"
+    
+    if expected_issue_id not in df.columns:
+        raise KeyError(
+            f"Expected column '{expected_issue_id}' not found in the file. Found columns: {list(df.columns)}"
+        )
+    if expected_false_positive not in df.columns:
+        raise KeyError(
+            f"Expected column '{expected_false_positive}' not found in the file. Found columns: {list(df.columns)}"
+        )
+    
+    ground_truth = dict(zip(df[expected_issue_id], df[expected_false_positive]))
+    print(f"Successfully loaded ground truth from {filename}")
     return ground_truth
 
 def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives):
-    tp, tn, fp, fn = 0, 0, 0, 0
-
-    for issue_id in actual_true_positives:
-        if issue_id in predicted_true_positives:
-            tp += 1
-        else:
-            fn += 1
-
-    for issue_id in actual_false_positives:
-        if issue_id in predicted_false_positives:
-            tn += 1
-        else:
-            fp += 1
-    
+    tp = len(actual_true_positives & predicted_true_positives)      # Both human and AI labeled as real issue
+    tn = len(actual_false_positives & predicted_false_positives)    # Both human and AI labeled as not real issue
+    fp = len(predicted_true_positives - actual_true_positives)      # AI falsely labeled as real issue
+    fn = len(actual_true_positives - predicted_true_positives)      # AI falsely labeled as not real issue
+   
     return tp, tn, fp, fn
 
 def print_conclusion(evaluation_summary):
