@@ -19,35 +19,40 @@ from Utils.utils import (
     read_known_errors_file,
     print_conclusion,
     get_human_verified_results,
-    validate_environment
+    validate_configurations,
+    load_config
 )
 
-load_dotenv()  # take environment variables from .env.
+load_dotenv()           # Take environment variables from .env
+config = load_config()  # Take configuration variables from default_config.yaml
+
+LLM_URL = config["LLM_URL"]
+LLM_MODEL_NAME = config["LLM_MODEL_NAME"]
+GIT_REPO_PATH = config.get("GIT_REPO_TAG_URL")
+EMBEDDINGS_LLM_MODEL_NAME = config["EMBEDDINGS_LLM_MODEL_NAME"]
+REPORT_FILE_PATH = config["REPORT_FILE_PATH"]
+KNOWN_FALSE_POSITIVE_FILE_PATH = config["KNOWN_FALSE_POSITIVE_FILE_PATH"]
+HUMAN_VERIFIED_FILE_PATH = config["HUMAN_VERIFIED_FILE_PATH"]
+
+LLM_API_KEY = os.environ.get("LLM_API_KEY")
 
 def print_config():
     print("".center(80, '-'))
-    print("LLM_URL=",os.environ.get("LLM_URL"))
+    print("LLM_URL=", LLM_URL)
     print("LLM_API_KEY= ********")
-    print("LLM_MODEL_NAME=",os.environ.get("LLM_MODEL_NAME"))
-    print("GIT_REPO_PATH=",os.environ.get("GIT_REPO_PATH"))
-    print("EMBEDDINGS_LLM_MODEL_NAME=",os.environ.get("EMBEDDINGS_LLM_MODEL_NAME"))
-    print("REPORT_FILE_PATH=",os.environ.get("REPORT_FILE_PATH"))
-    print("KNOWN_FALSE_POSITIVE_FILE_PATH=",os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH"))
+    print("LLM_MODEL_NAME=", LLM_MODEL_NAME)
+    print("GIT_REPO_PATH=", GIT_REPO_PATH)
+    print("EMBEDDINGS_LLM_MODEL_NAME=", EMBEDDINGS_LLM_MODEL_NAME)
+    print("REPORT_FILE_PATH=", REPORT_FILE_PATH)
+    print("KNOWN_FALSE_POSITIVE_FILE_PATH=", KNOWN_FALSE_POSITIVE_FILE_PATH)
+    print("HUMAN_VERIFIED_FILE_PATH=", HUMAN_VERIFIED_FILE_PATH)
     print("".center(80, '-'))
-
-LLM_URL = os.environ.get("LLM_URL")
-LLM_API_KEY = os.environ.get("LLM_API_KEY")
-LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME")
-EMBEDDINGS_LLM_MODEL_NAME = os.environ.get("EMBEDDINGS_LLM_MODEL_NAME")
-REPORT_FILE_PATH = os.environ.get("REPORT_FILE_PATH")
-KNOWN_FALSE_POSITIVE_FILE_PATH = os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH")
-GIT_REPO_PATH = os.environ.get("GIT_REPO_TAG_URL")
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 print(" Process started! ".center(80, '-'))
 print_config()
-validate_environment() # Check for required environment variables
+validate_configurations(config) # Check for required environment variables
 
 main_process = MainProcess(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,
                            embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY)
