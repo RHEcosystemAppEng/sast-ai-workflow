@@ -29,7 +29,7 @@ config = load_config()  # Take configuration variables from default_config.yaml
 
 LLM_URL = config["LLM_URL"]
 LLM_MODEL_NAME = config["LLM_MODEL_NAME"]
-GIT_REPO_PATH = config.get("GIT_REPO_PATH")
+GIT_REPO_PATH = config["GIT_REPO_PATH"]
 EMBEDDINGS_LLM_MODEL_NAME = config["EMBEDDINGS_LLM_MODEL_NAME"]
 OUTPUT_FILE_PATH = config["OUTPUT_FILE_PATH"]
 REPORT_FILE_PATH = config["REPORT_FILE_PATH"]
@@ -70,7 +70,7 @@ metric_handler = MetricHandler(main_process.get_main_llm(), main_process.get_emb
 issue_list = read_sast_report_html(REPORT_FILE_PATH)
 summary_data = []
 
-if config.get("DOWNLOAD_GIT_REPO", True):
+if DOWNLOAD_GIT_REPO:
     # downloading git repository for given project
     download_repo(GIT_REPO_PATH)
 else:
@@ -94,7 +94,7 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         end = time.time()
         print(f"Src project files have embedded completely. It took : {end - start} seconds")
 
-    if config.get("USE_KNOWN_FALSE_POSITIVE_FILE", True):
+    if USE_KNOWN_FALSE_POSITIVE_FILE:
         # Reading known false-positives
         text_false_positives = []
         for doc in read_known_errors_file(KNOWN_FALSE_POSITIVE_FILE_PATH):
@@ -184,7 +184,7 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         prompt, response = main_process.query(src_db, question)
 
         # let's calculate numbers for quality of the response we received here!
-        if config.get("CALCULATE_METRICS", True):
+        if CALCULATE_METRICS:
             metric_request = metric_request_from_prompt(prompt, response)
             score = metric_handler.evaluate_datasets(metric_request)
             print(f"METRIC RESULTS!!! -> {score}")
@@ -201,7 +201,7 @@ ground_truth = get_human_verified_results(HUMAN_VERIFIED_FILE_PATH)
 evaluation_summary = EvaluationSummary(summary_data, ground_truth)
 
 try:
-    if config.get("OUTPUT_EXCEL_GENERATION", True): 
+    if OUTPUT_EXCEL_GENERATION: 
         write_to_excel_file(summary_data, evaluation_summary, OUTPUT_FILE_PATH)
     else:
         print("Skipping excel output generation as per configuration.")
