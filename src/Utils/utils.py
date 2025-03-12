@@ -53,11 +53,11 @@ def validate_configurations(config):
 
     # Validate that input files exist and are accessible
     for var in required_cfg_files:
-        value = os.getenv(var)
+        value = config[var]
         if not os.path.exists(value):
             raise FileNotFoundError(f"Configuration variable '{var}' not found.")
         
-    # Validate that LLM API key exist
+    # Validate that environment variable LLM API key exist
     llm_api_key = os.environ.get("LLM_API_KEY")
     if not llm_api_key:
         raise ValueError(f"Environment variable 'LLM_API_KEY' is not set or is empty.")
@@ -96,8 +96,7 @@ def count_actual_values(data, ground_truth):
             positives.add(issue_id)
     return positives, negatives
 
-def get_human_verified_results():
-    filename = os.getenv("HUMAN_VERIFIED_FILE_PATH")  
+def get_human_verified_results(filename):
     try:
         df = pd.read_excel(filename)
     except Exception as e:
@@ -180,8 +179,11 @@ def get_percentage_value(n):
 
 def get_predicted_summary(data):
     summary = []
+    config = load_config()
 
     for _, (issue, summary_info) in enumerate(data):
+        if not config.get("CALCULATE_METRICS", True): 
+            break
         ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
         summary.append((issue.id, summary_info.llm_response, ar))
     return summary
