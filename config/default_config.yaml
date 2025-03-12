@@ -1,0 +1,10 @@
+LLM_URL: "http://llm-url"
+LLM_MODEL_NAME: "llm-model"
+EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
+REPORT_FILE_PATH: "/path/to/report.html"
+KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
+OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"
+HUMAN_VERIFIED_FILE_PATH: "/path/to/human_verified_results_file.xlsx"
+GIT_REPO_PATH: "/path/to/git/repo"
+
+
