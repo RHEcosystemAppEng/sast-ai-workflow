@@ -10,18 +10,15 @@ from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report_html
 from Utils.embedding_utils import generate_code_embeddings
-from Utils.utils import (
-    print_conclusion,
-    validate_environment
-)
+from Utils.utils import validate_environment
+from Utils.output_utils import print_conclusion
+from Utils.html_utils import read_cve_html_file 
 from Utils.file_utils import (
     create_embeddings_for_all_project_files, 
     read_known_errors_file,
     get_human_verified_results
 )
-from Utils.html_utils import (
-    read_cve_html_file, 
-)
+
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
 from src.stage.filter_known_issues import capture_known_issues
