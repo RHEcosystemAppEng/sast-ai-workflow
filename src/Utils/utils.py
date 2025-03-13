@@ -1,19 +1,10 @@
-import glob
 import os
-import re
-import sys
 import math
 import yaml
 from decimal import Decimal
 
-import git
-import requests
-import torch
-import pandas as pd
-from bs4 import BeautifulSoup
-from bs4.element import Comment
 from prettytable import PrettyTable
-from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
+
 
 def print_config(config):
     print("".center(80, '-'))
@@ -110,29 +101,6 @@ def count_actual_values(data, ground_truth):
             positives.add(issue_id)
     return positives, negatives
 
-def get_human_verified_results(filename):
-    try:
-        df = pd.read_excel(filename)
-    except Exception as e:
-        raise ValueError(f"Failed to read Excel file at {filename}: {e}")
-    
-    df.columns = df.columns.str.strip().str.lower()
-    expected_issue_id = "issue id"
-    expected_false_positive = "false positive?"
-    
-    if expected_issue_id not in df.columns:
-        raise KeyError(
-            f"Expected column '{expected_issue_id}' not found in the file. Found columns: {list(df.columns)}"
-        )
-    if expected_false_positive not in df.columns:
-        raise KeyError(
-            f"Expected column '{expected_false_positive}' not found in the file. Found columns: {list(df.columns)}"
-        )
-    
-    ground_truth = dict(zip(df[expected_issue_id], df[expected_false_positive]))
-    print(f"Successfully loaded ground truth from {filename}")
-    return ground_truth
-
 def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives):
     tp = len(actual_true_positives & predicted_true_positives)      # Both human and AI labeled as real issue
     tn = len(actual_false_positives & predicted_false_positives)    # Both human and AI labeled as not real issue
@@ -202,133 +170,6 @@ def get_predicted_summary(data):
         summary.append((issue.id, summary_info.llm_response, ar))
     return summary
 
-def get_device():
-    if sys.platform == "darwin":
-        return "mps" if torch.backends.mps.is_available() else "cpu"
-
-    return "cuda" if torch.cuda.is_available() else "cpu"
-
-def download_repo(repo_url):
-    try:
-        # Identify if the URL has a branch or tag with "/tree/"
-        if "/tree/" in repo_url:
-            # Split URL to separate repository URL and branch/tag
-            repo_url, branch_or_tag = re.split(r'/tree/', repo_url, maxsplit=1)
-        else:
-            branch_or_tag = None
-
-        # Extract the project name (the last part before "/tree/")
-        repo_name = repo_url.rstrip('/').split('/')[-1]
-        if repo_name.endswith('.git'):
-            repo_name = repo_name[:-4]
-
-        # Set the destination path to the current directory
-        destination_path = os.path.join(os.getcwd(), repo_name)
-
-        # Clone the repo
-        print(f"Cloning {repo_url} into {destination_path}...")
-        repo = git.Repo.clone_from(repo_url, destination_path)
-
-        # Checkout the specified branch or tag if provided
-        if branch_or_tag:
-            print(f"Checking out {branch_or_tag}...")
-            repo.git.checkout(branch_or_tag)
-
-        print("Repository cloned successfully!")
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-def read_all_source_code_files():
-    res_list = []
-    # reading project src folder
-    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel10/src/")
-    count = 0
-    for src_filename in glob.iglob(src_dir_path + '/**/**', recursive=True):
-
-        if (src_filename.endswith(".c") or src_filename.endswith(".h")) and os.path.isfile(src_filename):
-            count = count + 1
-            for k in read_source_code_file(src_filename):
-                res_list.append(k.page_content)  # adding source code file as text to embeddings
-    print(f"Total files: {count}")
-    return res_list
-
-def read_html_file(path):
-    text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", ".", ";", ",", " ", ""],
-                                                   chunk_size=500, chunk_overlap=0)
-    if path.strip().startswith("https://"):
-        res = requests.get(path)
-        doc_text = text_splitter.split_text(text_from_html(res.content))
-        return doc_text
-    else:
-        with open(path, "r", encoding='utf-8') as f:
-            doc_text = text_splitter.split_text(text_from_html(f.read()))
-            return doc_text
-
-def read_cve_html_file(path):
-    text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", ".", ";", ",", " ", ""],
-                                                   chunk_size=500, chunk_overlap=0)
-    res = requests.get(path)
-    soup = BeautifulSoup(res.content, 'html.parser')
-    tags_to_collect = ["Description", "Alternate_Terms", "Common_Consequences", "Potential_Mitigations",
-                       "Modes_Of_Introduction", "Likelihood_Of_Exploit", "Demonstrative_Examples",
-                       "Observed_Examples", "Weakness_Ordinalities", "Detection_Methods", "Affected_Resources",
-                       "Memberships", "Vulnerability_Mapping_Notes", "Taxonomy_Mappings"]
-    visible_text_list = []
-    for t in tags_to_collect:
-        texts = soup.find("div", {"id": t})
-        if texts is None:
-            continue
-        texts = texts.findAll(string=True)
-        visible_text = list(filter(remove_html_tags, texts))
-        for v in visible_text:
-            visible_text_list.append(str(v.strip()))
-
-    doc_text = text_splitter.split_text(" ".join(visible_text_list))
-    return doc_text
-
-def read_source_code_file(path):
-    with open(path, "r", encoding='utf-8') as f:
-        text_splitter = RecursiveCharacterTextSplitter.from_language(language=Language.C,
-                                                                     chunk_size=100, chunk_overlap=0)
-        plain_text = f.read()
-        doc_list = text_splitter.create_documents([plain_text])
-        return doc_list
-
-def remove_html_tags(element):
-    if element.parent.name in ['style', 'script', 'head', 'title', 'meta', '[document]']:
-        return False
-    if isinstance(element, Comment):
-        return False
-    return True
 
 
-def text_from_html(body):
-    soup = BeautifulSoup(body, 'html.parser')
-    texts = soup.findAll(string=True)
-    visible_texts = filter(remove_html_tags, texts)
-    return u" ".join(t.strip() for t in visible_texts)
-
-
-def extract_file_path(input_str):
-    # Using regex to extract only the file path
-    match = re.search(r"(src/[^:]+):(\d+):(\d+):", input_str)
-
-    if match:
-        file_path = match.group(1)
-        return file_path
-    else:
-        print("No match found.")
-
-def read_known_errors_file(path):
-    with open(path, "r", encoding='utf-8') as f:
-        text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n"],
-                                                       chunk_size=500, chunk_overlap=0)
-        plain_text = f.read()
-        doc_list = text_splitter.create_documents([plain_text])
-        return doc_list
-
-def read_answer_template_file(path):
-    with open(path, "r", encoding='utf-8') as f:
-        return f.read()
-
+    
