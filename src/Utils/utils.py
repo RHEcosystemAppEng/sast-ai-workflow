@@ -14,6 +14,16 @@ from bs4.element import Comment
 from prettytable import PrettyTable
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
+def print_config():
+    print("".center(80, '-'))
+    print("LLM_URL=",os.environ.get("LLM_URL"))
+    print("LLM_API_KEY= ********")
+    print("LLM_MODEL_NAME=",os.environ.get("LLM_MODEL_NAME"))
+    print("GIT_REPO_PATH=",os.environ.get("GIT_REPO_PATH"))
+    print("EMBEDDINGS_LLM_MODEL_NAME=",os.environ.get("EMBEDDINGS_LLM_MODEL_NAME"))
+    print("REPORT_FILE_PATH=",os.environ.get("REPORT_FILE_PATH"))
+    print("KNOWN_FALSE_POSITIVE_FILE_PATH=",os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH"))
+    print("".center(80, '-'))
 
 def validate_environment():
     # Check for required environment variables
@@ -42,13 +52,6 @@ def validate_environment():
         value = os.getenv(var)
         if not os.path.exists(value):
             raise FileNotFoundError(f"Environment variable '{var}' not found.")
-
-    # Validate that the output file exist and is accessible
-    output_file = os.getenv("OUTPUT_FILE_PATH")
-    if not os.path.exists(output_file):
-        raise FileNotFoundError(f"Output file not found: {output_file}")
-    
-    print("All required environment variables and files are valid and accessible.\n")
 
 def cell_formatting(workbook, color):
     return workbook.add_format({
@@ -168,7 +171,7 @@ def get_predicted_summary(data):
     summary = []
 
     for _, (issue, summary_info) in enumerate(data):
-        ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
+        ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
         summary.append((issue.id, summary_info.llm_response, ar))
     return summary
 
@@ -209,10 +212,10 @@ def download_repo(repo_url):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-def create_embeddings_for_all_project_files():
+def read_all_source_code_files():
     res_list = []
     # reading project src folder
-    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel9/src/")
+    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel10/src/")
     count = 0
     for src_filename in glob.iglob(src_dir_path + '/**/**', recursive=True):
 
