@@ -37,7 +37,6 @@ KNOWN_FALSE_POSITIVE_FILE_PATH = config["KNOWN_FALSE_POSITIVE_FILE_PATH"]
 HUMAN_VERIFIED_FILE_PATH = config["HUMAN_VERIFIED_FILE_PATH"]
 USE_KNOWN_FALSE_POSITIVE_FILE = config["USE_KNOWN_FALSE_POSITIVE_FILE"]
 CALCULATE_METRICS = config["CALCULATE_METRICS"]
-OUTPUT_EXCEL_GENERATION = config["OUTPUT_EXCEL_GENERATION"]
 DOWNLOAD_GIT_REPO = config["DOWNLOAD_GIT_REPO"]
 
 LLM_API_KEY = os.environ.get("LLM_API_KEY")
@@ -54,7 +53,6 @@ def print_config():
     print("KNOWN_FALSE_POSITIVE_FILE_PATH=", KNOWN_FALSE_POSITIVE_FILE_PATH)
     print("HUMAN_VERIFIED_FILE_PATH=", HUMAN_VERIFIED_FILE_PATH)
     print("CALCULATE_METRICS=", CALCULATE_METRICS)
-    print("OUTPUT_EXCEL_GENERATION=", OUTPUT_EXCEL_GENERATION)
     print("DOWNLOAD_GIT_REPO=", DOWNLOAD_GIT_REPO)
     print("".center(80, '-'))
 
@@ -201,10 +199,7 @@ ground_truth = get_human_verified_results(HUMAN_VERIFIED_FILE_PATH)
 evaluation_summary = EvaluationSummary(summary_data, ground_truth)
 
 try:
-    if OUTPUT_EXCEL_GENERATION: 
-        write_to_excel_file(summary_data, evaluation_summary, OUTPUT_FILE_PATH)
-    else:
-        print("Skipping excel output generation as per configuration.")
+    write_to_excel_file(summary_data, evaluation_summary, OUTPUT_FILE_PATH)
 except Exception as e:
     print("Error occurred while generating excel file:", e)
 finally:
