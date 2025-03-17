@@ -36,14 +36,11 @@ def validate_configurations(config):
         "EMBEDDINGS_LLM_MODEL_NAME",
         "REPORT_FILE_PATH",
         "KNOWN_FALSE_POSITIVE_FILE_PATH",
-        "OUTPUT_FILE_PATH",
-        "HUMAN_VERIFIED_FILE_PATH"
+        "OUTPUT_FILE_PATH"
     ]
     required_cfg_files = [
         "REPORT_FILE_PATH",
-        "KNOWN_FALSE_POSITIVE_FILE_PATH",
-        "HUMAN_VERIFIED_FILE_PATH",
-        "OUTPUT_FILE_PATH"
+        "KNOWN_FALSE_POSITIVE_FILE_PATH"
     ]
 
     for var in required_cfg_vars:

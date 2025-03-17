@@ -18,13 +18,21 @@ class EvaluationSummary:
         self.summary_data = summary_data
         self.ground_truth = ground_truth
         self.predicted_summary = get_predicted_summary(summary_data)
-        self.actual_true_positives, self.actual_false_positives = count_actual_values(self.predicted_summary, self.ground_truth)
-        self.predicted_true_positives, self.predicted_false_positives = count_predicted_values(self.predicted_summary)
-        self.tp, self.tn, self.fp, self.fn = calculate_confusion_matrix_metrics(
-            self.actual_true_positives, self.actual_false_positives,
-            self.predicted_true_positives, self.predicted_false_positives
-        )
-        self.accuracy, self.recall, self.precision, self.f1_score = get_metrics(self.tp, self.tn, self.fp, self.fn)
+
+        if not self.ground_truth:
+            print("No human verified results provided. Skipping metric calculations.")
+            self.actual_true_positives, self.actual_false_positives = set(), set()
+            self.predicted_true_positives, self.predicted_false_positives = count_predicted_values(self.predicted_summary)
+            self.tp = self.tn = self.fp = self.fn = 0
+            self.accuracy = self.recall = self.precision = self.f1_score = None
+        else:
+            self.actual_true_positives, self.actual_false_positives = count_actual_values(self.predicted_summary, self.ground_truth)
+            self.predicted_true_positives, self.predicted_false_positives = count_predicted_values(self.predicted_summary)
+            self.tp, self.tn, self.fp, self.fn = calculate_confusion_matrix_metrics(
+                self.actual_true_positives, self.actual_false_positives,
+                self.predicted_true_positives, self.predicted_false_positives
+            )
+            self.accuracy, self.recall, self.precision, self.f1_score = get_metrics(self.tp, self.tn, self.fp, self.fn)
 
     def __repr__(self):
         return (
