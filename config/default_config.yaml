@@ -7,7 +7,7 @@ OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"
 HUMAN_VERIFIED_FILE_PATH: "/path/to/human_verified_results_file.xlsx"
 GIT_REPO_PATH: "/path/to/git/repo"
 
-USE_KNOWN_FALSE_POSITIVE_FILE: false
-CALCULATE_METRICS: false
-OUTPUT_EXCEL_GENERATION: false
+USE_KNOWN_FALSE_POSITIVE_FILE: true
+CALCULATE_METRICS: true
+OUTPUT_EXCEL_GENERATION: true
 DOWNLOAD_GIT_REPO: false
