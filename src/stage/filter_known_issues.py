@@ -1,3 +1,4 @@
+import json
 import os
 
 from src.Utils.utils import read_known_errors_file
@@ -16,8 +17,9 @@ def capture_known_issues(main_process, issue_list):
 
         question = "Do you see this exact error trace? " + issue.trace
         p, response = main_process.filter_known_error(false_positive_db, question)
-        print(f"{issue.id} Is known false positive? {response}")
-        if "yes" in response.strip().lower():
+        filter_response = json.loads(response)
+        print(f"{issue.id} Is known false positive? {filter_response['Result']}")
+        if "yes" in filter_response['Result'].strip().lower():
             already_seen_set.add(issue.id)
             print(f"LLM found {issue.id} error trace inside known false positives list")
             # print(issue.trace)

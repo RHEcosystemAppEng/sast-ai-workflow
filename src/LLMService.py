@@ -7,6 +7,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 
+from src.Utils.utils import read_answer_template_file
+
 
 class LLMService:
 
@@ -25,12 +27,14 @@ class LLMService:
         prompt = ChatPromptTemplate.from_messages([
             ("system",
              "You are an expert in identifying similar error stack traces. "
-             "Inside the context, you will provide existing set of error traces."
+             "Inside the context, you are given existing set of error traces."
              "Look very precisely into the context and tell us if you find similar error trace."
              "Error traces should have exact number of lines. Same method names and order of method calls "
              "must be identical."
              "Answer the question using only the context."
-             "Answer only Yes or No. No additional words. Do not decorate the response text."
+             "Generate a answer response template provided. No additional text outside the "
+             "answer template."
+             "\nAnswer response template:{answer_template}"
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
@@ -39,9 +43,11 @@ class LLMService:
         resp = retriever.invoke(user_input)
         context_str = "".join(doc.page_content for doc in resp)
 
+        answer_template = read_answer_template_file('./templates/known_issue_resp.json')
         chain1 = (
                 {
                     "context": RunnableLambda(lambda _: context_str),
+                    "answer_template": RunnableLambda(lambda _: answer_template),
                     "question": RunnablePassthrough()
                 }
                 | prompt

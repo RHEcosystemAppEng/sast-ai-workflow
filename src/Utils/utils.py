@@ -300,4 +300,8 @@ def read_known_errors_file(path):
         plain_text = f.read()
         doc_list = text_splitter.create_documents([plain_text])
         return doc_list
-    
+
+def read_answer_template_file(path):
+    with open(path, "r", encoding='utf-8') as f:
+        return f.read()
+
