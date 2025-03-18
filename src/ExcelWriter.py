@@ -13,8 +13,7 @@ from Utils.utils import (
 )
 
 
-def write_to_excel_file(data, evaluation_summary):
-    filename = os.getenv("OUTPUT_FILE_PATH")
+def write_to_excel_file(data, evaluation_summary, filename):
     print(f" Writing to {filename} ".center(80, '*'))
     
     try:
