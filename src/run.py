@@ -39,7 +39,7 @@ validate_environment() # Check for required environment variables
 
 llm_service = LLMService(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,
                          embedding_llm_model_name=EMBEDDINGS_LLM_MODEL_NAME, api_key=LLM_API_KEY)
-metric_handler = MetricHandler(llm_service.get_main_llm(), llm_service.get_embedding_llm())
+metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
 issue_list = read_sast_report_html(REPORT_FILE_PATH)
 summary_data = []
 

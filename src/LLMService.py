@@ -18,9 +18,43 @@ class LLMService:
         self.llm_model_name = llm_model_name
         self.embedding_llm_model_name = embedding_llm_model_name
 
-        self.main_llm = None
-        self.embedding_llm = None
+        self._main_llm = None
+        self._embedding_llm = None
         self.vector_db = None
+
+    @property
+    def main_llm(self):
+        if self._main_llm is None:
+            # Decide which LLM to use based on the base_url
+            if "nvidia" in self.base_url.lower():
+                self._main_llm = ChatNVIDIA(
+                    base_url=self.base_url,
+                    model=self.llm_model_name,
+                    api_key=self.api_key,
+                    temperature=0
+                )
+            else:
+                self._main_llm = OpenAI(
+                    base_url=self.base_url,
+                    model=self.llm_model_name,
+                    api_key="dummy_key",
+                    temperature=0,
+                    top_p=0.01
+                )
+        return self._main_llm
+
+    @property
+    def embedding_llm(self):
+        if self._embedding_llm is None:
+            device = get_device()
+            print(
+                f"Embedding LLM model: {self.embedding_llm_model_name} || device: {device}".center(80, '-'))
+            self._embedding_llm = HuggingFaceEmbeddings(
+                model_name=self.embedding_llm_model_name,
+                model_kwargs={'device': device},
+                encode_kwargs={'normalize_embeddings': False}
+            )
+        return self._embedding_llm
 
     def filter_known_error(self, database, user_input):
 
@@ -103,45 +137,6 @@ class LLMService:
         )
         return actual_prompt.to_string(), chain2.invoke(user_input)
 
-    def create_embedding_llm(self):
-        device = get_device()
-        print(
-            f"Embedding LLM model: {self.embedding_llm_model_name} || device: {device}".center(80, '-'))
-        self.embedding_llm = HuggingFaceEmbeddings(
-            model_name=self.embedding_llm_model_name,
-            model_kwargs={'device': device},
-            encode_kwargs={'normalize_embeddings': False}
-        )
-        return self.embedding_llm
-
-    def get_main_llm(self):
-        def create_main_llm():
-            # Decide which LLM to use based on the base_url
-            if "nvidia" in self.base_url.lower():
-                self.main_llm = ChatNVIDIA(
-                    base_url=self.base_url,
-                    model=self.llm_model_name,
-                    api_key=self.api_key,
-                    temperature=0
-                )
-            else:
-                self.main_llm = OpenAI(
-                    base_url=self.base_url,
-                    model=self.llm_model_name,
-                    api_key="dummy_key",
-                    temperature=0,
-                    top_p=0.01
-                )
-            return self.main_llm
-
-        if self.main_llm is None:
-            self.main_llm = create_main_llm()
-        return self.main_llm
-
-    def get_embedding_llm(self):
-        if self.embedding_llm is None:
-            self.embedding_llm = self.create_embedding_llm()
-        return self.embedding_llm
 
     def create_vdb(self, text_data):
         self.embedding_llm.embed_documents(text_data)

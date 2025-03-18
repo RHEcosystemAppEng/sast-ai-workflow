@@ -7,7 +7,7 @@ from src.Utils.utils import read_all_source_code_files
 def generate_code_embeddings(llm_service):
     if os.path.exists("./../faiss_index/index.faiss"):
         print("Loading source code embeddings from file index")
-        src_db = FAISS.load_local("./../faiss_index", llm_service.get_embedding_llm(),
+        src_db = FAISS.load_local("./../faiss_index", llm_service.embedding_llm,
                                   allow_dangerous_deserialization=True)
     else:
         code_text = read_all_source_code_files()
