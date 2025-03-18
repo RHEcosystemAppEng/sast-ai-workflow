@@ -48,7 +48,7 @@ def write_ai_report_worksheet(data, workbook):
         worksheet.write(idx + 1, 2, issue.trace)
         worksheet.write(idx + 1, 3, summary_info.llm_response, workbook.add_format({'text_wrap': True}))
 
-        ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
+        ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
         worksheet.write(idx + 1, 4, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
 

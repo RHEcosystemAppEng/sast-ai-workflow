@@ -89,13 +89,12 @@ with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning pro
         prompt, response = llm_service.final_judge(vector_db, question)
 
         # let's calculate numbers for quality of the response we received here!
+        score = {}
         if CALCULATE_METRICS:
             metric_request = metric_request_from_prompt(prompt, response)
             score = metric_handler.evaluate_datasets(metric_request)
-            print(f"METRIC RESULTS!!! -> {score}")
         else:
             print("Skipping metrics calculation as per configuration.")
-            score = None
 
         summary_data.append((issue, SummaryInfo(response, score)))
 
