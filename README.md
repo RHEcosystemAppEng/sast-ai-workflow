@@ -98,6 +98,8 @@ The project supports configuration via a YAML file located in the `config/` fold
 | `LLM_URL`                           | `http://<<please-set-llm-url>>`          | URL of the language model endpoint.                                                               |
 | `LLM_MODEL_NAME`                    | `llm-model`                            | Identifier of the language model to use.                                                          |
 | `EMBEDDINGS_LLM_MODEL_NAME`         | `embedding-llm-model`                    | Model used for generating embeddings.                                                             |
+| `CRITIQUE_LLM_URL`                           | ``          | URL of the critique language model endpoint (if applicable).                                                               |
+| `CRITIQUE_LLM_MODEL_NAME`                    | ``                            | Identifier of the language model to use for critique phase (if applicable).                                                          | 
 | `REPORT_FILE_PATH`                  | `/path/to/report.html`                   | Path to the SAST HTML report.                                                                       |
 | `KNOWN_FALSE_POSITIVE_FILE_PATH`    | `/path/to/known_false_positives_file`    | Path to the file containing known false positives data.                                           |
 | `OUTPUT_FILE_PATH`                  | `/path/to/output_excel.xlsx`             | Path where the generated Excel report will be saved.                                              |
@@ -107,6 +109,8 @@ The project supports configuration via a YAML file located in the `config/` fold
 | `CALCULATE_METRICS`                 | `true`                                 | **Important:** When enabled, evaluation metrics are calculated using the LLM, which sends a request and may consume API credits. |
 | `OUTPUT_EXCEL_GENERATION`           | `true`                                 | Flag indicating whether to generate an Excel report with the results.                             |
 | `DOWNLOAD_GIT_REPO`                 | `false`                                | Flag indicating whether to automatically download the Git repository.                             |
+| `DEBUG_MODE`                 | `true`                                | Flag indicating whether to include context in the final output.                             |
+| `RUN_WITH_CRITIQUE`                 | `true`                                | Flag indicating whether to enable critique phase.                             |
 
 > **Note:**  
 > The values set in the [configuration file](config/default_config.yaml) serve as defaults. Environment variables override these defaults at runtime. Sensitive values, such as API keys, should not be included in this file if the repository is public.

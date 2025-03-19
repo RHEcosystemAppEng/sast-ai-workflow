@@ -1,5 +1,7 @@
 LLM_URL: "http://<<please-set-llm-url>>"
 LLM_MODEL_NAME: "llm-model"
+CRITIQUE_LLM_URL: ""
+CRITIQUE_LLM_MODEL_NAME: ""
 EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 REPORT_FILE_PATH: "/path/to/report.html"
 KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
@@ -10,3 +12,5 @@ GIT_REPO_PATH: "/path/to/git/repo"
 USE_KNOWN_FALSE_POSITIVE_FILE: true
 CALCULATE_METRICS: false
 DOWNLOAD_GIT_REPO: false
+DEBUG_MODE: true
+RUN_WITH_CRITIQUE: true

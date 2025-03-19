@@ -1,7 +1,7 @@
 import json
 import os
 
-from src.Utils.utils import read_known_errors_file
+from Utils.utils import read_known_errors_file
 
 
 def capture_known_issues(main_process, issue_list):

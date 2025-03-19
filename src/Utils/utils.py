@@ -17,17 +17,10 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
 def print_config(config):
     print("".center(80, '-'))
-    print("LLM_URL=", config["LLM_URL"])
     print("LLM_API_KEY= ********")
-    print("LLM_MODEL_NAME=", config["LLM_MODEL_NAME"])
-    print("OUTPUT_FILE_PATH=", config["OUTPUT_FILE_PATH"])
-    print("GIT_REPO_PATH=", config["GIT_REPO_PATH"])
-    print("EMBEDDINGS_LLM_MODEL_NAME=", config["EMBEDDINGS_LLM_MODEL_NAME"])
-    print("REPORT_FILE_PATH=", config["REPORT_FILE_PATH"])
-    print("KNOWN_FALSE_POSITIVE_FILE_PATH=", config["KNOWN_FALSE_POSITIVE_FILE_PATH"])
-    print("HUMAN_VERIFIED_FILE_PATH=", config["HUMAN_VERIFIED_FILE_PATH"])
-    print("CALCULATE_METRICS=", config["CALCULATE_METRICS"])
-    print("DOWNLOAD_GIT_REPO=", config["DOWNLOAD_GIT_REPO"])
+    for key, value in config.items():
+        if key != "LLM_API_KEY":
+            print(f"{key} = {value}")
     print("".center(80, '-'))
 
 def load_config():
@@ -76,6 +69,13 @@ def validate_configurations(config):
     if not llm_api_key:
         raise ValueError(f"Environment variable 'LLM_API_KEY' is not set or is empty.")
     
+    # Validate critique config if RUN_WITH_CRITIQUE is True
+    if config.get("RUN_WITH_CRITIQUE"):
+        if not config.get("CRITIQUE_LLM_URL") or not config.get("CRITIQUE_LLM_MODEL_NAME"):
+            raise ValueError(
+                "Both 'CRITIQUE_LLM_MODEL_NAME' and 'CRITIQUE_LLM_URL' must be set when 'RUN_WITH_CRITIQUE' is True."
+            )
+    
     print("All required environment variables and files are valid and accessible.\n")
 
 def cell_formatting(workbook, color):
@@ -112,7 +112,7 @@ def count_actual_values(data, ground_truth):
 
 def get_human_verified_results(filename):
     try:
-        df = pd.read_excel(filename)
+        df = pd.read_excel(filename, header=get_header_row(filename))
     except Exception as e:
         raise ValueError(f"Failed to read Excel file at {filename}: {e}")
     
@@ -132,6 +132,12 @@ def get_human_verified_results(filename):
     ground_truth = dict(zip(df[expected_issue_id], df[expected_false_positive]))
     print(f"Successfully loaded ground truth from {filename}")
     return ground_truth
+
+def get_header_row(filename):
+    # Locate the header row containing 'Issue ID'
+    preview = pd.read_excel(filename, header=None, nrows=5)
+    header_row = next((i for i, row in preview.iterrows() if any(str(cell).strip().lower() == 'issue id' for cell in row.values)), None)
+    return header_row
 
 def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_positives, predicted_true_positives, predicted_false_positives):
     tp = len(actual_true_positives & predicted_true_positives)      # Both human and AI labeled as real issue
@@ -199,7 +205,8 @@ def get_predicted_summary(data):
         if not config.get("CALCULATE_METRICS", True):
             break
         ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
-        summary.append((issue.id, summary_info.llm_response, ar))
+        llm_response = summary_info.critique_response if config.get("RUN_WITH_CRITIQUE") else summary_info.llm_response
+        summary.append((issue.id, llm_response, ar))
     return summary
 
 def get_device():
@@ -267,7 +274,7 @@ def read_html_file(path):
 
 def read_cve_html_file(path):
     text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", ".", ";", ",", " ", ""],
-                                                   chunk_size=500, chunk_overlap=0)
+                                                   chunk_size=500, chunk_overlap=50)
     res = requests.get(path)
     soup = BeautifulSoup(res.content, 'html.parser')
     tags_to_collect = ["Description", "Alternate_Terms", "Common_Consequences", "Potential_Mitigations",
@@ -323,7 +330,7 @@ def extract_file_path(input_str):
 def read_known_errors_file(path):
     with open(path, "r", encoding='utf-8') as f:
         text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n"],
-                                                       chunk_size=500, chunk_overlap=0)
+                                                       chunk_size=500, chunk_overlap=50)
         plain_text = f.read()
         doc_list = text_splitter.create_documents([plain_text])
         return doc_list
