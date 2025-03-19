@@ -35,12 +35,7 @@ def read_known_errors_file(path):
         doc_list = text_splitter.create_documents([plain_text])
         return doc_list
     
-def get_human_verified_results():
-    filename = os.getenv("HUMAN_VERIFIED_FILE_PATH")  
-    if not filename or not os.path.exists(filename):
-        print(f"WARNING: Human verified results file not found at '{filename}'. Proceeding without human verified data.")
-        return {}
-    
+def get_human_verified_results(filename):
     try:
         df = pd.read_excel(filename)
     except Exception as e:
