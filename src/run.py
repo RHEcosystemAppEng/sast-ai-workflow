@@ -16,7 +16,7 @@ from Utils.utils import (
     get_human_verified_results,
     validate_configurations,
     load_config,
-    download_repo
+    download_repo, print_config
 )
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
@@ -38,26 +38,10 @@ CALCULATE_METRICS = config["CALCULATE_METRICS"]
 DOWNLOAD_GIT_REPO = config["DOWNLOAD_GIT_REPO"]
 
 LLM_API_KEY = os.environ.get("LLM_API_KEY")
-
-def print_config():
-    print("".center(80, '-'))
-    print("LLM_URL=", LLM_URL)
-    print("LLM_API_KEY= ********")
-    print("LLM_MODEL_NAME=", LLM_MODEL_NAME)
-    print("OUTPUT_FILE_PATH=", OUTPUT_FILE_PATH)
-    print("GIT_REPO_PATH=", GIT_REPO_PATH)
-    print("EMBEDDINGS_LLM_MODEL_NAME=", EMBEDDINGS_LLM_MODEL_NAME)
-    print("REPORT_FILE_PATH=", REPORT_FILE_PATH)
-    print("KNOWN_FALSE_POSITIVE_FILE_PATH=", KNOWN_FALSE_POSITIVE_FILE_PATH)
-    print("HUMAN_VERIFIED_FILE_PATH=", HUMAN_VERIFIED_FILE_PATH)
-    print("CALCULATE_METRICS=", CALCULATE_METRICS)
-    print("DOWNLOAD_GIT_REPO=", DOWNLOAD_GIT_REPO)
-    print("".center(80, '-'))
-
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 print(" Process started! ".center(80, '-'))
-print_config()
+print_config(config)
 validate_configurations(config) # Check for required environment variables
 
 llm_service = LLMService(base_url=LLM_URL, llm_model_name=LLM_MODEL_NAME,

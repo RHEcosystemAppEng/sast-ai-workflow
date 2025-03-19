@@ -15,15 +15,19 @@ from bs4.element import Comment
 from prettytable import PrettyTable
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
-def print_config():
+def print_config(config):
     print("".center(80, '-'))
-    print("LLM_URL=",os.environ.get("LLM_URL"))
+    print("LLM_URL=", config["LLM_URL"])
     print("LLM_API_KEY= ********")
-    print("LLM_MODEL_NAME=",os.environ.get("LLM_MODEL_NAME"))
-    print("GIT_REPO_PATH=",os.environ.get("GIT_REPO_PATH"))
-    print("EMBEDDINGS_LLM_MODEL_NAME=",os.environ.get("EMBEDDINGS_LLM_MODEL_NAME"))
-    print("REPORT_FILE_PATH=",os.environ.get("REPORT_FILE_PATH"))
-    print("KNOWN_FALSE_POSITIVE_FILE_PATH=",os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH"))
+    print("LLM_MODEL_NAME=", config["LLM_MODEL_NAME"])
+    print("OUTPUT_FILE_PATH=", config["OUTPUT_FILE_PATH"])
+    print("GIT_REPO_PATH=", config["GIT_REPO_PATH"])
+    print("EMBEDDINGS_LLM_MODEL_NAME=", config["EMBEDDINGS_LLM_MODEL_NAME"])
+    print("REPORT_FILE_PATH=", config["REPORT_FILE_PATH"])
+    print("KNOWN_FALSE_POSITIVE_FILE_PATH=", config["KNOWN_FALSE_POSITIVE_FILE_PATH"])
+    print("HUMAN_VERIFIED_FILE_PATH=", config["HUMAN_VERIFIED_FILE_PATH"])
+    print("CALCULATE_METRICS=", config["CALCULATE_METRICS"])
+    print("DOWNLOAD_GIT_REPO=", config["DOWNLOAD_GIT_REPO"])
     print("".center(80, '-'))
 
 def load_config():
