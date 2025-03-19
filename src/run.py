@@ -10,7 +10,7 @@ from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report_html
 from Utils.embedding_utils import generate_code_embeddings
-from Utils.utils import load_config, validate_configurations
+from Utils.config_utils import load_config, validate_configurations
 from Utils.repo_utils import download_repo
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file 

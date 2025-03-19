@@ -61,4 +61,5 @@ def validate_configurations(config):
     
     print("All required environment variables and files are valid and accessible.\n")
 
+
   
