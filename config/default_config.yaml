@@ -1,21 +1,25 @@
-# LLM_URL: "http://<<please-set-llm-url>>"
-# LLM_MODEL_NAME: "llm-model"
-# EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
-# REPORT_FILE_PATH: "/path/to/report.html"
-# KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
-# OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"
-# HUMAN_VERIFIED_FILE_PATH: "<<unknown>>"
-# GIT_REPO_PATH: "/path/to/git/repo"
+LLM_URL: "http://<<please-set-llm-url>>"
+LLM_MODEL_NAME: "llm-model"
+EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 
-LLM_URL: "https://integrate.api.nvidia.com/v1"
-LLM_MODEL_NAME: "meta/llama-3.3-70b-instruct"
-EMBEDDINGS_LLM_MODEL_NAME: "sentence-transformers/all-mpnet-base-v2"
-REPORT_FILE_PATH: "/home/ikrispin/work/sast-ai-repos/systemd-252-46.el9_5.2.html"
-KNOWN_FALSE_POSITIVE_FILE_PATH: "/home/ikrispin/work/sast-ai-repos/ignore.err"
-OUTPUT_FILE_PATH: "/home/ikrispin/work/sast-ai-repos/output_excel.xlsx"
-HUMAN_VERIFIED_FILE_PATH: "/home/ikrispin/work/sast-ai-repos/human_verified_results_with_Issue_ID.xlsx"
+REPORT_FILE_PATH: "/path/to/report.html"
+KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
+OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"
+HUMAN_VERIFIED_FILE_PATH: "<<unknown>>"
 GIT_REPO_PATH: "/path/to/git/repo"
 
 USE_KNOWN_FALSE_POSITIVE_FILE: true
 CALCULATE_METRICS: false
 DOWNLOAD_GIT_REPO: false
+
+CHUNK_SIZE: 500
+CHUNK_OVERLAP: 0
+CHUNK_SEPARATORS:
+  - "\n\n"
+  - "\n"
+  - "."
+  - ";"
+  - ","
+  - " "
+  - ""
+

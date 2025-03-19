@@ -1,25 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 import requests
-from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 from bs4.element import Comment
+from Utils.text_processing_utils import create_text_splitter 
 
-
-def read_html_file(path):
-    text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", ".", ";", ",", " ", ""],
-                                                   chunk_size=500, chunk_overlap=0)
-    if path.strip().startswith("https://"):
-        res = requests.get(path)
-        doc_text = text_splitter.split_text(text_from_html(res.content))
-        return doc_text
-    else:
-        with open(path, "r", encoding='utf-8') as f:
-            doc_text = text_splitter.split_text(text_from_html(f.read()))
-            return doc_text
-
-def read_cve_html_file(path):
-    text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", ".", ";", ",", " ", ""],
-                                                   chunk_size=500, chunk_overlap=0)
+def read_cve_html_file(path, config=None):
+    text_splitter = create_text_splitter(config)
     res = requests.get(path)
     soup = BeautifulSoup(res.content, 'html.parser')
     tags_to_collect = ["Description", "Alternate_Terms", "Common_Consequences", "Potential_Mitigations",
