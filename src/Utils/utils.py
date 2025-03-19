@@ -15,12 +15,26 @@ from bs4.element import Comment
 from prettytable import PrettyTable
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
+def print_config(config):
+    print("".center(80, '-'))
+    print("LLM_URL=", config["LLM_URL"])
+    print("LLM_API_KEY= ********")
+    print("LLM_MODEL_NAME=", config["LLM_MODEL_NAME"])
+    print("OUTPUT_FILE_PATH=", config["OUTPUT_FILE_PATH"])
+    print("GIT_REPO_PATH=", config["GIT_REPO_PATH"])
+    print("EMBEDDINGS_LLM_MODEL_NAME=", config["EMBEDDINGS_LLM_MODEL_NAME"])
+    print("REPORT_FILE_PATH=", config["REPORT_FILE_PATH"])
+    print("KNOWN_FALSE_POSITIVE_FILE_PATH=", config["KNOWN_FALSE_POSITIVE_FILE_PATH"])
+    print("HUMAN_VERIFIED_FILE_PATH=", config["HUMAN_VERIFIED_FILE_PATH"])
+    print("CALCULATE_METRICS=", config["CALCULATE_METRICS"])
+    print("DOWNLOAD_GIT_REPO=", config["DOWNLOAD_GIT_REPO"])
+    print("".center(80, '-'))
 
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), "../..", "config", "default_config.yaml")
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-    
+
     # Override default configuration with any environment variables if they exist.
     for key in config.keys():
         env_value = os.getenv(key)
@@ -56,7 +70,7 @@ def validate_configurations(config):
         value = config[var]
         if not os.path.exists(value):
             raise FileNotFoundError(f"Configuration variable '{var}' not found.")
-        
+
     # Validate that environment variable LLM API key exist
     llm_api_key = os.environ.get("LLM_API_KEY")
     if not llm_api_key:
@@ -182,7 +196,7 @@ def get_predicted_summary(data):
     config = load_config()
 
     for _, (issue, summary_info) in enumerate(data):
-        if not config.get("CALCULATE_METRICS", True): 
+        if not config.get("CALCULATE_METRICS", True):
             break
         ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
         summary.append((issue.id, summary_info.llm_response, ar))
@@ -225,10 +239,10 @@ def download_repo(repo_url):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-def create_embeddings_for_all_project_files():
+def read_all_source_code_files():
     res_list = []
     # reading project src folder
-    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel9/src/")
+    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel10/src/")
     count = 0
     for src_filename in glob.iglob(src_dir_path + '/**/**', recursive=True):
 
@@ -313,4 +327,8 @@ def read_known_errors_file(path):
         plain_text = f.read()
         doc_list = text_splitter.create_documents([plain_text])
         return doc_list
-    
+
+def read_answer_template_file(path):
+    with open(path, "r", encoding='utf-8') as f:
+        return f.read()
+

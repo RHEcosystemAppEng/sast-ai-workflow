@@ -1,0 +1,17 @@
+{
+  "Issue_id": "def05",
+  "equal_error_trace": [
+    "Error: USE_AFTER_FREE (CWE-416):",
+    "systemd-256/src/basic/cgroup-util.c:1013:25: freed_arg: \"free\" frees \"fn\".",
+    "systemd-256/src/basic/cgroup-util.c:1012:25: pass_freed_arg: Passing freed pointer \"fn\" as an argument to \"path_extend_internal\".",
+    "# 1010|                           _cleanup_free_ char *p = NULL;",
+    "# 1011|   ",
+    "# 1012|->                         p = path_join(path, fn);",
+    "# 1013|                           free(fn);",
+    "# 1014|                           if (!p)"
+  ],
+  "Justifications": [
+    "Although line numbers are not same, rest of the content is matching."
+  ],
+  "Result": "YES"
+}
