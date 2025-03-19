@@ -1,9 +1,5 @@
 {
   "Issue_id": "def05",
-  "Result": "YES",
-  "Justifications": [
-    "Although line numbers are not same, rest of the content is matching."
-  ],
   "equal_error_trace": [
     "Error: USE_AFTER_FREE (CWE-416):",
     "systemd-256/src/basic/cgroup-util.c:1013:25: freed_arg: \"free\" frees \"fn\".",
@@ -13,5 +9,9 @@
     "# 1012|->                         p = path_join(path, fn);",
     "# 1013|                           free(fn);",
     "# 1014|                           if (!p)"
-  ]
+  ],
+  "Justifications": [
+    "Although line numbers are not same, rest of the content is matching."
+  ],
+  "Result": "YES"
 }
