@@ -93,20 +93,24 @@ Alternatively, if you are using the OpenShift cluster, follow the provided clust
 
 The project supports configuration via a YAML file located in the `config/` folder (e.g., [`config/default_config.yaml`](config/default_config.yaml)). These values provide default settings that can be overridden by environment variables. Below is a table that describes the available configuration options:
 
-| **Config Key**                      | **Default Value**                      | **Description**                                                                                     |
-|-------------------------------------|----------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `LLM_URL`                           | `http://<<please-set-llm-url>>`          | URL of the language model endpoint.                                                               |
-| `LLM_MODEL_NAME`                    | `llm-model`                            | Identifier of the language model to use.                                                          |
-| `EMBEDDINGS_LLM_MODEL_NAME`         | `embedding-llm-model`                    | Model used for generating embeddings.                                                             |
-| `REPORT_FILE_PATH`                  | `/path/to/report.html`                   | Path to the SAST HTML report.                                                                       |
-| `KNOWN_FALSE_POSITIVE_FILE_PATH`    | `/path/to/known_false_positives_file`    | Path to the file containing known false positives data.                                           |
-| `OUTPUT_FILE_PATH`                  | `/path/to/output_excel.xlsx`             | Path where the generated Excel report will be saved.                                              |
-| `HUMAN_VERIFIED_FILE_PATH`          | `<<unknown>>`                           | Path to the human verified results file (used for evaluation).                                    |
-| `GIT_REPO_PATH`                     | `/path/to/git/repo`                      | Path or URL of the Git repository to analyze.                                                     |
-| `USE_KNOWN_FALSE_POSITIVE_FILE`     | `true`                                 | Flag indicating whether to use the known false positives file in the pipeline as an input.          |
-| `CALCULATE_METRICS`                 | `true`                                 | **Important:** When enabled, evaluation metrics are calculated using the LLM, which sends a request and may consume API credits. |
-| `OUTPUT_EXCEL_GENERATION`           | `true`                                 | Flag indicating whether to generate an Excel report with the results.                             |
-| `DOWNLOAD_GIT_REPO`                 | `false`                                | Flag indicating whether to automatically download the Git repository.                             |
+| **Config Key**                  | **Default Value**                           | **Description**                                                                                                         |
+|---------------------------------|---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| LLM_URL                         | http://<<please-set-llm-url>>                | URL of the language model endpoint.                                                                                   |
+| LLM_MODEL_NAME                  | llm-model                                   | Identifier of the language model to use.                                                                              |
+| EMBEDDINGS_LLM_MODEL_NAME       | embedding-llm-model                         | Model used for generating embeddings.                                                                                 |
+| REPORT_FILE_PATH                | /path/to/report.html                        | Path to the SAST HTML report.                                                                                           |
+| KNOWN_FALSE_POSITIVE_FILE_PATH  | /path/to/known_false_positives_file         | Path to the file containing known false positives data.                                                               |
+| OUTPUT_FILE_PATH                | /path/to/output_excel.xlsx                  | Path where the generated Excel report will be saved.                                                                  |
+| HUMAN_VERIFIED_FILE_PATH        | <<unknown>>                                 | Path to the human verified results file (used for evaluation).                                                        |
+| GIT_REPO_PATH                   | /path/to/git/repo                           | Path or URL of the Git repository to analyze.                                                                         |
+| USE_KNOWN_FALSE_POSITIVE_FILE   | true                                        | Flag indicating whether to use the known false positives file in the pipeline as an input.                              |
+| CALCULATE_METRICS               | true                                        | **Important:** When enabled, evaluation metrics are calculated using the LLM, which sends a request and may consume API credits. |
+| OUTPUT_EXCEL_GENERATION         | true                                        | Flag indicating whether to generate an Excel report with the results.                                                 |
+| DOWNLOAD_GIT_REPO               | false                                       | Flag indicating whether to automatically download the Git repository.                                                 |
+| CHUNK_SIZE                      | 500                                         | Maximum size for each text chunk.                                                                                     |
+| CHUNK_OVERLAP                   | 0                                           | Number of overlapping characters between consecutive chunks.                                                          |
+| CHUNK_SEPARATORS                | ["\n\n", "\n", ".", ";", ",", " ", ""]      | Ordered list of separators to use when splitting text into chunks.                                                    |
+
 
 > **Note:**  
 > The values set in the [configuration file](config/default_config.yaml) serve as defaults. Environment variables override these defaults at runtime. Sensitive values, such as API keys, should not be included in this file if the repository is public.
