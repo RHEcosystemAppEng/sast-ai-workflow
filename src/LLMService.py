@@ -1,3 +1,4 @@
+import os
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -7,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 
-from src.Utils.utils import read_answer_template_file
+from Utils.file_utils import read_answer_template_file
 
 
 class LLMService:
@@ -77,7 +78,9 @@ class LLMService:
         resp = retriever.invoke(user_input)
         context_str = "".join(doc.page_content for doc in resp)
 
-        answer_template = read_answer_template_file('./templates/known_issue_resp.json')
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_resp.json")
+        answer_template = read_answer_template_file(template_path)
+        
         chain1 = (
                 {
                     "context": RunnableLambda(lambda _: context_str),

@@ -14,7 +14,7 @@ class EvaluationSummary:
 
     Expects summary_data to be a list of (issue, summary_info) tuples.
     """
-    def __init__(self, summary_data, ground_truth):
+    def __init__(self, summary_data, ground_truth=None):
         self.summary_data = summary_data
         self.ground_truth = ground_truth
         self.predicted_summary = get_predicted_summary(summary_data)

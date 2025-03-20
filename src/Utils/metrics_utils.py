@@ -53,6 +53,8 @@ def get_predicted_summary(data):
     summary = []
 
     for _, (issue, summary_info) in enumerate(data):
-        ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
+        ar = 0
+        if summary_info and 'answer_relevancy' in summary_info.metrics:
+            ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
         summary.append((issue.id, summary_info.llm_response, ar))
     return summary

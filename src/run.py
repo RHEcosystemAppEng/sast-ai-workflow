@@ -10,19 +10,20 @@ from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report_html
 from Utils.embedding_utils import generate_code_embeddings
-from Utils.config_utils import load_config, validate_configurations
 from Utils.repo_utils import download_repo
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file 
-from Utils.file_utils import (
-    create_embeddings_for_all_project_files, 
-    read_known_errors_file,
-    get_human_verified_results
+from Utils.file_utils import get_human_verified_results
+from Utils.config_utils import (
+    load_config, 
+    validate_configurations, 
+    print_config
 )
+
 
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
-from src.stage.filter_known_issues import capture_known_issues
+from stage.filter_known_issues import capture_known_issues
 
 load_dotenv()           # Take environment variables from .env
 config = load_config()  # Take configuration variables from default_config.yaml
@@ -61,8 +62,8 @@ else:
 with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progres: ") as pbar:
     print("\n")
     vector_db = generate_code_embeddings(llm_service)
-    selected_issue_set = set([f"def{i}" for i in range(1, 3)]) # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
-    already_seen_issue_ids = capture_known_issues(llm_service, set(e for e in issue_list if e.id in selected_issue_set))
+    selected_issue_set = set([f"def{i}" for i in range(1, 2)]) # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
+    already_seen_issue_ids = capture_known_issues(llm_service, set(e for e in issue_list if e.id in selected_issue_set), KNOWN_FALSE_POSITIVE_FILE_PATH)
 
     for issue in issue_list:
         if issue.id not in selected_issue_set: # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!

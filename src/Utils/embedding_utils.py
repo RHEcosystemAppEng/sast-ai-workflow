@@ -1,7 +1,7 @@
 import os
 import time
 from langchain_community.vectorstores import FAISS
-from src.Utils.utils import read_all_source_code_files
+from Utils.file_utils import read_all_source_code_files
 
 
 def generate_code_embeddings(llm_service):
