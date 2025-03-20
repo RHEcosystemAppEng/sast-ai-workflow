@@ -13,20 +13,6 @@ def read_source_code_file(path):
         doc_list = text_splitter.create_documents([plain_text])
         return doc_list
 
-def create_embeddings_for_all_project_files():
-    res_list = []
-    # reading project src folder
-    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel9/src/")
-    count = 0
-    for src_filename in glob.iglob(src_dir_path + '/**/**', recursive=True):
-
-        if (src_filename.endswith(".c") or src_filename.endswith(".h")) and os.path.isfile(src_filename):
-            count = count + 1
-            for k in read_source_code_file(src_filename):
-                res_list.append(k.page_content)  # adding source code file as text to embeddings
-    print(f"Total files: {count}")
-    return res_list
-
 def read_known_errors_file(path):
     with open(path, "r", encoding='utf-8') as f:
         text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n"],
@@ -57,3 +43,21 @@ def get_human_verified_results(filename):
     ground_truth = dict(zip(df[expected_issue_id], df[expected_false_positive]))
     print(f"Successfully loaded ground truth from {filename}")
     return ground_truth
+
+def read_all_source_code_files():
+    res_list = []
+    # reading project src folder
+    src_dir_path = os.path.join(os.getcwd(), "systemd-rhel10/src/")
+    count = 0
+    for src_filename in glob.iglob(src_dir_path + '/**/**', recursive=True):
+
+        if (src_filename.endswith(".c") or src_filename.endswith(".h")) and os.path.isfile(src_filename):
+            count = count + 1
+            for k in read_source_code_file(src_filename):
+                res_list.append(k.page_content)  # adding source code file as text to embeddings
+    print(f"Total files: {count}")
+    return res_list
+
+def read_answer_template_file(path):
+    with open(path, "r", encoding='utf-8') as f:
+        return f.read()

@@ -1,13 +1,12 @@
 import json
-import os
 
-from src.Utils.utils import read_known_errors_file
+from Utils.file_utils import read_known_errors_file
 
 
-def capture_known_issues(main_process, issue_list):
+def capture_known_issues(main_process, issue_list, filename):
     # Reading known false-positives
     text_false_positives = []
-    for doc in read_known_errors_file(os.environ.get("KNOWN_FALSE_POSITIVE_FILE_PATH")):
+    for doc in read_known_errors_file(filename):
         text_false_positives.append(doc.page_content)
 
     false_positive_db = main_process.create_vdb(text_false_positives)
