@@ -1,5 +1,5 @@
 from ragas import EvaluationDataset, evaluate
-from ragas.metrics import Faithfulness, ResponseRelevancy
+from ragas.metrics import ResponseRelevancy
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 

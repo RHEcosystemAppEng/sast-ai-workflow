@@ -1,4 +1,3 @@
-import os
 import sys
 
 import xlsxwriter
@@ -6,11 +5,8 @@ from tqdm import tqdm
 
 from tornado.gen import sleep
 
-from Utils.utils import (
-    get_percentage_value,
-    get_metrics,
-    cell_formatting
-)
+from Utils.output_utils import cell_formatting
+from Utils.metrics_utils import get_percentage_value, get_metrics
 
 
 def write_to_excel_file(data, evaluation_summary, filename):
