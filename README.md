@@ -71,6 +71,14 @@ Install the required dependencies:
 pip install -r requirements.txt
 ```
 
+To extract C functions using Clang's AST, the libclang shared library must be installed on your system.  
+This library is not bundled with the Python clang bindings and must be installed separately.
+
+```bash
+sudo apt update
+sudo apt install clang libclang-dev
+```
+
 ### 5. Configure Environment Variables
 
 Create a .env file (or use the existing one in the drive and place it) in the root directory and set the following:
@@ -116,6 +124,7 @@ The project supports configuration via a YAML file located in the `config/` fold
 | USE_CRITIQUE_AS_FINAL_RESULTS                 | false                                | Flag indicating whether to use critique for metrics calculation.                             |
 | CRITIQUE_LLM_URL                           | LLM_URL          | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                                              |
 | CRITIQUE_LLM_MODEL_NAME                    | -                           | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                                                          |
+| LIBCLANG_PATH                   | /path/to/libclang          | Path of to your libclang location.   
 
 
 > **Note:**  

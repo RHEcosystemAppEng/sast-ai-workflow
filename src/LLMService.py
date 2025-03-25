@@ -99,7 +99,8 @@ class LLMService:
              "Answer the question using only the context."
              "Generate a answer response template provided. No additional text outside the "
              "answer template."
-             "\nAnswer response template:{answer_template}"
+             "\nAnswer response template:{answer_template}\n"
+             "the answer should be a valid json\n"
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
@@ -128,7 +129,7 @@ class LLMService:
         )
         return actual_prompt.to_string(), chain2.invoke(user_input)
 
-    def final_judge(self, database, user_input):
+    def final_judge(self, database, user_input:str , context: str):
 
         prompt = ChatPromptTemplate.from_messages([
             ("system",
@@ -153,6 +154,7 @@ class LLMService:
         retriever = database.as_retriever()
         resp = retriever.invoke(user_input)
         context_str = "".join(doc.page_content for doc in resp)
+        context_str += context
 
         chain1 = (
                 {
