@@ -2,6 +2,8 @@ import git
 import re
 import os
 
+from typing import Tuple
+
 
 def download_repo(repo_url: str) -> str:
     try:
@@ -32,7 +34,7 @@ def download_repo(repo_url: str) -> str:
     return destination_path
 
 
-def get_repo_and_branch_from_url(repo_url: str) -> tuple[(str, str)]:
+def get_repo_and_branch_from_url(repo_url: str) -> Tuple[str, str]:
     # Identify if the URL has a branch or tag with "/tree/"
     if "/tree/" in repo_url:
         # Split URL to separate repository URL and branch/tag
