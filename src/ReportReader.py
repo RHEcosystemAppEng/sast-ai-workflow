@@ -1,7 +1,7 @@
 import re
 
 from bs4 import BeautifulSoup
-from typing import List
+from typing import List, Tuple
 
 from model.Issue import Issue
 
@@ -33,7 +33,7 @@ def read_sast_report_html(file_path) -> List[Issue]:
     return issue_list
 
 
-def get_report_project_info(file_path: str) -> tuple[(str, str)]:
+def get_report_project_info(file_path: str) -> Tuple[str, str]:
     with open(file_path, "r", encoding='utf-8') as f:
         soup = BeautifulSoup(f.read(), 'html.parser')
         h1_tag = soup.find("h1")
