@@ -1,3 +1,4 @@
+import json
 import os
 import glob
 import pandas as pd
@@ -15,10 +16,8 @@ def read_source_code_file(path):
 
 def read_known_errors_file(path):
     with open(path, "r", encoding='utf-8') as f:
-        text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n"],
-                                                       chunk_size=500, chunk_overlap=0)
         plain_text = f.read()
-        doc_list = text_splitter.create_documents([plain_text])
+        doc_list = [item.strip() for item in plain_text.split("\n\n\n") if item.strip()!='']
         return doc_list
     
 def get_human_verified_results(filename):
@@ -67,3 +66,23 @@ def get_header_row(filename):
     preview = pd.read_excel(filename, header=None, nrows=5)
     header_row = next((i for i, row in preview.iterrows() if any(str(cell).strip().lower() == 'issue id' for cell in row.values)), None)
     return header_row
+
+def load_json_with_placeholders(template_path, placeholders):
+    """
+    Args:
+        template_path (str): Path to the JSON template file.
+        placeholders (dict): Dictionary where keys are placeholder names (e.g., "{ID}")
+                             and values are the values to replace them with.
+                             NOTE: Assume values are str
+
+    Returns:
+        dict: JSON object with placeholders replaced
+    """
+    with open(template_path, "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+    json_str = json.dumps(json_data)
+
+    for placeholder, value in placeholders.items():
+        json_str = json_str.replace(placeholder, value)
+
+    return json_str

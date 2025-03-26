@@ -1,0 +1,8 @@
+{
+  "Issue_id": "{ID}",
+  "equal_error_trace": [],
+  "Justifications": [
+    "No identical error trace found in the provided context. The context empty because no issue of type {TYPE} in knonw isseu DB."
+  ],
+  "Result": "NO"
+}
