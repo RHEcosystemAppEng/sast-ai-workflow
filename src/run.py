@@ -1,4 +1,5 @@
 import sys
+import os
 
 from tornado.gen import sleep
 from tqdm import tqdm
@@ -23,10 +24,13 @@ from handlers.repo_handler_factory import repo_handler_factory
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
+from common.constants import TOKENIZERS_PARALLELISM
 
 
 def main():
     config = Config()
+    os.environ[TOKENIZERS_PARALLELISM] = "false" # Turn off parallel processing for tokenization to avoid warnings
+
     llm_service = LLMService(base_url=config.LLM_URL, 
                             llm_model_name=config.LLM_MODEL_NAME,
                             embedding_llm_model_name=config.EMBEDDINGS_LLM_MODEL_NAME, 
@@ -34,8 +38,8 @@ def main():
                             critique_llm_model_name=config.CRITIQUE_LLM_MODEL_NAME, 
                             critique_base_url=config.CRITIQUE_LLM_URL)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
-    project_name, project_version = get_report_project_info(config.REPORT_FILE_PATH)
-    issue_list = read_sast_report_html(config.REPORT_FILE_PATH)
+    project_name, project_version = get_report_project_info(config.INPUT_REPORT_FILE_PATH)
+    issue_list = read_sast_report_html(config.INPUT_REPORT_FILE_PATH)
     repo_handler = repo_handler_factory(project_name, project_version, config)
 
     summary_data = []

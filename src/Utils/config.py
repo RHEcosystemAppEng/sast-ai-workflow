@@ -2,7 +2,8 @@ import os
 import yaml
 
 from dotenv import load_dotenv
-from .constants import *
+
+from common.constants import *
 
 class Config:
     def __init__(self):
@@ -41,13 +42,13 @@ class Config:
             LLM_URL,
             LLM_MODEL_NAME,
             EMBEDDINGS_LLM_MODEL_NAME,
-            REPORT_FILE_PATH,
+            INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
             OUTPUT_FILE_PATH,
             HUMAN_VERIFIED_FILE_PATH
         ]
         required_cfg_files = [
-            REPORT_FILE_PATH,
+            INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
             HUMAN_VERIFIED_FILE_PATH,
             OUTPUT_FILE_PATH

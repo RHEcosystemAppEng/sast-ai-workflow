@@ -100,7 +100,7 @@ class LLMService:
              "Generate a answer response template provided. No additional text outside the "
              "answer template."
              "\nAnswer response template:{answer_template}\n"
-             "the answer should be a valid json\n"
+             "the response must be a valid json without any leading or traling text\n"
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
