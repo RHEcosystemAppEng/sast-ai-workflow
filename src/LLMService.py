@@ -119,7 +119,7 @@ class LLMService:
         print(f"[issue-ID - {issue.id}] Found This context:")
         pprint(context_list, width=100)
 
-        template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_resp.json")
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
         
         chain1 = (
@@ -133,7 +133,7 @@ class LLMService:
         actual_prompt = chain1.invoke(user_input)
         if not context_list:
             print(f"Not find any relevant context for issue id {issue.id}")
-            unknown_issue_template_path = os.path.join(os.path.dirname(__file__), "templates", "unknown_issue_resp.json")
+            unknown_issue_template_path = os.path.join(os.path.dirname(__file__), "templates", "unknown_issue_filter_resp.json")
             return actual_prompt.to_string(), load_json_with_placeholders(unknown_issue_template_path, {"{ID}": issue.id, "{TYPE}": issue.issue_name})
         # print(f"Filtering prompt:   {actual_prompt.to_string()}")
         chain2 = (

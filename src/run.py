@@ -10,13 +10,12 @@ from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report_html, get_report_project_info
 from MetricHandler import (
     metric_request_from_prompt,
-    MetricHandler,
-    parse_context_from_prompt
+    MetricHandler
 )
 from ReportReader import read_sast_report_html
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file, format_cwe_context 
-from Utils.file_utils import get_human_verified_results
+from Utils.file_utils import get_human_verified_results, load_json_with_placeholders
 from handlers.repo_handler_factory import repo_handler_factory
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
@@ -103,36 +102,42 @@ def main():
         for issue in issue_list:
             if issue.id not in selected_issue_set: # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
                 continue
-            if issue.id in already_seen_issue_ids:
+            
+            # Set default values
+            score, critique_response = {}, ""
+            if issue.id in already_seen_issue_ids.keys():
                 print(f"{issue.id} already marked as a false positive since it's a known issue")
-                continue
-
-            # get source code context by error trace
-            issue_source_code = repo_handler.get_source_code_from_error_trace(issue.trace)
-            source_code_context =  "".join([f'\ncode of {path} file:\n{code}' for path, code in issue_source_code.items()])
-
-            cwe_context = ""
-            if issue.issue_cve_link:
-                cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
-                cwe_context = "".join(cwe_texts)
-
-            combined_context = (
-                f"=== Source Code Context ===\n{source_code_context}\n\n"
-                f"=== CWE Context ===\n{cwe_context}"
-            )
-
-            question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace
-            prompt, response, critique_response = llm_service.final_judge(question, combined_context)
-
-            # let's calculate numbers for quality of the response we received here!
-            score = {}
-            if config.CALCULATE_METRICS:
-                metric_request = metric_request_from_prompt(prompt, response)
-                score = metric_handler.evaluate_datasets(metric_request)
+                template_path = os.path.join(os.path.dirname(__file__), "templates", "final_jude_resp.json")
+                context = already_seen_issue_ids[issue.id]['equal_error_trace']
+                response = load_json_with_placeholders(template_path, {"{RESULTS}": "FALSE POSITIVE",
+                                                                    "{RECOMMENDATIONS}": "No fix required.",
+                                                                    "{JUSTIFICATIONS}": f"The error is similar to one found in the provided context: \
+                                                                        {context}"})
             else:
-                print("Skipping metrics calculation as per configuration.")
+                # get source code context by error trace
+                issue_source_code = repo_handler.get_source_code_from_error_trace(issue.trace)
+                source_code_context =  "".join([f'\ncode of {path} file:\n{code}' for path, code in issue_source_code.items()])
 
-            summary_data.append((issue, SummaryInfo(response, score, critique_response, parse_context_from_prompt(prompt))))
+                cwe_context = ""
+                if issue.issue_cve_link:
+                    cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
+                    cwe_context = "".join(cwe_texts)
+
+                context = (
+                    f"=== Source Code Context ===\n{source_code_context}\n\n"
+                    f"=== CWE Context ===\n{cwe_context}"
+                )
+
+                question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace
+                prompt, response, critique_response = llm_service.final_judge(question, context)
+
+                # let's calculate numbers for quality of the response we received here!
+                score = {}
+                if config.CALCULATE_METRICS:
+                    metric_request = metric_request_from_prompt(prompt, response)
+                    score = metric_handler.evaluate_datasets(metric_request)
+
+            summary_data.append((issue, SummaryInfo(response, score, critique_response, context)))
 
             pbar.update(1)
             sleep(1)
