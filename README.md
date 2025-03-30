@@ -107,7 +107,7 @@ The project supports configuration via a YAML file located in the `config/` fold
 | LLM_URL                         | http://<<please-set-llm-url>>                | URL of the language model endpoint.                                                                                   |
 | LLM_MODEL_NAME                  | llm-model                                   | Identifier of the language model to use.                                                                              |
 | EMBEDDINGS_LLM_MODEL_NAME       | embedding-llm-model                         | Model used for generating embeddings.                                                                                 |
-| REPORT_FILE_PATH                | /path/to/report.html                        | Path to the SAST HTML report.                                                                                           |
+| INPUT_REPORT_FILE_PATH                | /path/to/report.html                        | Path to the SAST HTML report.                                                                                           |
 | KNOWN_FALSE_POSITIVE_FILE_PATH  | /path/to/known_false_positives_file         | Path to the file containing known false positives data.                                                               |
 | OUTPUT_FILE_PATH                | /path/to/output_excel.xlsx                  | Path where the generated Excel report will be saved.                                                                  |
 | HUMAN_VERIFIED_FILE_PATH        | <<unknown>>                                 | Path to the human verified results file (used for evaluation).                                                        |
