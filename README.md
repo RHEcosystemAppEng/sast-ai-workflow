@@ -99,8 +99,6 @@ The project supports configuration via a YAML file located in the `config/` fold
 | LLM_URL                         | http://<<please-set-llm-url>>                | URL of the language model endpoint.                                                                                   |
 | LLM_MODEL_NAME                  | llm-model                                   | Identifier of the language model to use.                                                                              |
 | EMBEDDINGS_LLM_MODEL_NAME       | embedding-llm-model                         | Model used for generating embeddings.                                                                                 |
-| CRITIQUE_LLM_URL                           | LLM_URL          | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                                              |
-| CRITIQUE_LLM_MODEL_NAME                    | -                           | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                                                          |
 | REPORT_FILE_PATH                | /path/to/report.html                        | Path to the SAST HTML report.                                                                                           |
 | KNOWN_FALSE_POSITIVE_FILE_PATH  | /path/to/known_false_positives_file         | Path to the file containing known false positives data.                                                               |
 | OUTPUT_FILE_PATH                | /path/to/output_excel.xlsx                  | Path where the generated Excel report will be saved.                                                                  |
@@ -113,13 +111,29 @@ The project supports configuration via a YAML file located in the `config/` fold
 | CHUNK_SIZE                      | 500                                         | Maximum size for each text chunk.                                                                                     |
 | CHUNK_OVERLAP                   | 0                                           | Number of overlapping characters between consecutive chunks.                                                          |
 | CHUNK_SEPARATORS                | ["\n\n", "\n", ".", ";", ",", " ", ""]      | Ordered list of separators to use when splitting text into chunks.                                                    |
-| DEBUG_MODE                 | true                                | Flag indicating whether to include context in the final output.                             |
+| SHOW_FINAL_JUDGE_CONTEXT                 | true                                | Flag indicating whether to include context (of final judge) in the final output.                             |
 | RUN_WITH_CRITIQUE                 | false                                | Flag indicating whether to enable critique phase.                             |
 | USE_CRITIQUE_AS_FINAL_RESULTS                 | false                                | Flag indicating whether to use critique for metrics calculation.                             |
+| CRITIQUE_LLM_URL                           | LLM_URL          | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                                              |
+| CRITIQUE_LLM_MODEL_NAME                    | -                           | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                                                          |
 
 
 > **Note:**  
 > The values set in the [configuration file](config/default_config.yaml) serve as defaults. Environment variables override these defaults at runtime. Sensitive values, such as API keys, should not be included in this file if the repository is public.
+
+### Optional - Enable Critique Model
+
+The critique model introduces an independent phase to review the main model's response based on its context, the issue, and the instructions provided to the main LLM.
+
+- **Required Configuration**:
+  - `RUN_WITH_CRITIQUE`: Set to `true` to enable the critique phase.
+  - `CRITIQUE_LLM_MODEL_NAME`: Name of the critique model (recommended to be different from the main LLM).
+  - If the critique model uses a different endpoint, set:
+    - `CRITIQUE_LLM_URL`
+    - `CRITIQUE_LLM_API_KEY`
+
+- **Optional Configuration**:
+  - `USE_CRITIQUE_AS_FINAL_RESULTS`: Set to `true` to use critique results for final metrics calculation.
 
 ## Usage
 
