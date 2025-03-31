@@ -2,7 +2,7 @@ import json
 
 from Utils.file_utils import read_known_errors_file
 from LLMService import LLMService
-from Utils.config import Config
+from common.config import Config
 
 
 def capture_known_issues(main_process: LLMService, issue_list: list, config: Config):

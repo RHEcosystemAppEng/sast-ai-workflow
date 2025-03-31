@@ -1,5 +1,5 @@
 from handlers.base_repo_handler import RepoHandler
-from Utils.config import Config
+from common.config import Config
 
 
 

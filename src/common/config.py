@@ -23,15 +23,25 @@ class Config:
             if env_value is not None:
                 config[key] = env_value
 
+        # Load Main LLM details in case critique details not provided
+        if config.get(RUN_WITH_CRITIQUE):
+            if not config.get(CRITIQUE_LLM_URL) or not os.getenv(CRITIQUE_LLM_API_KEY):
+                print("Critique model details not provided - using main LLM details instead")
+                config[CRITIQUE_LLM_URL] = config.get(LLM_URL)
+                os.environ[CRITIQUE_LLM_API_KEY] = os.getenv(LLM_API_KEY)
+
         self.__dict__.update(config)
 
         self.TOKENIZERS_PARALLELISM = False
         self.LLM_API_KEY = os.getenv(LLM_API_KEY)
         
     def print_config(self):
+        masked_vars = [LLM_API_KEY]
         print(" Process started! ".center(80, '-'))
         print("".center(80, '-'))
         for key, value in self.__dict__.items():
+            if key in masked_vars:
+                value = "******"
             print(f"{key}={value}")
         print("".center(80, '-'))
 
@@ -50,8 +60,7 @@ class Config:
         required_cfg_files = [
             INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
-            HUMAN_VERIFIED_FILE_PATH,
-            OUTPUT_FILE_PATH
+            HUMAN_VERIFIED_FILE_PATH
         ]
 
         for var in required_cfg_vars:
@@ -68,5 +77,10 @@ class Config:
         # Validate that environment variable LLM API key exist
         if not self.LLM_API_KEY:
             raise ValueError(f"Environment variable {LLM_API_KEY} is not set or is empty.")
+        
+        # Validate critique config if RUN_WITH_CRITIQUE is True
+        if self.RUN_WITH_CRITIQUE and not self.CRITIQUE_LLM_MODEL_NAME:
+            raise ValueError(f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True.")
+
         
         print("All required environment variables and files are valid and accessible.\n")
