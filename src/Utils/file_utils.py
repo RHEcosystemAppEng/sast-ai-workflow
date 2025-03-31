@@ -23,7 +23,7 @@ def read_known_errors_file(path):
     
 def get_human_verified_results(filename):
     try:
-        df = pd.read_excel(filename)
+        df = pd.read_excel(filename, header=get_header_row(filename))
     except Exception as e:
         raise ValueError(f"Failed to read Excel file at {filename}: {e}")
     
@@ -61,3 +61,9 @@ def read_all_source_code_files():
 def read_answer_template_file(path):
     with open(path, "r", encoding='utf-8') as f:
         return f.read()
+    
+def get_header_row(filename):
+    # Locate the header row containing 'Issue ID'
+    preview = pd.read_excel(filename, header=None, nrows=5)
+    header_row = next((i for i, row in preview.iterrows() if any(str(cell).strip().lower() == 'issue id' for cell in row.values)), None)
+    return header_row
