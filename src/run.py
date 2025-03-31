@@ -19,11 +19,11 @@ from Utils.repo_utils import download_repo
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file 
 from Utils.file_utils import get_human_verified_results
-from Utils.config import Config
 from handlers.repo_handler_factory import repo_handler_factory
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
+from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
 
 

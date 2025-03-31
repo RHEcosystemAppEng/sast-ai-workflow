@@ -41,7 +41,7 @@ def get_report_project_info(file_path: str) -> Tuple[str, str]:
             raise ValueError("No <h1> tag found in input report html")
         
         pkg_str = h1_tag.text
-        match = match = re.match(r'^(.*)-(\d[\w\.]*-\d+)(?:[._].*)?$', pkg_str)
+        match = re.match(r'^(.*)-(\d[\w\.]*-\d+)(?:[._].*)?$', pkg_str)
         if not match:
             raise ValueError(f"Could not identify target project's package string. Provided string: {pkg_str}")
         

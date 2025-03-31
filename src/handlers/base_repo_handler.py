@@ -2,9 +2,10 @@ import re
 import os
 import clang.cindex 
 
+from collections import defaultdict
 from clang.cindex import TranslationUnit, CursorKind
 
-from Utils.config import Config
+from common.config import Config
 from Utils.repo_utils import get_repo_and_branch_from_url, download_repo
 
 
@@ -20,22 +21,30 @@ class RepoHandler:
         else:
             print("Skipping github repo download as per configuration.")
 
-        self._report_file_prefix = ""
         # This variable holds the prefix for source code files as they appear in the report.
         # It helps in locating the correct files by removing this prefix to the paths found in the error traces.
+        self._report_file_prefix = ""
 
-        self.clang_args = []
         # This list contains specific arguments to be passed to the Clang compiler.
         # These arguments are used to configure the parsing and analysis of the source code.
         # Example arguments could include macro definitions or include paths that are necessary for parsing the code correctly.
+        #
+        # Subclasses should override this list with project-specific flags.
+        # For example:
+        # self.clang_args = [
+        #     "-DDEFINE_NAME=value",
+        #     "-I/path/to/includes",
+        # ]
+        self.clang_args = []
+
 
         clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
 
     def get_source_code_from_error_trace(self, error_trace: str) -> str:
         """Parse an error trace and extracts relevant functions bodies/ """
 
-        source_files = re.findall(r'([^\s]+\.(?:c|h)):(\d+):', error_trace)
-        error_code_sources = {}
+        source_files = set(re.findall(r'([^\s]+\.(?:c|h)):(\d+):', error_trace))
+        error_code_sources = defaultdict(set)
         
         for file_path, line_number in source_files:
             file_path = file_path.removeprefix(self._report_file_prefix)
@@ -46,9 +55,9 @@ class RepoHandler:
             
             source_code = self.get_source_code_by_line(local_file_path, int(line_number))
             if source_code:
-                error_code_sources[file_path] = source_code
-        
-        return error_code_sources
+                error_code_sources[file_path].add(source_code)
+
+        return {file: "\n".join(code_sections) for file, code_sections in error_code_sources.items()}
     
     def get_source_code_by_line(self, file_path: str, line: int) -> str:
         if not os.path.exists(file_path):
