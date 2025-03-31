@@ -76,7 +76,8 @@ pip install -r requirements.txt
 Create a .env file (or use the existing one in the drive and place it) in the root directory and set the following:
 
 ```bash
-NVIDIA_API_KEY=<your_nvidia_api_key>
+LLM_API_KEY=<your_api_key>
+CRITIQUE_LLM_API_KEY=<your_api_key> # If Critique is enabled
 ```
 
 ### 6. Install the Embedding Model
@@ -110,10 +111,29 @@ The project supports configuration via a YAML file located in the `config/` fold
 | CHUNK_SIZE                      | 500                                         | Maximum size for each text chunk.                                                                                     |
 | CHUNK_OVERLAP                   | 0                                           | Number of overlapping characters between consecutive chunks.                                                          |
 | CHUNK_SEPARATORS                | ["\n\n", "\n", ".", ";", ",", " ", ""]      | Ordered list of separators to use when splitting text into chunks.                                                    |
+| SHOW_FINAL_JUDGE_CONTEXT                 | true                                | Flag indicating whether to include context (of final judge) in the final output.                             |
+| RUN_WITH_CRITIQUE                 | false                                | Flag indicating whether to enable critique phase.                             |
+| USE_CRITIQUE_AS_FINAL_RESULTS                 | false                                | Flag indicating whether to use critique for metrics calculation.                             |
+| CRITIQUE_LLM_URL                           | LLM_URL          | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                                              |
+| CRITIQUE_LLM_MODEL_NAME                    | -                           | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                                                          |
 
 
 > **Note:**  
 > The values set in the [configuration file](config/default_config.yaml) serve as defaults. Environment variables override these defaults at runtime. Sensitive values, such as API keys, should not be included in this file if the repository is public.
+
+### Optional - Enable Critique Model
+
+The critique model introduces an independent phase to review the main model's response based on its context, the issue, and the instructions provided to the main LLM.
+
+- **Required Configuration**:
+  - `RUN_WITH_CRITIQUE`: Set to `true` to enable the critique phase.
+  - `CRITIQUE_LLM_MODEL_NAME`: Name of the critique model (recommended to be different from the main LLM).
+  - If the critique model uses a different endpoint, set:
+    - `CRITIQUE_LLM_URL`
+    - `CRITIQUE_LLM_API_KEY`
+
+- **Optional Configuration**:
+  - `USE_CRITIQUE_AS_FINAL_RESULTS`: Set to `true` to use critique results for final metrics calculation.
 
 ## Usage
 
