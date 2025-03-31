@@ -11,7 +11,7 @@ from Utils.output_utils import cell_formatting
 
 config = load_config()  # Take configuration variables from default_config.yaml
 OUTPUT_FILE_PATH = config["OUTPUT_FILE_PATH"]
-DEBUG_MODE = config["DEBUG_MODE"]
+SHOW_FINAL_JUDGE_CONTEXT = config["SHOW_FINAL_JUDGE_CONTEXT"]
 RUN_WITH_CRITIQUE = config["RUN_WITH_CRITIQUE"]
 
 
@@ -40,7 +40,7 @@ def write_ai_report_worksheet(data, workbook):
     header_data = ['Issue ID', 'Issue Name', 'Error', 'AI response', 'Answer Relevancy']
     if RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
-    if DEBUG_MODE:
+    if SHOW_FINAL_JUDGE_CONTEXT:
           header_data.append("Context")
     header_format = workbook.add_format({'bold': True,
                                          'bottom': 2,
@@ -59,7 +59,7 @@ def write_ai_report_worksheet(data, workbook):
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
         if RUN_WITH_CRITIQUE:
             worksheet.write(idx + 1, 5, summary_info.critique_response, workbook.add_format({'text_wrap': True}))
-        if DEBUG_MODE:
+        if SHOW_FINAL_JUDGE_CONTEXT:
             worksheet.write(idx + 1, 6, str(summary_info.context).replace('\\n', '\n'), workbook.add_format({'text_wrap': True}))
 
 def write_results_table(workbook, worksheet, evaluation_summary):
