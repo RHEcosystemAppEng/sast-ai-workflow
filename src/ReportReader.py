@@ -21,8 +21,7 @@ def read_sast_report_html(file_path) -> List[Issue]:
             else:
                 if tag.name == 'b' and tag.find('span') and tag.find('a'):
                     try:
-                        cur_issue.issue_type = tag.text.split(':')[0]
-                        cur_issue.issue_name = tag.find('span').text
+                        cur_issue.issue_type = tag.find('span').text
                         cur_issue.issue_cve = tag.find('a').text
                         cur_issue.issue_cve_link = tag.find('a')['href']
                     except AttributeError:
