@@ -26,8 +26,8 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
         print(f"Response of filter_known_error: {response}")
 
         filter_response = json.loads(response)
-        print(f"{issue.id} Is known false positive? {filter_response['Result']}")
-        if "yes" in filter_response['Result'].strip().lower():
+        print(f"{issue.id} Is known false positive? {filter_response['result']}")
+        if "yes" in filter_response['result'].strip().lower():
             already_seen_dict[issue.id] = filter_response
             print(f"LLM found {issue.id} error trace inside known false positives list")
             # print(issue.trace)
