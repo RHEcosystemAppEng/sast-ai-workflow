@@ -1,10 +1,10 @@
 import os
 from pprint import pprint
+from common.config import Config
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI
-from Utils.config_utils import load_config
 from Utils.system_utils import get_device
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -13,26 +13,26 @@ from langchain_core.output_parsers import StrOutputParser
 
 from Utils.file_utils import load_json_with_placeholders, read_answer_template_file
 
-config = load_config()
-RUN_WITH_CRITIQUE = config["RUN_WITH_CRITIQUE"]
-CRITIQUE_LLM_API_KEY = os.environ.get("CRITIQUE_LLM_API_KEY")
-NUMBER_OF_RETRIEVED_KNOWN_ISSUE = config["NUMBER_OF_RETRIEVED_KNOWN_ISSUE"]
 
 class LLMService:
 
-    def __init__(self, base_url, llm_model_name, embedding_llm_model_name, api_key, critique_llm_model_name, critique_base_url):
-        self.base_url = base_url
-        self.api_key = api_key
-        self.llm_model_name = llm_model_name
-        self.embedding_llm_model_name = embedding_llm_model_name
+    def __init__(self, config:Config):
+        self.base_url = config.LLM_URL
+        self.api_key = config.LLM_API_KEY
+        self.llm_model_name = config.LLM_MODEL_NAME
+        self.embedding_llm_model_name = config.EMBEDDINGS_LLM_MODEL_NAME
 
         self._main_llm = None
         self._embedding_llm = None
         self.vector_db = None
         self.knonw_issues_vector_db = None
+        self.number_of_retrieved_known_issue = config.NUMBER_OF_RETRIEVED_KNOWN_ISSUE
+        self.run_with_critique = config.RUN_WITH_CRITIQUE
         self._critique_llm = None
-        self._critique_llm_model_name = critique_llm_model_name
-        self._critique_base_url = critique_base_url
+        self._critique_llm_model_name = config.CRITIQUE_LLM_MODEL_NAME
+        self._critique_base_url = config.CRITIQUE_LLM_URL
+        self.critique_api_key = config.CRITIQUE_LLM_API_KEY
+        
 
     @property
     def main_llm(self):
@@ -77,7 +77,7 @@ class LLMService:
                 self._critique_llm = ChatNVIDIA(
                     base_url=self._critique_base_url,
                     model=self._critique_llm_model_name,
-                    api_key=CRITIQUE_LLM_API_KEY,
+                    api_key=self.critique_api_key,
                     temperature=0.6
                 )
             else:
@@ -113,7 +113,7 @@ class LLMService:
             ),
             ("user", "{question}")
         ])
-        retriever = database.as_retriever(search_kwargs={"k": NUMBER_OF_RETRIEVED_KNOWN_ISSUE, 'filter': {'issue_type': issue.issue_name}})
+        retriever = database.as_retriever(search_kwargs={"k": self.number_of_retrieved_known_issue, 'filter': {'issue_type': issue.issue_name}})
         resp = retriever.invoke(user_input)
         context_list = self._format_context_from_response(resp)
         print(f"[issue-ID - {issue.id}] Found This context:")
@@ -190,7 +190,7 @@ class LLMService:
         )
         response = chain2.invoke(user_input)
         # print(f"{response=}")
-        critique_response = self._evaluate(actual_prompt.to_string(), response) if RUN_WITH_CRITIQUE else ""
+        critique_response = self._evaluate(actual_prompt.to_string(), response) if self.run_with_critique else ""
         return actual_prompt.to_string(), response, critique_response
     
     def _evaluate(self, actual_prompt, response):      

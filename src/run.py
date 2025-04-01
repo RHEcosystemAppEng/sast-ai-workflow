@@ -28,12 +28,7 @@ def main():
     config = Config()
     os.environ[TOKENIZERS_PARALLELISM] = "false" # Turn off parallel processing for tokenization to avoid warnings
 
-    llm_service = LLMService(base_url=config.LLM_URL, 
-                            llm_model_name=config.LLM_MODEL_NAME,
-                            embedding_llm_model_name=config.EMBEDDINGS_LLM_MODEL_NAME, 
-                            api_key=config.LLM_API_KEY,
-                            critique_llm_model_name=config.CRITIQUE_LLM_MODEL_NAME, 
-                            critique_base_url=config.CRITIQUE_LLM_URL)
+    llm_service = LLMService(config)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
     project_name, project_version = get_report_project_info(config.INPUT_REPORT_FILE_PATH)
     issue_list = read_sast_report_html(config.INPUT_REPORT_FILE_PATH)
@@ -143,10 +138,10 @@ def main():
             sleep(1)
 
     ground_truth = get_human_verified_results(config.HUMAN_VERIFIED_FILE_PATH)
-    evaluation_summary = EvaluationSummary(summary_data, ground_truth)
+    evaluation_summary = EvaluationSummary(summary_data, config, ground_truth)
 
     try:
-        write_to_excel_file(summary_data, evaluation_summary)
+        write_to_excel_file(summary_data, evaluation_summary, config)
     except Exception as e:
         print("Error occurred while generating excel file:", e)
     finally:
