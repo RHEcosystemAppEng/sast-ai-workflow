@@ -1,5 +1,7 @@
+import re
+
 from bs4 import BeautifulSoup
-from typing import List
+from typing import List, Tuple
 
 from model.Issue import Issue
 
@@ -29,6 +31,21 @@ def read_sast_report_html(file_path) -> List[Issue]:
                     cur_issue.trace += tag.text
 
     return issue_list
+
+
+def get_report_project_info(file_path: str) -> Tuple[str, str]:
+    with open(file_path, "r", encoding='utf-8') as f:
+        soup = BeautifulSoup(f.read(), 'html.parser')
+        h1_tag = soup.find("h1")
+        if not h1_tag:
+            raise ValueError("No <h1> tag found in input report html")
+        
+        pkg_str = h1_tag.text
+        match = re.match(r'^(.*)-(\d[\w\.]*-\d+)(?:[._].*)?$', pkg_str)
+        if not match:
+            raise ValueError(f"Could not identify target project's package string. Provided string: {pkg_str}")
+        
+        return match.groups()
 
 
 
