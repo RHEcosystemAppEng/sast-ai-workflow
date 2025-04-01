@@ -1,5 +1,5 @@
 {
-  "Justifications": "{JUSTIFICATIONS}",
-  "Recommendations": "{RECOMMENDATIONS}",
-  "Investigation Result": "{RESULTS}"
+  "justifications": "{JUSTIFICATIONS}",
+  "recommendations": "{RECOMMENDATIONS}",
+  "investigation_result": "{RESULTS}"
 }
