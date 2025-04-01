@@ -17,7 +17,7 @@ from ReportReader import read_sast_report_html
 from Utils.embedding_utils import generate_code_embeddings
 from Utils.repo_utils import download_repo
 from Utils.output_utils import print_conclusion
-from Utils.html_utils import read_cve_html_file 
+from Utils.html_utils import read_cve_html_file, format_cwe_context 
 from Utils.file_utils import get_human_verified_results
 from handlers.repo_handler_factory import repo_handler_factory
 from model.EvaluationSummary import EvaluationSummary
@@ -44,7 +44,7 @@ def main():
 
     summary_data = []
 
-    with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progres: ") as pbar:
+    with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
         print("\n")
         selected_issue_set = set([f"def{i}" for i in range(1, 2)]) # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
         already_seen_issue_ids = capture_known_issues(llm_service, 
@@ -54,16 +54,23 @@ def main():
         for issue in issue_list:
             if issue.id not in selected_issue_set: # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
                 continue
-            text_to_embed_list = [cve_text for cve_text in read_cve_html_file(issue.issue_cve_link)]
-            vector_db = llm_service.create_vdb(text_to_embed_list)
 
             # get source code context by error trace
             issue_source_code = repo_handler.get_source_code_from_error_trace(issue.trace)
             source_code_context =  "".join([f'\ncode of {path} file:\n{code}' for path, code in issue_source_code.items()])
-            context =  f"Issue source code: \n{source_code_context}"
+
+            cwe_context = ""
+            if issue.issue_cve_link:
+                cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
+                cwe_context = "".join(cwe_texts)
+
+            combined_context = (
+                f"=== Source Code Context ===\n{source_code_context}\n\n"
+                f"=== CWE Context ===\n{cwe_context}"
+            )
 
             question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace
-            prompt, response, critique_response  = llm_service.final_judge(vector_db, question, context)
+            prompt, response, critique_response = llm_service.final_judge(question, combined_context)
 
             # let's calculate numbers for quality of the response we received here!
             score = {}
