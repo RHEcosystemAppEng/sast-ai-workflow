@@ -83,4 +83,4 @@ class Config:
             raise ValueError(f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True.")
 
         
-        print("All required environment variables and files are valid and accessible.\n")
+        print("All required configuration variables and files are valid and accessible.\n")
