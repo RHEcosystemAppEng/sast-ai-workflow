@@ -5,24 +5,21 @@ from tqdm import tqdm
 
 from tornado.gen import sleep
 
-from Utils.config_utils import load_config
 from Utils.metrics_utils import get_metrics, get_percentage_value
 from Utils.output_utils import cell_formatting
-
-config = load_config()  # Take configuration variables from default_config.yaml
-OUTPUT_FILE_PATH = config["OUTPUT_FILE_PATH"]
-SHOW_FINAL_JUDGE_CONTEXT = config["SHOW_FINAL_JUDGE_CONTEXT"]
-RUN_WITH_CRITIQUE = config["RUN_WITH_CRITIQUE"]
+from common.config import Config
+from model.EvaluationSummary import EvaluationSummary
 
 
-def write_to_excel_file(data, evaluation_summary):
-    print(f" Writing to {OUTPUT_FILE_PATH} ".center(80, '*'))
+
+def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:Config):
+    print(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, '*'))
     
     try:
-        with tqdm(total=len(data), file=sys.stdout, desc="Writing to " + OUTPUT_FILE_PATH + ": ") as pbar:
-            workbook = xlsxwriter.Workbook(OUTPUT_FILE_PATH)
+        with tqdm(total=len(data), file=sys.stdout, desc="Writing to " + config.OUTPUT_FILE_PATH + ": ") as pbar:
+            workbook = xlsxwriter.Workbook(config.OUTPUT_FILE_PATH)
 
-            write_ai_report_worksheet(data, workbook)
+            write_ai_report_worksheet(data, workbook, config)
             write_confusion_matrix_worksheet(workbook, evaluation_summary)
 
             workbook.close()
@@ -32,15 +29,15 @@ def write_to_excel_file(data, evaluation_summary):
     except Exception as e:
         print("Error occurred during Excel writing:", e)
     
-def write_ai_report_worksheet(data, workbook):
+def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet = workbook.add_worksheet("AI report")
     worksheet.set_column(1, 1, 25)
     worksheet.set_column(2, 4, 40)
     worksheet.set_column(5, 6, 25)
     header_data = ['Issue ID', 'Issue Name', 'Error', 'AI response', 'Answer Relevancy']
-    if RUN_WITH_CRITIQUE:
+    if config.RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
-    if SHOW_FINAL_JUDGE_CONTEXT:
+    if config.SHOW_FINAL_JUDGE_CONTEXT:
           header_data.append("Context")
     header_format = workbook.add_format({'bold': True,
                                          'bottom': 2,
@@ -57,9 +54,9 @@ def write_ai_report_worksheet(data, workbook):
         ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
         worksheet.write(idx + 1, 4, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
-        if RUN_WITH_CRITIQUE:
+        if config.RUN_WITH_CRITIQUE:
             worksheet.write(idx + 1, 5, summary_info.critique_response, workbook.add_format({'text_wrap': True}))
-        if SHOW_FINAL_JUDGE_CONTEXT:
+        if config.SHOW_FINAL_JUDGE_CONTEXT:
             worksheet.write(idx + 1, 6, str(summary_info.context).replace('\\n', '\n'), workbook.add_format({'text_wrap': True}))
 
 def write_results_table(workbook, worksheet, evaluation_summary):

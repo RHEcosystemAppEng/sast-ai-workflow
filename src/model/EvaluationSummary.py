@@ -5,6 +5,7 @@ from Utils.metrics_utils import (
     get_predicted_summary,
     get_metrics
 )
+from common.config import Config
 
 
 class EvaluationSummary:
@@ -14,10 +15,10 @@ class EvaluationSummary:
 
     Expects summary_data to be a list of (issue, summary_info) tuples.
     """
-    def __init__(self, summary_data, ground_truth=None):
+    def __init__(self, summary_data, config:Config, ground_truth=None):
         self.summary_data = summary_data
         self.ground_truth = ground_truth
-        self.predicted_summary = get_predicted_summary(summary_data)
+        self.predicted_summary = get_predicted_summary(summary_data, config)
 
         if not self.ground_truth:
             print("No human verified results provided. Skipping metric calculations.")
