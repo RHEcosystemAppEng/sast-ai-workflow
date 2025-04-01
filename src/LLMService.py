@@ -100,7 +100,7 @@ class LLMService:
              "Generate a answer response template provided. No additional text outside the "
              "answer template."
              "\nAnswer response template:{answer_template}\n"
-             "the response must be a valid json without any leading or traling text\n"
+             "the response must be a valid json without any leading or trailing text\n"
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
@@ -129,7 +129,7 @@ class LLMService:
         )
         return actual_prompt.to_string(), chain2.invoke(user_input)
 
-    def final_judge(self, database, user_input:str , context: str):
+    def final_judge(self, user_input: str, context: str):
 
         prompt = ChatPromptTemplate.from_messages([
             ("system",
@@ -151,14 +151,10 @@ class LLMService:
              ),
             ("user", "{question}")
         ])
-        retriever = database.as_retriever()
-        resp = retriever.invoke(user_input)
-        context_str = "".join(doc.page_content for doc in resp)
-        context_str += context
 
         chain1 = (
                 {
-                    "context": RunnableLambda(lambda _: context_str),
+                    "context": RunnableLambda(lambda _: context),
                     "question": RunnablePassthrough()
                 }
                 | prompt
@@ -194,11 +190,11 @@ class LLMService:
             "Start you answer with '<think>\\n' and at the end add the json results"
             "Based on the context, the query, and the 'Justifications' (from the response), your main goal is to check if the 'Investigation Result' (from the response) is right. "
             "\nAssess it with the following parameters (give each one score 0,1,2 - 2 is the higher):"
-            "\n1. Does the 'Justifications' make sense givet the data you have?"
-            "\n2. Does the 'Recommendations' make sense givet the data you have?"
+            "\n1. Does the 'Justifications' make sense given the data you have?"
+            "\n2. Does the 'Recommendations' make sense given the data you have?"
             "\n3. Factual accuracy (Does it match the context?)."
             "\n4. Completeness (Does it address all aspects of the query?)."
-            "\nEventialy decide whether the 'Investigation Result' was right (is it really false positive or not false positive). "
+            "\nEventually decide whether the 'Investigation Result' was right (is it really false positive or not false positive). "
             "Give it a overall confidence score 0,1,2 (2 is the higher)."
             "\nProvide detailed justifications for your answers and ensure your responses are clear and concise. "
             "Structure your output into JSON format with sections: 'Critique Result' (which contain 'false positive' or 'not a false positive'), 'Justifications'."
@@ -219,12 +215,12 @@ class LLMService:
                 | self.critique_llm
                 | StrOutputParser()
         )
-        critque_response = chain.invoke({
+        critique_response = chain.invoke({
                                 "actual_prompt": actual_prompt,
                                 "response": response
                             })
-        # print(f"{critque_response=}")
-        return critque_response
+        # print(f"{critique_response=}")
+        return critique_response
 
     def create_vdb(self, text_data):
         self.embedding_llm.embed_documents(text_data)
