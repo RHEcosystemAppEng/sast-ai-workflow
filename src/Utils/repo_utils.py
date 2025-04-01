@@ -1,16 +1,13 @@
 import git
 import re
-import os 
+import os
+
+from typing import Tuple
 
 
-def download_repo(repo_url):
+def download_repo(repo_url: str) -> str:
     try:
-        # Identify if the URL has a branch or tag with "/tree/"
-        if "/tree/" in repo_url:
-            # Split URL to separate repository URL and branch/tag
-            repo_url, branch_or_tag = re.split(r'/tree/', repo_url, maxsplit=1)
-        else:
-            branch_or_tag = None
+        repo_url, branch_or_tag = get_repo_and_branch_from_url(repo_url)
 
         # Extract the project name (the last part before "/tree/")
         repo_name = repo_url.rstrip('/').split('/')[-1]
@@ -34,5 +31,15 @@ def download_repo(repo_url):
     except Exception as e:
         print(f"An error occurred: {e}")
 
+    return destination_path
 
 
+def get_repo_and_branch_from_url(repo_url: str) -> Tuple[str, str]:
+    # Identify if the URL has a branch or tag with "/tree/"
+    if "/tree/" in repo_url:
+        # Split URL to separate repository URL and branch/tag
+        repo_url, branch_or_tag = re.split(r'/tree/', repo_url, maxsplit=1)
+    else:
+        branch_or_tag = None
+
+    return repo_url, branch_or_tag

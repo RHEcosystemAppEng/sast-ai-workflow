@@ -9,6 +9,7 @@ beautifulsoup4==4.12.3
 bs4==0.0.2
 certifi==2024.8.30
 charset-normalizer==3.4.0
+clang==14.0
 dataclasses-json==0.6.7
 datasets==3.2.0
 dill==0.3.8
@@ -35,6 +36,7 @@ jsonpointer==3.0.0
 langchain==0.3.11
 langchain-community==0.3.11
 langchain-core==0.3.33
+langchain-huggingface==0.1.2
 langchain-nvidia-ai-endpoints==0.3.5
 langchain-openai==0.3.3
 langchain-text-splitters==0.3.2

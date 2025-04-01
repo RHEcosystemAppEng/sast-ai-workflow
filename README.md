@@ -71,6 +71,39 @@ Install the required dependencies:
 pip install -r requirements.txt
 ```
 
+To extract C functions using Clang's AST, the libclang shared library must be installed on your system.  
+This library is not bundled with the Python clang bindings and must be installed separately.
+
+#### Linux:
+```bash
+sudo apt update
+sudo apt install clang libclang-dev
+```
+To find the libclang path, run:
+```bash
+find /usr -name "libclang*"
+```
+
+#### macOS:
+```bash
+brew install llvm 
+```
+To find the libclang path, run:
+```bash
+ls -l $(brew --prefix llvm)/lib/libclang.dylib
+```
+
+#### Windows:
+
+Download and install LLVM from the official website:
+https://releases.llvm.org/download.html
+
+By default, libclang.dll will be located in:
+```
+C:\Program Files\LLVM\bin\libclang.dll
+```
+
+
 ### 5. Configure Environment Variables
 
 Create a .env file (or use the existing one in the drive and place it) in the root directory and set the following:
@@ -99,9 +132,10 @@ The project supports configuration via a YAML file located in the `config/` fold
 | LLM_URL                         | http://<<please-set-llm-url>>                | URL of the language model endpoint.                                                                                   |
 | LLM_MODEL_NAME                  | llm-model                                   | Identifier of the language model to use.                                                                              |
 | EMBEDDINGS_LLM_MODEL_NAME       | embedding-llm-model                         | Model used for generating embeddings.                                                                                 |
-| REPORT_FILE_PATH                | /path/to/report.html                        | Path to the SAST HTML report.                                                                                           |
+| INPUT_REPORT_FILE_PATH                | /path/to/report.html                        | Path to the SAST HTML report.                                                                                           |
 | KNOWN_FALSE_POSITIVE_FILE_PATH  | /path/to/known_false_positives_file         | Path to the file containing known false positives data.                                                               |
-| OUTPUT_FILE_PATH                | /path/to/output_excel.xlsx                  | Path where the generated Excel report will be saved.                                                                  |
+| OUTPUT_FILE_PATH                | /path/to/output_excel.xlsx                  | Path where the generated Excel report will be saved.
+| LIBCLANG_PATH                   | /path/to/libclang          | Path of to your libclang location.                                                          |                                                                  |
 | HUMAN_VERIFIED_FILE_PATH        | <<unknown>>                                 | Path to the human verified results file (used for evaluation).                                                        |
 | GIT_REPO_PATH                   | /path/to/git/repo                           | Path or URL of the Git repository to analyze.                                                                         |
 | USE_KNOWN_FALSE_POSITIVE_FILE   | true                                        | Flag indicating whether to use the known false positives file in the pipeline as an input.                              |
