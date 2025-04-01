@@ -16,13 +16,13 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
     # Reading known false-positives
     text_false_positives = read_known_errors_file(config.KNOWN_FALSE_POSITIVE_FILE_PATH)
 
-    false_positive_db = main_process.create_vdb_for_knonw_issues(text_false_positives)
+    false_positive_db = main_process.create_vdb_for_known_issues(text_false_positives)
 
     already_seen_dict = {}
     for issue in issue_list:
 
         question = "Do you see this exact error trace? " + issue.trace
-        p, response = main_process.filter_known_error(false_positive_db, question, issue)
+        response = main_process.filter_known_error(false_positive_db, question, issue)
         print(f"Response of filter_known_error: {response}")
 
         filter_response = json.loads(response)

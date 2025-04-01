@@ -102,7 +102,7 @@ def main():
             score, critique_response = {}, ""
             if issue.id in already_seen_issue_ids.keys():
                 print(f"{issue.id} already marked as a false positive since it's a known issue")
-                template_path = os.path.join(os.path.dirname(__file__), "templates", "final_jude_resp.json")
+                template_path = os.path.join(os.path.dirname(__file__), "templates", "final_resp.json")
                 context = already_seen_issue_ids[issue.id]['equal_error_trace']
                 response = load_json_with_placeholders(template_path, {"{RESULTS}": "FALSE POSITIVE",
                                                                     "{RECOMMENDATIONS}": "No fix required.",
