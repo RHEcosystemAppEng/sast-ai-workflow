@@ -1,5 +1,6 @@
 import json
 import os
+from Utils.embedding_utils import check_text_size_before_embedding
 from common.config import Config
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -278,8 +279,10 @@ class LLMService:
                     "reason_of_false_positive": reason_of_false_positive,
                     "issue_type": issue_type
                 })
+                error_trace = "\n".join(lines[:-1])
+                check_text_size_before_embedding(error_trace)
                 # Add the item without the last line
-                error_trace_list.append("\n".join(lines[:-1]))
+                error_trace_list.append(error_trace)
             except Exception as e:
                 print(f"Error occurred during process this known issue: {item}\nError: {e}")
                 raise e
