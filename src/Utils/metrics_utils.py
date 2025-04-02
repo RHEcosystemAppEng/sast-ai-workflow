@@ -1,7 +1,7 @@
 import math
 from decimal import Decimal
 
-from Utils.config_utils import load_config
+from common.config import Config
 
 
 def count_predicted_values(data):
@@ -51,14 +51,13 @@ def get_percentage_value(n):
     n = n if isinstance(n, Decimal) else Decimal(str(n))
     return round(n, 2) * 100
 
-def get_predicted_summary(data):
+def get_predicted_summary(data, config:Config):
     summary = []
-    config = load_config()
 
     for _, (issue, summary_info) in enumerate(data):
         ar = 0
         if summary_info and 'answer_relevancy' in summary_info.metrics:
             ar = get_percentage_value(summary_info.metrics['answer_relevancy'])
-        llm_response = summary_info.critique_response if config["USE_CRITIQUE_AS_FINAL_RESULTS"] else summary_info.llm_response
+        llm_response = summary_info.critique_response if config.USE_CRITIQUE_AS_FINAL_RESULTS else summary_info.llm_response
         summary.append((issue.id, llm_response, ar))
     return summary
