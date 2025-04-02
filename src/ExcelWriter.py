@@ -54,10 +54,13 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
         worksheet.write(idx + 1, 4, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
+        dynumic_column = 4
         if config.RUN_WITH_CRITIQUE:
-            worksheet.write(idx + 1, 5, summary_info.critique_response, workbook.add_format({'text_wrap': True}))
+            dynumic_column += 1
+            worksheet.write(idx + 1, dynumic_column, summary_info.critique_response, workbook.add_format({'text_wrap': True}))
         if config.SHOW_FINAL_JUDGE_CONTEXT:
-            worksheet.write(idx + 1, 6, str(summary_info.context).replace('\\n', '\n'), workbook.add_format({'text_wrap': True}))
+            dynumic_column += 1
+            worksheet.write(idx + 1, dynumic_column, str(summary_info.context).replace('\\n', '\n'), workbook.add_format({'text_wrap': True}))
 
 def write_results_table(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A1:B1", "Human Results", cell_formatting(workbook, "#4f8df1"))
