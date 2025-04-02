@@ -1,5 +1,5 @@
 {
-  "Issue_id": "def05",
+  "issue_id": "def05",
   "equal_error_trace": [
     "Error: USE_AFTER_FREE (CWE-416):",
     "systemd-256/src/basic/cgroup-util.c:1013:25: freed_arg: \"free\" frees \"fn\".",
@@ -10,8 +10,8 @@
     "# 1013|                           free(fn);",
     "# 1014|                           if (!p)"
   ],
-  "Justifications": [
+  "justifications": [
     "Although line numbers are not same, rest of the content is matching."
   ],
-  "Result": "YES"
+  "result": "YES"
 }
