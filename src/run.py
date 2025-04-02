@@ -119,8 +119,8 @@ def main():
                     cwe_context = "".join(cwe_texts)
 
                 context = (
-                    f"=== Source Code Context ===\n{source_code_context}\n\n"
-                    f"=== CWE Context ===\n{cwe_context}"
+                    f"*** Source Code Context ***\n{source_code_context}\n\n"
+                    f"*** CWE Context ***\n{cwe_context}"
                 )
 
                 question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace

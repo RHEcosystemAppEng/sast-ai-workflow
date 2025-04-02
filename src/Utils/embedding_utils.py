@@ -40,5 +40,5 @@ def check_text_size_before_embedding(text: str, model_name: str):
             f"\033[91mWARNING: Text length is {token_count} tokens, exceeding the max allowed ({max_tokens}). \033[0m"
             f"\nFirst 20 words of the text: {text.split()[:20]}"
         )
-    else:
-        print(f"Text is within limit: {token_count} tokens.")
+    # else:
+    #     print(f"Text is within limit: {token_count} tokens.")
