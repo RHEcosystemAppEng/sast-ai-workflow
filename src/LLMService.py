@@ -32,7 +32,7 @@ class LLMService:
         self._critique_llm = None
         self._critique_llm_model_name = config.CRITIQUE_LLM_MODEL_NAME
         self._critique_base_url = config.CRITIQUE_LLM_URL
-        self.critique_api_key = config.CRITIQUE_LLM_API_KEY
+        self.critique_api_key = getattr(config, "CRITIQUE_LLM_API_KEY", None)
         
 
     @property
@@ -280,7 +280,7 @@ class LLMService:
                     "issue_type": issue_type
                 })
                 error_trace = "\n".join(lines[:-1])
-                check_text_size_before_embedding(error_trace)
+                check_text_size_before_embedding(error_trace, self.embedding_llm_model_name)
                 # Add the item without the last line
                 error_trace_list.append(error_trace)
             except Exception as e:
