@@ -47,7 +47,7 @@ def write_ai_report_worksheet(data, workbook, config:Config):
 
     for idx, (issue, summary_info) in enumerate(data):
         worksheet.write(idx + 1, 0, issue.id)
-        worksheet.write(idx + 1, 1, issue.issue_name)
+        worksheet.write(idx + 1, 1, issue.issue_type)
         worksheet.write(idx + 1, 2, issue.trace)
         worksheet.write(idx + 1, 3, summary_info.llm_response, workbook.add_format({'text_wrap': True}))
 

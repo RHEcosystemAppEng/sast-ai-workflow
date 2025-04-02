@@ -28,7 +28,7 @@ class Config:
             if not config.get(CRITIQUE_LLM_URL) or not os.getenv(CRITIQUE_LLM_API_KEY):
                 print("Critique model details not provided - using main LLM details instead")
                 config[CRITIQUE_LLM_URL] = config.get(LLM_URL)
-                os.environ[CRITIQUE_LLM_API_KEY] = os.getenv(LLM_API_KEY)
+                self.CRITIQUE_LLM_API_KEY = os.getenv(LLM_API_KEY)
 
         self.__dict__.update(config)
 
