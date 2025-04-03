@@ -84,6 +84,12 @@ To find the libclang path, run:
 find /usr -name "libclang*"
 ```
 
+#### Fedora:
+```bash
+sudo dnf update -y
+sudo dnf install -y clang llvm-devel
+```
+
 #### macOS:
 ```bash
 brew install llvm 
@@ -92,17 +98,6 @@ To find the libclang path, run:
 ```bash
 ls -l $(brew --prefix llvm)/lib/libclang.dylib
 ```
-
-#### Windows:
-
-Download and install LLVM from the official website:
-https://releases.llvm.org/download.html
-
-By default, libclang.dll will be located in:
-```
-C:\Program Files\LLVM\bin\libclang.dll
-```
-
 
 ### 5. Configure Environment Variables
 
