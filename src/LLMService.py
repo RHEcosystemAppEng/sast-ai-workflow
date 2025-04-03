@@ -144,17 +144,12 @@ class LLMService:
         return chain2.invoke(user_input), context
 
     def _format_context_from_response(self, resp):
-        context = ""
-        for i, doc in enumerate(resp):
-            context += (
-                f"\n** Example-{i} **\n" 
-                f"(Example-{i}) Known False Positive:\n"
-                f"{doc.page_content}\n"
-                f"(Example-{i}) Reason Marked as False Positive:\n"
-                f"{doc.metadata['reason_of_false_positive']}"
-                )
-                                
-        return context
+        context_list = []
+        for doc in resp:
+            context_list.append({"Known False Positive":doc.page_content, 
+                                 "Reason Marked as False Positive":doc.metadata['reason_of_false_positive']
+                                 })
+        return context_list
 
     def final_judge(self, user_input: str, context: str):
 
