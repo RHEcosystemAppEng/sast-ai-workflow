@@ -122,7 +122,7 @@ class LLMService:
         if not context_list:
             # print(f"Not find any relevant context for issue id {issue.id}")
             unknown_issue_template_path = os.path.join(os.path.dirname(__file__), "templates", "unknown_issue_filter_resp.json")
-            return load_json_with_placeholders(unknown_issue_template_path, {"{ID}": issue.id, "{TYPE}": issue.issue_type})
+            return load_json_with_placeholders(unknown_issue_template_path, {"{ID}": issue.id, "{TYPE}": issue.issue_type}), context_list
 
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
@@ -141,7 +141,7 @@ class LLMService:
                 | self.main_llm
                 | StrOutputParser()
         )
-        return chain2.invoke(user_input)
+        return chain2.invoke(user_input), context_list
 
     def _print_known_issue_context(self, issue, context_list):
         pretty_str = json.dumps(context_list, indent=4, ensure_ascii=False)
@@ -175,6 +175,13 @@ class LLMService:
              "Answer must have ONLY the following 3 sections:"
              "investigation_result, justifications, recommendations. "
              "investigation_result should only contain, FALSE POSITIVE or NOT A FALSE POSITIVE."
+             "In the context, you have two parts: "
+             "1. Examples: These are already classified issues that you can use as a reference for analyzing the issue. "
+             "   Each example includes two key elements: "
+             "   - An error trace (called 'Known False Positive'). "
+             "   - A reason for its classification as a false positive (called 'Reason Marked as False Positive'). "
+             "2. Source Code Context: This contains the relevant source code extracted from the repository to help you analyze the issue. "
+             "Use both parts of the context to provide your analysis. "
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
