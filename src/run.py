@@ -90,7 +90,7 @@ def main():
             "def49",  # This one is known false positive
             "def50",  # This one is known false positive
         }
-        already_seen_issue_ids = capture_known_issues(llm_service, 
+        already_seen_issue_ids, similar_known_issues_dict = capture_known_issues(llm_service, 
                                                       set(e for e in issue_list if e.id in selected_issue_set),
                                                       config)
 
@@ -113,14 +113,15 @@ def main():
                 issue_source_code = repo_handler.get_source_code_from_error_trace(issue.trace)
                 source_code_context =  "".join([f'\ncode of {path} file:\n{code}' for path, code in issue_source_code.items()])
 
-                cwe_context = ""
-                if issue.issue_cve_link:
-                    cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
-                    cwe_context = "".join(cwe_texts)
+                # cwe_context = ""
+                # if issue.issue_cve_link:
+                    # cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
+                    # cwe_context = "".join(cwe_texts)
 
                 context = (
                     f"*** Source Code Context ***\n{source_code_context}\n\n"
-                    f"*** CWE Context ***\n{cwe_context}"
+                    f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
+                    
                 )
 
                 question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace

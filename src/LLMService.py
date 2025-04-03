@@ -117,19 +117,19 @@ class LLMService:
         retriever = database.as_retriever(search_kwargs={"k": self.similarity_error_threshold, 
                                                          'filter': {'issue_type': issue.issue_type}})
         resp = retriever.invoke(user_input)
-        context_list = self._format_context_from_response(resp)
-        # self._print_known_issue_context(issue, context_list)
-        if not context_list:
+        context= self._format_context_from_response(resp)
+        print(f"[issue-ID - {issue.id}] Found This context:\n{context}")
+        if not context:
             # print(f"Not find any relevant context for issue id {issue.id}")
             unknown_issue_template_path = os.path.join(os.path.dirname(__file__), "templates", "unknown_issue_filter_resp.json")
-            return load_json_with_placeholders(unknown_issue_template_path, {"{ID}": issue.id, "{TYPE}": issue.issue_type})
+            return load_json_with_placeholders(unknown_issue_template_path, {"{ID}": issue.id, "{TYPE}": issue.issue_type}), context
 
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
         
         chain1 = (
                 {
-                    "context": RunnableLambda(lambda _: context_list),
+                    "context": RunnableLambda(lambda _: context),
                     "answer_template": RunnableLambda(lambda _: answer_template),
                     "question": RunnablePassthrough()
                 }
@@ -141,21 +141,20 @@ class LLMService:
                 | self.main_llm
                 | StrOutputParser()
         )
-        return chain2.invoke(user_input)
-
-    def _print_known_issue_context(self, issue, context_list):
-        pretty_str = json.dumps(context_list, indent=4, ensure_ascii=False)
-        # Replace `\n` inside string values for proper new lines
-        pretty_str = pretty_str.replace('\\n', '\n')
-        print(f"[issue-ID - {issue.id}] Found This context:\n{pretty_str}")
+        return chain2.invoke(user_input), context
 
     def _format_context_from_response(self, resp):
-        context_list = []
-        for doc in resp:
-            context_list.append({"Known False Positive":doc.page_content, 
-                                 "Reason Marked as False Positive":doc.metadata['reason_of_false_positive']
-                                 })
-        return context_list
+        context = ""
+        for i, doc in enumerate(resp):
+            context += (
+                f"\n** Example-{i} **\n" 
+                f"(Example-{i}) Known False Positive:\n"
+                f"{doc.page_content}\n"
+                f"(Example-{i}) Reason Marked as False Positive:\n"
+                f"{doc.metadata['reason_of_false_positive']}"
+                )
+                                
+        return context
 
     def final_judge(self, user_input: str, context: str):
 
@@ -165,16 +164,31 @@ class LLMService:
              "You understand programming language control structures. Therefore, you are capable of verifying the "
              "call-hierarchy of a given source code. You can observe the runtime workflows."
              "You understand the question has line numbers of the source code."
-             "Your responses should be precise and no longer than two sentences. Provide justifications for your answers."
+             "Your responses should be precise and no longer than two sentences. "
              # "Do not hallucinate. Say you don't know if you don't have this information." # LLM doesn't know it is hallucinating
              # "Answer the question using only the context"  # this line can be optional
              # "First step is to see if the context has the same error stack trace. If so, it is a false positive. "
              # "For the justification you can mention that Red Hat engineers have manually verified it as false positive error."
              # "If you do not find exact error in the Context, you must perform an independent verification,"
-             "Tell precisely if the error is a false positive or not. "
-             "Answer must have ONLY the following 3 sections:"
+             "Your task is to analyze the issue step-by-step. Follow these steps to guide your thinking: "
+             "Step 1: Analyze the examples provided in the context. "
+             "   - Check if any of the examples are relevant to the current issue. "
+             "   - Use the error trace and the reason for classification as a false positive to determine relevance. "
+             "   - If relevant examples exist, explain how they relate to the current issue and what you can learn from them. "
+             "Step 2: Analyze the source code context. "
+             "   - Investigate the source code to determine if the issue is a false positive or not. "
+             "Step 3: Provide justifications for your conclusion based on the examples and source code analysis. "
+             "   - Tell precisely if the error is a false positive or not. "
+             "\n\nAnswer must have ONLY the following 3 sections:"
              "investigation_result, justifications, recommendations. "
              "investigation_result should only contain, FALSE POSITIVE or NOT A FALSE POSITIVE."
+             "\n\nIn the context, you have two parts: "
+             "1. Examples: These are already classified issues that you can use as a reference for analyzing the issue. "
+             "   Each example includes two key elements: "
+             "   - An error trace (called 'Known False Positive'). "
+             "   - A reason for its classification as a false positive (called 'Reason Marked as False Positive'). "
+             "2. Source Code Context: This contains the relevant source code extracted from the repository to help you analyze the issue. "
+             "Use both parts of the context to provide your analysis. "
              "\n\nContext:{context}"
              ),
             ("user", "{question}")
