@@ -27,7 +27,7 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
 
         question = "Do you see this exact error trace? " + issue.trace
         response, context = main_process.filter_known_error(false_positive_db, question, issue)
-        context_dict[issue.id] = context
+        context_dict[issue.id] = convert_similar_issues_to_context_string(context)
         print(f"Response of filter_known_error: {response}")
 
         is_valid_json = True
@@ -50,3 +50,18 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
 
     print(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
     return already_seen_dict, context_dict
+
+def convert_similar_issues_to_context_string(similar_known_issues_list: list) -> str:
+    """Convert a list of known false positive CVE examples into a formatted string. """
+    formatted_context = ""
+    for i in range(len(similar_known_issues_list)):
+        example_number = i + 1
+        formatted_context += (
+            f"\n** Example-{example_number} **\n" 
+            f"(Example-{example_number}) Known False Positive:\n"
+            f"{similar_known_issues_list[i]['Known False Positive']}\n"
+            f"(Example-{example_number}) Reason Marked as False Positive:\n"
+            f"{similar_known_issues_list[i]['Reason Marked as False Positive']}"
+            )
+                            
+    return formatted_context
