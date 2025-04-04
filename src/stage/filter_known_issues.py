@@ -26,8 +26,8 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
     for issue in issue_list:
 
         question = "Do you see this exact error trace? " + issue.trace
-        response, context_list = main_process.filter_known_error(false_positive_db, question, issue)
-        context_dict[issue.id] = context_list
+        response, context = main_process.filter_known_error(false_positive_db, question, issue)
+        context_dict[issue.id] = context
         print(f"Response of filter_known_error: {response}")
 
         is_valid_json = True
