@@ -1,18 +1,19 @@
 import json
 import os
-from Utils.embedding_utils import check_text_size_before_embedding
-from common.config import Config
+
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI
-from Utils.system_utils import get_device
-
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 
 from Utils.file_utils import load_json_with_placeholders, read_answer_template_file
+from Utils.embedding_utils import check_text_size_before_embedding
+from Utils.system_utils import get_device
+from common.config import Config
+from model.Issue import Issue
 
 
 class LLMService:
@@ -91,32 +92,34 @@ class LLMService:
                 )
         return self._critique_llm
 
-    def filter_known_error(self, database, user_input, issue):
+    def filter_known_error(self, database, issue: Issue):
 
         prompt = ChatPromptTemplate.from_messages([
             ("system",
-            "You are an expert in identifying similar error stack traces. "
-            "The context contains a list of issues that have been classified as false positive by RedHat engineers. "
-            "Each issue in the list includes two key elements: "
-            "1. An error trace (called 'Known False Positive'). "
-            "2. A reason for its classification as a false positive (called 'Reason Marked as False Positive'). "
+            "You are an expert in identifying similar error stack traces.\n"
+            "You are provided with:\n"
+            "1. A list of known false positive issues (context_false_positives):\n"
+            "Each issue in the list includes two key elements:\n"
+            "false_positive_error_trace - the issue error trace.\n"
+            "reason_marked_false_positive - A reason for its classification as a false positive.\n"
+            "2. A new user error trace (user_error_trace).\n\n"
+            "Your task is to determine whether the user error trace exactly matches any of the false positives.\n"
             "When comparing issues, you may ignore differences in line numbers and package version details. "
             "However, the error trace in the query must exactly match the error trace in the context, "
             "including the same method names and the same order of method calls. "
-            "Your task is to carefully analyze the context and determine if there is an error trace "
-            "in the context that matches the error trace in the query. "
-            "Answer the question using only the provided context. "
+            "Answer the question using only the provided context.\n"
             "Your response must strictly follow the provided answer response template. "
-            "Do not include any additional text outside the answer template. "
-            "\nAnswer response template:{answer_template}\n"
-             "the response must be a valid json without any leading or traling text\n"
-            "\n\nContext:{context}"
+            "Do not include any additional text outside the answer template.\n"
+            "Answer response template:\n{answer_template}\n"
+            "the response must be a valid json without any leading or trailing text\n\n"
+            "context_false_positives: {context}"
             ),
-            ("user", "{question}")
+            ("user", "Does the error trace of user_error_trace match any of the context_false_positives errors?\n"
+            "user_error_trace: {user_error_trace}")
         ])
         retriever = database.as_retriever(search_kwargs={"k": self.similarity_error_threshold, 
                                                          'filter': {'issue_type': issue.issue_type}})
-        resp = retriever.invoke(user_input)
+        resp = retriever.invoke(issue.trace)
         context= self._format_context_from_response(resp)
         print(f"[issue-ID - {issue.id}] Found This context:\n{context}")
         if not context:
@@ -131,26 +134,26 @@ class LLMService:
                 {
                     "context": RunnableLambda(lambda _: context),
                     "answer_template": RunnableLambda(lambda _: answer_template),
-                    "question": RunnablePassthrough()
+                    "user_error_trace": RunnablePassthrough()
                 }
                 | prompt
         )
-        # print(f"Filtering prompt:   {actual_prompt.to_string()}")
+        # actual_prompt = chain1.invoke(issue.trace)
+        # print(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
         chain2 = (
                 chain1
                 | self.main_llm
                 | StrOutputParser()
         )
-        return chain2.invoke(user_input), context
+        return chain2.invoke(issue.trace), context
 
     def _format_context_from_response(self, resp):
         context_list = []
         for doc in resp:
-            context_list.append({"Known False Positive":doc.page_content, 
-                                 "Reason Marked as False Positive":doc.metadata['reason_of_false_positive']
+            context_list.append({"false_positive_error_trace":doc.page_content, 
+                                 "reason_marked_false_positive":doc.metadata['reason_of_false_positive']
                                  })
         return context_list
-
     def final_judge(self, user_input: str, context: str):
 
         prompt = ChatPromptTemplate.from_messages([

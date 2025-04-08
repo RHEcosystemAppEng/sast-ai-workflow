@@ -68,6 +68,10 @@ class Config:
             if not value:
                 raise ValueError(f"Configuration variable '{var}' is not set or is empty.")
 
+        # Check if CONFIG_H_PATH is accessible if it was provided
+        if self.CONFIG_H_PATH:
+            required_cfg_files.append(CONFIG_H_PATH)
+
         # Validate that input files exist and are accessible
         for var in required_cfg_files:
             value = self.__dict__[var]
