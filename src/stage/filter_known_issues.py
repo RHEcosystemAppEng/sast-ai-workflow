@@ -1,6 +1,3 @@
-import json
-import re
-
 from LLMService import LLMService
 from Utils.file_utils import read_known_errors_file
 from LLMService import LLMService
@@ -11,7 +8,7 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
     """
     Identify and capture known false-positive issues.
     Returns:
-        dict: A dictionary where keys are issue IDs and values are the filter responses
+        dict: A dictionary where keys are issue IDs and values are the FilterResponse objects
               for issues identified as known false positives.
         dict: A dictionary where keys are issue IDs and values are the contexts with the
               most N (N=SIMILARITY_ERROR_THRESHOLD) similar known issues from the same type.
@@ -23,27 +20,16 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
 
     already_seen_dict = {}
     context_dict = {}
-    for issue in issue_list: 
-        response, context = main_process.filter_known_error(false_positive_db, issue)
+    for issue in issue_list:
+        filter_response, context = main_process.filter_known_error(false_positive_db, issue)
         context_dict[issue.id] = convert_similar_issues_to_context_string(context)
-        print(f"Response of filter_known_error: {response}")
+        print(f"Response of filter_known_error: {filter_response}")
 
-        is_valid_json = True
-        try:
-            filter_response = json.loads(response)
-            result_value = filter_response['result'].strip().lower()
-            print(f"{issue.id} Is known false positive? {result_value}")
-            is_known_false_positive = "yes" in result_value
-        except (json.JSONDecodeError, KeyError):
-            # WA: Fallback to regex check for "Result": "YES" in case the response is not valid JSON
-            # This is a temporary change to handle inconsistent response formats.
-            print(f"Response is not valid JSON. Checking for fallback condition.")
-            is_valid_json = False
-            is_known_false_positive = re.search(r'"?result"?\s*:\s*"?yes"?', response, re.IGNORECASE) is not None
+        result_value = filter_response.result.strip().lower()
+        print(f"{issue.id} Is known false positive? {result_value}")
 
-        if is_known_false_positive:
-            already_seen_dict[issue.id] = filter_response if is_valid_json else {"result": "YES", 
-                                                                                 "equal_error_trace": response}
+        if "yes" in result_value:
+            already_seen_dict[issue.id] = filter_response 
             print(f"LLM found {issue.id} error trace inside known false positives list")
 
     print(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
