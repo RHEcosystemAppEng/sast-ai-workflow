@@ -10,7 +10,13 @@ from Utils.repo_utils import get_repo_and_branch_from_url, download_repo
 
 
 
-class RepoHandler:
+class CRepoHandler:
+    """
+    A handler for managing and analyzing C language Git repositories.
+
+    This class provides functionality to extract relevant source code functions
+    based on either an error trace or specific line numbers.
+    """
     def __init__(self, config: Config) -> None:
         self.url, self.branch = get_repo_and_branch_from_url(config.GIT_REPO_PATH)
         
@@ -35,8 +41,7 @@ class RepoHandler:
         #     "-DDEFINE_NAME=value",
         #     "-I/path/to/includes",
         # ]
-        self.clang_args = []
-
+        self.clang_args = ['-include', config.CONFIG_H_PATH] if config.CONFIG_H_PATH else []
 
         clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
 
@@ -64,9 +69,12 @@ class RepoHandler:
             print(f"File not found: {file_path}")
             return None
 
+        args = self.clang_args
+        if not args:
+            args = self._get_clang_args_from_file(file_path)
         translation_unit = TranslationUnit.from_source(file_path, 
                                                     options=TranslationUnit.PARSE_INCOMPLETE,
-                                                    args=['-Xclang', '-fsyntax-only'] + self.clang_args)
+                                                    args=['-Xclang', '-fsyntax-only'] + args)
 
         source_code = None
 
@@ -103,3 +111,17 @@ class RepoHandler:
                 source_code = "".join(lines[min(0, line - 100):max(line + 100, len(lines))])
         
         return source_code
+    
+    def _get_clang_args_from_file(self, file_path: str) -> list[str]:
+        pattern = re.compile(r'^\s*#\s*(if|ifdef|ifndef)\b(.*)', re.MULTILINE)
+        macros = set()
+        with open(file_path) as f:
+            expressions = pattern.findall(f.read())
+        
+        for expr in expressions:
+            matches = re.findall(r'defined\s*\(\s*(\w+)\s*\)|defined\s+(\w+)|\b([A-Z_][A-Z0-9_]*)\b', expr[1])
+            for match in matches[0]:
+                if match:
+                    macros.add(f"-D{match}")
+        
+        return list(macros)
