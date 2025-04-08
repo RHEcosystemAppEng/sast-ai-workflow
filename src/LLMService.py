@@ -1,19 +1,19 @@
-import json
 import os
 
+from langchain_openai.chat_models.base import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain_core.output_parsers import StrOutputParser
 
-from Utils.file_utils import load_json_with_placeholders, read_answer_template_file
+from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
 from Utils.system_utils import get_device
 from common.config import Config
 from model.Issue import Issue
+from templates.response_structures import FilterResponse, FinalJudgeResponse
 
 
 class LLMService:
@@ -35,6 +35,11 @@ class LLMService:
         self._critique_base_url = config.CRITIQUE_LLM_URL
         self.critique_api_key = getattr(config, "CRITIQUE_LLM_API_KEY", None)
         
+        # Initialize failure counters
+        self.filter_failure_counter = 0
+        self.judge_failure_counter = 0
+        self.failure_tolerance = 3
+        
 
     @property
     def main_llm(self):
@@ -48,7 +53,7 @@ class LLMService:
                     temperature=0
                 )
             else:
-                self._main_llm = OpenAI(
+                self._main_llm = ChatOpenAI(
                     base_url=self.base_url,
                     model=self.llm_model_name,
                     api_key="dummy_key",
@@ -93,7 +98,16 @@ class LLMService:
         return self._critique_llm
 
     def filter_known_error(self, database, issue: Issue):
+        """
+        Check if an issue exactly matches a known false positive.
+        
+        Args:
+            database: The vector database of known false positives.
+            issue: The issue object with details like the error trace and issue ID.
 
+        Returns:
+            FilterResponse: A structured response with the analysis result.
+        """
         prompt = ChatPromptTemplate.from_messages([
             ("system",
             "You are an expert in identifying similar error stack traces.\n"
@@ -111,7 +125,6 @@ class LLMService:
             "Your response must strictly follow the provided answer response template. "
             "Do not include any additional text outside the answer template.\n"
             "Answer response template:\n{answer_template}\n"
-            "the response must be a valid json without any leading or trailing text\n\n"
             "context_false_positives: {context}"
             ),
             ("user", "Does the error trace of user_error_trace match any of the context_false_positives errors?\n"
@@ -124,12 +137,20 @@ class LLMService:
         print(f"[issue-ID - {issue.id}] Found This context:\n{context}")
         if not context:
             # print(f"Not find any relevant context for issue id {issue.id}")
-            unknown_issue_template_path = os.path.join(os.path.dirname(__file__), "templates", "unknown_issue_filter_resp.json")
-            return load_json_with_placeholders(unknown_issue_template_path, {"{ID}": issue.id, "{TYPE}": issue.issue_type}), context
+            response = FilterResponse(
+                                    issue_id=issue.id,
+                                    equal_error_trace=[],
+                                    justifications=(f"No identical error trace found in the provided context. "
+                                                    f"The context empty because no issue of type {issue.issue_type} in knonw isseu DB."),
+                                    result="NO"
+                                )     
+            return response, context
 
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
-        
+
+        structured_llm = self.main_llm.with_structured_output(FilterResponse, method="json_mode")
+
         chain1 = (
                 {
                     "context": RunnableLambda(lambda _: context),
@@ -142,10 +163,31 @@ class LLMService:
         # print(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
         chain2 = (
                 chain1
-                | self.main_llm
-                | StrOutputParser()
+                | structured_llm
         )
-        return chain2.invoke(issue.trace), context
+        response = chain2.invoke(issue.trace)
+        if not response:
+            # If the response is insufficient to construct the object -
+            # response will be None and we'll give it another try
+            if self.filter_failure_counter >= self.failure_tolerance:
+                raise Exception(
+                    f"Model output parsing has failed {self.filter_failure_counter} times as part of the filter_known_error process, "
+                    f"which exceeds the allowed failure tolerance of {self.failure_tolerance}. "
+                    f"This indicates a persistent issue with the model or the input data. "
+                    f"Please investigate the root cause to resolve this problem."
+                )
+            print(f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m")
+            response = chain2.invoke(issue.trace)
+            if not response:
+                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issu-id {issue.id}. \033[0m")
+                self.filter_failure_counter += 1
+                response = FilterResponse(
+                                        issue_id=issue.id,
+                                        equal_error_trace=[],
+                                        justifications="An error occurred twice during model output parsing. Defaulting to: NO",
+                                        result="NO"
+                                    )
+        return response, context
 
     def _format_context_from_response(self, resp):
         context_list = []
@@ -155,7 +197,19 @@ class LLMService:
                                  })
         return context_list
     def final_judge(self, user_input: str, context: str):
+        """
+        Analyze an issue to determine if it is a false positive or not.
 
+        Args:
+            user_input: Query with error trace to analyze.
+            context: The context to assist in the analysis.
+
+        Returns:
+            tuple: A tuple containing:
+                - actual_prompt (str): The prompt sent to the model.
+                - response (FinalJudgeResponse): A structured response with the analysis result.
+                - critique_response (str): The response of the critique model, if applicable.
+        """
         prompt = ChatPromptTemplate.from_messages([
             ("system",
              "You are an experienced C developer tasked with analyzing code to identify potential flaws. "
@@ -191,6 +245,8 @@ class LLMService:
              ),
             ("user", "{question}")
         ])
+        
+        structured_llm = self.main_llm.with_structured_output(FinalJudgeResponse, method="json_mode")
 
         chain1 = (
                 {
@@ -203,11 +259,30 @@ class LLMService:
         # print(f"Evaluation prompt:   {actual_prompt.to_string()}")
         chain2 = (
                 chain1
-                | self.main_llm
-                | StrOutputParser()
+                | structured_llm
         )
         response = chain2.invoke(user_input)
-        # print(f"{response=}")
+        print(f"{response=}")
+        if not response:
+            # If the response is insufficient to construct the object -
+            # response will be None and we'll give it another try
+            if self.judge_failure_counter >= self.failure_tolerance:
+                raise Exception(
+                    f"Model output parsing has failed {self.judge_failure_counter} times as part of the final_judge process, "
+                    f"which exceeds the allowed failure tolerance of {self.failure_tolerance}. "
+                    f"This indicates a persistent issue with the model or the input data. "
+                    f"Please investigate the root cause to resolve this problem."
+                )
+            print(f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m")
+            response = chain2.invoke(user_input)
+            if not response:
+                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again. \033[0m")
+                self.judge_failure_counter += 1
+                response = FinalJudgeResponse(
+                        investigation_result="NOT A FALSE POSITIVE",
+                        recommendations=[""],
+                        justifications=[f"Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."]
+                        )
         critique_response = self._evaluate(actual_prompt.to_string(), response) if self.run_with_critique else ""
         return actual_prompt.to_string(), response, critique_response
     

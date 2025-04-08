@@ -66,23 +66,3 @@ def get_header_row(filename):
     preview = pd.read_excel(filename, header=None, nrows=5)
     header_row = next((i for i, row in preview.iterrows() if any(str(cell).strip().lower() == 'issue id' for cell in row.values)), None)
     return header_row
-
-def load_json_with_placeholders(template_path, placeholders):
-    """
-    Args:
-        template_path (str): Path to the JSON template file.
-        placeholders (dict): Dictionary where keys are placeholder names (e.g., "{ID}")
-                             and values are the values to replace them with.
-                             NOTE: Assume values are str
-
-    Returns:
-        dict: JSON object with placeholders replaced
-    """
-    with open(template_path, "r", encoding="utf-8") as f:
-        json_data = json.load(f)
-    json_str = json.dumps(json_data)
-
-    for placeholder, value in placeholders.items():
-        json_str = json_str.replace(placeholder, value)
-
-    return json_str

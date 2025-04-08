@@ -4,6 +4,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 
 from model.MetricRequest import MetricRequest
+from templates.response_structures import FinalJudgeResponse
 
 
 class MetricHandler:
@@ -25,7 +26,7 @@ class MetricHandler:
         return results.scores[0]
 
 
-def metric_request_from_prompt(prompt_txt, llm_response):
+def metric_request_from_prompt(prompt_txt, llm_response:FinalJudgeResponse):
     retrieved_contexts_str_list = parse_context_from_prompt(prompt_txt)
     return MetricRequest(prompt_txt, llm_response, retrieved_contexts_str_list)
 

@@ -7,8 +7,8 @@ from common.config import Config
 def count_predicted_values(data):
     positives = set()
     negatives = set()
-    for (issue_id, llm_text, metric_ar) in data:
-        if "not a false positive" in str(llm_text).lower():
+    for (issue_id, llm_response, metric_ar) in data:
+        if "not a false positive" in llm_response.investigation_result.lower():
             positives.add(issue_id)
         else:
             negatives.add(issue_id)
