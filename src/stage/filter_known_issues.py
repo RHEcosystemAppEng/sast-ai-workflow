@@ -23,10 +23,8 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
 
     already_seen_dict = {}
     context_dict = {}
-    for issue in issue_list:
-
-        question = "Do you see this exact error trace? " + issue.trace
-        response, context = main_process.filter_known_error(false_positive_db, question, issue)
+    for issue in issue_list: 
+        response, context = main_process.filter_known_error(false_positive_db, issue)
         context_dict[issue.id] = convert_similar_issues_to_context_string(context)
         print(f"Response of filter_known_error: {response}")
 
@@ -59,9 +57,9 @@ def convert_similar_issues_to_context_string(similar_known_issues_list: list) ->
         formatted_context += (
             f"\n** Example-{example_number} **\n" 
             f"(Example-{example_number}) Known False Positive:\n"
-            f"{similar_known_issues_list[i]['Known False Positive']}\n"
+            f"{similar_known_issues_list[i]['false_positive_error_trace']}\n"
             f"(Example-{example_number}) Reason Marked as False Positive:\n"
-            f"{similar_known_issues_list[i]['Reason Marked as False Positive']}"
+            f"{similar_known_issues_list[i]['reason_marked_false_positive']}"
             )
                             
     return formatted_context
