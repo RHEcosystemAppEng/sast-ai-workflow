@@ -15,13 +15,14 @@ from MetricHandler import (
 from ReportReader import read_sast_report_html
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file, format_cwe_context 
-from Utils.file_utils import get_human_verified_results, load_json_with_placeholders
+from Utils.file_utils import get_human_verified_results
 from handlers.repo_handler_factory import repo_handler_factory
 from model.EvaluationSummary import EvaluationSummary
 from model.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
 from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
+from model.ResponseStructures import FinalJudgeResponse
 
 
 def main():
@@ -102,12 +103,12 @@ def main():
             score, critique_response = {}, ""
             if issue.id in already_seen_issue_ids.keys():
                 print(f"{issue.id} already marked as a false positive since it's a known issue")
-                template_path = os.path.join(os.path.dirname(__file__), "templates", "final_resp.json")
-                context = already_seen_issue_ids[issue.id]['equal_error_trace']
-                response = load_json_with_placeholders(template_path, {"{RESULTS}": "FALSE POSITIVE",
-                                                                    "{RECOMMENDATIONS}": "No fix required.",
-                                                                    "{JUSTIFICATIONS}": f"The error is similar to one found in the provided context: \
-                                                                        {context}"})
+                context = already_seen_issue_ids[issue.id].equal_error_trace
+                response = FinalJudgeResponse(
+                        investigation_result="FALSE POSITIVE",
+                        recommendations=["No fix required."],
+                        justifications=[f"The error is similar to one found in the provided context: {context}"]
+                        )
             else:
                 # get source code context by error trace
                 issue_source_code = repo_handler.get_source_code_from_error_trace(issue.trace)
@@ -125,7 +126,7 @@ def main():
                 )
 
                 question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace
-                prompt, response, critique_response = llm_service.final_judge(question, context)
+                prompt, response, critique_response = llm_service.final_judge(question, context, issue)
 
                 # let's calculate numbers for quality of the response we received here!
                 score = {}
