@@ -34,7 +34,7 @@ def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet.set_column(1, 1, 25)
     worksheet.set_column(2, 4, 40)
     worksheet.set_column(5, 6, 25)
-    header_data = ['Issue ID', 'Issue Name', 'Error', 'AI response', 'Answer Relevancy']
+    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Justifications', 'Recommendations', 'Answer Relevancy']
     if config.RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
     if config.SHOW_FINAL_JUDGE_CONTEXT:
@@ -49,12 +49,15 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         worksheet.write(idx + 1, 0, issue.id)
         worksheet.write(idx + 1, 1, issue.issue_type)
         worksheet.write(idx + 1, 2, issue.trace)
-        worksheet.write(idx + 1, 3, summary_info.llm_response, workbook.add_format({'text_wrap': True}))
+        worksheet.write(idx + 1, 3, summary_info.llm_response.investigation_result, workbook.add_format({'text_wrap': True}))
+        worksheet.write(idx + 1, 4, "\n\n".join(summary_info.llm_response.justifications), workbook.add_format({'text_wrap': True}))
+        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.recommendations), workbook.add_format({'text_wrap': True}))
+        
 
         ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
-        worksheet.write(idx + 1, 4, f"{ar}%",
+        worksheet.write(idx + 1, 6, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
-        dynumic_column = 4
+        dynumic_column = 6
         if config.RUN_WITH_CRITIQUE:
             dynumic_column += 1
             worksheet.write(idx + 1, dynumic_column, summary_info.critique_response, workbook.add_format({'text_wrap': True}))
