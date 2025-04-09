@@ -126,7 +126,7 @@ def main():
                 )
 
                 question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace
-                prompt, response, critique_response = llm_service.final_judge(question, context)
+                prompt, response, critique_response = llm_service.final_judge(question, context, issue)
 
                 # let's calculate numbers for quality of the response we received here!
                 score = {}
