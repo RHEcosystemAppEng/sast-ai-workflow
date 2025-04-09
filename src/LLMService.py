@@ -12,7 +12,7 @@ from Utils.embedding_utils import check_text_size_before_embedding
 from Utils.system_utils import get_device
 from common.config import Config
 from model.Issue import Issue
-from templates.response_structures import FilterResponse, FinalJudgeResponse
+from model.ResponseStructures import FilterResponse, FinalJudgeResponse
 
 
 class LLMService:

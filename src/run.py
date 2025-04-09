@@ -22,7 +22,7 @@ from model.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
 from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
-from templates.response_structures import FinalJudgeResponse
+from model.ResponseStructures import FinalJudgeResponse
 
 
 def main():
