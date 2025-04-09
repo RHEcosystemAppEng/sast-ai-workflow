@@ -4,7 +4,6 @@ from langchain_openai.chat_models.base import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_openai import OpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
@@ -36,9 +35,9 @@ class LLMService:
         self.critique_api_key = getattr(config, "CRITIQUE_LLM_API_KEY", None)
         
         # Initialize failure counters
-        self.filter_failure_counter = 0
-        self.judge_failure_counter = 0
-        self.failure_tolerance = 3
+        self.filter_retry_counter = 0
+        self.judge_retry_counter = 0
+        self.max_retry_limit = 3
         
 
     @property
@@ -88,7 +87,7 @@ class LLMService:
                     temperature=0.6
                 )
             else:
-                self._critique_llm = OpenAI(
+                self._critique_llm = ChatOpenAI(
                     base_url=self._critique_base_url,
                     model=self._critique_llm_model_name,
                     api_key="dummy_key",
@@ -106,7 +105,9 @@ class LLMService:
             issue: The issue object with details like the error trace and issue ID.
 
         Returns:
-            FilterResponse: A structured response with the analysis result.
+            tuple: A tuple containing:
+            - response (FilterResponse): A structured response with the analysis result.
+            - examples_context_str (str): N (N=SIMILARITY_ERROR_THRESHOLD) most similar known issues of the same type of the query issue.
         """
         prompt = ChatPromptTemplate.from_messages([
             ("system",
@@ -133,9 +134,9 @@ class LLMService:
         retriever = database.as_retriever(search_kwargs={"k": self.similarity_error_threshold, 
                                                          'filter': {'issue_type': issue.issue_type}})
         resp = retriever.invoke(issue.trace)
-        context= self._format_context_from_response(resp)
-        print(f"[issue-ID - {issue.id}] Found This context:\n{context}")
-        if not context:
+        examples_context_str= self._format_context_from_response(resp)
+        print(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
+        if not examples_context_str:
             # print(f"Not find any relevant context for issue id {issue.id}")
             response = FilterResponse(
                                     issue_id=issue.id,
@@ -144,7 +145,7 @@ class LLMService:
                                                     f"The context empty because no issue of type {issue.issue_type} in knonw isseu DB."),
                                     result="NO"
                                 )     
-            return response, context
+            return response, examples_context_str
 
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
@@ -153,7 +154,7 @@ class LLMService:
 
         chain1 = (
                 {
-                    "context": RunnableLambda(lambda _: context),
+                    "context": RunnableLambda(lambda _: examples_context_str),
                     "answer_template": RunnableLambda(lambda _: answer_template),
                     "user_error_trace": RunnablePassthrough()
                 }
@@ -169,25 +170,24 @@ class LLMService:
         if not response:
             # If the response is insufficient to construct the object -
             # response will be None and we'll give it another try
-            if self.filter_failure_counter >= self.failure_tolerance:
+            if self.filter_retry_counter >= self.max_retry_limit:
                 raise Exception(
-                    f"Model output parsing has failed {self.filter_failure_counter} times as part of the filter_known_error process, "
-                    f"which exceeds the allowed failure tolerance of {self.failure_tolerance}. "
+                    f"LLM output parsing has failed {self.filter_retry_counter} / {self.max_retry_limit} times in filter_known_error process. "
                     f"This indicates a persistent issue with the model or the input data. "
                     f"Please investigate the root cause to resolve this problem."
                 )
             print(f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m")
             response = chain2.invoke(issue.trace)
             if not response:
-                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issu-id {issue.id}. \033[0m")
-                self.filter_failure_counter += 1
+                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
+                self.filter_retry_counter += 1
                 response = FilterResponse(
                                         issue_id=issue.id,
                                         equal_error_trace=[],
                                         justifications="An error occurred twice during model output parsing. Defaulting to: NO",
                                         result="NO"
                                     )
-        return response, context
+        return response, examples_context_str
 
     def _format_context_from_response(self, resp):
         context_list = []
@@ -196,13 +196,14 @@ class LLMService:
                                  "reason_marked_false_positive":doc.metadata['reason_of_false_positive']
                                  })
         return context_list
-    def final_judge(self, user_input: str, context: str):
+    def final_judge(self, user_input: str, context: str, issue: Issue):
         """
         Analyze an issue to determine if it is a false positive or not.
 
         Args:
             user_input: Query with error trace to analyze.
             context: The context to assist in the analysis.
+            issue: The issue object with details like the error trace and issue ID.
 
         Returns:
             tuple: A tuple containing:
@@ -266,22 +267,21 @@ class LLMService:
         if not response:
             # If the response is insufficient to construct the object -
             # response will be None and we'll give it another try
-            if self.judge_failure_counter >= self.failure_tolerance:
+            if self.judge_retry_counter >= self.max_retry_limit:
                 raise Exception(
-                    f"Model output parsing has failed {self.judge_failure_counter} times as part of the final_judge process, "
-                    f"which exceeds the allowed failure tolerance of {self.failure_tolerance}. "
+                    f"LLM output parsing has failed {self.judge_retry_counter} / {self.max_retry_limit} times in final_judge process. "
                     f"This indicates a persistent issue with the model or the input data. "
                     f"Please investigate the root cause to resolve this problem."
                 )
             print(f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m")
             response = chain2.invoke(user_input)
             if not response:
-                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again. \033[0m")
-                self.judge_failure_counter += 1
+                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
+                self.judge_retry_counter += 1
                 response = FinalJudgeResponse(
                         investigation_result="NOT A FALSE POSITIVE",
                         recommendations=[""],
-                        justifications=[f"Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."]
+                        justifications=["Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."]
                         )
         critique_response = self._evaluate(actual_prompt.to_string(), response) if self.run_with_critique else ""
         return actual_prompt.to_string(), response, critique_response
