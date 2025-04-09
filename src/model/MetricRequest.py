@@ -1,4 +1,4 @@
-from templates.response_structures import FinalJudgeResponse
+from model.ResponseStructures import FinalJudgeResponse
 
 
 class MetricRequest:

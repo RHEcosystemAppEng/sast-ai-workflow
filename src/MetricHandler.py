@@ -4,7 +4,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 
 from model.MetricRequest import MetricRequest
-from templates.response_structures import FinalJudgeResponse
+from model.ResponseStructures import FinalJudgeResponse
 
 
 class MetricHandler:
