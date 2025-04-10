@@ -46,7 +46,7 @@ def main():
             "def4",
             "def5",
             "def6",
-            "def7", # FP - Very similar to kown issue
+            "def7", # FP - Very similar to known issue
             "def8",
             "def9",
             "def10",
