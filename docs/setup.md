@@ -65,6 +65,26 @@ git clone https://huggingface.co/sentence-transformers/all-mpnet-base-v2
 Alternatively, if you are using the Red Hat OpenShift AI, follow the provided cluster-specific instructions. 
 (E.g: LLM_URL)
 
+
+## Running the Application in a Container (Locally)
+
+To run the container in detached mode, providing the LLM API key via an environment variable, use:
+
+```bash
+podman run -d --name sast-ai-app -e LLM_API_KEY=<your_key> quay.io/ecosystem-appeng/sast-ai-workflow:latest
+```
+Replace <your_key> with the actual LLM API key.
+
+> **Note:**  
+> Make sure the file paths required by the application (e.g., the HTML report, known false positives, etc.) point to the correct locations inside the container. For instance, if these files are copied into `/app`, update your configuration to reference `/app/<filename>` rather than the host paths.
+> 
+> If you ever need to run an interactive shell in your container (overriding the default entrypoint), use:
+> 
+> ```bash
+> podman run -it --entrypoint /bin/bash quay.io/ecosystem-appeng/sast-ai-workflow:latest
+> ```
+
+
 ## Configuration Options
 
 The project supports configuration via a YAML file located in the `config/` 
