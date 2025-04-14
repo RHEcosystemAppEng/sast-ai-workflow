@@ -1,6 +1,7 @@
-# SAST-AI-Workflow
+# SAST-AI-Workflow [![Quay.io](https://img.shields.io/badge/Quay.io-sast--ai--workflow-blue)](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
 
-## Project Overview 🎯
+
+## 🎯 Project Overview 
 SAST-AI-Workflow is a LLM-based tool designed to detect and flag suspected vulnerabilities through 
 SAST(Static Application Security Testing). It inspects suspicious lines of code in a given repository and 
 deeply review the legitimacy of errors. This workflow involves existing SAST reports, source code analysis, CWE data 
@@ -14,7 +15,7 @@ As an initial step, we applied the workflow to the SAST scanning of the RHEL **s
 (source: [systemd GitHub](https://github.com/redhat-plumbers/systemd-rhel10)). We intend to extend this approach to support additional 
 C-based projects in the future.
 
-## Architecture 📐
+## 📐 Architecture 
 ![SAST-AI-Architecture](./diagrams/sast-architecture.svg)
 
 ### Input Sources
@@ -42,12 +43,14 @@ to query the vector store and review potential SAST errors.
 ### Evaluation
 - Applies metrics (from Ragas library) to assess the quality of model outputs.
 
-## Evaluation & Metrics 📊
+## 📊 Evaluation & Metrics
 The evaluations of the model responses are being done using the following metrics:
 - **Response Relevancy:**  
   Ensures that the generated answers are directly related to the query.  
   [Response Relevancy](https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/answer_relevance/).
   
 
-## Installation & Setup 🔌
+## 🔌 Installation & Setup 
 Please refer to [how to run](./docs/setup.md) guideline.
+
+
