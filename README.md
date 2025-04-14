@@ -16,7 +16,7 @@ As an initial step, we applied the workflow to the SAST scanning of the RHEL **s
 C-based projects in the future.
 
 ## 📐 Architecture 
-![SAST-AI-Architecture](./diagrams/sast-architecture.svg)
+![SAST-AI-Architecture](./docs/diagrams/sast-architecture.svg)
 
 ### Input Sources
 - **SAST HTML Reports:**  
