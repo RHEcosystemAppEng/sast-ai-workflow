@@ -8,21 +8,16 @@ from ExcelWriter import write_to_excel_file
 from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report_html, get_report_project_info
-from MetricHandler import (
-    metric_request_from_prompt,
-    MetricHandler
-)
-from ReportReader import read_sast_report_html
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file, format_cwe_context 
 from Utils.file_utils import get_human_verified_results
 from handlers.repo_handler_factory import repo_handler_factory
-from model.EvaluationSummary import EvaluationSummary
-from model.SummaryInfo import SummaryInfo
+from dto.EvaluationSummary import EvaluationSummary
+from dto.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
 from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
-from model.ResponseStructures import FinalJudgeResponse
+from dto.ResponseStructures import FinalJudgeResponse
 
 
 def main():
@@ -46,7 +41,7 @@ def main():
             "def4",
             "def5",
             "def6",
-            "def7", # FP - Very similar to kown issue
+            "def7", # FP - Very similar to known issue
             "def8",
             "def9",
             "def10",
