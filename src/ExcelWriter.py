@@ -8,7 +8,7 @@ from tornado.gen import sleep
 from Utils.metrics_utils import get_metrics, get_percentage_value
 from Utils.output_utils import cell_formatting
 from common.config import Config
-from model.EvaluationSummary import EvaluationSummary
+from dto.EvaluationSummary import EvaluationSummary
 
 
 
