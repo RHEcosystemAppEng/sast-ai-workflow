@@ -11,8 +11,8 @@ from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
 from Utils.system_utils import get_device
 from common.config import Config
-from model.Issue import Issue
-from model.ResponseStructures import FilterResponse, FinalJudgeResponse
+from dto.Issue import Issue
+from dto.ResponseStructures import FilterResponse, FinalJudgeResponse
 
 
 class LLMService:
