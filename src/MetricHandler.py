@@ -3,8 +3,8 @@ from ragas.metrics import ResponseRelevancy
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 
-from model.MetricRequest import MetricRequest
-from model.ResponseStructures import FinalJudgeResponse
+from dto.MetricRequest import MetricRequest
+from dto.ResponseStructures import FinalJudgeResponse
 
 
 class MetricHandler:
