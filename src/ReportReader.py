@@ -3,7 +3,7 @@ import re
 from bs4 import BeautifulSoup
 from typing import List, Tuple
 
-from model.Issue import Issue
+from dto.Issue import Issue
 
 
 def read_sast_report_html(file_path) -> List[Issue]:
