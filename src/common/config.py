@@ -55,14 +55,12 @@ class Config:
             INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
             OUTPUT_FILE_PATH,
-            HUMAN_VERIFIED_FILE_PATH,
             PROJECT_NAME,
             PROJECT_VERSION
         ]
         required_cfg_files = [
             INPUT_REPORT_FILE_PATH,
-            KNOWN_FALSE_POSITIVE_FILE_PATH,
-            HUMAN_VERIFIED_FILE_PATH
+            KNOWN_FALSE_POSITIVE_FILE_PATH
         ]
 
         for var in required_cfg_vars:
@@ -73,6 +71,10 @@ class Config:
         # Check if CONFIG_H_PATH is accessible if it was provided
         if self.CONFIG_H_PATH:
             required_cfg_files.append(CONFIG_H_PATH)
+        
+        # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
+        if self.HUMAN_VERIFIED_FILE_PATH:
+            required_cfg_files.append(HUMAN_VERIFIED_FILE_PATH)
         
         # Ensure service account JSON exists if using Google Sheets as input
         if self.INPUT_REPORT_FILE_PATH.startswith("https"):
