@@ -40,19 +40,18 @@ def read_sast_report_google_sheet(config:Config) -> List[Issue]:
 
     # Create a list of Issue objects
     issue_list = []
-    id = 0
-    for row in rows:
+    for idx, row in enumerate(rows):
         finding = row.get('Finding')
-        if finding:
-            issue = Issue(id)
-            id += 1
-            lines = finding.split("\n")
-            issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
-            match = re.search(r'CWE-\d+', lines[0])
-            issue.issue_cve = match.group() if match else ""
-            issue.issue_cve_link = f"https://cwe.mitre.org/data/definitions/{issue.issue_cve.split('-')[1]}.html" if match else ""
-            issue.trace = "\n".join(lines[1:])
-            issue_list.append(issue)
+        if not finding:
+            continue
+        issue = Issue(idx)
+        lines = finding.split("\n")
+        issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
+        match = re.search(r'CWE-\d+', lines[0])
+        issue.issue_cve = match.group() if match else ""
+        issue.issue_cve_link = f"https://cwe.mitre.org/data/definitions/{issue.issue_cve.split('-')[1]}.html" if match else ""
+        issue.trace = "\n".join(lines[1:])
+        issue_list.append(issue)
 
     return issue_list
 
