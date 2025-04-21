@@ -2,13 +2,16 @@ import sys
 
 import xlsxwriter
 from tqdm import tqdm
-
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from tornado.gen import sleep
 
 from Utils.metrics_utils import get_metrics, get_percentage_value
 from Utils.output_utils import cell_formatting
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
+from dto.ResponseStructures import FinalJudgeResponse
+from dto.SummaryInfo import SummaryInfo
 
 
 
@@ -20,6 +23,8 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
             workbook = xlsxwriter.Workbook(config.OUTPUT_FILE_PATH)
 
             write_ai_report_worksheet(data, workbook, config)
+            if config.INPUT_REPORT_FILE_PATH.startswith("https"):
+                write_ai_report_google_sheet(data, config)
             write_confusion_matrix_worksheet(workbook, evaluation_summary)
 
             workbook.close()
@@ -29,6 +34,41 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
     except Exception as e:
         print("Error occurred during Excel writing:", e)
     
+def write_ai_report_google_sheet(data, config:Config):
+    header_data = ['Investigation Result', 'Short Justifications']
+    # Define the scope for Google Sheets API
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+
+    try:
+        # Authenticate using the service account JSON file
+        credentials = ServiceAccountCredentials.from_json_keyfile_name("downloads/sast-ai-workflow-d43002361da3.json", scope)
+        client = gspread.authorize(credentials)
+
+        # sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
+        sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1yEyqOw6BTSv2PNhPqpSv7sW92qNi84h6E40VX2Z9O0I/edit?gid=0#gid=0").sheet1  # Assumes the data is in the first sheet
+
+        sheet_data = sheet.get_all_values()
+        num_rows = len(sheet_data)
+        num_cols = len(sheet_data[0]) if num_rows > 0 else 0
+
+        # Insert the headers in the next empty columns
+        cell_range = gspread.utils.rowcol_to_a1(1, num_cols + 1) + ":" + gspread.utils.rowcol_to_a1(1, num_cols + len(header_data))
+        sheet.update([header_data], cell_range)
+        sheet.format(cell_range, {'textFormat': {'bold': True}})
+
+        # Insert the LLM results to the new columns
+        for row, (_, summary_info) in enumerate(data):
+            sheet.update_cell(row + 2, num_cols + 1, summary_info.llm_response.investigation_result.title())  # row + 2 to skip header row
+            sheet.update_cell(row + 2, num_cols + 2, "\n".join(summary_info.llm_response.justifications))
+
+        print("Results added successfully to Google Sheet.")
+    except Exception as e:
+        print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+
+config = Config()
+write_ai_report_google_sheet(data=[(None, SummaryInfo(FinalJudgeResponse(investigation_result="FALSE POSITIVE", justifications=["Because I said so"], recommendations=["Nothing"]), None, None, None)), 
+                                   (None, SummaryInfo(FinalJudgeResponse(investigation_result="NOT A FALSE POSITIVE", justifications=["Because you said so"], recommendations=["Nothing"]), None, None, None))], config=config)
+
 def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet = workbook.add_worksheet("AI report")
     worksheet.set_column(1, 1, 25)
