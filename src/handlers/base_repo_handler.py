@@ -96,7 +96,8 @@ class CRepoHandler:
                     # Read function from file
                     with open(file_path, "r") as f:
                         lines = f.readlines()
-                        source_code = "".join(lines[start_line-1:end_line])
+                        numbered_lines = [f"{i + start_line}| {line}" for i, line in enumerate(lines[start_line-1:end_line])]
+                        source_code = "".join(numbered_lines)
             
             for child in node.get_children():
                 visit(child)
