@@ -34,6 +34,11 @@ def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet.set_column(1, 1, 25)
     worksheet.set_column(2, 4, 40)
     worksheet.set_column(5, 6, 25)
+    cell_format = workbook.add_format({
+        'valign': 'top',
+        'text_wrap': True 
+    })
+
     header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Justifications', 'Recommendations', 'Answer Relevancy']
     if config.RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
@@ -46,12 +51,12 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         worksheet.write(0, col_num, h, header_format)
 
     for idx, (issue, summary_info) in enumerate(data):
-        worksheet.write(idx + 1, 0, issue.id)
-        worksheet.write(idx + 1, 1, issue.issue_type)
-        worksheet.write(idx + 1, 2, issue.trace)
-        worksheet.write(idx + 1, 3, summary_info.llm_response.investigation_result, workbook.add_format({'text_wrap': True}))
-        worksheet.write(idx + 1, 4, "\n\n".join(summary_info.llm_response.justifications), workbook.add_format({'text_wrap': True}))
-        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.recommendations), workbook.add_format({'text_wrap': True}))
+        worksheet.write(idx + 1, 0, issue.id, cell_format)
+        worksheet.write(idx + 1, 1, issue.issue_type, cell_format)
+        worksheet.write(idx + 1, 2, issue.trace, cell_format)
+        worksheet.write(idx + 1, 3, summary_info.llm_response.investigation_result, cell_format)
+        worksheet.write(idx + 1, 4, "\n\n".join(summary_info.llm_response.justifications), cell_format)
+        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.recommendations), cell_format)
         
 
         ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
