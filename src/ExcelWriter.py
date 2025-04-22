@@ -10,8 +10,6 @@ from Utils.metrics_utils import get_metrics, get_percentage_value
 from Utils.output_utils import cell_formatting
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
-from dto.ResponseStructures import FinalJudgeResponse
-from dto.SummaryInfo import SummaryInfo
 
 
 
@@ -41,11 +39,10 @@ def write_ai_report_google_sheet(data, config:Config):
 
     try:
         # Authenticate using the service account JSON file
-        credentials = ServiceAccountCredentials.from_json_keyfile_name("downloads/sast-ai-workflow-d43002361da3.json", scope)
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
         client = gspread.authorize(credentials)
 
-        # sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
-        sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1yEyqOw6BTSv2PNhPqpSv7sW92qNi84h6E40VX2Z9O0I/edit?gid=0#gid=0").sheet1  # Assumes the data is in the first sheet
+        sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
 
         sheet_data = sheet.get_all_values()
         num_rows = len(sheet_data)
@@ -59,15 +56,11 @@ def write_ai_report_google_sheet(data, config:Config):
         # Insert the LLM results to the new columns
         for row, (_, summary_info) in enumerate(data):
             sheet.update_cell(row + 2, num_cols + 1, summary_info.llm_response.investigation_result.title())  # row + 2 to skip header row
-            sheet.update_cell(row + 2, num_cols + 2, "\n".join(summary_info.llm_response.justifications))
+            sheet.update_cell(row + 2, num_cols + 2, summary_info.llm_response.short_justifications)
 
         print("Results added successfully to Google Sheet.")
     except Exception as e:
         print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
-
-config = Config()
-write_ai_report_google_sheet(data=[(None, SummaryInfo(FinalJudgeResponse(investigation_result="FALSE POSITIVE", justifications=["Because I said so"], recommendations=["Nothing"]), None, None, None)), 
-                                   (None, SummaryInfo(FinalJudgeResponse(investigation_result="NOT A FALSE POSITIVE", justifications=["Because you said so"], recommendations=["Nothing"]), None, None, None))], config=config)
 
 def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet = workbook.add_worksheet("AI report")
@@ -79,7 +72,7 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         'text_wrap': True 
     })
 
-    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Justifications', 'Recommendations', 'Answer Relevancy']
+    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Short Justifications', 'Full Justifications', 'Recommendations', 'Answer Relevancy']
     if config.RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
     if config.SHOW_FINAL_JUDGE_CONTEXT:
@@ -95,14 +88,14 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         worksheet.write(idx + 1, 1, issue.issue_type, cell_format)
         worksheet.write(idx + 1, 2, issue.trace, cell_format)
         worksheet.write(idx + 1, 3, summary_info.llm_response.investigation_result, cell_format)
-        worksheet.write(idx + 1, 4, "\n\n".join(summary_info.llm_response.justifications), cell_format)
-        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.recommendations), cell_format)
-        
+        worksheet.write(idx + 1, 4, summary_info.llm_response.short_justifications, cell_format)
+        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.justifications), cell_format)
+        worksheet.write(idx + 1, 6, "\n\n".join(summary_info.llm_response.recommendations), cell_format)
 
         ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
-        worksheet.write(idx + 1, 6, f"{ar}%",
+        worksheet.write(idx + 1, 7, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
-        dynumic_column = 6
+        dynumic_column = 7
         if config.RUN_WITH_CRITIQUE:
             dynumic_column += 1
             worksheet.write(idx + 1, dynumic_column, summary_info.critique_response, workbook.add_format({'text_wrap': True}))
