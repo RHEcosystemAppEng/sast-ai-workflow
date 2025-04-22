@@ -12,12 +12,12 @@ from dto.Issue import Issue
 def read_sast_report(config:Config) -> List[Issue]:
     print(f"Reading => {config.INPUT_REPORT_FILE_PATH}")
     if config.INPUT_REPORT_FILE_PATH.startswith("https"):
-        return read_sast_report_google_sheet(config)
+        return read_sast_report_google_sheet(config.SERVICE_ACCOUNT_JSON_PATH, config.INPUT_REPORT_FILE_PATH)
     return read_sast_report_local_html(config.INPUT_REPORT_FILE_PATH)
 
 
 
-def read_sast_report_google_sheet(config:Config) -> List[Issue]:
+def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -> List[Issue]:
     """
     Reads a Google Sheet and creates a list of Issue objects based on the 'Finding' column.
     NOTE: Assumes issue details are in the 'Finding' 
@@ -32,10 +32,10 @@ def read_sast_report_google_sheet(config:Config) -> List[Issue]:
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 
     # Authenticate using the service account JSON file
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(service_account_file_path, scope)
     client = gspread.authorize(credentials)
 
-    sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
+    sheet = client.open_by_url(google_sheet_url).sheet1  # Assumes the data is in the first sheet
     rows = sheet.get_all_records()
 
     # Create a list of Issue objects
@@ -44,7 +44,9 @@ def read_sast_report_google_sheet(config:Config) -> List[Issue]:
         finding = row.get('Finding')
         if not finding:
             continue
+
         issue = Issue(idx)
+        # TODO - please leave a example string for finding
         lines = finding.split("\n")
         issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
         match = re.search(r'CWE-\d+', lines[0])
