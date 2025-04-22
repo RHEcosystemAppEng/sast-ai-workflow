@@ -71,7 +71,17 @@ Alternatively, if you are using the Red Hat OpenShift AI, follow the provided cl
 To run the container in detached mode, providing the LLM API key via an environment variable, use:
 
 ```bash
-podman run -d --name sast-ai-app -e PROJECT_NAME=systemd -e PROJECT_VERSION=257-9 -e LLM_URL=http://\<<please-set-llm-url\>> -e LLM_MODEL_NAME="\<Model Name\>" -e LLM_API_KEY=<your_key> -e EMBEDDINGS_LLM_MODEL_NAME=\<<embeddings-llm-model-name\>> -e INPUT_REPORT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id> -e KNOWN_FALSE_POSITIVE_FILE_PATH=/path/to/ignore.err -e OUTPUT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id\> quay.io/ecosystem-appeng/sast-ai-workflow:latest
+podman run -d --name sast-ai-app \
+-e PROJECT_NAME=systemd \
+-e PROJECT_VERSION=257-9 \
+-e LLM_URL=http://\<<please-set-llm-url\>> \
+-e LLM_MODEL_NAME="\<Model Name\>" \
+-e LLM_API_KEY=<your_key> \
+-e EMBEDDINGS_LLM_MODEL_NAME=\<<embeddings-llm-model-name\>> \
+-e INPUT_REPORT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id> \
+-e KNOWN_FALSE_POSITIVE_FILE_PATH=/path/to/ignore.err \
+-e OUTPUT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id\> \
+quay.io/ecosystem-appeng/sast-ai-workflow:latest
 ```
 Replace <your_key> with the actual LLM API key.
 
