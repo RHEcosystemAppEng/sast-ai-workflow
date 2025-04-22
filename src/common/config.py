@@ -34,7 +34,7 @@ class Config:
 
         self.TOKENIZERS_PARALLELISM = False
         self.LLM_API_KEY = os.getenv(LLM_API_KEY)
-        
+
     def print_config(self):
         masked_vars = [LLM_API_KEY]
         print(" Process started! ".center(80, '-'))
@@ -46,17 +46,15 @@ class Config:
         print("".center(80, '-'))
 
     def validate_configurations(self):
-        """Check for required environment/configuration variables"""
-
         required_cfg_vars = [
+            PROJECT_NAME,
+            PROJECT_VERSION,
             LLM_URL,
             LLM_MODEL_NAME,
             EMBEDDINGS_LLM_MODEL_NAME,
             INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
             OUTPUT_FILE_PATH,
-            PROJECT_NAME,
-            PROJECT_VERSION
         ]
         required_cfg_files = [
             INPUT_REPORT_FILE_PATH,
@@ -71,11 +69,11 @@ class Config:
         # Check if CONFIG_H_PATH is accessible if it was provided
         if self.CONFIG_H_PATH:
             required_cfg_files.append(CONFIG_H_PATH)
-        
+
         # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
         if self.HUMAN_VERIFIED_FILE_PATH:
             required_cfg_files.append(HUMAN_VERIFIED_FILE_PATH)
-        
+
         # Ensure service account JSON exists if using Google Sheets as input
         if self.INPUT_REPORT_FILE_PATH.startswith("https"):
             required_cfg_files.append(SERVICE_ACCOUNT_JSON_PATH)
@@ -90,10 +88,10 @@ class Config:
         # Validate that environment variable LLM API key exist
         if not self.LLM_API_KEY:
             raise ValueError(f"Environment variable {LLM_API_KEY} is not set or is empty.")
-        
+
         # Validate critique config if RUN_WITH_CRITIQUE is True
         if self.RUN_WITH_CRITIQUE and not self.CRITIQUE_LLM_MODEL_NAME:
             raise ValueError(f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True.")
 
-        
+
         print("All required configuration variables and files are valid and accessible.\n")
