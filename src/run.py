@@ -17,7 +17,7 @@ from dto.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
 from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
-from dto.ResponseStructures import FinalJudgeResponse
+from dto.ResponseStructures import FinalJudgeResponseWithSummary
 
 
 def main():
@@ -98,10 +98,11 @@ def main():
             if issue.id in already_seen_issue_ids.keys():
                 print(f"{issue.id} already marked as a false positive since it's a known issue")
                 context = already_seen_issue_ids[issue.id].equal_error_trace
-                response = FinalJudgeResponse(
+                response = FinalJudgeResponseWithSummary(
                         investigation_result="FALSE POSITIVE",
                         recommendations=["No fix required."],
-                        justifications=[f"The error is similar to one found in the provided context: {context}"]
+                        justifications=[f"The error is similar to one found in the provided context: {context}"],
+                        short_justifications="The error is similar to one found in the provided known issues (Details in the full Justification)"
                         )
             else:
                 # get source code context by error trace

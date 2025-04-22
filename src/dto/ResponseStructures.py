@@ -27,3 +27,17 @@ class FinalJudgeResponse(BaseModel):
     recommendations: List[str] = Field(
         description="A list of recommended actions based on the investigation result."
     )
+
+
+class JustificationsSummary(BaseModel):
+    
+        short_justifications: str = Field(
+        description="A clear, concise summary of the justification written in an engineer-style tone, highlighting the most impactful point."
+    )
+
+class FinalJudgeResponseWithSummary(JustificationsSummary, FinalJudgeResponse):
+    """
+    This model extends `FinalJudgeResponse` by including a `short_justifications` field, 
+    which provides a clear and concise summary of the justifications in an engineer-style tone.
+    """
+   
