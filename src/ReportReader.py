@@ -13,7 +13,7 @@ def read_sast_report(config:Config) -> List[Issue]:
     print(f"Reading => {config.INPUT_REPORT_FILE_PATH}")
     if config.INPUT_REPORT_FILE_PATH.startswith("https"):
         return read_sast_report_google_sheet(config)
-    return read_sast_report_html(config.INPUT_REPORT_FILE_PATH)
+    return read_sast_report_local_html(config.INPUT_REPORT_FILE_PATH)
 
 
 
@@ -55,7 +55,7 @@ def read_sast_report_google_sheet(config:Config) -> List[Issue]:
 
     return issue_list
 
-def read_sast_report_html(file_path) -> List[Issue]:
+def read_sast_report_local_html(file_path) -> List[Issue]:
     issue_list = []
     with open(file_path, "r", encoding='utf-8') as f:
         soup = BeautifulSoup(f.read(), 'html.parser')
