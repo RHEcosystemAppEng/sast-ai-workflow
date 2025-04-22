@@ -1,4 +1,4 @@
-from model.ResponseStructures import FinalJudgeResponse
+from dto.ResponseStructures import FinalJudgeResponse
 
 
 class SummaryInfo:
