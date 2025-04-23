@@ -1,14 +1,64 @@
 import re
-
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
-from typing import List, Tuple
+from typing import List
 
+from common.config import Config
 from dto.Issue import Issue
 
 
-def read_sast_report_html(file_path) -> List[Issue]:
+
+def read_sast_report(config:Config) -> List[Issue]:
+    print(f"Reading => {config.INPUT_REPORT_FILE_PATH}")
+    if config.INPUT_REPORT_FILE_PATH.startswith("https"):
+        return read_sast_report_google_sheet(config.SERVICE_ACCOUNT_JSON_PATH, config.INPUT_REPORT_FILE_PATH)
+    return read_sast_report_local_html(config.INPUT_REPORT_FILE_PATH)
+
+
+
+def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -> List[Issue]:
+    """
+    Reads a Google Sheet and creates a list of Issue objects based on the 'Finding' column.
+    NOTE: Assumes issue details are in the 'Finding' 
+          column of the first sheet (sheet name doesn't matter).
+
+    :param config: Config object containing configuration details, including:
+                   - INPUT_REPORT_FILE_PATH: URL of the Google Sheet.
+                   - SERVICE_ACCOUNT_JSON_PATH: Path to the service account JSON file for authentication.
+    :return: List of Issue objects.
+    """
+    # Define the scope for Google Sheets API
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+
+    # Authenticate using the service account JSON file
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(service_account_file_path, scope)
+    client = gspread.authorize(credentials)
+
+    sheet = client.open_by_url(google_sheet_url).sheet1  # Assumes the data is in the first sheet
+    rows = sheet.get_all_records()
+
+    # Create a list of Issue objects
     issue_list = []
-    print(f"Reading => {file_path}")
+    for idx, row in enumerate(rows):
+        finding = row.get('Finding')
+        if not finding:
+            continue
+
+        issue = Issue(idx)
+        # TODO - please leave a example string for finding
+        lines = finding.split("\n")
+        issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
+        match = re.search(r'CWE-\d+', lines[0])
+        issue.issue_cve = match.group() if match else ""
+        issue.issue_cve_link = f"https://cwe.mitre.org/data/definitions/{issue.issue_cve.split('-')[1]}.html" if match else ""
+        issue.trace = "\n".join(lines[1:])
+        issue_list.append(issue)
+
+    return issue_list
+
+def read_sast_report_local_html(file_path) -> List[Issue]:
+    issue_list = []
     with open(file_path, "r", encoding='utf-8') as f:
         soup = BeautifulSoup(f.read(), 'html.parser')
         all_pre_tags = soup.findAll('pre')
@@ -31,20 +81,6 @@ def read_sast_report_html(file_path) -> List[Issue]:
 
     return issue_list
 
-
-def get_report_project_info(file_path: str) -> Tuple[str, str]:
-    with open(file_path, "r", encoding='utf-8') as f:
-        soup = BeautifulSoup(f.read(), 'html.parser')
-        h1_tag = soup.find("h1")
-        if not h1_tag:
-            raise ValueError("No <h1> tag found in input report html")
-        
-        pkg_str = h1_tag.text
-        match = re.match(r'^(.*)-(\d[\w\.]*-\d+)(?:[._].*)?$', pkg_str)
-        if not match:
-            raise ValueError(f"Could not identify target project's package string. Provided string: {pkg_str}")
-        
-        return match.groups()
 
 
 

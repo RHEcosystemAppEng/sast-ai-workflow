@@ -71,7 +71,17 @@ Alternatively, if you are using the Red Hat OpenShift AI, follow the provided cl
 To run the container in detached mode, providing the LLM API key via an environment variable, use:
 
 ```bash
-podman run -d --name sast-ai-app -e LLM_API_KEY=<your_key> quay.io/ecosystem-appeng/sast-ai-workflow:latest
+podman run -d --name sast-ai-app \
+-e PROJECT_NAME=systemd \
+-e PROJECT_VERSION=257-9 \
+-e LLM_URL=http://\<<please-set-llm-url\>> \
+-e LLM_MODEL_NAME="\<Model Name\>" \
+-e LLM_API_KEY=<your_key> \
+-e EMBEDDINGS_LLM_MODEL_NAME=\<<embeddings-llm-model-name\>> \
+-e INPUT_REPORT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id> \
+-e KNOWN_FALSE_POSITIVE_FILE_PATH=/path/to/ignore.err \
+-e OUTPUT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id\> \
+quay.io/ecosystem-appeng/sast-ai-workflow:latest
 ```
 Replace <your_key> with the actual LLM API key.
 
@@ -91,37 +101,50 @@ The project supports configuration via a YAML file located in the `config/`
 folder (e.g., [`config/default_config.yaml`](config/default_config.yaml)). These values provide default settings that can be overridden by 
 environment variables. 
 
-| **Environment Variable**       | **Default Value**                         | **Description**                                                                                                                  |
-|--------------------------------|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
-| LLM_URL                        | http://<<please-set-llm-url>>             | URL of the language model endpoint.                                                                                              |
-| LLM_MODEL_NAME                 | <<please-set-llm-model-name>>             | Identifier of the language model to use.                                                                                         |
-| EMBEDDINGS_LLM_MODEL_NAME      | <<please-set-embeddings-llm-model-name>>  | Model used for generating embeddings.                                                                                            |
-| CHUNK_SIZE                     | 500                                       | Maximum size for each text chunk.                                                                                                |
-| CHUNK_OVERLAP                  | 0                                         | Number of overlapping characters between consecutive chunks.                                                                     |
-| CHUNK_SEPARATORS               | ["\n\n", "\n", ".", ";", ",", " ", ""]    | Ordered list of separators to use when splitting text into chunks.                                                               |
-| LIBCLANG_PATH                  | /path/to/libclang                         | Path of to your libclang location.                                                                                               |
-| CONFIG_H_PATH                   | /path/to/config.h          | *(Optional)*  Path to the generated `config.h` containing macro definitions. Used for accurate Clang parsing, but not strictly required.                                                    | 
-| INPUT_REPORT_FILE_PATH         | /path/to/report.html                      | Path to the SAST HTML report.                                                                                                    |
-| USE_KNOWN_FALSE_POSITIVE_FILE  | true                                      | Flag indicating whether to use the known false positives file in the pipeline as an input.                                       |
-| KNOWN_FALSE_POSITIVE_FILE_PATH | /path/to/ignore.err                       | Path to the file containing known false positives data.                                                                          |
-| SIMILARITY_ERROR_THRESHOLD     | 2                                         | Number of Documents to return from known issues DB.                                                                              |
-| OUTPUT_EXCEL_GENERATION        | true                                      | Flag indicating whether to generate an Excel report with the results.                                                            |
-| OUTPUT_FILE_PATH               | /path/to/output_excel.xlsx                | Path where the generated Excel report will be saved.                                                                             |
-| DOWNLOAD_GIT_REPO              | false                                     | Flag indicating whether to automatically download the Git repository.                                                            |
-| GIT_REPO_PATH                  | /path/to/git/repo                         | Path or URL of the Git repository to analyze.                                                                                    |
-| HUMAN_VERIFIED_FILE_PATH       | /path/to/manual_verification_results.xlsx | Path to the human verified results file (used for evaluation).                                                                   |
-| CALCULATE_METRICS              | true                                      | **Important:** When enabled, evaluation metrics are calculated using the LLM, which sends a request and may consume API credits. |
-| SHOW_FINAL_JUDGE_CONTEXT       | true                                      | Flag indicating whether to include context (of final judge) in the final output.                                                 |
-| RUN_WITH_CRITIQUE              | false                                     | Flag indicating whether to enable critique phase.                                                                                |
-| CRITIQUE_LLM_URL               | LLM_URL                                   | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                 |
-| CRITIQUE_LLM_MODEL_NAME        | LLM_MODEL_NAME                            | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                  |
-| USE_CRITIQUE_AS_FINAL_RESULTS  | false                                     | Flag indicating whether to use critique for metrics calculation.                                                                 |
+| **Environment Variable**       | **Default Value**                         | **Mandatory** | **Example Value**                          | **Description**                                                                                                                  |
+|--------------------------------|-------------------------------------------|---------------|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| PROJECT_NAME                   |  ""                                       | ✔             | systemd                                    | Name of the project being analyzed.                                                                                              |
+| PROJECT_VERSION                |  ""                                       | ✔             | 257-9                                      | Version of the project being analyzed.                                                                                           |
+| LLM_URL                        | http://\<<please-set-llm-url\>>           | ✔             | https://integrate.api.nvidia.com/v1        | URL of the language model endpoint.                                                                                              |
+| LLM_MODEL_NAME                 | \<<please-set-llm-model-name\>>           | ✔             | nvidia/llama-3.1-nemotron-70b-instruct     | Identifier of the language model to use.                                                                                         |
+| EMBEDDINGS_LLM_MODEL_NAME      | \<<please-set-embeddings-llm-model-name\>>| ✔             | all-mpnet-base-v2                          | Model used for generating embeddings.                                                                                            |
+| INPUT_REPORT_FILE_PATH         | /path/to/report.html                      | ✔             | /path/to/report.html or https://docs.google.com/spreadsheets/d/\<sheet-id\> | Path to the SAST HTML report or URL of a Google Sheet containing the report.                                                                                                        |
+| KNOWN_FALSE_POSITIVE_FILE_PATH | /path/to/ignore.err                       | ✔             | /path/to/ignore.err                        | Path to the file containing known false positives data.                                                                          |
+| OUTPUT_FILE_PATH               | /path/to/output_excel.xlsx                | ✔             | /path/to/output.xlsx                       | Path where the generated Excel report will be saved.                                                                             |
+| LIBCLANG_PATH                  | /path/to/libclang                         | ✔             | /usr/lib/llvm-12/lib/libclang.so           | Path of to your libclang location.                                                                                               |
+| CHUNK_SIZE                     | 500                                       |               | 500                                        | Maximum size for each text chunk.                                                                                                |
+| CHUNK_OVERLAP                  | 0                                         |               | 50                                         | Number of overlapping characters between consecutive chunks.                                                                     |
+| CHUNK_SEPARATORS               | ["\n\n", "\n", ".", ";", ",", " ", ""]    |               | ["\n\n", "\n", ".", ";"]                   | Ordered list of separators to use when splitting text into chunks.                                                               |
+| CONFIG_H_PATH                  | /path/to/config.h                         |               | /path/to/config.h                          | *(Optional)* Path to the generated `config.h` containing macro definitions. Used for accurate Clang parsing, but not strictly required. |
+| SERVICE_ACCOUNT_JSON_PATH      | ""                                        |               | /path/to/sheet-access-bot-abc123.json      | Path to the JSON file for the Google service account used to access Google Sheets. Mandatory only if using a Google Sheet as input. |
+| USE_KNOWN_FALSE_POSITIVE_FILE  | true                                      |               | true                                       | Flag indicating whether to use the known false positives file in the pipeline as an input.                                       |
+| SIMILARITY_ERROR_THRESHOLD     | 2                                         |               | 3                                          | Number of Documents to return from known issues DB.                                                                              |
+| OUTPUT_EXCEL_GENERATION        | true                                      |               | true                                       | Flag indicating whether to generate an Excel report with the results.                                                            |
+| DOWNLOAD_GIT_REPO              | false                                     |               | true                                       | Flag indicating whether to automatically download the Git repository.                                                            |
+| GIT_REPO_PATH                  | /path/to/git/repo                         |               | /home/user/git/repo                        | Path or URL of the Git repository to analyze.                                                                                    |
+| HUMAN_VERIFIED_FILE_PATH       | ""                                        |               | /path/to/manual_verification_results.xlsx  | Path to the human verified results file (used for evaluation).                                                                   |
+| CALCULATE_METRICS              | true                                      |               | true                                       | **Important:** When enabled, evaluation metrics are calculated using the LLM, which sends a request and may consume API credits. |
+| SHOW_FINAL_JUDGE_CONTEXT       | true                                      |               | true                                       | Flag indicating whether to include context (of final judge) in the final output.                                                 |
+| RUN_WITH_CRITIQUE              | false                                     |               | true                                       | Flag indicating whether to enable critique phase.                                                                                |
+| CRITIQUE_LLM_URL               | LLM_URL                                   |               | https://integrate.api.nvidia.com/v1        | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                 |
+| CRITIQUE_LLM_MODEL_NAME        | LLM_MODEL_NAME                            |               | deepseek-ai/deepseek-r1                    | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                  |
+| USE_CRITIQUE_AS_FINAL_RESULTS  | false                                     |               | true                                       | Flag indicating whether to use critique for metrics calculation.                                                                 |               |
 
 
 > **Note:**  
 > The values set in the [configuration file](../config/default_config.yaml) serve as defaults. Environment variables 
 > override these defaults at runtime. Sensitive values, such as API keys, should not be included in this file if the 
 > repository is public.
+
+### Optional - Use Google Sheet as Input
+
+You can use a Google Sheet as the input report instead of a HTML file.
+
+- **Required Configuration**:
+  - Set the Google Sheet URL in `INPUT_REPORT_FILE_PATH`.
+  - Provide the path to the service account JSON file in `SERVICE_ACCOUNT_JSON_PATH`.
+
+- **Note**: Ensure that the Google Sheet is shared with the service account email specified in the JSON file, granting it the necessary permissions to access the sheet.
 
 ### Optional - Enable Critique Model
 
