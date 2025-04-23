@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: sast-ai-workflow-pipeline
+spec:
+  params:
+    - name: sourceCodeUrl
+      type: string
+      description: "Source code URL (RPM package or Git repository URL)"
+    - name: googleSpreadsheetUrl
+      type: string
+      description: "Google Spreadsheet URL"
+    - name: falsePositivesUrl
+      type: string
+      description: "GitLab repository URL for known false positives (optional)"
+  workspaces:
+    - name: shared-workspace
+    - name: gitlab-token-ws
+      optional: true
+  tasks:
+    - name: validate-urls
+      taskRef:
+        name: validate-urls
+      params:
+        - name: sourceCodeUrl
+          value: "$(params.sourceCodeUrl)"
+        - name: spreadsheetUrl
+          value: "$(params.googleSpreadsheetUrl)"
+        - name: falsePositivesUrl
+          value: "$(params.falsePositivesUrl)"
+
+    - name: prepare-source
+      runAfter:
+        - validate-urls
+      taskRef:
+        name: prepare-source
+      params:
+        - name: sourceCodeUrl
+          value: "$(params.sourceCodeUrl)"
+      workspaces:
+        - name: source-workspace
+          workspace: shared-workspace
+
+    - name: fetch-false-positives
+      runAfter:
+        - validate-urls
+      taskRef:
+        name: fetch-false-positives
+      params:
+        - name: falsePositivesUrl
+          value: "$(params.falsePositivesUrl)"
+      workspaces:
+        - name: false-positives-workspace
+          workspace: shared-workspace
+        - name: gitlab-token-ws
+          workspace: gitlab-token-ws
+
+    - name: run-sast-ai
+      runAfter:
+        - prepare-source
+        - fetch-false-positives
+      taskRef:
+        name: execute-sast-ai-workflow
+      params:
+        - name: googleSpreadsheetUrl
+          value: "$(params.googleSpreadsheetUrl)"
+      workspaces:
+        - name: source-workspace
+          workspace: shared-workspace
+        - name: false-positives-workspace
+          workspace: shared-workspace
