@@ -7,7 +7,7 @@ from tqdm import tqdm
 from ExcelWriter import write_to_excel_file
 from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
-from ReportReader import read_sast_report_html, get_report_project_info
+from ReportReader import read_sast_report
 from Utils.output_utils import print_conclusion
 from Utils.html_utils import read_cve_html_file, format_cwe_context 
 from Utils.file_utils import get_human_verified_results
@@ -26,9 +26,8 @@ def main():
 
     llm_service = LLMService(config)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
-    project_name, project_version = get_report_project_info(config.INPUT_REPORT_FILE_PATH)
-    issue_list = read_sast_report_html(config.INPUT_REPORT_FILE_PATH)
-    repo_handler = repo_handler_factory(project_name, project_version, config)
+    issue_list = read_sast_report(config)
+    repo_handler = repo_handler_factory(config)
 
     summary_data = []
 

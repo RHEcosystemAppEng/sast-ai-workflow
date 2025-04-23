@@ -1,3 +1,6 @@
+PROJECT_NAME: ""
+PROJECT_VERSION: ""
+
 LLM_URL: "http://<<please-set-llm-url>>"
 LLM_MODEL_NAME: "llm-model"
 EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
@@ -5,10 +8,11 @@ EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 INPUT_REPORT_FILE_PATH: "/path/to/report.html"
 KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
 OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"
-HUMAN_VERIFIED_FILE_PATH: "<<unknown>>"
+HUMAN_VERIFIED_FILE_PATH: ""
 GIT_REPO_PATH: "/path/to/git/repo"
 LIBCLANG_PATH: "/path/to/libclang"
 CONFIG_H_PATH: ""
+SERVICE_ACCOUNT_JSON_PATH: ""
 
 USE_KNOWN_FALSE_POSITIVE_FILE: true
 CALCULATE_METRICS: true
