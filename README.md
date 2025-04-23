@@ -50,8 +50,11 @@ The evaluations of the model responses are being done using the following metric
   Ensures that the generated answers are directly related to the query.  
   [Response Relevancy](https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/answer_relevance/).
   
-
 ## 🔌 Installation & Setup 
 Please refer to [how to run](./docs/setup.md) guideline.
+
+## 🚀 CI/CD Pipeline
+We provide a Tekton pipeline and helper scripts for deploying the SAST‑AI‑Workflow on an OpenShift cluster. 
+Please refer to [how to execute](./deploy/deploy.md) the pipeline.
 
 

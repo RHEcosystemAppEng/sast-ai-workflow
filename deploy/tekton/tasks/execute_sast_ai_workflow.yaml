@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: execute-sast-ai-workflow
+spec:
+  params:
+    - name: googleSpreadsheetUrl
+      type: string
+      description: "Google Spreadsheet URL"
+  workspaces:
+    - name: source-workspace
+    - name: false-positives-workspace
+  steps:
+    - name: run-sast-ai-workflow
+      image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
+      script: |
+        #!/usr/bin/env sh
+        echo "Running SAST-AI-Workflow..."
+        python /app/run.py \
+          --spreadsheet "$(params.googleSpreadsheetUrl)" \
+          --source "$(workspaces.source-workspace.path)" \
+          --false-positives "$(workspaces.false-positives-workspace.path)/ignore.err"
+
+
+

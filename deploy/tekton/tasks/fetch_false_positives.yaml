@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: fetch-false-positives
+spec:
+  params:
+    - name: falsePositivesUrl
+      type: string
+      description: "Optional GitLab URL containing known false positives"
+  workspaces:
+    - name: false-positives-workspace
+      description: "Workspace to store the downloaded ignore.err"
+    - name: gitlab-token-ws
+      description: "Optional secret mount for GitLab token (if needed)"
+      optional: true
+  steps:
+    - name: fetch-false-positives
+      image: curlimages/curl:latest
+      script: |
+        #!/usr/bin/env sh
+        FP_URL="$(params.falsePositivesUrl)"
+        if [ -z "$FP_URL" ]; then
+          echo "No falsePositivesUrl provided; skipping fetch..."
+          exit 0
+        fi
+
+        # If a token is needed for private repos, read it from the secret (if present)
+        TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
+        if [ -f "$TOKEN_FILE" ]; then
+            GITLAB_TOKEN=$(cat "$TOKEN_FILE")
+            echo "GitLab token found. Fetching file with authentication..."
+            curl -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
+              || (echo "Error: Could not fetch false positives file with token." && exit 1)
+        else
+            echo "No GitLab token file found; attempting unauthenticated fetch..."
+            curl -k -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
+              || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+        fi

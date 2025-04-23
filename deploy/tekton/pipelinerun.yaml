@@ -1,0 +1,24 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: sast-ai-workflow-pipelinerun
+spec:
+  pipelineRef:
+    name: sast-ai-workflow-pipeline
+  params:
+    - name: sourceCodeUrl
+      value: "source/code/url"
+    - name: googleSpreadsheetUrl
+      value: "google/spreadsheet/url"
+    - name: falsePositivesUrl
+      value: "false/positives/url"
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: sast-ai-workflow-pvc
+    - name: gitlab-token-ws
+      secret:
+        secretName: gitlab-token-secret
+        items:
+          - key: gitlab_token
+            path: gitlab_token
