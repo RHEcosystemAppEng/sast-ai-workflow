@@ -1,0 +1,41 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: prepare-source
+spec:
+  params:
+    - name: sourceCodeUrl
+      type: string
+      description: "Source code URL (RPM package or Git repository URL)"
+  workspaces:
+    - name: source-workspace
+  steps:
+    - name: prepare-source
+      image: registry.access.redhat.com/ubi9/python-312
+      securityContext:
+        runAsUser: 0
+      script: |
+        #!/usr/bin/env sh
+        whoami  # For debugging: should print "root"
+        SRC_URL="$(params.sourceCodeUrl)"
+        WORKDIR="$(workspaces.source-workspace.path)"
+        echo "Processing source code URL: $SRC_URL"
+        if echo "$SRC_URL" | grep -iq "\.rpm$"; then
+          echo "Source code is an RPM package. Downloading and extracting full source tree..."
+          yum install -y rpm-build && yum clean all
+          rpm --version || (echo "rpm-build not installed" && exit 1)
+          mkdir -p $HOME/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          echo '%_topdir %(echo $HOME)/rpmbuild' > $HOME/.rpmmacros
+          curl -ksLf "$SRC_URL" -o package.src.rpm
+          rpm -ivh package.src.rpm
+          SPEC="$(find $HOME/rpmbuild/SPECS -name "*.spec" | head -n 1)"
+          if [ -z "$SPEC" ]; then
+            echo "No spec file found after installing the SRPM." && exit 1
+          fi
+          echo "Found spec file: $SPEC"
+          rpmbuild -bp "$SPEC"
+          cp -r $HOME/rpmbuild/BUILD/* "$WORKDIR"/
+        else
+          echo "Assuming source code is a Git repository. Cloning..."
+          git clone "$SRC_URL" "$WORKDIR"
+        fi
