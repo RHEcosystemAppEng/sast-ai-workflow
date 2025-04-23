@@ -29,14 +29,17 @@ A `Makefile` at the repository root simplifies all operations. By default it tar
 | `make all`     | Run **tasks**, **pipeline**, **run**, and **logs**|
 | `make clean`   | Delete all Tekton resources                       |
 
-Use it like:
+### 🔄 Overriding the Namespace
+
+By default the Makefile targets the `sast-ai-workflow` namespace. To run against a different namespace, pass `NAMESPACE` on the `make` command line:
 
 ```bash
-# Run the full deploy & execute flow
-make all
+# e.g. deploy everything into "my-custom-ns" instead of the default
+make NAMESPACE=my-custom-ns all
 
-# Or individual steps, e.g.
-make tasks
-make pipeline
-make run
-make logs
+# or run individual steps against that namespace
+make NAMESPACE=my-custom-ns tasks
+make NAMESPACE=my-custom-ns pipeline
+make NAMESPACE=my-custom-ns run
+make NAMESPACE=my-custom-ns logs
+
