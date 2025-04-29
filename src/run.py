@@ -35,7 +35,7 @@ def main():
     with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
         print("\n")
         selected_issue_set = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
-            "def1",
+            # "def1",
             # "def2",
             # "def3",
             # "def4",
@@ -121,8 +121,21 @@ def main():
                     f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
                     
                 )
-                
+
                 llm_response, critique_response = llm_service.analayze(context, issue)
+
+                retries = 0
+                while llm_response.is_secound_analysis_needed() and retries < 2:
+                    missing_source_code = repo_handler.get_source_code_of_called_expressions(llm_response.instructions)
+                    source_code_context += f'\n{missing_source_code}'
+                    context = (
+                        f"*** Source Code Context ***\n{source_code_context}\n\n" 
+                        f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
+                        
+                    )
+                    llm_response, critique_response = llm_service.analayze(context, issue)
+
+                    retries += 1
 
                 # let's calculate numbers for quality of the response we received here!
                 score = {}
