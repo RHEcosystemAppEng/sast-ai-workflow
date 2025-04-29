@@ -5,7 +5,8 @@ from common.config import Config
 
 
 def count_predicted_values(data):
-    # Positives = real isse, Negatives = NOT real issue
+    # Positives = real isse
+    # Negatives = NOT real issue
     positives = set()
     negatives = set()
     for (issue_id, llm_response, metric_ar) in data:
@@ -16,7 +17,8 @@ def count_predicted_values(data):
     return positives, negatives
 
 def count_actual_values(data, ground_truth):
-    # Positives = real isse, Negatives = NOT real issue
+    # Positives = real isse
+    # Negatives = NOT real issue
     positives = set()
     negatives = set()
     
@@ -34,13 +36,13 @@ def calculate_confusion_matrix_metrics(actual_true_positives, actual_false_posit
     Note: Since our goal is to detect false alarms, positives refer to cases where issues are identified as NOT real issues.
 
     Definitions:
-    - Negatives: Issues that are real issues.
     - Positives: Issues that are NOT real issues (e.g., false alarms).
+    - Negatives: Issues that are real issues.
     """
-    tn = len(actual_true_positives & predicted_true_positives)      # Both human and AI labeled as real issue
     tp = len(actual_false_positives & predicted_false_positives)    # Both human and AI labeled as not real issue
-    fn = len(predicted_true_positives - actual_true_positives)      # AI falsely labeled as real issue
+    tn = len(actual_true_positives & predicted_true_positives)      # Both human and AI labeled as real issue
     fp = len(actual_true_positives - predicted_true_positives)      # AI falsely labeled as not real issue
+    fn = len(predicted_true_positives - actual_true_positives)      # AI falsely labeled as real issue
 
     return tp, tn, fp, fn
 
