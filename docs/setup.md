@@ -52,18 +52,43 @@ Create a .env file (or use the existing one in the drive and place it) in the ro
 
 ```bash
 LLM_API_KEY=<your_api_key>
+EMBEDDINGS_API_KEY=<your_api_key>
 CRITIQUE_LLM_API_KEY=<your_api_key> # If critique phase is enabled
 ```
 
-### 6. Install the Embedding Model
-Download the embedding model locally:
+### 6. Deploying an Embedding Model on RHOAI
 
-```bash
-git clone https://huggingface.co/sentence-transformers/all-mpnet-base-v2
-```
+If you haven't deployed an embedding model yet, follow these steps to set it up on Red Hat OpenShift AI:
 
-Alternatively, if you are using the Red Hat OpenShift AI, follow the provided cluster-specific instructions. 
-(E.g: LLM_URL)
+1. **Deploy MinIO and Create a Data Connection**  
+   Set up MinIO on your OpenShift cluster and establish a data connection:  
+   👉 [Deploy MinIO and Create Data Connection](https://ai-on-openshift.io/tools-and-applications/minio/minio/)
+
+2. **Upload the Model to MinIO**  
+   Download the model files from Hugging Face and upload them to your MinIO bucket:  
+   👉 For example - [all-mpnet-base-v2 Model on Hugging Face](https://huggingface.co/sentence-transformers/all-mpnet-base-v2)
+
+3. **Add the SBERT Runtime**  
+   Integrate the SBERT runtime into your OpenShift AI environment:  
+   👉 [SBERT Runtime Setup Guide](https://github.com/rh-aiservices-bu/llm-on-openshift/blob/main/serving-runtimes/sbert_runtime/README.md)
+
+4. **Deploy the Model Using Single-Model Serving**  
+   Utilize the single-model serving platform to deploy your model with the configured data connection and SBERT runtime.
+
+5. **Verify the Deployment**  
+   Ensure the model is operational by sending a health check request:
+
+   ```bash
+   curl <your-external-endpoint>/health -H "Authorization: Bearer <your-token>"
+   ```
+7. **Configure Environment Variables**  
+   Set the following environment variables:
+
+   - `EMBEDDINGS_LLM_URL`: Your model's external endpoint, including the version path (e.g., `http://<embedding-llm-endpoint>/v1`)
+   - `EMBEDDINGS_API_KEY`: Your model's API token
+   - `EMBEDDINGS_LLM_MODEL_NAME`: The name of your embedding model (e.g., `sentence-transformers/all-mpnet-base-v2`)
+
+
 
 
 ## Running the Application in a Container (Locally)
@@ -74,13 +99,15 @@ To run the container in detached mode, providing the LLM API key via an environm
 podman run -d --name sast-ai-app \
 -e PROJECT_NAME=systemd \
 -e PROJECT_VERSION=257-9 \
--e LLM_URL=http://\<<please-set-llm-url\>> \
--e LLM_MODEL_NAME="\<Model Name\>" \
+-e LLM_URL=http://<<please-set-llm-url>> \
+-e LLM_MODEL_NAME="<Model Name>" \
 -e LLM_API_KEY=<your_key> \
--e EMBEDDINGS_LLM_MODEL_NAME=\<<embeddings-llm-model-name\>> \
--e INPUT_REPORT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id> \
+-e EMBEDDINGS_LLM_URL=http://<<please-set-embedding-llm-url>> \
+-e EMBEDDINGS_API_KEY=<your_key> \
+-e EMBEDDINGS_LLM_MODEL_NAME=<<embeddings-llm-model-name>> \
+-e INPUT_REPORT_FILE_PATH=https://docs.google.com/spreadsheets/d/<sheet-id> \
 -e KNOWN_FALSE_POSITIVE_FILE_PATH=/path/to/ignore.err \
--e OUTPUT_FILE_PATH=https://docs.google.com/spreadsheets/d/\<sheet-id\> \
+-e OUTPUT_FILE_PATH=https://docs.google.com/spreadsheets/d/<sheet-id> \
 quay.io/ecosystem-appeng/sast-ai-workflow:latest
 ```
 Replace <your_key> with the actual LLM API key.
@@ -107,6 +134,7 @@ environment variables.
 | PROJECT_VERSION                |  ""                                       | ✔             | 257-9                                      | Version of the project being analyzed.                                                                                           |
 | LLM_URL                        | http://\<<please-set-llm-url\>>           | ✔             | https://integrate.api.nvidia.com/v1        | URL of the language model endpoint.                                                                                              |
 | LLM_MODEL_NAME                 | \<<please-set-llm-model-name\>>           | ✔             | nvidia/llama-3.1-nemotron-70b-instruct     | Identifier of the language model to use.                                                                                         |
+| EMBEDDINGS_LLM_URL             | http://\<<please-set-embedding-llm-url\>> | ✔             | https://integrate.api.nvidia.com/v1        | URL of the embedding model endpoint.                                                                                              |
 | EMBEDDINGS_LLM_MODEL_NAME      | \<<please-set-embeddings-llm-model-name\>>| ✔             | all-mpnet-base-v2                          | Model used for generating embeddings.                                                                                            |
 | INPUT_REPORT_FILE_PATH         | /path/to/report.html                      | ✔             | /path/to/report.html or https://docs.google.com/spreadsheets/d/\<sheet-id\> | Path to the SAST HTML report or URL of a Google Sheet containing the report.                                                                                                        |
 | KNOWN_FALSE_POSITIVE_FILE_PATH | /path/to/ignore.err                       | ✔             | /path/to/ignore.err                        | Path to the file containing known false positives data.                                                                          |
