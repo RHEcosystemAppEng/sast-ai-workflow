@@ -1,6 +1,6 @@
-from protocols import RepoHandlerProtocol
-from systemd.repo_handler import SystemdRepoHandler
-from base_repo_handler import CRepoHandler
+from handlers.protocols import RepoHandlerProtocol
+from handlers.systemd.repo_handler import SystemdRepoHandler
+from handlers.base_repo_handler import CRepoHandler
 from common.config import Config
 
 

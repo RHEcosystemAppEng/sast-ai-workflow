@@ -34,9 +34,10 @@ class Config:
 
         self.TOKENIZERS_PARALLELISM = False
         self.LLM_API_KEY = os.getenv(LLM_API_KEY)
+        self.EMBEDDINGS_API_KEY = os.getenv(EMBEDDINGS_API_KEY)
 
     def print_config(self):
-        masked_vars = [LLM_API_KEY]
+        masked_vars = [LLM_API_KEY, EMBEDDINGS_API_KEY]
         print(" Process started! ".center(80, '-'))
         print("".center(80, '-'))
         for key, value in self.__dict__.items():
@@ -51,6 +52,7 @@ class Config:
             PROJECT_VERSION,
             LLM_URL,
             LLM_MODEL_NAME,
+            EMBEDDINGS_LLM_URL,
             EMBEDDINGS_LLM_MODEL_NAME,
             INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
@@ -88,6 +90,10 @@ class Config:
         # Validate that environment variable LLM API key exist
         if not self.LLM_API_KEY:
             raise ValueError(f"Environment variable {LLM_API_KEY} is not set or is empty.")
+        
+        # Validate that environment variable Embedding API key exist
+        if not self.EMBEDDINGS_API_KEY:
+            raise ValueError(f"Environment variable {EMBEDDINGS_API_KEY} is not set or is empty.")
 
         # Validate critique config if RUN_WITH_CRITIQUE is True
         if self.RUN_WITH_CRITIQUE and not self.CRITIQUE_LLM_MODEL_NAME:
