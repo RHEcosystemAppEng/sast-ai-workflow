@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: sast-ai-workflow-pipeline
@@ -13,6 +13,19 @@ spec:
     - name: falsePositivesUrl
       type: string
       description: "GitLab repository URL for known false positives (optional)"
+
+    - name: LLM_URL
+      type: string
+      default: "http://<<please-set-llm-url>>"
+    - name: LLM_MODEL_NAME
+      type: string
+      default: "llm-model"
+    - name: EMBEDDINGS_LLM_URL
+      type: string
+      default: "http://<<please-set-embedding-llm-url>>"
+    - name: EMBEDDINGS_LLM_MODEL_NAME
+      type: string
+      default: "embedding-llm-model"
   workspaces:
     - name: shared-workspace
     - name: gitlab-token-ws
