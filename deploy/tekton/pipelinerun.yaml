@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   name: sast-ai-workflow-pipelinerun
@@ -12,6 +12,15 @@ spec:
       value: "google/spreadsheet/url"
     - name: falsePositivesUrl
       value: "false/positives/url"
+
+    - name: LLM_URL
+      value: ""
+    - name: LLM_MODEL_NAME
+      value: "llm-model"
+    - name: EMBEDDINGS_LLM_URL
+      value: ""
+    - name: EMBEDDINGS_LLM_MODEL_NAME
+      value: "embedding-llm-model"
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:
