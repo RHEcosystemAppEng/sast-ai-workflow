@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: execute-sast-ai-workflow
@@ -13,6 +13,15 @@ spec:
   steps:
     - name: run-sast-ai-workflow
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
+      env:
+        - name: LLM_URL
+          value: "$(params.LLM_URL)"
+        - name: LLM_MODEL_NAME
+          value: "$(params.LLM_MODEL_NAME)"
+        - name: EMBEDDINGS_LLM_URL
+          value: "$(params.EMBEDDINGS_LLM_URL)"
+        - name: EMBEDDINGS_LLM_MODEL_NAME
+          value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
       script: |
         #!/usr/bin/env sh
         echo "Running SAST-AI-Workflow..."
