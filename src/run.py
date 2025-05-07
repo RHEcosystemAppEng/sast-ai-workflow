@@ -134,7 +134,7 @@ def main():
             pbar.update(1)
             sleep(1)
 
-    ground_truth = get_human_verified_results(config.HUMAN_VERIFIED_FILE_PATH)
+    ground_truth = get_human_verified_results(config)
     evaluation_summary = EvaluationSummary(summary_data, config, ground_truth)
 
     try:
