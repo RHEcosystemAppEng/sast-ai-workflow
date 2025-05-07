@@ -12,7 +12,7 @@ from Utils.embedding_utils import check_text_size_before_embedding
 from Utils.system_utils import get_device
 from common.config import Config
 from dto.Issue import Issue
-from dto.ResponseStructures import FilterResponse, FinalJudgeResponse, FinalJudgeResponseWithSummary, JustificationsSummary
+from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JudgeLLMResponseWithSummary, JustificationsSummary
 
 
 class LLMService:
@@ -208,7 +208,7 @@ class LLMService:
         Returns:
             tuple: A tuple containing:
                 - actual_prompt (str): The prompt sent to the model.
-                - response (FinalJudgeResponseWithSummary): A structured response with the analysis result.
+                - response (JudgeLLMResponseWithSummary): A structured response with the analysis result.
                 - critique_response (str): The response of the critique model, if applicable.
         """
         prompt = ChatPromptTemplate.from_messages([
@@ -247,7 +247,7 @@ class LLMService:
             ("user", "{question}")
         ])
         
-        structured_llm = self.main_llm.with_structured_output(FinalJudgeResponse, method="json_mode")
+        structured_llm = self.main_llm.with_structured_output(JudgeLLMResponse, method="json_mode")
 
         chain1 = (
                 {
@@ -278,24 +278,24 @@ class LLMService:
             if not response:
                 print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
                 self.judge_retry_counter += 1
-                response = FinalJudgeResponseWithSummary(
+                response = JudgeLLMResponseWithSummary(
                         investigation_result="NOT A FALSE POSITIVE",
                         recommendations=[""],
                         justifications=["Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."],
                         short_justification="Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."
                         )
         short_justifications_response = self._summarize_justification(actual_prompt.to_string(), response)
-        response = FinalJudgeResponseWithSummary(**response.model_dump(), **short_justifications_response.model_dump())
+        response = JudgeLLMResponseWithSummary(**response.model_dump(), **short_justifications_response.model_dump())
         critique_response = self._evaluate(actual_prompt.to_string(), response) if self.run_with_critique else ""
         return actual_prompt.to_string(), response, critique_response
     
-    def _summarize_justification(self, actual_prompt, response: FinalJudgeResponse) -> JustificationsSummary:
+    def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse) -> JustificationsSummary:
         """
         Summarize the justifications into a concise, engineer-style comment.
 
         Args:
             actual_prompt (str): The query prompt sent to the LLM, including the context.
-            response (FinalJudgeResponse): A structured response with the analysis result.
+            response (JudgeLLMResponse): A structured response with the analysis result.
 
         Returns:
             response (JustificationsSummary): A structured response with summary of the justifications.
