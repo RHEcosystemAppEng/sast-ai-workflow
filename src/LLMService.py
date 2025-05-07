@@ -1,7 +1,7 @@
 import os
 
+from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.prompts import ChatPromptTemplate
@@ -9,7 +9,6 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
-from Utils.system_utils import get_device
 from common.config import Config
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, FinalJudgeResponse
@@ -18,9 +17,11 @@ from dto.ResponseStructures import FilterResponse, FinalJudgeResponse
 class LLMService:
 
     def __init__(self, config:Config):
-        self.base_url = config.LLM_URL
-        self.api_key = config.LLM_API_KEY
+        self.llm_url = config.LLM_URL
+        self.llm_api_key = config.LLM_API_KEY
         self.llm_model_name = config.LLM_MODEL_NAME
+        self.embedding_llm_url = config.EMBEDDINGS_LLM_URL
+        self.embedding_api_key = config.EMBEDDINGS_API_KEY
         self.embedding_llm_model_name = config.EMBEDDINGS_LLM_MODEL_NAME
 
         self._main_llm = None
@@ -44,16 +45,16 @@ class LLMService:
     def main_llm(self):
         if self._main_llm is None:
             # Decide which LLM to use based on the base_url
-            if "nvidia" in self.base_url.lower():
+            if "nvidia" in self.llm_url.lower():
                 self._main_llm = ChatNVIDIA(
-                    base_url=self.base_url,
+                    base_url=self.llm_url,
                     model=self.llm_model_name,
-                    api_key=self.api_key,
+                    api_key=self.llm_api_key,
                     temperature=0
                 )
             else:
                 self._main_llm = ChatOpenAI(
-                    base_url=self.base_url,
+                    base_url=self.llm_url,
                     model=self.llm_model_name,
                     api_key="dummy_key",
                     temperature=0,
@@ -64,14 +65,12 @@ class LLMService:
     @property
     def embedding_llm(self):
         if self._embedding_llm is None:
-            device = get_device()
-            print(
-                f"Embedding LLM model: {self.embedding_llm_model_name} || device: {device}".center(80, '-'))
-            self._embedding_llm = HuggingFaceEmbeddings(
-                model_name=self.embedding_llm_model_name,
-                model_kwargs={'device': device},
-                encode_kwargs={'normalize_embeddings': False},
-                show_progress=True
+            self._embedding_llm = OpenAIEmbeddings(
+                openai_api_base=self.embedding_llm_url,
+                openai_api_key=self.embedding_api_key,
+                model=self.embedding_llm_model_name,
+                tiktoken_enabled=False,
+                show_progress_bar=True
             )
         return self._embedding_llm
 
