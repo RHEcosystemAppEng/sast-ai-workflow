@@ -42,4 +42,21 @@ make NAMESPACE=my-custom-ns tasks
 make NAMESPACE=my-custom-ns pipeline
 make NAMESPACE=my-custom-ns run
 make NAMESPACE=my-custom-ns logs
+```
 
+### 🔧 Overriding Configuration Parameters
+
+You can also override any of the LLM or embedding settings by adding them to the `make run` invocation:
+
+```bash
+make run \
+  SOURCE_URL="https://my.rpm/url.rpm" \
+  SPREADSHEET_URL="https://docs.google.com/…/export?format=csv" \
+  FALSE_POSITIVES_URL="https://…/ignore.err" \
+  LLM_URL="llm/model/url" \
+  LLM_MODEL_NAME="llm-model-name" \
+  EMBEDDINGS_LLM_URL="embedding/model/url" \
+  EMBEDDINGS_LLM_MODEL_NAME="embedding-model-name"
+```
+
+That will start the pipeline with your custom endpoints and model names, injecting them as environment variables into the SAST-AI task.
