@@ -33,7 +33,7 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
         print("Error occurred during Excel writing:", e)
     
 def write_ai_report_google_sheet(data, config:Config):
-    header_data = ['Investigation Result', 'Short Justifications']
+    header_data = ['AI prediction', 'Hint']
     # Define the scope for Google Sheets API
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 
@@ -72,7 +72,7 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         'text_wrap': True 
     })
 
-    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Short Justifications', 'Full Justifications', 'Recommendations', 'Answer Relevancy']
+    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Hint', 'Justifications', 'Recommendations', 'Answer Relevancy']
     if config.RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
     if config.SHOW_FINAL_JUDGE_CONTEXT:
