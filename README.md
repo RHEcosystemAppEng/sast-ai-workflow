@@ -42,6 +42,7 @@ to query the vector store and review potential SAST errors.
 
 ### Evaluation
 - Applies metrics (from Ragas library) to assess the quality of model outputs.
+- **Note:** SAST-AI-Workflow is primarily focused on identifying false alarms (False Positives).
 
 ## 📊 Evaluation & Metrics
 The evaluations of the model responses are being done using the following metrics:
