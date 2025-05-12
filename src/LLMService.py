@@ -12,7 +12,7 @@ from Utils.embedding_utils import check_text_size_before_embedding
 from Utils.system_utils import get_device
 from common.config import Config
 from dto.Issue import Issue
-from dto.ResponseStructures import FilterResponse, FinalJudgeResponse
+from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JudgeLLMResponseWithSummary, JustificationsSummary
 
 
 class LLMService:
@@ -208,7 +208,7 @@ class LLMService:
         Returns:
             tuple: A tuple containing:
                 - actual_prompt (str): The prompt sent to the model.
-                - response (FinalJudgeResponse): A structured response with the analysis result.
+                - response (JudgeLLMResponseWithSummary): A structured response with the analysis result.
                 - critique_response (str): The response of the critique model, if applicable.
         """
         prompt = ChatPromptTemplate.from_messages([
@@ -247,7 +247,7 @@ class LLMService:
             ("user", "{question}")
         ])
         
-        structured_llm = self.main_llm.with_structured_output(FinalJudgeResponse, method="json_mode")
+        structured_llm = self.main_llm.with_structured_output(JudgeLLMResponse, method="json_mode")
 
         chain1 = (
                 {
@@ -278,13 +278,72 @@ class LLMService:
             if not response:
                 print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
                 self.judge_retry_counter += 1
-                response = FinalJudgeResponse(
+                response = JudgeLLMResponseWithSummary(
                         investigation_result="NOT A FALSE POSITIVE",
                         recommendations=[""],
-                        justifications=["Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."]
+                        justifications=["Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."],
+                        short_justification="Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."
                         )
+        short_justifications_response = self._summarize_justification(actual_prompt.to_string(), response)
+        response = JudgeLLMResponseWithSummary(**response.model_dump(), **short_justifications_response.model_dump())
         critique_response = self._evaluate(actual_prompt.to_string(), response) if self.run_with_critique else ""
         return actual_prompt.to_string(), response, critique_response
+    
+    def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse) -> JustificationsSummary:
+        """
+        Summarize the justifications into a concise, engineer-style comment.
+
+        Args:
+            actual_prompt (str): The query prompt sent to the LLM, including the context.
+            response (JudgeLLMResponse): A structured response with the analysis result.
+
+        Returns:
+            response (JustificationsSummary): A structured response with summary of the justifications.
+        """
+        examples = ["t is reassigned so previously freed value is replaced by malloced string",
+                    "There is a check for k<0",
+                    "i is between 1 and BMAX, line 1623 checks that j < i, array C is of the size BMAX+1",
+                    "C is an array of size BMAX+1, i is between 1 and BMAX (inclusive)",
+                    ]
+        examples_str = "\n".join(f"{i}. {example}" for i, example in enumerate(examples, start=1))
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",
+            "You are an experienced software engineer tasked with summarizing justifications for an investigation result. "
+            "You are provided with the response of another model's analysis, which includes an investigation result, justifications, and recommendations. " 
+            "Your goal is to create a concise summary of the justifications provided in the response. "
+            "Use the Query and the Response to ensure your summary is accurate and professional. "
+            "Focus on the key technical reasons or evidence that support the investigation result. "
+            "Write the summary in a clear, concise, and professional style, as if it were a comment in a code review or technical report. "
+            "Limit the summary to a single sentence or two at most."
+            "\n\nHere are examples of short justifications written by engineers:"
+            "{examples_str}"
+            ),
+            ("user",
+            "Summarize the justifications provided in the following response into a concise, professional comment:"
+            "\n\nQuery: {actual_prompt}"
+            "\n\nResponse: {response}"
+            )
+        ])
+        structured_llm = self.main_llm.with_structured_output(JustificationsSummary, method="json_mode")
+        
+        chain = (
+                {
+                    "examples_str": RunnablePassthrough(),
+                    "actual_prompt": RunnablePassthrough(),
+                    "response": RunnablePassthrough()
+                }
+                | prompt
+                | structured_llm
+        )
+
+        short_justification = chain.invoke({
+            "examples_str": examples_str,
+            "actual_prompt": actual_prompt,
+            "response": response
+        })
+        # print(f"{short_justification=}")
+        return short_justification
     
     def _evaluate(self, actual_prompt, response):      
         from langchain_core.prompts import ChatPromptTemplate
