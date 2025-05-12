@@ -40,12 +40,12 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
 
     # Create a list of Issue objects
     issue_list = []
-    for idx, row in enumerate(rows):
+    for idx, row in enumerate(rows, start=1):
         finding = row.get('Finding')
         if not finding:
             continue
 
-        issue = Issue(idx)
+        issue = Issue(f"def{idx}")
         # TODO - please leave a example string for finding
         lines = finding.split("\n")
         issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]

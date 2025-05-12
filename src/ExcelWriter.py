@@ -2,7 +2,8 @@ import sys
 
 import xlsxwriter
 from tqdm import tqdm
-
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from tornado.gen import sleep
 
 from Utils.metrics_utils import get_metrics, get_percentage_value
@@ -20,6 +21,8 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
             workbook = xlsxwriter.Workbook(config.OUTPUT_FILE_PATH)
 
             write_ai_report_worksheet(data, workbook, config)
+            if config.INPUT_REPORT_FILE_PATH.startswith("https"):
+                write_ai_report_google_sheet(data, config)
             write_confusion_matrix_worksheet(workbook, evaluation_summary)
 
             workbook.close()
@@ -29,6 +32,36 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
     except Exception as e:
         print("Error occurred during Excel writing:", e)
     
+def write_ai_report_google_sheet(data, config:Config):
+    header_data = ['AI prediction', 'Hint']
+    # Define the scope for Google Sheets API
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+
+    try:
+        # Authenticate using the service account JSON file
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
+        client = gspread.authorize(credentials)
+
+        sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
+
+        sheet_data = sheet.get_all_values()
+        num_rows = len(sheet_data)
+        num_cols = len(sheet_data[0]) if num_rows > 0 else 0
+
+        # Insert the headers in the next empty columns
+        cell_range = gspread.utils.rowcol_to_a1(1, num_cols + 1) + ":" + gspread.utils.rowcol_to_a1(1, num_cols + len(header_data))
+        sheet.update([header_data], cell_range)
+        sheet.format(cell_range, {'textFormat': {'bold': True}})
+
+        # Insert the LLM results to the new columns
+        for row, (_, summary_info) in enumerate(data):
+            sheet.update_cell(row + 2, num_cols + 1, summary_info.llm_response.investigation_result.title())  # row + 2 to skip header row
+            sheet.update_cell(row + 2, num_cols + 2, summary_info.llm_response.short_justifications)
+
+        print("Results added successfully to Google Sheet.")
+    except Exception as e:
+        print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+
 def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet = workbook.add_worksheet("AI report")
     worksheet.set_column(1, 1, 25)
@@ -39,7 +72,7 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         'text_wrap': True 
     })
 
-    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Justifications', 'Recommendations', 'Answer Relevancy']
+    header_data = ['Issue ID', 'Issue Name', 'Error', 'Investigation Result', 'Hint', 'Justifications', 'Recommendations', 'Answer Relevancy']
     if config.RUN_WITH_CRITIQUE:
           header_data.append("Critique Response")
     if config.SHOW_FINAL_JUDGE_CONTEXT:
@@ -55,14 +88,14 @@ def write_ai_report_worksheet(data, workbook, config:Config):
         worksheet.write(idx + 1, 1, issue.issue_type, cell_format)
         worksheet.write(idx + 1, 2, issue.trace, cell_format)
         worksheet.write(idx + 1, 3, summary_info.llm_response.investigation_result, cell_format)
-        worksheet.write(idx + 1, 4, "\n\n".join(summary_info.llm_response.justifications), cell_format)
-        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.recommendations), cell_format)
-        
+        worksheet.write(idx + 1, 4, summary_info.llm_response.short_justifications, cell_format)
+        worksheet.write(idx + 1, 5, "\n\n".join(summary_info.llm_response.justifications), cell_format)
+        worksheet.write(idx + 1, 6, "\n\n".join(summary_info.llm_response.recommendations), cell_format)
 
         ar = get_percentage_value(summary_info.metrics.get('answer_relevancy', 0))
-        worksheet.write(idx + 1, 6, f"{ar}%",
+        worksheet.write(idx + 1, 7, f"{ar}%",
                         workbook.add_format({'border': 2, 'bg_color': '#f1541e' if ar < 50 else '#00d224'}))
-        dynumic_column = 6
+        dynumic_column = 7
         if config.RUN_WITH_CRITIQUE:
             dynumic_column += 1
             worksheet.write(idx + 1, dynumic_column, summary_info.critique_response, workbook.add_format({'text_wrap': True}))

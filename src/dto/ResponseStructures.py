@@ -13,7 +13,7 @@ class FilterResponse(BaseModel):
     result: str = Field(description="'YES' if it matches a known false positive, otherwise 'NO'.")
 
 
-class FinalJudgeResponse(BaseModel):
+class JudgeLLMResponse(BaseModel):
     """
     Structured response for analyzing and classifying issues as false positive or not a false positive.
     """
@@ -27,3 +27,17 @@ class FinalJudgeResponse(BaseModel):
     recommendations: List[str] = Field(
         description="A list of recommended actions based on the investigation result."
     )
+
+
+class JustificationsSummary(BaseModel):
+    
+        short_justifications: str = Field(
+        description="A clear, concise summary of the justification written in an engineer-style tone, highlighting the most impactful point."
+    )
+
+class JudgeLLMResponseWithSummary(JustificationsSummary, JudgeLLMResponse):
+    """
+    This model extends `JudgeLLMResponse` by including a `short_justifications` field, 
+    which provides a clear and concise summary of the justifications in an engineer-style tone.
+    """
+   
