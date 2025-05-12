@@ -1,12 +1,14 @@
 import re
 import os
-import clang.cindex 
+import clang.cindex
+import subprocess
 
 from collections import defaultdict
-from clang.cindex import TranslationUnit, CursorKind
+from clang.cindex import TranslationUnit, CursorKind, Cursor
 
 from common.config import Config
 from Utils.repo_utils import get_repo_and_branch_from_url, download_repo
+from Utils.file_utils import load_json_file
 
 
 
@@ -43,10 +45,31 @@ class CRepoHandler:
         # ]
         self.clang_args = ['-include', config.CONFIG_H_PATH] if config.CONFIG_H_PATH else []
 
+        self._compile_commands_json = {}
+        self._compile_commands_json_path = config.COMPILE_COMMANDS_JSON_PATH
+
         clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
+        self.index = clang.cindex.Index.create()
+
+    @property
+    def compile_commands_json(self):
+        if not self._compile_commands_json:
+            compile_commands_json = load_json_file(self._compile_commands_json_path)
+            self._compile_commands_json = self._convert_relative_path_to_absolute(compile_commands_json)
+        return self._compile_commands_json
+
+    def _convert_relative_path_to_absolute(self, compile_commands_json) -> dict[str, str]:
+        """Convert all relative header search paths in the provided compile_command.json to absolute paths"""
+        reformatted_compile_commands_json = {}
+        for section in compile_commands_json:
+            file_path = section["file"].replace("../", self.repo_local_path)
+            if os.path.exists(file_path):
+                reformatted_compile_command = section["command"].replace("../", self.repo_local_path)
+                reformatted_compile_commands_json[file_path] = reformatted_compile_command
+        return reformatted_compile_commands_json
 
     def get_source_code_from_error_trace(self, error_trace: str) -> str:
-        """Parse an error trace and extracts relevant functions bodies/ """
+        """Parse an error trace and extracts relevant functions bodies"""
 
         source_files = set(re.findall(r'([^\s]+\.(?:c|h)):(\d+):', error_trace))
         error_code_sources = defaultdict(set)
@@ -65,16 +88,15 @@ class CRepoHandler:
         return {file: "\n".join(code_sections) for file, code_sections in error_code_sources.items()}
     
     def get_source_code_by_line(self, file_path: str, line: int) -> str:
+        """Extract the full source code section (function, macro, or class) including the specified line in the source file"""
         if not os.path.exists(file_path):
             print(f"File not found: {file_path}")
             return None
 
-        args = self.clang_args
-        if not args:
-            args = self._get_clang_args_from_file(file_path)
-        translation_unit = TranslationUnit.from_source(file_path, 
-                                                    options=TranslationUnit.PARSE_INCOMPLETE,
-                                                    args=['-Xclang', '-fsyntax-only'] + args)
+        args = self._get_clang_args_from_file(file_path)
+        translation_unit = self.index.parse(file_path,
+                                            options=TranslationUnit.PARSE_INCOMPLETE,
+                                            args=['-Xclang', '-fsyntax-only'] + args)
 
         source_code = None
 
@@ -113,7 +135,44 @@ class CRepoHandler:
         
         return source_code
     
+    def extract_definition_from_source_code(self, function_names: set[str], source_code_file_path: str) -> dict[str, str]:
+        """Extract the definitions of functions or macros that are referenced in the source code"""
+
+        source_code_file_path = os.path.join(self.repo_local_path, source_code_file_path)
+        args = ['-Xclang', '-fsyntax-only'] + self._get_clang_args_from_file(source_code_file_path) + self._get_includes_of_file(source_code_file_path)
+
+        translation_unit = self.index.parse(
+            source_code_file_path, 
+            options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
+            args=args)
+        
+        source_code_dict = {}
+
+        for cursor in translation_unit.cursor.walk_preorder():
+            if cursor.kind in [CursorKind.MACRO_INSTANTIATION, CursorKind.CALL_EXPR] and cursor.spelling in function_names:
+                if cursor.get_definition() and cursor.get_definition().location:
+                    source_code_dict.update({cursor.spelling: self._get_source_code_from_cursor(cursor.get_definition())})
+                else:
+                    if cursor.kind == CursorKind.MACRO_INSTANTIATION:
+                        file_path, line = self._get_macro_definition_file_location(macro_name=cursor.spelling)
+                    else:
+                        file_path, line = self._get_function_definition_file_location(cursor.spelling)
+                    source_code_dict.update({cursor.spelling: self.get_source_code_by_line(file_path=file_path, line=int(line)+1)})
+
+        for diag in translation_unit.diagnostics:
+            print(f"[{diag.severity}] {diag.spelling}")
+
+        if len(source_code_dict) < len(function_names):
+            missing_functions = set(function_names).difference(set(source_code_dict.keys()))
+            print(f"Missing source code of {missing_functions}")
+            
+        return source_code_dict
+    
     def _get_clang_args_from_file(self, file_path: str) -> list[str]:
+        """Extract the used macros in the source code file for constructing Clang arguments"""
+        if self.clang_args:
+            return self.clang_args
+        
         pattern = re.compile(r'^\s*#\s*(if|ifdef|ifndef)\b(.*)', re.MULTILINE)
         macros = set()
         with open(file_path) as f:
@@ -126,3 +185,63 @@ class CRepoHandler:
                     macros.add(f"-D{match}")
         
         return list(macros)
+
+    def _get_includes_of_file(self, file_path):
+        """Get list of header search directories paths of a file"""
+        return [arg for arg in self.compile_commands_json[file_path].split() if '-I' in arg] + [f"-I{self.repo_local_path}"] 
+
+    def _get_source_code_from_cursor(self, cursor: Cursor) -> str:
+        """Extract the source code section referenced by the given Clang cursor."""
+        with open(cursor.location.file.name , "r") as f:
+            lines = f.readlines()
+            numbered_lines = [f"{i + cursor.extent.start.line}| {line}" for i, line in enumerate(lines[cursor.extent.start.line-1:cursor.extent.end.line])]
+            source_code = "".join(numbered_lines)
+        return source_code
+
+    def _get_function_definition_file_location(self, function_name):
+        """Get the definition location of a function in the repo if exists"""
+        file_path, code_line_number = "", ""
+        command = ['grep ' +
+                   '-nHr ' +
+                    '"^[[:space:]]*[a-zA-Z_][a-zA-Z0-9_[:space:]\*]*' +
+                    function_name +
+                    '[[:space:]]*\([^;{]*\)[[:space:]]*{" ' + self.repo_local_path]
+        
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                shell=True
+            )
+        except Exception as e:
+            print(e)
+
+        if result:
+            file_path, code_line_number = result.stdout.strip().split(':')[:2]
+
+        return file_path, code_line_number
+
+    def _get_macro_definition_file_location(self, macro_name):
+        """Get the definition location of a MACRO in the repo if exists"""
+        command = f'grep -nHr "#define\s*{macro_name}.*" {self.repo_local_path}'
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False
+            )
+        except Exception as e:
+            print(e)
+
+        file_path, code_line_number = result.stdout.strip().split(':')[:2]
+
+        if result:
+            file_path, code_line_number = result.stdout.strip().split(':')[:2]
+
+        return file_path, code_line_number
+    
