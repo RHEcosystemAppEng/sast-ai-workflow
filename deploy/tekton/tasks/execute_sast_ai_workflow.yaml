@@ -7,6 +7,18 @@ spec:
     - name: googleSpreadsheetUrl
       type: string
       description: "Google Spreadsheet URL"
+    - name: LLM_URL
+      type: string
+      default: ""
+    - name: LLM_MODEL_NAME
+      type: string
+      default: ""
+    - name: EMBEDDINGS_LLM_URL
+      type: string
+      default: ""
+    - name: EMBEDDINGS_LLM_MODEL_NAME
+      type: string
+      default: ""
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
@@ -16,16 +28,12 @@ spec:
       env:
         - name: LLM_URL
           value: "$(params.LLM_URL)"
-          default: ""
         - name: LLM_MODEL_NAME
           value: "$(params.LLM_MODEL_NAME)"
-          default: ""
         - name: EMBEDDINGS_LLM_URL
           value: "$(params.EMBEDDINGS_LLM_URL)"
-          default: ""
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
-          default: ""
       script: |
         #!/usr/bin/env sh
         echo "Running SAST-AI-Workflow..."
