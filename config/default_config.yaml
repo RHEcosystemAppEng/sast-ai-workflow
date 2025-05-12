@@ -3,6 +3,7 @@ PROJECT_VERSION: ""
 
 LLM_URL: "http://<<please-set-llm-url>>"
 LLM_MODEL_NAME: "llm-model"
+EMBEDDINGS_LLM_URL: "http://<<please-set-embedding-llm-url>>"
 EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 
 INPUT_REPORT_FILE_PATH: "/path/to/report.html"
