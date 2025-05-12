@@ -13,7 +13,6 @@ spec:
     - name: falsePositivesUrl
       type: string
       description: "GitLab repository URL for known false positives (optional)"
-
     - name: LLM_URL
       type: string
       default: "http://<<please-set-llm-url>>"
@@ -41,6 +40,14 @@ spec:
           value: "$(params.googleSpreadsheetUrl)"
         - name: falsePositivesUrl
           value: "$(params.falsePositivesUrl)"
+        - name: LLM_URL
+          value: "$(params.LLM_URL)"
+        - name: LLM_MODEL_NAME
+          value: "$(params.LLM_MODEL_NAME)"
+        - name: EMBEDDINGS_LLM_URL
+          value: "$(params.EMBEDDINGS_LLM_URL)"
+        - name: EMBEDDINGS_LLM_MODEL_NAME
+          value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
 
     - name: prepare-source
       runAfter:
