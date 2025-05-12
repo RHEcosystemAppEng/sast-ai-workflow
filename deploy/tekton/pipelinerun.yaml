@@ -12,7 +12,6 @@ spec:
       value: "google/spreadsheet/url"
     - name: falsePositivesUrl
       value: "false/positives/url"
-
     - name: LLM_URL
       value: ""
     - name: LLM_MODEL_NAME
