@@ -6,10 +6,19 @@ from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain.output_parsers import PydanticOutputParser
 
+
+# from langchain.globals import set_debug
+
+
+# set_debug(True)
+
+from Utils.llm_utils import robust_structured_output
 from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
 from common.config import Config
+from common.constants import RED_ERROR_FOR_LLM_REQUEST
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JustificationsSummary, RecommendationsResponse, EvaluationResponse
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
@@ -58,9 +67,9 @@ class LLMService:
                 self._main_llm = ChatOpenAI(
                     base_url=self.llm_url,
                     model=self.llm_model_name,
-                    api_key="dummy_key",
+                    api_key=self.llm_api_key,
                     temperature=0,
-                    top_p=0.01
+                    # top_p=0.01  # Todo: seems like need to remove it
                 )
         return self._main_llm
 
@@ -140,7 +149,6 @@ class LLMService:
         if not examples_context_str:
             # print(f"Not find any relevant context for issue id {issue.id}")
             response = FilterResponse(
-                                    issue_id=issue.id,
                                     equal_error_trace=[],
                                     justifications=(f"No identical error trace found in the provided context. "
                                                     f"The context empty because no issue of type {issue.issue_type} in knonw isseu DB."),
@@ -151,9 +159,7 @@ class LLMService:
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
 
-        structured_llm = self.main_llm.with_structured_output(FilterResponse, method="json_mode")
-
-        chain1 = (
+        prompt_chain = (
                 {
                     "context": RunnableLambda(lambda _: examples_context_str),
                     "answer_template": RunnableLambda(lambda _: answer_template),
@@ -161,33 +167,17 @@ class LLMService:
                 }
                 | prompt
         )
-        # actual_prompt = chain1.invoke(issue.trace)
+        # actual_prompt = prompt_chain.invoke(issue.trace)
         # print(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
-        chain2 = (
-                chain1
-                | structured_llm
-        )
-        response = chain2.invoke(issue.trace)
-        if not response:
-            # If the response is insufficient to construct the object -
-            # response will be None and we'll give it another try
-            if self.filter_retry_counter >= self.max_retry_limit:
-                raise Exception(
-                    f"LLM output parsing has failed {self.filter_retry_counter} / {self.max_retry_limit} times in filter_known_error process. "
-                    f"This indicates a persistent issue with the model or the input data. "
-                    f"Please investigate the root cause to resolve this problem."
-                )
-            print(f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m")
-            response = chain2.invoke(issue.trace)
-            if not response:
-                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
-                self.filter_retry_counter += 1
-                response = FilterResponse(
-                                        issue_id=issue.id,
-                                        equal_error_trace=[],
-                                        justifications="An error occurred twice during model output parsing. Defaulting to: NO",
-                                        result="NO"
-                                    )
+        try:
+            response = robust_structured_output(llm=self.main_llm, schema=FilterResponse, input=issue.trace, prompt_chain=prompt_chain, max_retries=self.max_retry_limit)
+        except Exception as e:
+            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="filter_known_error", issue_id=issue.id, error=e))
+            response = FilterResponse(
+                                    equal_error_trace=[],
+                                    justifications="An error occurred twice during model output parsing. Defaulting to: NO",
+                                    result="NO"
+                                )
         return response, examples_context_str
 
     def _format_context_from_response(self, resp):
@@ -212,21 +202,44 @@ class LLMService:
                 - llm_analysis_response (AnalysisResponse): A structured response with the analysis result.
                 - critique_response (EvaluationResponse): The response of the critique model, if applicable.
         """
-        analysis_prompt, analysis_response = self._analyze(context=context, issue=issue)
-        recommendations_response = self._recommand(issue=issue, context=context, analysis_response=analysis_response)
-        short_justifications_response = self._summarize_justification(analysis_prompt.to_string(), analysis_response)
+        try:
+            analysis_prompt, analysis_response, recommendations_response, short_justifications_response = None
+            analysis_prompt, analysis_response = self._analyze(context=context, issue=issue)
+            recommendations_response = self._recommand(issue=issue, context=context, analysis_response=analysis_response)
+            short_justifications_response = self._summarize_justification(analysis_prompt.to_string(), analysis_response)
 
-        llm_analysis_response = AnalysisResponse(investigation_result=analysis_response.investigation_result,
-                                   is_final=recommendations_response.is_final,
-                                   justifications=analysis_response.justifications,
-                                   evaluation=recommendations_response.justifications,
-                                   recommendations=recommendations_response.recommendations,
-                                   instructions=recommendations_response.instructions,
-                                   prompt=analysis_prompt.to_string(),
-                                   short_justifications=short_justifications_response.short_justifications)
+            llm_analysis_response = AnalysisResponse(investigation_result=analysis_response.investigation_result,
+                                                     is_final=recommendations_response.is_final,
+                                                     justifications=analysis_response.justifications,
+                                                     evaluation=recommendations_response.justifications,
+                                                     recommendations=recommendations_response.recommendations,
+                                                     instructions=recommendations_response.instructions,
+                                                     prompt=analysis_prompt.to_string(),
+                                                     short_justifications=short_justifications_response.short_justifications
+                                                     )
+        except Exception as e:
+            failed_message = "Failed during analyze process"
+            print(f"{failed_message}, set default values for the fields it failed on. Error is: {e}" )
+            llm_analysis_response = AnalysisResponse(investigation_result="NOT A FALSE POSITIVE" if analysis_response is None else analysis_response.investigation_result,
+                                                     is_final="TRUE" if recommendations_response is None else recommendations_response.is_final,
+                                                     justifications=[f"{failed_message}. Defaulting to: NOT A FALSE POSITIVE."] if analysis_response is None else analysis_response.justifications,
+                                                     evaluation=[failed_message] if recommendations_response is None else recommendations_response.justifications,
+                                                     recommendations=[failed_message] if recommendations_response is None else recommendations_response.recommendations,
+                                                     instructions=[] if recommendations_response is None else recommendations_response.instructions,
+                                                     prompt=failed_message if analysis_prompt is None else analysis_prompt.to_string(),
+                                                     short_justifications=f"{failed_message}. Please check the full justifications." 
+                                                                          if short_justifications_response is None 
+                                                                          else short_justifications_response.short_justifications
+                                                     )
         
-        
-        critique_response = self._evaluate(analysis_prompt.to_string(), llm_analysis_response) if self.run_with_critique else ""
+        try:
+            critique_response = self._evaluate(analysis_prompt.to_string(), llm_analysis_response, issue.id) if self.run_with_critique and analysis_response is not None else ""
+        except Exception as e:
+            print(f"Failed during evaluation process, set default values. Error is: {e}" )
+            critique_response = EvaluationResponse(critique_result=analysis_response.investigation_result, 
+                                                   justifications=["Failed during evaluation process. Defaulting to first analysis_response"]
+                                                   )
+            
         return llm_analysis_response, critique_response
 
     @retry(stop=stop_after_attempt(2),
@@ -254,9 +267,9 @@ class LLMService:
             "A finding of **TRUE POSITIVE** should be made if **any** execution path within the provided source code potentially leads to the vulnerability described in the CVE.\n\n"
             "**Crucially, you must base your analysis solely on the explicit behavior of the provided source code and the description in the CVE report.\n"
             "Do not make any assumptions about the code's behavior based on function names, variable names, or any implied functionality.**\n"
-            "Your output must include the following 2 sections:\n"
-            "1. **investigation_result** [FALSE POSITIVE/TRUE POSITIVE].\n"
-            "2. **Justifications:** [The reasoning that led to the investigation_result decision]\n"
+            "Respond only in the following JSON format:\n"
+            "{{\"investigation_result\", type: string: (FALSE POSITIVE/TRUE POSITIVE), "
+             "\"justifications\", type: [string]: (The reasoning that led to the investigation_result decision)}} "
             "**Here is the information for your analysis:**\n"
             "**CVE Report Snippet:**\n{cve_error_trace}\n\n"
             "{context}\n\n"
@@ -271,11 +284,10 @@ class LLMService:
             "* Check that all of the justifications are based on code that its implementation is provided in the context.\n"
             "**Begin your analysis.**\n"),
             HumanMessagePromptTemplate.from_template("{question}")
-        ])
-        
-        structured_llm = self.main_llm.with_structured_output(JudgeLLMResponse, method="json_mode")
 
-        chain1 = (
+        ])
+
+        prompt_chain = (
                 {
                     "context": RunnableLambda(lambda _: context),
                     "cve_error_trace": RunnableLambda(lambda _: issue.trace),
@@ -283,41 +295,28 @@ class LLMService:
                 }
                 | analysis_prompt
         )
-        actual_prompt = chain1.invoke(user_input)
-        print(f"Analysis prompt:   {actual_prompt.to_string()}")
-        chain2 = (
-                chain1
-                | structured_llm
-        )
-        analysis_response = chain2.invoke(user_input)
+        actual_prompt = prompt_chain.invoke(user_input)
+        # print(f"Analysis prompt:   {actual_prompt.to_string()}")
+        
+        try:
+            analysis_response = robust_structured_output(llm=self.main_llm, 
+                                                schema=JudgeLLMResponse, 
+                                                input=user_input, 
+                                                prompt_chain=prompt_chain, 
+                                                max_retries=self.max_retry_limit
+                                                )        
+        except Exception as e:
+            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
+            raise
 
-        print(f"{analysis_response=}")
-
-        if not analysis_response:
-            # If the response is insufficient to construct the object -
-            # response will be None and we'll give it another try
-            if self.judge_retry_counter >= self.max_retry_limit:
-                raise Exception(
-                    f"LLM output parsing has failed {self.judge_retry_counter} / {self.max_retry_limit} times in final_judge process. "
-                    f"This indicates a persistent issue with the model or the input data. "
-                    f"Please investigate the root cause to resolve this problem."
-                )
-            print(f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m")
-            response = chain2.invoke(user_input)
-            if not response:
-                print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
-                self.judge_retry_counter += 1
-                response = JudgeLLMResponse(
-                        investigation_result="NOT A FALSE POSITIVE",
-                        justifications=["Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."],
-                        )
+        # print(f"{analysis_response=}")
         return actual_prompt, analysis_response
-    
+
     @retry(stop=stop_after_attempt(2),
            wait=wait_fixed(10),
            retry=retry_if_exception_type(Exception)
     )
-    def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse) -> JustificationsSummary:
+    def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse, issue_id: str) -> JustificationsSummary:
         """
         Summarize the justifications into a concise, engineer-style comment.
 
@@ -328,12 +327,13 @@ class LLMService:
         Returns:
             response (JustificationsSummary): A structured response with summary of the justifications.
         """
-        examples = ["t is reassigned so previously freed value is replaced by malloced string",
-                    "There is a check for k<0",
-                    "i is between 1 and BMAX, line 1623 checks that j < i, array C is of the size BMAX+1",
-                    "C is an array of size BMAX+1, i is between 1 and BMAX (inclusive)",
-                    ]
-        examples_str = "\n".join(f"{i}. {example}" for i, example in enumerate(examples, start=1))
+
+        examples_str = ('[{"short_justifications": "t is reassigned so previously freed value is replaced by malloced string"}, '
+                        '{"short_justifications": "There is a check for k<0"}, '
+                        '{"short_justifications": "i is between 1 and BMAX, line 1623 checks that j < i, array C is of the size BMAX+1"}, '
+                        '{"short_justifications": "C is an array of size BMAX+1, i is between 1 and BMAX (inclusive)"}]'
+                    )
+
         
         prompt = ChatPromptTemplate.from_messages([
             ("system",
@@ -346,6 +346,9 @@ class LLMService:
             "Limit the summary to a single sentence or two at most."
             "\n\nHere are examples of short justifications written by engineers:"
             "{examples_str}"
+            "\n\nRespond only in the following JSON format:"
+             "{{\"short_justifications\": string}} "   
+             "short_justifications should be a clear, concise summary of the justification written in an engineer-style tone, highlighting the most impactful point."  
             ),
             ("user",
             "Summarize the justifications provided in the following response into a concise, professional comment:"
@@ -353,19 +356,27 @@ class LLMService:
             "\n\nResponse: {response}"
             )
         ])
-        structured_llm = self.main_llm.with_structured_output(JustificationsSummary, method="json_mode")
         
-        chain = (
+        prompt_chain = (
                 {
                     "actual_prompt": RunnableLambda(lambda _: actual_prompt),
                     "examples_str": RunnableLambda(lambda _: examples_str),
                     "response": RunnablePassthrough()
                 }
                 | prompt
-                | structured_llm
         )
+        
+        try:
+            short_justification = robust_structured_output(llm=self.main_llm, 
+                                                           schema=JustificationsSummary, 
+                                                           input=response,
+                                                           prompt_chain=prompt_chain,
+                                                           max_retries=self.max_retry_limit
+                                                           )
+        except Exception as e:
+            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
+            raise
 
-        short_justification = chain.invoke(response)
         # print(f"{short_justification=}")
         return short_justification
     
@@ -395,33 +406,43 @@ class LLMService:
         "Only provide recommendations that are directly crucial for validating the reported CVE and reaching a definitive conclusion.\n"
         "If the analysis fails to cover all relevant execution paths or potential conditions, explain the shortcomings and specify the additional data needed for a complete assessment.\n"
         "Any recommendation that necessitates inspecting the implementation of a referenced function or macro MUST be formatted as an entry in the 'Instructions' list.\n"
-        "Your output MUST adhere to the following structure:\n"
-        "1. is_final: Indicate whether further investigation is needed. If clear and irrefutable evidence for a TRUE or FALSE POSITIVE is found within the evaluated analysis, set this value to true; otherwise, set it to false.\n"
-        "2. justifications: Provide a detailed explanation of why the evaluated analysis is sound and complete, or clearly articulate its deficiencies and why it's insufficient for a final determination.\n"
-        "3. recommendations (optional): If further analysis is required, provide a concise list of the specific data or steps needed to reach a conclusive TRUE or FALSE POSITIVE determination. Only include essential recommendations.\n"
-        "4. Instructions (optional): A list of dictionaries, where each dictionary represents a recommendation to examine the implementation of a function or macro referenced in the source code context. Include this list ONLY if such investigations are necessary.\n"
-        "   Each dictionary in the 'Instructions' list must have the following keys:\n"
-        '   - "expression_name": The exact name of the missing function or macro (not the full declaration).\n'
-        '   - "reffering_source_code_path": The precise file path where the "expression_name" is called from (include ONLY the file path without any surrounding text).\n'
-        '   - "recommendation": A clear and actionable recommendation related to this "expression_name" (e.g., "Verify the implementation of `memcpy` to ensure no out-of-bounds write occurs.").\n'
+        "Your output MUST be a valid JSON object and follow the exact structure defined below:\n"
+        "{{\"is_final\": Indicate whether further investigation is needed. If clear and irrefutable evidence for a TRUE or FALSE POSITIVE is found within the evaluated analysis, set this value to true; otherwise, set it to false."
+        "\"justifications\": Provide a detailed explanation of why the evaluated analysis is sound and complete, or clearly articulate its deficiencies and why it's insufficient for a final determination."
+        "\"recommendations\"(optional): If further analysis is required, provide a concise list of the specific data or steps needed to reach a conclusive TRUE or FALSE POSITIVE determination. Only include essential recommendations."
+        "\"Instructions\" (optional):\n"
+        "\t[{{\"expression_name\": The exact name of the missing function or macro (not the full declaration)."
+        "\t\"reffering_source_code_path\": The precise file path where the \"expression_name\" is called from (include ONLY the file path without any surrounding text)."
+        "\t\"recommendation\": A clear and actionable recommendation related to this \"expression_name\" (e.g., \"Verify the implementation of `memcpy` to ensure no out-of-bounds write occurs.\").}}]\n" 
+        "}}\n" 
+        "Notes:\n"
+        "- The entire output must be syntactically correct JSON.\n"
+        "- All keys must be present. If a field is not applicable (e.g., recommendations or Instructions), it must still appear with either null or an empty list as appropriate.\n"
+        "- \"Instructions\" is a list of dictionaries, where each dictionary represents a recommendation to examine the implementation of a function or macro referenced in the source code context. Include this list ONLY if such investigations are necessary.\n"
         "**The reported CVE:**\n{cve_error_trace}\n\n"
         "**The Analysis:**\n{analysis}\n\n"
         "**The Data used for the analysis:**\n{context}")
         ])
 
         try:
-            recommendations_llm = self.main_llm.with_structured_output(RecommendationsResponse, method="json_mode")
-            recommendations_chain = ({
-                "cve_error_trace": RunnableLambda(lambda _: issue.trace),
-                "analysis": RunnableLambda(lambda _: analysis_response.justifications),
-                "context": RunnableLambda(lambda _: context),
-            } | recommendations_prompt | recommendations_llm
+            prompt_chain = (
+                {
+                    "cve_error_trace": RunnableLambda(lambda _: issue.trace),
+                    "analysis": RunnableLambda(lambda _: analysis_response.justifications),
+                    "context": RunnableLambda(lambda _: context),
+                } 
+                | recommendations_prompt
             )
+            recommendations_response = robust_structured_output(llm=self.main_llm, 
+                                                                schema=RecommendationsResponse, 
+                                                                input={},
+                                                                prompt_chain=prompt_chain,
+                                                                max_retries=self.max_retry_limit
+                                                                )
+            # print(f"recommendations_response: {recommendations_response=}")
 
-            recommendations_response = recommendations_chain.invoke({})
-            print(f"recommendations_response: {recommendations_response=}")
         except Exception as e:
-            print(f"Failed to run recommendation prompt, ERROR: {e}")
+            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
             raise
 
         return recommendations_response     
@@ -430,10 +451,9 @@ class LLMService:
            wait=wait_fixed(10),
            retry=retry_if_exception_type(Exception)
     )
-    def _evaluate(self, actual_prompt, response) -> EvaluationResponse:      
+    def _evaluate(self, actual_prompt, response, issue_id) -> EvaluationResponse:      
         from langchain_core.prompts import ChatPromptTemplate
         from langchain_core.runnables import RunnablePassthrough
-        from langchain_core.output_parsers import StrOutputParser
 
         prompt = ChatPromptTemplate.from_messages([
             # Should not use 'system' for deepseek-r1
@@ -464,20 +484,26 @@ class LLMService:
              )
         ])
 
-        structured_llm = self.main_llm.with_structured_output(EvaluationResponse, method="json_mode")
-        chain = (
+        prompt_chain = (
                 {
                     "actual_prompt": RunnableLambda(lambda _: actual_prompt),
                     "response": RunnablePassthrough()
                 }
                 | prompt
-                | structured_llm
         )
-        critique_response = chain.invoke({
-                                "actual_prompt": actual_prompt,
-                                "response": response
-                            })
-        print(f"{critique_response=}")
+        try:
+            critique_response = robust_structured_output(llm=self.main_llm, 
+                                                         schema=EvaluationResponse, 
+                                                         input=response,
+                                                         prompt_chain=prompt_chain,
+                                                         max_retries=self.max_retry_limit
+                                                        )
+            print(f"{critique_response=}")
+
+        except Exception as e:
+            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
+            raise
+        
         return critique_response
 
     def create_vdb(self, text_data):
