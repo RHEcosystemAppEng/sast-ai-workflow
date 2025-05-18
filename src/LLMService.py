@@ -328,19 +328,15 @@ class LLMService:
         
         chain = (
                 {
-                    "examples_str": RunnablePassthrough(),
-                    "actual_prompt": RunnablePassthrough(),
+                    "actual_prompt": RunnableLambda(lambda _: actual_prompt),
+                    "examples_str": RunnableLambda(lambda _: examples_str),
                     "response": RunnablePassthrough()
                 }
                 | prompt
                 | structured_llm
         )
 
-        short_justification = chain.invoke({
-            "examples_str": examples_str,
-            "actual_prompt": actual_prompt,
-            "response": response
-        })
+        short_justification = chain.invoke(response)
         # print(f"{short_justification=}")
         return short_justification
     
@@ -381,17 +377,14 @@ class LLMService:
 
         chain = (
                 {
-                    "actual_prompt": RunnablePassthrough(),
+                    "actual_prompt": RunnableLambda(lambda _: actual_prompt),
                     "response": RunnablePassthrough()
                 }
                 | prompt
                 | self.critique_llm
                 | StrOutputParser()
         )
-        critique_response = chain.invoke({
-                                "actual_prompt": actual_prompt,
-                                "response": response
-                            })
+        critique_response = chain.invoke(response)
         # print(f"{critique_response=}")
         return critique_response
 
