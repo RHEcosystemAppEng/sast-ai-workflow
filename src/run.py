@@ -3,6 +3,7 @@ import os
 
 from tornado.gen import sleep
 from tqdm import tqdm
+from collections import defaultdict
 
 from ExcelWriter import write_to_excel_file
 from LLMService import LLMService
@@ -17,7 +18,7 @@ from dto.SummaryInfo import SummaryInfo
 from stage.filter_known_issues import capture_known_issues
 from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
-from dto.ResponseStructures import JudgeLLMResponseWithSummary
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 
 
 def main():
@@ -35,55 +36,55 @@ def main():
         print("\n")
         selected_issue_set = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
             "def1",
-            "def2",
-            "def3",
-            "def4",
-            "def5",
-            "def6",
-            "def7", # FP - Very similar to known issue
-            "def8",
-            "def9",
-            "def10",
-            "def11",
-            "def12",
-            "def13",
-            "def14",
-            "def15",
-            "def16",
-            "def17",
-            "def18",
-            "def19",
-            "def20",
-            "def21",
-            "def22",
-            "def23",
-            "def24",
-            "def25",
-            "def26",
-            "def27",
-            "def28",
-            "def29",
-            "def30",
-            "def31",  # This one is known false positive
-            "def32",
-            "def33",
-            "def34",
-            "def35",
-            "def36",
-            "def37",
-            "def38",
-            "def39",
-            "def40",
-            "def41",
-            "def42",
-            "def43",
-            "def44",
-            "def45",
-            "def46",
-            "def47",
-            "def48",  # This one is known false positive
-            "def49",  # This one is known false positive
-            "def50",  # This one is known false positive
+            # "def2",
+            # "def3",
+            # "def4",
+            # "def5",
+            # "def6",
+            # "def7", # FP - Very similar to known issue
+            # "def8",
+            # "def9",
+            # "def10",
+            # "def11",
+            # "def12",
+            # "def13",
+            # "def14",
+            # "def15",
+            # "def16",
+            # "def17",
+            # "def18",
+            # "def19",
+            # "def20",
+            # "def21",
+            # "def22",
+            # "def23",
+            # "def24",
+            # "def25",
+            # "def26",
+            # "def27",
+            # "def28",
+            # "def29",
+            # "def30",
+            # "def31",  # This one is known false positive
+            # "def32",
+            # "def33",
+            # "def34",
+            # "def35",
+            # "def36",
+            # "def37",
+            # "def38",
+            # "def39",
+            # "def40",
+            # "def41",
+            # "def42",
+            # "def43",
+            # "def44",
+            # "def45",
+            # "def46",
+            # "def47",
+            # "def48",  # This one is known false positive
+            # "def49",  # This one is known false positive
+            # "def50",  # This one is known false positive
         }
         already_seen_issue_ids, similar_known_issues_dict = capture_known_issues(llm_service, 
                                                       set(e for e in issue_list if e.id in selected_issue_set),
@@ -98,8 +99,9 @@ def main():
             if issue.id in already_seen_issue_ids.keys():
                 print(f"{issue.id} already marked as a false positive since it's a known issue")
                 context = already_seen_issue_ids[issue.id].equal_error_trace
-                response = JudgeLLMResponseWithSummary(
-                        investigation_result="FALSE POSITIVE",
+                llm_response = AnalysisResponse(
+                        investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
+                        is_final='TRUE',
                         recommendations=["No fix required."],
                         justifications=[f"The error is similar to one found in the provided context: {context}"],
                         short_justifications="The error is similar to one found in the provided known issues (Details in the full Justification)"
@@ -119,17 +121,16 @@ def main():
                     f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
                     
                 )
-
-                question = "Investigate if the following problem need to fix or can be considered false positive. " + issue.trace
-                prompt, response, critique_response = llm_service.final_judge(question, context, issue)
+                
+                llm_response, critique_response = llm_service.analayze(context, issue)
 
                 # let's calculate numbers for quality of the response we received here!
                 score = {}
                 if config.CALCULATE_METRICS:
-                    metric_request = metric_request_from_prompt(prompt, response)
+                    metric_request = metric_request_from_prompt(llm_response)
                     score = metric_handler.evaluate_datasets(metric_request)
 
-            summary_data.append((issue, SummaryInfo(response, score, critique_response, context)))
+            summary_data.append((issue, SummaryInfo(llm_response, score, critique_response, context)))
 
             pbar.update(1)
             sleep(1)
