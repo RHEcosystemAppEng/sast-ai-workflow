@@ -1,7 +1,8 @@
 NAMESPACE ?= sast-ai-workflow
+CONTEXT   ?= sast-ai-workflow/api-crc-testing:6443/kubeadmin # CRC or CONTEXT=kind-my-tekton-cluster
 
-CO := oc
-TK := tkn
+CO := oc  --context $(CONTEXT)
+TK := tkn --context $(CONTEXT)
 
 #— Pipeline parameters (overrideable on the CLI):
 SOURCE_URL                       ?= source/code/url
@@ -13,7 +14,7 @@ LLM_MODEL_NAME                   ?= llm-model
 EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
 EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 
-.PHONY: all tasks pipeline run logs clean
+.PHONY: all tasks pvc pipeline run logs clean
 
 all: tasks pipeline run logs
 
@@ -22,6 +23,9 @@ tasks:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/prepare_source.yaml
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/fetch_false_positives.yaml
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/execute_sast_ai_workflow.yaml
+
+pvc:
+	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pvc.yaml
 
 pipeline:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pipeline.yaml
@@ -56,4 +60,16 @@ clean:
 		-f deploy/tekton/tasks/execute_sast_ai_workflow.yaml \
 		-f deploy/tekton/pipeline.yaml \
 		-f deploy/tekton/pipelinerun.yaml \
-		--ignore-not-f	
+		--ignore-not-found
+
+
+
+	#— Pipeline parameters (overrideable on the CLI):
+SOURCE_URL                       ?= source/code/url
+SPREADSHEET_URL                  ?= google/spreadsheet/url
+FALSE_POSITIVES_URL              ?= false/positives/url
+
+LLM_URL                          ?= http://<<please-set-llm-url>>
+LLM_MODEL_NAME                   ?= llm-model
+EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
+EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model

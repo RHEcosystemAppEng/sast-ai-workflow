@@ -5,6 +5,9 @@ metadata:
 spec:
   pipelineRef:
     name: sast-ai-workflow-pipeline
+  taskRunTemplate:
+    podTemplate:
+      hostNetwork: true  
   params:
     - name: sourceCodeUrl
       value: "source/code/url"
