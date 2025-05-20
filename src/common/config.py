@@ -13,7 +13,7 @@ class Config:
 
     def load_config(self):
         load_dotenv() # Take environment variables from .env
-        config_path = os.path.join(os.path.dirname(__file__), "../..", "config", "default_config.yaml")
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "default_config.yaml")
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
