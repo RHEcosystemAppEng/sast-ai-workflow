@@ -4,7 +4,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
 
 from dto.MetricRequest import MetricRequest
-from dto.ResponseStructures import JudgeLLMResponseWithSummary
+from dto.LLMResponse import AnalysisResponse
 
 
 class MetricHandler:
@@ -26,12 +26,12 @@ class MetricHandler:
         return results.scores[0]
 
 
-def metric_request_from_prompt(prompt_txt, llm_response:JudgeLLMResponseWithSummary):
-    retrieved_contexts_str_list = parse_context_from_prompt(prompt_txt)
-    return MetricRequest(prompt_txt, llm_response, retrieved_contexts_str_list)
+def metric_request_from_prompt(llm_response:AnalysisResponse):
+    retrieved_contexts_str_list = parse_context_from_prompt(llm_response.prompt)
+    return MetricRequest(llm_response.prompt, llm_response, retrieved_contexts_str_list)
 
 def parse_context_from_prompt(prompt_txt):
-    after_context = prompt_txt[prompt_txt.index("Context:"):]
+    after_context = prompt_txt[prompt_txt.index("*** Source Code Context ***"):]
     context_str = after_context[:after_context.index("Human:")]
     s = context_str.split(':', 1)[1]
     # print(s)

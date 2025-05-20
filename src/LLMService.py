@@ -4,14 +4,16 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
 from common.config import Config
 from dto.Issue import Issue
-from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JudgeLLMResponseWithSummary, JustificationsSummary
+from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JustificationsSummary, RecommendationsResponse, EvaluationResponse
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 
 class LLMService:
@@ -195,7 +197,8 @@ class LLMService:
                                  "reason_marked_false_positive":doc.metadata['reason_of_false_positive']
                                  })
         return context_list
-    def final_judge(self, user_input: str, context: str, issue: Issue):
+    
+    def analayze(self, context: str, issue: Issue) -> tuple[AnalysisResponse, EvaluationResponse]:
         """
         Analyze an issue to determine if it is a false positive or not.
 
@@ -206,44 +209,68 @@ class LLMService:
 
         Returns:
             tuple: A tuple containing:
-                - actual_prompt (str): The prompt sent to the model.
-                - response (JudgeLLMResponseWithSummary): A structured response with the analysis result.
-                - critique_response (str): The response of the critique model, if applicable.
+                - llm_analysis_response (AnalysisResponse): A structured response with the analysis result.
+                - critique_response (EvaluationResponse): The response of the critique model, if applicable.
         """
-        prompt = ChatPromptTemplate.from_messages([
-            ("system",
-             "You are an experienced C developer tasked with analyzing code to identify potential flaws. "
-             "You understand programming language control structures. Therefore, you are capable of verifying the "
-             "call-hierarchy of a given source code. You can observe the runtime workflows."
-             "You understand the question has line numbers of the source code."
-             "Your responses should be precise and no longer than two sentences. "
-             # "Do not hallucinate. Say you don't know if you don't have this information." # LLM doesn't know it is hallucinating
-             # "Answer the question using only the context"  # this line can be optional
-             # "First step is to see if the context has the same error stack trace. If so, it is a false positive. "
-             # "For the justification you can mention that Red Hat engineers have manually verified it as false positive error."
-             # "If you do not find exact error in the Context, you must perform an independent verification,"
-             "Your task is to analyze the issue step-by-step. Follow these steps to guide your thinking: "
-             "Step 1: Analyze the examples provided in the context. "
-             "   - Check if any of the examples are relevant to the current issue. "
-             "   - Use the error trace and the reason for classification as a false positive to determine relevance. "
-             "   - If relevant examples exist, explain how they relate to the current issue and what you can learn from them. "
-             "Step 2: Analyze the source code context. "
-             "   - Investigate the source code to determine if the issue is a false positive or not. "
-             "Step 3: Provide justifications for your conclusion based on the examples and source code analysis. "
-             "   - Tell precisely if the error is a false positive or not. "
-             "\n\nAnswer must have ONLY the following 3 sections:"
-             "investigation_result, justifications, recommendations. "
-             "investigation_result should only contain, FALSE POSITIVE or NOT A FALSE POSITIVE."
-             "\n\nIn the context, you have two parts: "
-             "1. Examples: These are already classified issues that you can use as a reference for analyzing the issue. "
-             "   Each example includes two key elements: "
-             "   - An error trace (called 'Known False Positive'). "
-             "   - A reason for its classification as a false positive (called 'Reason Marked as False Positive'). "
-             "2. Source Code Context: This contains the relevant source code extracted from the repository to help you analyze the issue. "
-             "Use both parts of the context to provide your analysis. "
-             "\n\nContext:{context}"
-             ),
-            ("user", "{question}")
+        analysis_prompt, analysis_response = self._analyze(context=context, issue=issue)
+        recommendations_response = self._recommand(issue=issue, context=context, analysis_response=analysis_response)
+        short_justifications_response = self._summarize_justification(analysis_prompt.to_string(), analysis_response)
+
+        llm_analysis_response = AnalysisResponse(investigation_result=analysis_response.investigation_result,
+                                   is_final=recommendations_response.is_final,
+                                   justifications=analysis_response.justifications,
+                                   evaluation=recommendations_response.justifications,
+                                   recommendations=recommendations_response.recommendations,
+                                   instructions=recommendations_response.instructions,
+                                   prompt=analysis_prompt.to_string(),
+                                   short_justifications=short_justifications_response.short_justifications)
+        
+        
+        critique_response = self._evaluate(analysis_prompt.to_string(), llm_analysis_response) if self.run_with_critique else ""
+        return llm_analysis_response, critique_response
+
+    @retry(stop=stop_after_attempt(2),
+           wait=wait_fixed(10),
+           retry=retry_if_exception_type(Exception)
+    )
+    def _analyze(self, context: str, issue: Issue):
+        """
+        Analyze an issue to determine if it is a false positive or not.
+
+        Args:
+            context: The context to assist in the analysis.
+            issue: The issue object with details like the error trace and issue ID.
+
+        Returns:
+            tuple: A tuple containing:
+                - actual_prompt (str): The prompt sent to the model.
+                - response (JudgeLLMResponse): A structured response with the analysis result.
+        """
+        user_input = "Investigate if the following problem needs to be fixed or can be considered false positive. " + issue.trace
+        analysis_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template("You are an expert security analyst tasked with determining if a reported CVE (Common Vulnerabilities and Exposures) is a FALSE POSITIVE or a TRUE POSITIVE.\n"
+            "You will be provided with a CVE report snippet, the source code of the function(s) mentioned in the CVE's error trace and examples of verified CVEs with the same CWE as the reported CVE.\n"
+            "Your task is to analyze step-by-step the code of the reported CVE issue to identify if it is FALSE POSITIVE or TRUE POSITIVE.\n"
+            "A finding of **TRUE POSITIVE** should be made if **any** execution path within the provided source code potentially leads to the vulnerability described in the CVE.\n\n"
+            "**Crucially, you must base your analysis solely on the explicit behavior of the provided source code and the description in the CVE report.\n"
+            "Do not make any assumptions about the code's behavior based on function names, variable names, or any implied functionality.**\n"
+            "Your output must include the following 2 sections:\n"
+            "1. **investigation_result** [FALSE POSITIVE/TRUE POSITIVE].\n"
+            "2. **Justifications:** [The reasoning that led to the investigation_result decision]\n"
+            "**Here is the information for your analysis:**\n"
+            "**CVE Report Snippet:**\n{cve_error_trace}\n\n"
+            "{context}\n\n"
+            "**Your analysis must adhere to the following strict guidelines:**\n"
+            "* Provide evidence or context strictly based on the provided information.* You must explicitly reference lines of code. Do not provide justifications based on what you *infer* the code might do or how it is *typically* used.\n"
+            "* If there are any uncertainties or lack of explicit proof within the provided code that *all* execution paths are safe with respect to the CVE description, you **must not** conclude FALSE POSITIVE. Clearly state the uncertainty\n"
+            "* **No Implicit Behavior:** Analyze the code exactly as written. Do not assume what a function *might* do based on its name or common programming patterns. Focus only on the explicit operations performed within the provided code.\n"
+            "* **No Clear False Positive Evidence Implies True Positive:** A conclusion of FALSE POSITIVE requires definitive proof within the provided CVE report and source code that the described vulnerability cannot occur under any circumstances within the analyzed code. Lack of such definitive proof should lean towards TRUE POSITIVE\n"
+            "* **Single Vulnerable Path is Sufficient:** If you identify even one specific sequence of execution within the provided code that potentially triggers the vulnerability described in the CVE, the result should be **TRUE POSITIVE**\n"
+            "* **Direct Correlation:** Ensure a direct and demonstrable link between the code's behavior and the vulnerability described in the CVE.\n"
+            "* **Focus on Provided Information:** Your analysis and justifications must be solely based on the text of the CVE report snippet and the provided source code. Do not make assumptions about the broader system or environment.\n"
+            "* Check that all of the justifications are based on code that its implementation is provided in the context.\n"
+            "**Begin your analysis.**\n"),
+            HumanMessagePromptTemplate.from_template("{question}")
         ])
         
         structured_llm = self.main_llm.with_structured_output(JudgeLLMResponse, method="json_mode")
@@ -251,19 +278,22 @@ class LLMService:
         chain1 = (
                 {
                     "context": RunnableLambda(lambda _: context),
+                    "cve_error_trace": RunnableLambda(lambda _: issue.trace),
                     "question": RunnablePassthrough()
                 }
-                | prompt
+                | analysis_prompt
         )
         actual_prompt = chain1.invoke(user_input)
-        # print(f"Evaluation prompt:   {actual_prompt.to_string()}")
+        print(f"Analysis prompt:   {actual_prompt.to_string()}")
         chain2 = (
                 chain1
                 | structured_llm
         )
-        response = chain2.invoke(user_input)
-        print(f"{response=}")
-        if not response:
+        analysis_response = chain2.invoke(user_input)
+
+        print(f"{analysis_response=}")
+
+        if not analysis_response:
             # If the response is insufficient to construct the object -
             # response will be None and we'll give it another try
             if self.judge_retry_counter >= self.max_retry_limit:
@@ -277,17 +307,16 @@ class LLMService:
             if not response:
                 print(f"\033[91mWARNING: An error occurred twice during model output parsing. Please try again and check this Issue-id {issue.id}. \033[0m")
                 self.judge_retry_counter += 1
-                response = JudgeLLMResponseWithSummary(
+                response = JudgeLLMResponse(
                         investigation_result="NOT A FALSE POSITIVE",
-                        recommendations=[""],
                         justifications=["Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."],
-                        short_justification="Unable to parse the result from the model. Defaulting to: NOT A FALSE POSITIVE."
                         )
-        short_justifications_response = self._summarize_justification(actual_prompt.to_string(), response)
-        response = JudgeLLMResponseWithSummary(**response.model_dump(), **short_justifications_response.model_dump())
-        critique_response = self._evaluate(actual_prompt.to_string(), response) if self.run_with_critique else ""
-        return actual_prompt.to_string(), response, critique_response
+        return actual_prompt, analysis_response
     
+    @retry(stop=stop_after_attempt(2),
+           wait=wait_fixed(10),
+           retry=retry_if_exception_type(Exception)
+    )
     def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse) -> JustificationsSummary:
         """
         Summarize the justifications into a concise, engineer-style comment.
@@ -309,7 +338,7 @@ class LLMService:
         prompt = ChatPromptTemplate.from_messages([
             ("system",
             "You are an experienced software engineer tasked with summarizing justifications for an investigation result. "
-            "You are provided with the response of another model's analysis, which includes an investigation result, justifications, and recommendations. " 
+            "You are provided with the response of another model's analysis, which includes an investigation_result and justifications. " 
             "Your goal is to create a concise summary of the justifications provided in the response. "
             "Use the Query and the Response to ensure your summary is accurate and professional. "
             "Focus on the key technical reasons or evidence that support the investigation result. "
@@ -340,7 +369,68 @@ class LLMService:
         # print(f"{short_justification=}")
         return short_justification
     
-    def _evaluate(self, actual_prompt, response):      
+    @retry(stop=stop_after_attempt(2),
+           wait=wait_fixed(10),
+           retry=retry_if_exception_type(Exception)
+    )
+    def _recommand(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse) -> RecommendationsResponse: 
+        """
+        Evaluates a given CVE analysis and generates recommendations for further investigation, if necessary.
+
+        Args:
+            issue (Issue): An object representing the reported CVE. The object must have a 'trace' attribute containing the error trace associated with the CVE.
+            context (str): The data used for the CVE analysis (e.g., source code snippets, error traces). This is the raw data that the analysis is based on.
+            analysis_response (JudgeLLMResponse): An object containing the analysis of the CVE.  This object provides the initial assessment and reasoning.
+
+        Returns:
+            recommendations_response (RecommendationsResponse): An object containing the language model's evaluation and recommendations.
+        """
+
+        recommendations_prompt = ChatPromptTemplate.from_messages([
+        HumanMessagePromptTemplate.from_template(
+        "You are an expert security analyst tasked with rigorously evaluating a provided analysis of a reported CVE (Common Vulnerabilities and Exposures) to determine if it's a FALSE POSITIVE or a TRUE POSITIVE.\n"
+        "You will be given the reported CVE, an analysis of the CVE, and the data the analysis is based on (source code snippets, error traces, etc.), along with examples of validated CVEs for context.\n"
+        "Your primary goal is to critically assess the provided analysis for completeness, accuracy, and relevance to the reported CVE. Determine if the analysis provides sufficient evidence for a conclusive TRUE or FALSE POSITIVE determination.\n"
+        "If the initial analysis is insufficient, identify the specific gaps and recommend the necessary data or steps required for a thorough evaluation.\n"
+        "Only provide recommendations that are directly crucial for validating the reported CVE and reaching a definitive conclusion.\n"
+        "If the analysis fails to cover all relevant execution paths or potential conditions, explain the shortcomings and specify the additional data needed for a complete assessment.\n"
+        "Any recommendation that necessitates inspecting the implementation of a referenced function or macro MUST be formatted as an entry in the 'Instructions' list.\n"
+        "Your output MUST adhere to the following structure:\n"
+        "1. is_final: Indicate whether further investigation is needed. If clear and irrefutable evidence for a TRUE or FALSE POSITIVE is found within the evaluated analysis, set this value to true; otherwise, set it to false.\n"
+        "2. justifications: Provide a detailed explanation of why the evaluated analysis is sound and complete, or clearly articulate its deficiencies and why it's insufficient for a final determination.\n"
+        "3. recommendations (optional): If further analysis is required, provide a concise list of the specific data or steps needed to reach a conclusive TRUE or FALSE POSITIVE determination. Only include essential recommendations.\n"
+        "4. Instructions (optional): A list of dictionaries, where each dictionary represents a recommendation to examine the implementation of a function or macro referenced in the source code context. Include this list ONLY if such investigations are necessary.\n"
+        "   Each dictionary in the 'Instructions' list must have the following keys:\n"
+        '   - "expression_name": The exact name of the missing function or macro (not the full declaration).\n'
+        '   - "reffering_source_code_path": The precise file path where the "expression_name" is called from (include ONLY the file path without any surrounding text).\n'
+        '   - "recommendation": A clear and actionable recommendation related to this "expression_name" (e.g., "Verify the implementation of `memcpy` to ensure no out-of-bounds write occurs.").\n'
+        "**The reported CVE:**\n{cve_error_trace}\n\n"
+        "**The Analysis:**\n{analysis}\n\n"
+        "**The Data used for the analysis:**\n{context}")
+        ])
+
+        try:
+            recommendations_llm = self.main_llm.with_structured_output(RecommendationsResponse, method="json_mode")
+            recommendations_chain = ({
+                "cve_error_trace": RunnableLambda(lambda _: issue.trace),
+                "analysis": RunnableLambda(lambda _: analysis_response.justifications),
+                "context": RunnableLambda(lambda _: context),
+            } | recommendations_prompt | recommendations_llm
+            )
+
+            recommendations_response = recommendations_chain.invoke({})
+            print(f"recommendations_response: {recommendations_response=}")
+        except Exception as e:
+            print(f"Failed to run recommendation prompt, ERROR: {e}")
+            raise
+
+        return recommendations_response     
+    
+    @retry(stop=stop_after_attempt(2),
+           wait=wait_fixed(10),
+           retry=retry_if_exception_type(Exception)
+    )
+    def _evaluate(self, actual_prompt, response) -> EvaluationResponse:      
         from langchain_core.prompts import ChatPromptTemplate
         from langchain_core.runnables import RunnablePassthrough
         from langchain_core.output_parsers import StrOutputParser
@@ -374,18 +464,20 @@ class LLMService:
              )
         ])
 
-
+        structured_llm = self.main_llm.with_structured_output(EvaluationResponse, method="json_mode")
         chain = (
                 {
                     "actual_prompt": RunnableLambda(lambda _: actual_prompt),
                     "response": RunnablePassthrough()
                 }
                 | prompt
-                | self.critique_llm
-                | StrOutputParser()
+                | structured_llm
         )
-        critique_response = chain.invoke(response)
-        # print(f"{critique_response=}")
+        critique_response = chain.invoke({
+                                "actual_prompt": actual_prompt,
+                                "response": response
+                            })
+        print(f"{critique_response=}")
         return critique_response
 
     def create_vdb(self, text_data):

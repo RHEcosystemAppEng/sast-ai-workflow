@@ -10,7 +10,7 @@ def count_predicted_values(data):
     positives = set()
     negatives = set()
     for (issue_id, llm_response, metric_ar) in data:
-        if "not a false positive" in llm_response.investigation_result.lower():
+        if llm_response.is_true_positive():
             positives.add(issue_id)
         else:
             negatives.add(issue_id)
