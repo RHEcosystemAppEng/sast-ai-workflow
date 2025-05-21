@@ -6,13 +6,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain.output_parsers import PydanticOutputParser
-
-
-# from langchain.globals import set_debug
-
-
-# set_debug(True)
 
 from Utils.llm_utils import robust_structured_output
 from Utils.file_utils import read_answer_template_file
@@ -67,7 +60,7 @@ class LLMService:
                     model=self.llm_model_name,
                     api_key=self.llm_api_key,
                     temperature=0,
-                    # top_p=0.01  # Todo: seems like need to remove it
+                    # top_p=0.01  # Todo: Try a different top_p, 0.01 gave bad results. Right now we're using the default (1.0) for ChatNVIDIA & ChatOpenAI, which is better, but maybe not the best.
                 )
         return self._main_llm
 
