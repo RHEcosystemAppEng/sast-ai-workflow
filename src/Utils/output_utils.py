@@ -18,10 +18,10 @@ def print_conclusion(evaluation_summary):
     # Table for confusion matrix data
     cm_table = PrettyTable()
     cm_table.field_names = ["Metric", "Value"]
-    cm_table.add_row(["TP (Both human and AI labeled as real issue)", f"{GREEN}{evaluation_summary.tp}{RESET}"])
-    cm_table.add_row(["FP (AI falsely labeled as real issue)", f"{RED}{evaluation_summary.fp}{RESET}"])
-    cm_table.add_row(["TN (Both human and AI labeled as not real issue)", f"{GREEN}{evaluation_summary.tn}{RESET}"])
-    cm_table.add_row(["FN (AI falsely labeled as not real issue)", f"{RED}{evaluation_summary.fn}{RESET}"])
+    cm_table.add_row(["TP (Both human and AI labeled as not real issue)", f"{GREEN}{evaluation_summary.tp}{RESET}"])
+    cm_table.add_row(["FP (AI falsely labeled as not real issue)", f"{RED}{evaluation_summary.fp}{RESET}"])
+    cm_table.add_row(["TN (Both human and AI labeled as real issue)", f"{GREEN}{evaluation_summary.tn}{RESET}"])
+    cm_table.add_row(["FN (AI falsely labeled as real issue)", f"{RED}{evaluation_summary.fn}{RESET}"])
 
     print("\n--- Confusion Matrix Data ---")
     print(cm_table)
