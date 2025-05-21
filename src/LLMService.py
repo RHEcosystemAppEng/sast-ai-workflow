@@ -6,13 +6,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain.output_parsers import PydanticOutputParser
-
-
-# from langchain.globals import set_debug
-
-
-# set_debug(True)
 
 from Utils.llm_utils import robust_structured_output
 from Utils.file_utils import read_answer_template_file
@@ -69,7 +62,7 @@ class LLMService:
                     model=self.llm_model_name,
                     api_key=self.llm_api_key,
                     temperature=0,
-                    # top_p=0.01  # Todo: seems like need to remove it
+                    # top_p=0.01  # Todo: Try a different top_p, 0.01 gave bad results. Right now we're using the default (1.0) for ChatNVIDIA & ChatOpenAI, which is better, but maybe not the best.
                 )
         return self._main_llm
 
@@ -202,11 +195,12 @@ class LLMService:
                 - llm_analysis_response (AnalysisResponse): A structured response with the analysis result.
                 - critique_response (EvaluationResponse): The response of the critique model, if applicable.
         """
+        analysis_prompt = analysis_response = recommendations_response = short_justifications_response = None
+        
         try:
-            analysis_prompt, analysis_response, recommendations_response, short_justifications_response = None
             analysis_prompt, analysis_response = self._analyze(context=context, issue=issue)
             recommendations_response = self._recommand(issue=issue, context=context, analysis_response=analysis_response)
-            short_justifications_response = self._summarize_justification(analysis_prompt.to_string(), analysis_response)
+            short_justifications_response = self._summarize_justification(analysis_prompt.to_string(), analysis_response, issue.id)
 
             llm_analysis_response = AnalysisResponse(investigation_result=analysis_response.investigation_result,
                                                      is_final=recommendations_response.is_final,
@@ -307,7 +301,7 @@ class LLMService:
                                                 )        
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
-            raise
+            raise e
 
         # print(f"{analysis_response=}")
         return actual_prompt, analysis_response
@@ -375,7 +369,7 @@ class LLMService:
                                                            )
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
-            raise
+            raise e
 
         # print(f"{short_justification=}")
         return short_justification
@@ -443,7 +437,7 @@ class LLMService:
 
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
-            raise
+            raise e
 
         return recommendations_response     
     
@@ -502,7 +496,7 @@ class LLMService:
 
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
-            raise
+            raise e
         
         return critique_response
 

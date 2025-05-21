@@ -13,7 +13,7 @@ ERROR_MESSAGE = ("Parsing failed after {max_retries} retries: {exception}"
                  "\nFailed on input: {input}"
                 "\nThis indicates a persistent issue with the model or the input data."
                 "\nPlease investigate the root cause to resolve this problem.")
-WARNING_MESSAGE = f"\033[91mWARNING: An error occurred during model output parsing. retrying now. \033[0m"
+WARNING_MESSAGE = "\033[91mWARNING: An error occurred during model output parsing. Model type is {model_type}. Retrying now. \033[0m"
 
 def robust_structured_output(
     llm: ChatNVIDIA | ChatOpenAI,
@@ -33,7 +33,7 @@ def robust_structured_output(
         raise ValueError(f"Unsupported LLM type: {type(llm)}")
 
 def _handle_chat_openai(
-    llm,
+    llm: ChatOpenAI,
     schema: Type[BaseModel],
     input: str,
     prompt_chain: RunnableSerializable,
@@ -54,8 +54,9 @@ def _handle_chat_openai(
     if result.get("parsed") is not None:
         return result.get("parsed")
 
-    print(WARNING_MESSAGE)
+    print(WARNING_MESSAGE.format(model_type=schema))
     raw_content = result.get("raw").content
+    # print(f"{raw_content=}")
 
     parser = PydanticOutputParser(pydantic_object=schema)
     fix_prompt = PromptTemplate.from_template(NAIVE_FIX + " Please don't change the content of the answer itself, but just the structure and data type of it.")
@@ -68,7 +69,7 @@ def _handle_chat_openai(
         raise OutputParserException(ERROR_MESSAGE.format(max_retries=max_retries, exception=e, input=input))
 
 def _handle_chat_nvidia(
-    llm,
+    llm: ChatNVIDIA,
     schema: Type[BaseModel],
     input: str,
     prompt_chain: RunnableSerializable,
@@ -92,6 +93,6 @@ def _handle_chat_nvidia(
                 return result
         except Exception as e:
             last_exception = e
-        print(WARNING_MESSAGE)
+        print(WARNING_MESSAGE.format(model_type=schema))
 
     raise LangChainException(ERROR_MESSAGE.format(max_retries=max_retries, exception=last_exception, input=input))
