@@ -1,10 +1,10 @@
-NAMESPACE ?= sast-ai-workflow
-CONTEXT   ?= sast-ai-workflow/api-crc-testing:6443/kubeadmin # CRC or CONTEXT=kind-my-tekton-cluster
+NAMESPACE ?= sast-ai-workflow-test
+CONTEXT   ?= sast-ai-workflow-test/10-6-73-122:6443/kube:admin
 
 CO := oc  --context $(CONTEXT)
 TK := tkn --context $(CONTEXT)
 
-#— Pipeline parameters (overrideable on the CLI):
+# Pipeline parameters (overrideable on the CLI):
 SOURCE_URL                       ?= source/code/url
 SPREADSHEET_URL                  ?= google/spreadsheet/url
 FALSE_POSITIVES_URL              ?= false/positives/url
@@ -16,7 +16,7 @@ EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 
 .PHONY: all tasks pvc pipeline run logs clean
 
-all: tasks pipeline run logs
+all: tasks pvc pipeline run logs
 
 tasks:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/validate_urls.yaml
@@ -47,6 +47,9 @@ run:
 	  -p EMBEDDINGS_LLM_MODEL_NAME="$(EMBEDDINGS_LLM_MODEL_NAME)" \
 	  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 	  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
+      --workspace name=llm-api-key-ws,secret=llm-api-key-secret \
+      --workspace name=embeddings-api-key-ws,secret=embeddings-api-key-secret \
+      --workspace name=google-sa-json-ws,secret=google-service-account-secret \
 	  --showlog
 
 logs:
@@ -61,15 +64,3 @@ clean:
 		-f deploy/tekton/pipeline.yaml \
 		-f deploy/tekton/pipelinerun.yaml \
 		--ignore-not-found
-
-
-
-	#— Pipeline parameters (overrideable on the CLI):
-SOURCE_URL                       ?= source/code/url
-SPREADSHEET_URL                  ?= google/spreadsheet/url
-FALSE_POSITIVES_URL              ?= false/positives/url
-
-LLM_URL                          ?= http://<<please-set-llm-url>>
-LLM_MODEL_NAME                   ?= llm-model
-EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
-EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model

@@ -32,7 +32,7 @@ This guide outlines the steps to deploy the project on a local OpenShift cluster
    * **Create the Kubernetes Secret:**
 
         ```bash
-        oc -n $(NAMESPACE) create secret generic gitlab-token-secret \ --from-literal=gitlab_token="$(GITLAB_TOKEN)"
+        oc -n $(NAMESPACE) create secret generic gitlab-token-secret --from-literal=gitlab_token="$(GITLAB_TOKEN)"
         ```
 
         Replace `$(GITLAB_TOKEN)` with the actual GitLab access token and `$(NAMESPACE)` with the OpenShift namespace where you'll deploy the project (e.g., `sast-ai-workflow`).
