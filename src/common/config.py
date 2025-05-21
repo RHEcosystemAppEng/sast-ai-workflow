@@ -35,6 +35,12 @@ class Config:
         self.TOKENIZERS_PARALLELISM = False
         self.LLM_API_KEY = os.getenv(LLM_API_KEY)
         self.EMBEDDINGS_API_KEY = os.getenv(EMBEDDINGS_API_KEY)
+        self._convert_str_to_bool()
+
+    def _convert_str_to_bool(self):
+        for key, value in self.__dict__.items():
+            if isinstance(value, str) and value.lower() in ("true", "false"):
+                self.__dict__[key] = value.lower() == "true"
 
     def print_config(self):
         masked_vars = [LLM_API_KEY, EMBEDDINGS_API_KEY]
