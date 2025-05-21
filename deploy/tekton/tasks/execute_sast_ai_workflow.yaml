@@ -22,6 +22,9 @@ spec:
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
+    - name: llm-api-key-ws
+    - name: embeddings-api-key-ws
+    - name: google-sa-json-ws
   steps:
     - name: run-sast-ai-workflow
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
@@ -34,6 +37,23 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llm-api-key-secret
+              key: api_key
+        - name: EMBEDDINGS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: embeddings-api-key-secret
+              key: api_key
+        - name: GOOGLE_SERVICE_ACCOUNT_JSON_PATH
+          value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+      computeResources: 
+        requests:
+          ephemeral-storage: "10Gi"
+        limits:
+          ephemeral-storage: "20Gi"
       script: |
         #!/usr/bin/env sh
         echo "Running SAST-AI-Workflow..."
@@ -42,5 +62,5 @@ spec:
           --source "$(workspaces.source-workspace.path)" \
           --false-positives "$(workspaces.false-positives-workspace.path)/ignore.err"
 
-
-
+        
+       
