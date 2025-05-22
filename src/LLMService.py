@@ -396,7 +396,7 @@ class LLMService:
         "If the analysis fails to cover all relevant execution paths or potential conditions, explain the shortcomings and specify the additional data needed for a complete assessment.\n"
         "Any recommendation that necessitates inspecting the implementation of a referenced function or macro MUST be formatted as an entry in the 'Instructions' list.\n"
         "Your output MUST adhere to the following structure:\n"
-        "1. is_final: Indicate whether further investigation is needed. If clear and irrefutable evidence for a TRUE or FALSE POSITIVE is found within the evaluated analysis, set this value to true; otherwise, set it to false.\n"
+        "1. is_final: Indicate whether further investigation is needed. If clear and irrefutable evidence for a TRUE or FALSE POSITIVE is found within the evaluated analysis, set this value to TRUE; otherwise, set it to FALSE.\n"
         "2. justifications: Provide a detailed explanation of why the evaluated analysis is sound and complete, or clearly articulate its deficiencies and why it's insufficient for a final determination.\n"
         "3. recommendations (optional): If further analysis is required, provide a concise list of the specific data or steps needed to reach a conclusive TRUE or FALSE POSITIVE determination. Only include essential recommendations.\n"
         "4. Instructions (optional): A list of dictionaries, where each dictionary represents a recommendation to examine the implementation of a function or macro referenced in the source code context. Include this list ONLY if such investigations are necessary.\n"
@@ -419,7 +419,7 @@ class LLMService:
             )
 
             recommendations_response = recommendations_chain.invoke({})
-            print(f"recommendations_response: {recommendations_response=}")
+            print(f"{recommendations_response=}")
         except Exception as e:
             print(f"Failed to run recommendation prompt, ERROR: {e}")
             raise
