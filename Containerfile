@@ -5,12 +5,14 @@ RUN yum install -y git clang llvm-devel && yum clean all
 FROM builder
 USER 1001
 WORKDIR /app
+
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-COPY config src ./
+COPY config ./config/
+COPY src ./src/ 
 
 VOLUME ["/etc/secrets"]
 
-ENTRYPOINT ["python", "run.py"]
+ENTRYPOINT ["python", "src/run.py"]
 
