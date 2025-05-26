@@ -47,7 +47,7 @@ class Config:
         print("".center(80, '-'))
 
     def validate_configurations(self):
-        required_cfg_vars = [
+        required_cfg_vars = {
             PROJECT_NAME,
             PROJECT_VERSION,
             LLM_URL,
@@ -57,11 +57,11 @@ class Config:
             INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH,
             OUTPUT_FILE_PATH,
-        ]
-        required_cfg_files = [
+        }
+        required_cfg_files = {
             INPUT_REPORT_FILE_PATH,
             KNOWN_FALSE_POSITIVE_FILE_PATH
-        ]
+        }
 
         for var in required_cfg_vars:
             value = self.__dict__[var]
@@ -70,16 +70,20 @@ class Config:
 
         # Check if CONFIG_H_PATH is accessible if it was provided
         if self.CONFIG_H_PATH:
-            required_cfg_files.append(CONFIG_H_PATH)
+            required_cfg_files.add(CONFIG_H_PATH)
 
         # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
         if self.HUMAN_VERIFIED_FILE_PATH:
-            required_cfg_files.append(HUMAN_VERIFIED_FILE_PATH)
+            required_cfg_files.add(HUMAN_VERIFIED_FILE_PATH)
 
         # Ensure service account JSON exists if using Google Sheets as input
         if self.INPUT_REPORT_FILE_PATH.startswith("https"):
-            required_cfg_files.append(SERVICE_ACCOUNT_JSON_PATH)
+            required_cfg_files.add(SERVICE_ACCOUNT_JSON_PATH)
             required_cfg_files.remove(INPUT_REPORT_FILE_PATH)
+
+        # Ensure service account JSON exists if write aggregate resutls to Google Sheet
+        if self.AGGREGATE_RESULTS_G_SHEET:
+            required_cfg_files.add(SERVICE_ACCOUNT_JSON_PATH)
 
         # Validate that input files exist and are accessible
         for var in required_cfg_files:
