@@ -57,7 +57,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         echo "Running SAST-AI-Workflow..."
-        python /app/run.py \
+        python /app/src/run.py \
           --spreadsheet "$(params.googleSpreadsheetUrl)" \
           --source "$(workspaces.source-workspace.path)" \
           --false-positives "$(workspaces.false-positives-workspace.path)/ignore.err"
