@@ -16,7 +16,7 @@ EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 
 .PHONY: all tasks pvc pipeline run logs clean
 
-all: tasks pvc pipeline run logs
+all: tasks pipeline run
 
 tasks:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/validate_urls.yaml
