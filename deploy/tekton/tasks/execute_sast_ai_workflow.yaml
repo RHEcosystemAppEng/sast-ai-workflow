@@ -50,8 +50,12 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
-        - name: INPUT_REPORT_FILE_PATH
-          value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: INPUT_REPORT_FILE_PATH 
+          value: "$(params.googleSpreadsheetUrl)"
+        - name: KNOWN_FALSE_POSITIVE_FILE_PATH 
+          value: "$(workspaces.false-positives-workspace.path)/ignore.err"
+        - name: GIT_REPO_PATH
+          value: "$(workspaces.source-workspace.path)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -62,7 +66,7 @@ spec:
             secretKeyRef:
               name: embeddings-api-key-secret
               key: api_key
-        - name: GOOGLE_SERVICE_ACCOUNT_JSON_PATH
+        - name: SERVICE_ACCOUNT_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
       computeResources: 
         requests:
@@ -72,10 +76,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         echo "Running SAST-AI-Workflow..."
-        python /app/src/run.py \
-          --spreadsheet "$(params.googleSpreadsheetUrl)" \
-          --source "$(workspaces.source-workspace.path)" \
-          --false-positives "$(workspaces.false-positives-workspace.path)/ignore.err"
+        python /app/src/run.py
 
         
        
