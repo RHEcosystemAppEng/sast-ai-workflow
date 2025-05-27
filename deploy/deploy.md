@@ -2,6 +2,8 @@
 
 This guide outlines the steps to deploy the project on a local OpenShift cluster using CodeReady Containers (CRC).
 
+If you wish to run the pipeline using our OpenShift cluster, you just need to use the `Makefile` as described in step 6.5. (Example Usage). Make sure `NAMESPACE` and `CONTEXT` in the `Makefile` are set to the right variables.
+
 ### 1. Install CRC
 
    * **Download CRC:**
@@ -115,33 +117,31 @@ make pvc
 
    Here's an example of how to deploy and run the project using the `Makefile`:
 
-   1.  **Create a new project (recommended):**
+   #### 6.1.  **Create a new project (recommended):**
 
         ```bash
         oc --context sast-ai-workflow/api-crc-testing:6443/kubeadmin new-project sast-ai-workflow
         oc --context sast-ai-workflow/api-crc-testing:6443/kubeadmin project sast-ai-workflow
         ```
 
-   2.  **Create the necessary secrets:**
+   #### 6.2.  **Create the necessary secrets:**
 
         See step 3.1
 
-   3.  **Patch the pipeline service account:**
+   #### 6.3.  **Patch the pipeline service account:**
 
         See step 3.2
 
-   5.  **Create the PVC:**
+   #### 6.4.  **Create the PVC:**
 
         See step 4
 
-   4.  **Apply the Tekton resources and run the pipeline:**
+   #### 6.5.  **Apply the Tekton resources and run the pipeline:**
 
-        ```bash
-        make all SOURCE_URL="<your_source_code_url>" SPREADSHEET_URL="<your_spreadsheet_url>"** FALSE_POSITIVES_URL="<your_false_positives_url>" LLM_URL="<your_llm_url>" LLM_MODEL_NAME="<your_llm_model_name>" EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>" PROJECT_NAME="<your_project_name>" PROJECT_VERSION="<your_project_version>" INPUT_REPORT_FILE_PATH="<your_input_report>"***
-        ```
+```bash
+make all SOURCE_URL="<your_source_code_url>" SPREADSHEET_URL="<your_spreadsheet_url>"** FALSE_POSITIVES_URL="<your_false_positives_url>" LLM_URL="<your_llm_url>" LLM_MODEL_NAME="<your_llm_model_name>" EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>" PROJECT_NAME="<your_project_name>" PROJECT_VERSION="<your_project_version>"
+```
 
-        Replace the placeholders with your actual values.
+Replace the placeholders with your actual values.
 
-        ** Note you may have to replace the suffix of the spreadsheet URL with "/export?format=csv".
-        *** Currrently use the spreadsheet URL.
-
+** Note you may have to replace the suffix of the spreadsheet URL with `/export?format=csv`.
