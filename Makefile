@@ -1,8 +1,8 @@
-# NAMESPACE ?= sast-ai-workflow-test
-# CONTEXT   ?= sast-ai-workflow-test/10-6-73-122:6443/kube:admin
+NAMESPACE ?= sast-ai-workflow-test
+CONTEXT   ?= sast-ai-workflow-test/10-6-73-122:6443/kube:admin
 
-NAMESPACE ?= sast-ai-workflow
-CONTEXT   ?= sast-ai-workflow/api-crc-testing:6443/kubeadmin # CRC
+# NAMESPACE ?= sast-ai-workflow
+# CONTEXT   ?= sast-ai-workflow/api-crc-testing:6443/kubeadmin # CRC
 
 CO := oc  --context $(CONTEXT)
 TK := tkn --context $(CONTEXT)
