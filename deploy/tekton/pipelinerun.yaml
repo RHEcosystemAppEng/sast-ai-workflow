@@ -23,6 +23,12 @@ spec:
       value: ""
     - name: EMBEDDINGS_LLM_MODEL_NAME
       value: "embedding-llm-model"
+    - name: PROJECT_NAME
+      value: "project-name"
+    - name: PROJECT_VERSION
+      value: "project-version"
+    - name: INPUT_REPORT_FILE_PATH
+      value: "input-report"
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:
