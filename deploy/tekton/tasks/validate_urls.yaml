@@ -21,12 +21,12 @@ spec:
         echo "Validating source code URL: $(params.sourceCodeUrl)"
         curl -ksSfL "$(params.sourceCodeUrl)" || (echo "Error: Source code URL is invalid" && exit 1)
 
-    - name: validate-spreadsheet-url
-      image: curlimages/curl:latest
-      script: |
-        #!/usr/bin/env sh
-        echo "Validating spreadsheet URL: $(params.spreadsheetUrl)"
-        curl -ksSfL "$(params.spreadsheetUrl)" || (echo "Error: Spreadsheet URL is invalid" && exit 1)
+    # - name: validate-spreadsheet-url # The folder is private so we can't validate the URL this way
+    #   image: curlimages/curl:latest
+    #   script: |
+    #     #!/usr/bin/env sh
+    #     echo "Validating spreadsheet URL: $(params.spreadsheetUrl)"
+    #     curl -ksSfL "$(params.spreadsheetUrl)" || (echo "Error: Spreadsheet URL is invalid" && exit 1)
 
     - name: validate-false-positives-url
       image: curlimages/curl:latest

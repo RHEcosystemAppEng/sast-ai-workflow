@@ -19,6 +19,15 @@ spec:
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: ""
+    - name: PROJECT_NAME
+      type: string
+      default: ""
+    - name: PROJECT_VERSION
+      type: string
+      default: ""
+    - name: INPUT_REPORT_FILE_PATH
+      type: string
+      default: ""
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
@@ -37,6 +46,12 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -51,9 +66,9 @@ spec:
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
       computeResources: 
         requests:
-          ephemeral-storage: "10Gi"
+          ephemeral-storage: "2Gi"
         limits:
-          ephemeral-storage: "20Gi"
+          ephemeral-storage: "4Gi"
       script: |
         #!/usr/bin/env sh
         echo "Running SAST-AI-Workflow..."

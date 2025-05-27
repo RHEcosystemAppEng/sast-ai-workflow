@@ -1,5 +1,8 @@
-NAMESPACE ?= sast-ai-workflow-test
-CONTEXT   ?= sast-ai-workflow-test/10-6-73-122:6443/kube:admin
+# NAMESPACE ?= sast-ai-workflow-test
+# CONTEXT   ?= sast-ai-workflow-test/10-6-73-122:6443/kube:admin
+
+NAMESPACE ?= sast-ai-workflow
+CONTEXT   ?= sast-ai-workflow/api-crc-testing:6443/kubeadmin # CRC
 
 CO := oc  --context $(CONTEXT)
 TK := tkn --context $(CONTEXT)
@@ -13,6 +16,11 @@ LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
 EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
 EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
+
+PROJECT_NAME					 ?= project-name
+PROJECT_VERSION					 ?= project-version
+
+INPUT_REPORT_FILE_PATH			 ?= input-report
 
 .PHONY: all tasks pvc pipeline run logs clean
 
@@ -45,6 +53,9 @@ run:
 	  -p LLM_MODEL_NAME="$(LLM_MODEL_NAME)" \
 	  -p EMBEDDINGS_LLM_URL="$(EMBEDDINGS_LLM_URL)" \
 	  -p EMBEDDINGS_LLM_MODEL_NAME="$(EMBEDDINGS_LLM_MODEL_NAME)" \
+	  -p PROJECT_NAME="$(PROJECT_NAME)" \
+	  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
+	  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
 	  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 	  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
       --workspace name=llm-api-key-ws,secret=llm-api-key-secret \

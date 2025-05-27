@@ -24,11 +24,22 @@ This guide outlines the steps to deploy the project on a local OpenShift cluster
 
         * Ensure that the CRC VM is running and OpenShift is healthy.
 
-### 2. Create Secrets and Patch the Pipeline Service Account
+### 2. Install the OpenShift Pipelines Operator
+
+Go to the Operator Hub in the console and install the operator.
+
+You can use:
+
+```bash
+oc whoami --show-console
+```
+     
+
+### 3. Create Secrets and Patch the Pipeline Service Account
 
    This project requires a GitLab token secret and a Quay pull secret.
 
-   #### 2.1. Create GitLab Token Secret
+   #### 3.1. Create Secrets
    * **Create the Kubernetes Secret:**
 
         ```bash
@@ -37,7 +48,21 @@ This guide outlines the steps to deploy the project on a local OpenShift cluster
 
         Replace `$(GITLAB_TOKEN)` with the actual GitLab access token and `$(NAMESPACE)` with the OpenShift namespace where you'll deploy the project (e.g., `sast-ai-workflow`).
 
-   #### 2.2. Create Quay Pull Secret
+        Similarly:
+
+        ```bash
+        oc -n $(NAMESPACE) create secret generic embeddings-api-key-secret --from-literal=api_key="$(EMBEDDINGS_API_KEY)"
+        ```
+
+        ```bash
+        oc -n $(NAMESPACE) create secret generic llm-api-key-secret --from-literal=api_key="$(LLM_API_KEY)"
+        ```
+
+        ```bash
+        oc -n $(NAMESPACE) create secret generic google-service-account-secret --from-file=service_account.json=/path/to/google/service/account/secret.json
+        ```
+
+   #### 3.2. Create Quay Pull Secret
 
    * To pull images from our private Quay.io registry, you'll need to create an image pull secret.
         * If you already have a `dockerconfig.json` file (e.g., from `docker login` or `podman login`), you can create the secret from that:
@@ -47,7 +72,7 @@ This guide outlines the steps to deploy the project on a local OpenShift cluster
             ```
 
         * If you don't have a `dockerconfig.json` file, you will need to create one, or use the oc create secret docker-registry command.
-   #### 2.3. Patch the Pipeline Service Account
+   #### 3.3. Patch the Pipeline Service Account
 
    * Tekton Pipelines uses a service account to pull images. You need to patch this service account to use the Quay pull secret. The default service account is `pipeline`.
 
@@ -57,21 +82,36 @@ This guide outlines the steps to deploy the project on a local OpenShift cluster
 
         Replace `pipeline` with the name of the service account used by your Tekton tasks if it's different.
 
-### 3. Makefile Options
+### 4. Create PVC
+
+   First, make sure you have the correct configuration in your `Makefile`:
+
+```bash
+NAMESPACE ?= name/of/your/namespace # e.g. sast-ai-workflow
+CONTEXT   ?= name/of/your/context   # e.g. sast-ai-workflow/api-crc-testing:6443/kubeadmin
+```
+
+   Then, run:
+
+```bash
+make pvc
+```
+
+### 5. Makefile Options
 
    The `Makefile` provides several options for managing and running the project. Here's a table summarizing the available `make` commands:
 
    | Command       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
    | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-   | `all`         | Executes `tasks`, `pipeline`, `run`, and `logs` sequentially.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-   | `tasks`       | Applies the Tekton Task definitions (e.g., `validate_urls.yaml`, `prepare_source.yaml`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+   | `all`         | Executes `tasks`, `pipeline` and `run` sequentially.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+   | `tasks`       | Applies the Tekton Task definitions (e.g., `validate_urls.yaml`, `prepare_source.yaml` etc.).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
    | `pvc`         | Applies the PersistentVolumeClaim (PVC) definition (`pvc.yaml`) to create the shared workspace.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
    | `pipeline`    | Applies the Tekton Pipeline definition (`pipeline.yaml`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
    | `run`         | Deletes any previous PipelineRun and starts a new one with the specified parameters. You can override the pipeline parameters using environment variables (e.g., `make run SOURCE_URL="..."`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
    | `logs`        | Displays the logs of the running PipelineRun.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
    | `clean`       | Deletes all the Tekton Task, Pipeline, and PipelineRun resources.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-### 4. Example Usage
+### 6. Example Usage
 
    Here's an example of how to deploy and run the project using the `Makefile`:
 
@@ -84,27 +124,24 @@ This guide outlines the steps to deploy the project on a local OpenShift cluster
 
    2.  **Create the necessary secrets:**
 
-        ```bash
-        oc --context sast-ai-workflow/api-crc-testing:6443/kubeadmin create secret generic gitlab-token-secret --from-literal=gitlab_token=$(echo -n "<your_gitlab_token>" | base64) -n sast-ai-workflow
-        oc --context sast-ai-workflow/api-crc-testing:6443/kubeadmin create secret generic quay-sast-puller --from-file=.dockerconfigjson=$XDG_RUNTIME_DIR/containers/auth.json --type=kubernetes.io/dockerconfigjson -n sast-ai-workflow
-        ```
+        See step 3.1
 
    3.  **Patch the pipeline service account:**
 
-        ```bash
-        oc --context sast-ai-workflow/api-crc-testing:6443/kubeadmin patch serviceaccount pipeline -n sast-ai-workflow -p '{"imagePullSecrets": [{"name": "quay-sast-puller"}]}'
-        ```
+        See step 3.2
+
+   5.  **Create the PVC:**
+
+        See step 4
 
    4.  **Apply the Tekton resources and run the pipeline:**
 
         ```bash
-        make all SOURCE_URL="<your_source_code_url>" SPREADSHEET_URL="<your_spreadsheet_url>" FALSE_POSITIVES_URL="<your_false_positives_url>" LLM_URL="<your_llm_url>" LLM_MODEL_NAME="<your_llm_model_name>" EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>"
+        make all SOURCE_URL="<your_source_code_url>" SPREADSHEET_URL="<your_spreadsheet_url>"** FALSE_POSITIVES_URL="<your_false_positives_url>" LLM_URL="<your_llm_url>" LLM_MODEL_NAME="<your_llm_model_name>" EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>" PROJECT_NAME="<your_project_name>" PROJECT_VERSION="<your_project_version>" INPUT_REPORT_FILE_PATH="<your_input_report>"***
         ```
 
         Replace the placeholders with your actual values.
 
-   6.  **Monitor the pipeline:**
+        ** Note you may have to replace the suffix of the spreadsheet URL with "/export?format=csv".
+        *** Currrently use the spreadsheet URL.
 
-        ```bash
-        tkn --context sast-ai-workflow/api-crc-testing:6443/kubeadmin  tr logs sast-ai-workflow-pipelinerun -n sast-ai-workflow --follow
-        ```
