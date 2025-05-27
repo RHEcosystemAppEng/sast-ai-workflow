@@ -152,7 +152,7 @@ class LLMService:
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
 
-        prompt_chain = (
+        pattern_matching_prompt_chain = (
                 {
                     "context": RunnableLambda(lambda _: examples_context_str),
                     "answer_template": RunnableLambda(lambda _: answer_template),
@@ -160,10 +160,10 @@ class LLMService:
                 }
                 | prompt
         )
-        # actual_prompt = prompt_chain.invoke(issue.trace)
+        # actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
         # print(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
         try:
-            response = robust_structured_output(llm=self.main_llm, schema=FilterResponse, input=issue.trace, prompt_chain=prompt_chain, max_retries=self.max_retry_limit)
+            response = robust_structured_output(llm=self.main_llm, schema=FilterResponse, input=issue.trace, prompt_chain=pattern_matching_prompt_chain, max_retries=self.max_retry_limit)
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="filter_known_error", issue_id=issue.id, error=e))
             response = FilterResponse(
@@ -281,7 +281,7 @@ class LLMService:
 
         ])
 
-        prompt_chain = (
+        analysis_prompt_chain = (
                 {
                     "context": RunnableLambda(lambda _: context),
                     "cve_error_trace": RunnableLambda(lambda _: issue.trace),
@@ -289,14 +289,14 @@ class LLMService:
                 }
                 | analysis_prompt
         )
-        actual_prompt = prompt_chain.invoke(user_input)
+        actual_prompt = analysis_prompt_chain.invoke(user_input)
         # print(f"Analysis prompt:   {actual_prompt.to_string()}")
         
         try:
             analysis_response = robust_structured_output(llm=self.main_llm, 
                                                 schema=JudgeLLMResponse, 
                                                 input=user_input, 
-                                                prompt_chain=prompt_chain, 
+                                                prompt_chain=analysis_prompt_chain, 
                                                 max_retries=self.max_retry_limit
                                                 )        
         except Exception as e:
@@ -351,7 +351,7 @@ class LLMService:
             )
         ])
         
-        prompt_chain = (
+        justification_summary_prompt_chain = (
                 {
                     "actual_prompt": RunnableLambda(lambda _: actual_prompt),
                     "examples_str": RunnableLambda(lambda _: examples_str),
@@ -364,7 +364,7 @@ class LLMService:
             short_justification = robust_structured_output(llm=self.main_llm, 
                                                            schema=JustificationsSummary, 
                                                            input=response,
-                                                           prompt_chain=prompt_chain,
+                                                           prompt_chain=justification_summary_prompt_chain,
                                                            max_retries=self.max_retry_limit
                                                            )
         except Exception as e:
@@ -419,7 +419,7 @@ class LLMService:
         ])
 
         try:
-            prompt_chain = (
+            recommendation_prompt_chain = (
                 {
                     "cve_error_trace": RunnableLambda(lambda _: issue.trace),
                     "analysis": RunnableLambda(lambda _: analysis_response.justifications),
@@ -430,7 +430,7 @@ class LLMService:
             recommendations_response = robust_structured_output(llm=self.main_llm, 
                                                                 schema=RecommendationsResponse, 
                                                                 input={},
-                                                                prompt_chain=prompt_chain,
+                                                                prompt_chain=recommendation_prompt_chain,
                                                                 max_retries=self.max_retry_limit
                                                                 )
             # print(f"recommendations_response: {recommendations_response=}")
@@ -478,7 +478,7 @@ class LLMService:
              )
         ])
 
-        prompt_chain = (
+        evaluation_prompt_chain = (
                 {
                     "actual_prompt": RunnableLambda(lambda _: actual_prompt),
                     "response": RunnablePassthrough()
@@ -489,7 +489,7 @@ class LLMService:
             critique_response = robust_structured_output(llm=self.main_llm, 
                                                          schema=EvaluationResponse, 
                                                          input=response,
-                                                         prompt_chain=prompt_chain,
+                                                         prompt_chain=evaluation_prompt_chain,
                                                          max_retries=self.max_retry_limit
                                                         )
             print(f"{critique_response=}")
