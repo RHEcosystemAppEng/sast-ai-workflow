@@ -61,8 +61,8 @@ spec:
           # OPTIONAL: Delete source tree after extraction
           # To delete the source tree and rpmbuild directory after it has been copied to the workspace,
           # uncomment the following lines:
-          echo ">> Deleting source tree from rpmbuild..."
-          rm -rf "$HOME/rpmbuild"
+          # echo ">> Deleting source tree from rpmbuild..."
+          # rm -rf "$HOME/rpmbuild"
           # -------------------------------------------------
 
         else
@@ -73,8 +73,8 @@ spec:
           # OPTIONAL: Delete source tree after cloning
           # To delete the source tree after it has been cloned to the workspace,
           # uncomment the following lines:
-          echo ">> Deleting source tree after cloning..."
-          rm -rf "$WORKDIR"/*
+          # echo ">> Deleting source tree after cloning..."
+          # rm -rf "$WORKDIR"/*
           # -------------------------------------------------
         fi
 
