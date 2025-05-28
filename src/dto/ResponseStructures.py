@@ -1,17 +1,14 @@
 from pydantic import BaseModel, Field
-from typing import List
-
+from typing import List, Literal
 
 class FilterResponse(BaseModel):
     """
     Structured response for filtering known issues based on error traces.
     """
 
-    issue_id: str = Field(description="Unique ID of the issue.")
-    equal_error_trace: List[str] = Field(description="Matching error trace lines.")
+    equal_error_trace: List[str] = Field(description="Matching error trace lines.If there are no matching lines, return an empty list [].")
     justifications: str = Field(description="Reasons for classification.")
-    result: str = Field(description="'YES' if it matches a known false positive, otherwise 'NO'.")
-
+    result: Literal["YES", "NO"] = Field(description="'YES' if it matches a known false positive, otherwise 'NO'.")
 
 class JudgeLLMResponse(BaseModel):
     """
