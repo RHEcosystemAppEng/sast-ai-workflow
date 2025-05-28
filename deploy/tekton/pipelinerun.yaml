@@ -56,4 +56,7 @@ spec:
         secretName: google-service-account-secret 
         items:
           - key: service_account.json 
-            path: service_account.json 
+            path: service_account.json
+    - name: cache-workspace
+      persistentVolumeClaim:
+        claimName: sast-ai-cache-pvc

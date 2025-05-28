@@ -42,6 +42,7 @@ spec:
     - name: llm-api-key-ws 
     - name: embeddings-api-key-ws
     - name: google-sa-json-ws 
+    - name: cache-workspace
   tasks:
     - name: validate-urls
       taskRef:
@@ -115,3 +116,5 @@ spec:
           workspace: embeddings-api-key-ws
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
+        - name: cache-workspace
+          workspace: cache-workspace
