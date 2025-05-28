@@ -45,7 +45,7 @@ class LLMService:
     @property
     def main_llm(self):
         if self._main_llm is None:
-            # main_llm_http_client = httpx.Client(verify=False) # If self.llm_url also needs it
+            main_llm_http_client = httpx.Client(verify=False) # If self.llm_url also needs it
 
             # Decide which LLM to use based on the base_url
             if "nvidia" in self.llm_url.lower():
@@ -54,7 +54,7 @@ class LLMService:
                     model=self.llm_model_name,
                     api_key=self.llm_api_key,
                     temperature=0,
-                    # http_client=main_llm_http_client, # Pass client if ChatNVIDIA supports it and if needed
+                    # http_client=main_llm_http_client, # if ChatNVIDIA supports it and if needed
                 )
             else:
                 self._main_llm = ChatOpenAI(
@@ -63,7 +63,7 @@ class LLMService:
                     api_key="dummy_key",
                     temperature=0,
                     top_p=0.01,
-                    # http_client=main_llm_http_client, # Pass client if ChatOpenAI supports it and if needed
+                    http_client=main_llm_http_client, # Pass client if ChatOpenAI supports it and if needed
                 )
         return self._main_llm
 
@@ -86,7 +86,7 @@ class LLMService:
     @property
     def critique_llm(self):
         if self._critique_llm is None:
-            # critique_llm_http_client = httpx.Client(verify=False) # If self._critique_base_url also needs it
+            critique_llm_http_client = httpx.Client(verify=False) # If self._critique_base_url also needs it
 
             # Decide which LLM to use based on the base_url
             if "nvidia" in self._critique_base_url.lower():
@@ -95,7 +95,7 @@ class LLMService:
                     model=self._critique_llm_model_name,
                     api_key=self.critique_api_key,
                     temperature=0.6,
-                    # http_client=critique_llm_http_client, # If needed
+                    # http_client=critique_llm_http_client, # If needed and supported
                 )
             else:
                 self._critique_llm = ChatOpenAI(
@@ -104,7 +104,7 @@ class LLMService:
                     api_key="dummy_key",
                     temperature=0,
                     top_p=0.01,
-                    # http_client=critique_llm_http_client, # If needed
+                    http_client=critique_llm_http_client, # If needed
                 )
         return self._critique_llm
 

@@ -34,6 +34,7 @@ tasks:
 
 pvc:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pvc.yaml
+	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/cache_pvc.yaml
 
 pipeline:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pipeline.yaml
@@ -61,6 +62,7 @@ run:
       --workspace name=llm-api-key-ws,secret=llm-api-key-secret \
       --workspace name=embeddings-api-key-ws,secret=embeddings-api-key-secret \
       --workspace name=google-sa-json-ws,secret=google-service-account-secret \
+      --workspace name=cache-workspace,claimName=sast-ai-cache-pvc \
 	  --showlog
 
 logs:
