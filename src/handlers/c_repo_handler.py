@@ -145,7 +145,7 @@ class CRepoHandler:
 
         source_code_dict = defaultdict(list)
         for instruction in instructions:
-            path = get_path(instruction.reffering_source_code_path)
+            path = get_path(instruction.referring_source_code_path)
             source_code_dict[path].append(instruction.expression_name)
 
         missing_source_codes = ""
