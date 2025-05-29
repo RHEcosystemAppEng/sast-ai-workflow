@@ -154,15 +154,15 @@ def write_results_table(workbook, worksheet, evaluation_summary):
 
 def write_confusion_matrix(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A8:A9", "Human Results", cell_formatting(workbook, "#00b903"))
-    worksheet.write(7, 1, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(7, 1, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(7, 2, evaluation_summary.tp, cell_formatting(workbook, '#28A745'))
-    worksheet.write(8, 1, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(8, 1, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(8, 2, evaluation_summary.fp, cell_formatting(workbook, '#FF0000'))
 
     worksheet.merge_range("C6:D6", "AI Results", cell_formatting(workbook, "#4f8df1"))
-    worksheet.write(6, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(6, 2, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(7, 3, evaluation_summary.fn, cell_formatting(workbook, '#FF0000'))
-    worksheet.write(6, 3, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(6, 3, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(8, 3, evaluation_summary.tn, cell_formatting(workbook, '#28A745'))
 
 def write_model_performance(workbook, worksheet, evaluation_summary, METRICS_START_ROW):
