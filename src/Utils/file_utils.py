@@ -2,6 +2,7 @@ import os
 import glob
 import pandas as pd
 import gspread
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
@@ -114,3 +115,7 @@ def get_header_row(filename):
     preview = pd.read_excel(filename, header=None, nrows=5)
     header_row = next((i for i, row in preview.iterrows() if any(str(cell).strip().lower() == 'issue id' for cell in row.values)), None)
     return header_row
+
+def load_json_file(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)

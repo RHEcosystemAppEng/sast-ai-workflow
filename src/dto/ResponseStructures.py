@@ -25,7 +25,7 @@ class JudgeLLMResponse(BaseModel):
 
 class InstructionResponse(BaseModel):
     expression_name: str = Field("The exact name of the function or macro that requires further inspection.")
-    reffering_source_code_path: str = Field("The file path of the source code file where the 'expression_name' is called or used.")
+    referring_source_code_path: str = Field("The file path of the source code file where the 'expression_name' is called or used.")
     recommendation: str = Field("TA clear, concise, and actionable instruction specifying the exact aspect of the 'expression_name's implementation needs to be examined and the specific reason for this examination in the context of the reported CVE")
 
 
