@@ -22,7 +22,7 @@ class AnalysisResponse:
     def is_true_positive(self) -> bool:
         return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
 
-    def is_secound_analysis_needed(self):
+    def is_second_analysis_needed(self):
         return self.is_final == 'FALSE' and self.instructions and self.is_true_positive()
     
     def to_dict(self):
