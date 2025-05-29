@@ -81,7 +81,7 @@ def get_human_verified_results_google_sheet(service_account_file_path, google_sh
         ground_truth = {}
         for idx, row in enumerate(rows, start=1): # start=1 to get def1, def2, ...
             is_false_positive = row.get("False Positive?", "").strip().lower()
-            if is_false_positive not in ["y", "n"]:
+            if is_false_positive.lower() not in ["y", "n", "yes", "no"]:
                 print(f"Warning: def{idx} has invalid value '{is_false_positive}' in 'False Positive?' column.")
 
             ground_truth[f"def{idx}"] = is_false_positive
