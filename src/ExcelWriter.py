@@ -8,6 +8,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from tornado.gen import sleep
 from datetime import datetime
 
+from Utils.file_utils import get_google_sheet
 from Utils.metrics_utils import get_metrics, get_percentage_value
 from Utils.output_utils import cell_formatting
 from common.config import Config
@@ -36,9 +37,16 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
     except Exception as e:
         print("Error occurred during Excel writing:", e)
 
-def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_summary:EvaluationSummary):
-    # Define the scope for Google Sheets API
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_summary:EvaluationSummary) -> None:
+    """
+    Appends evaluation summary results to the Google Sheet defined in 'config.AGGREGATE_RESULTS_G_SHEET'.
+    Includes a retry mechanism for API quota errors (status_code 429).
+
+    Args:
+        config: A Config object containing project settings, including the Google Sheet URL
+                and service account credentials path.
+        evaluation_summary: An EvaluationSummary object containing the metrics to be written.
+    """
     # Prepare the row data to append
     nvr = config.PROJECT_NAME + "-" + config.PROJECT_VERSION
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -57,13 +65,8 @@ def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_su
     max_retries = 5
     delay = 30
     
-    try:
-        # Authenticate using the service account JSON file
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
-        client = gspread.authorize(credentials)
-        sheet = client.open_by_url(config.AGGREGATE_RESULTS_G_SHEET).sheet1  # Assumes the data is in the first sheet
-    except Exception as e:
-        print(f"Failed to authenticate or open Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}).\nError: {e}")
+    sheet = get_google_sheet(config.AGGREGATE_RESULTS_G_SHEET, config.SERVICE_ACCOUNT_JSON_PATH)
+    if not sheet:
         return
 
     for attempt in range(max_retries):
@@ -87,19 +90,27 @@ def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_su
 
     
 def write_ai_report_google_sheet(data, config:Config):
+    """
+    This function updates a Google Sheet with AI analysis results (AI prediction and Hint only).
+    Includes a retry mechanism for API quota errors (status_code 429).
+    
+    Note:
+        The function writes all provided 'data' in order. It is not designed
+        for partial data updates to an existing dataset in the sheet,
+        as it may not align the rows of issues correctly with their investigation results.
+
+    Args:
+        data: A list of tuples, where each tuple contains summary information
+              (e.g., (issue_object, summary_info)) from which LLM response details are extracted.
+        config: A Config object containing settings, including the input report Google Sheet URL
+                and service account credentials path.
+    """
     header_data = ['AI prediction', 'Hint']
-    # Define the scope for Google Sheets API
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     max_retries = 5
     delay = 30
     
-    try:
-        # Authenticate using the service account JSON file
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
-        client = gspread.authorize(credentials)
-        sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
-    except Exception as e:
-        print(f"Failed to authenticate or open Google Sheet ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+    sheet = get_google_sheet(config.INPUT_REPORT_FILE_PATH, config.SERVICE_ACCOUNT_JSON_PATH)
+    if not sheet:
         return
     
     for attempt in range(max_retries):
@@ -154,6 +165,20 @@ def write_ai_report_google_sheet(data, config:Config):
     print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}) after {max_retries} retries for quota errors.")
 
 def write_ai_report_worksheet(data, workbook, config:Config):
+    """
+    This function populates the sheet (loacl Excel file) with headers and rows detailing each analyzed
+    issue
+    Optionally, it includes "Critique Response" and "Context" columns based on the
+    `config` settings.
+
+    Args:
+        data: A list of tuples, where each tuple is (issue_objuct, summary_info).
+              `issue` contains issue details (id, issue_type, trace).
+              `summary_info` contains LLM response, metrics, critique, and context.
+        workbook: An XlsxWriter workbook object to which the new worksheet will be added.
+        config: A Config object containing settings that may affect report columns
+                (e.g., RUN_WITH_CRITIQUE, SHOW_FINAL_JUDGE_CONTEXT).
+    """
     worksheet = workbook.add_worksheet("AI report")
     worksheet.set_column(1, 1, 25)
     worksheet.set_column(2, 4, 40)

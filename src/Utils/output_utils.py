@@ -49,6 +49,26 @@ def print_conclusion(evaluation_summary, failed_item_ids):
     print(perf_table)
     
 def filter_items_for_evaluation(summary_data):
+    """
+    This function iterates through `summary_data`, identifying items where the
+    LLM response justification is a predefined fallback message. These are
+    considered "failed" items. In practice, this filtering is mainly applied
+    to self-hosted models, as they can have a higher incidence of such fallback
+    responses (failures). Excluding these items from evaluation datasets helps
+    ensure more accurate metrics.
+
+    Args:
+        summary_data: A list of tuples, where each tuple is (issue_objuct, summary_info).
+              'issue' contains issue details (id, issue_type, trace).
+              'summary_info' contains 'llm_response' attribute, which in turn has a 'justifications' attribute
+
+    Returns:
+        tuple: A tuple containing two lists:
+            - items_for_evaluation (list): A list of entries from `summary_data`
+              that did not use the fallback justification message.
+            - failed_item_ids (list): A list of IDs from entries that used the
+              fallback justification message.
+    """
     items_for_evaluation = []
     failed_item_ids = []
     for issue_result in summary_data:
