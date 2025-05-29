@@ -9,7 +9,7 @@ from ExcelWriter import write_to_excel_file
 from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report
-from Utils.output_utils import print_conclusion
+from Utils.output_utils import filter_items_for_evaluation, print_conclusion
 from Utils.html_utils import read_cve_html_file, format_cwe_context 
 from Utils.file_utils import get_human_verified_results
 from handlers.repo_handler_factory import repo_handler_factory
@@ -87,7 +87,8 @@ def main():
             # "def50",  # This one is known false positive
         }
         already_seen_issue_ids, similar_known_issues_dict = capture_known_issues(llm_service, 
-                                                      set(e for e in issue_list if e.id in selected_issue_set),
+                                                      set(e for e in issue_list if e.id in selected_issue_set),   # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
+                                                    #   issue_list,   # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
                                                       config)
 
         for issue in issue_list:
@@ -148,15 +149,17 @@ def main():
             pbar.update(1)
             sleep(1)
 
+    # Applies mainly to self-hosted models, where failed items are excluded for accurate evaluation
+    items_for_evaluation, failed_item_ids = filter_items_for_evaluation(summary_data)
     ground_truth = get_human_verified_results(config)
-    evaluation_summary = EvaluationSummary(summary_data, config, ground_truth)
+    evaluation_summary = EvaluationSummary(items_for_evaluation, config, ground_truth)
 
     try:
         write_to_excel_file(summary_data, evaluation_summary, config)
     except Exception as e:
         print("Error occurred while generating excel file:", e)
     finally:
-        print_conclusion(evaluation_summary)
+        print_conclusion(evaluation_summary, failed_item_ids)
 
 
 if __name__ == '__main__':

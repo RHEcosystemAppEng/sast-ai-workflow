@@ -25,7 +25,7 @@ def count_actual_values(data, ground_truth):
     for (issue_id, _, _) in data:
         if not issue_id in ground_truth:
             print(f"WARNING: Issue ID {issue_id} does not exist in the human verified excel sheet")
-        elif ground_truth[issue_id] == 'y':
+        elif ground_truth[issue_id].lower() in ['y', 'yes']:
             negatives.add(issue_id)
         else:
             positives.add(issue_id)

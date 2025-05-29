@@ -1,4 +1,5 @@
 import sys
+import time
 
 import xlsxwriter
 from tqdm import tqdm
@@ -53,50 +54,104 @@ def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_su
         evaluation_summary.precision,
         evaluation_summary.f1_score
     ]
-
+    max_retries = 5
+    delay = 30
+    
     try:
         # Authenticate using the service account JSON file
         credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
         client = gspread.authorize(credentials)
-
         sheet = client.open_by_url(config.AGGREGATE_RESULTS_G_SHEET).sheet1  # Assumes the data is in the first sheet
-
-        # Append the row at the bottom of the sheet
-        sheet.append_row(row_data, value_input_option='RAW')
-
-        print("Results added successfully to aggregate Google Sheet.")
     except Exception as e:
-        print(f"Failed to write results to aggregate Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}).\nError: {e}")
+        print(f"Failed to authenticate or open Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}).\nError: {e}")
+        return
+
+    for attempt in range(max_retries):
+        try:
+            # Append the row at the bottom of the sheet
+            sheet.append_row(row_data, value_input_option='RAW')
+            print("Results added successfully to aggregate Google Sheet.")
+            return
+        except gspread.exceptions.APIError as e:
+            if e.response.status_code == 429 and attempt < max_retries:
+                print(f"Quota exceeded for Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}). Retrying in {delay:.2f} seconds... (Attempt {attempt}/{max_retries})")
+                time.sleep(delay)
+            else:
+                print(f"Failed to write results to aggregate Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}) after {attempt + 1} attempts or due to non-retryable API error.\nError: {e}")
+                return
+        except Exception as e:
+            print(f"An unexpected error occurred while performing sheet operations for ({config.AGGREGATE_RESULTS_G_SHEET}) on attempt {attempt + 1}.\nError: {e}")
+            return
+
+    print(f"Failed to write results to aggregate Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}) after {max_retries} retries for quota errors.")
+
     
 def write_ai_report_google_sheet(data, config:Config):
     header_data = ['AI prediction', 'Hint']
     # Define the scope for Google Sheets API
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-
+    max_retries = 5
+    delay = 30
+    
     try:
         # Authenticate using the service account JSON file
         credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
         client = gspread.authorize(credentials)
-
         sheet = client.open_by_url(config.INPUT_REPORT_FILE_PATH).sheet1  # Assumes the data is in the first sheet
-
-        sheet_data = sheet.get_all_values()
-        num_rows = len(sheet_data)
-        num_cols = len(sheet_data[0]) if num_rows > 0 else 0
-
-        # Insert the headers in the next empty columns
-        cell_range = gspread.utils.rowcol_to_a1(1, num_cols + 1) + ":" + gspread.utils.rowcol_to_a1(1, num_cols + len(header_data))
-        sheet.update([header_data], cell_range)
-        sheet.format(cell_range, {'textFormat': {'bold': True}})
-
-        # Insert the LLM results to the new columns
-        for row, (_, summary_info) in enumerate(data):
-            sheet.update_cell(row + 2, num_cols + 1, summary_info.llm_response.investigation_result.title())  # row + 2 to skip header row
-            sheet.update_cell(row + 2, num_cols + 2, summary_info.llm_response.short_justifications)
-
-        print("Results added successfully to Google Sheet.")
     except Exception as e:
-        print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+        print(f"Failed to authenticate or open Google Sheet ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+        return
+    
+    for attempt in range(max_retries):
+        try:
+            sheet_data = sheet.get_all_values()
+            num_rows = len(sheet_data)
+            num_cols = len(sheet_data[0]) if num_rows > 0 else 0
+            current_headers = sheet_data[0] if num_rows > 0 else []
+
+            # Try to find the first header of our header_data
+            if header_data[0] in current_headers:
+                start_col_for_data = current_headers.index(header_data[0]) + 1
+                # Headers found, use existing column
+                print(f"Found existing new headers ({header_data}) starting at column {start_col_for_data}.")
+            else:
+                # Insert the headers in the next empty columns
+                cell_range = gspread.utils.rowcol_to_a1(1, num_cols + 1) + ":" + gspread.utils.rowcol_to_a1(1, num_cols + len(header_data))
+                sheet.update([header_data], cell_range)
+                start_col_for_data = num_cols + 1
+                sheet.format(cell_range, {'textFormat': {'bold': True}})
+                print(f"New headers ({header_data}) written successfully.")
+
+            start_row_for_data = 2 # Assuming data starts from the second row (after headers)
+            batch_update_data = []
+            
+            for (_, summary_info) in data:
+                row_values = [
+                    summary_info.llm_response.investigation_result.title(),
+                    summary_info.llm_response.short_justifications
+                ]
+                batch_update_data.append(row_values)
+
+            if batch_update_data:           
+                # The 'update' method with a starting cell and a 2D array of values
+                # will fill out from that starting cell.
+                sheet.update(batch_update_data, f'{gspread.utils.rowcol_to_a1(start_row_for_data, start_col_for_data)}')
+
+            print("Results added successfully to Google Sheet.")
+            return
+
+        except gspread.exceptions.APIError as e:
+            if e.response.status_code == 429 and attempt < max_retries:
+                print(f"Quota exceeded for Google Sheet ({config.INPUT_REPORT_FILE_PATH}). Retrying in {delay:.2f} seconds... (Attempt {attempt}/{max_retries})")
+                time.sleep(delay)
+            else:
+                print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}) after {attempt + 1} attempts or due to non-retryable API error.\nError: {e}")
+                return
+        except Exception as e:
+            print(f"An unexpected error occurred while performing sheet operations for ({config.INPUT_REPORT_FILE_PATH}) on attempt {attempt + 1}.\nError: {e}")
+            return
+
+    print(f"Failed to write results to Google Sheet ({config.INPUT_REPORT_FILE_PATH}) after {max_retries} retries for quota errors.")
 
 def write_ai_report_worksheet(data, workbook, config:Config):
     worksheet = workbook.add_worksheet("AI report")
