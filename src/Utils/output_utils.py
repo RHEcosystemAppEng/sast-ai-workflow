@@ -1,6 +1,6 @@
 from prettytable import PrettyTable
 from Utils.metrics_utils import get_metrics
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE
+from common.constants import *
 
 def cell_formatting(workbook, color):
     return workbook.add_format({
@@ -12,10 +12,6 @@ def cell_formatting(workbook, color):
     })
 
 def print_conclusion(evaluation_summary, failed_item_ids):
-    GREEN = "\033[92m"
-    RED = "\033[91m"
-    RESET = "\033[0m"
-
     if failed_item_ids:
         print(f"\n{RED}NOTE: The following failed items were excluded for accurate evaluation: {failed_item_ids}{RESET}")
 

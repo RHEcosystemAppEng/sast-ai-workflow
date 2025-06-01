@@ -4,9 +4,13 @@ import pandas as pd
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
+from tenacity import retry_if_exception_type, stop_after_attempt, wait_fixed
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
+from Utils.log_utils import log_attempt_number
 from common.config import Config
 from common.constants import ALL_VALID_OPTIONS
 
@@ -114,6 +118,11 @@ def load_json_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
+@retry(stop=stop_after_attempt(5),
+       wait=wait_fixed(30),
+       retry=retry_if_exception_type(gspread.exceptions.APIError),
+       before_sleep=log_attempt_number
+      )
 def get_google_sheet(sheet_url:str, service_account_json_path:str, ignore_error:bool=True) -> None | gspread.Worksheet:
     """ NOTE: Assumes the data is in the first sheet (sheet name doesn't matter)."""
     # Define the scope for Google Sheets API
