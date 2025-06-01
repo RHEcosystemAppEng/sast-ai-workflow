@@ -39,7 +39,8 @@ class RecommendationsResponse(BaseModel):
     recommendations: List[str] = Field(
         description="A list of recommended actions based on the investigation result."
     )
-    instructions: List[InstructionResponse] = Field('list of InstructionResponse instances, each instruction represents an expression to retrieve from the source code')
+    instructions: List[InstructionResponse] = Field(default_factory=list,
+                                                    description='list of InstructionResponse instances, each instruction represents an expression to retrieve from the source code')
 
 
 class JustificationsSummary(BaseModel):
