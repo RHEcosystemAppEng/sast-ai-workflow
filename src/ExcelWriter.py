@@ -5,6 +5,7 @@ from tqdm import tqdm
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from tornado.gen import sleep
+from datetime import datetime
 
 from Utils.metrics_utils import get_metrics, get_percentage_value
 from Utils.output_utils import cell_formatting
@@ -24,6 +25,8 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
             if config.INPUT_REPORT_FILE_PATH.startswith("https"):
                 write_ai_report_google_sheet(data, config)
             write_confusion_matrix_worksheet(workbook, evaluation_summary)
+            if config.AGGREGATE_RESULTS_G_SHEET:
+                write_summary_results_to_aggregate_google_sheet(config, evaluation_summary)
 
             workbook.close()
 
@@ -31,6 +34,39 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
             sleep(1)
     except Exception as e:
         print("Error occurred during Excel writing:", e)
+
+def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_summary:EvaluationSummary):
+    # Define the scope for Google Sheets API
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    # Prepare the row data to append
+    nvr = config.PROJECT_NAME + "-" + config.PROJECT_VERSION
+    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row_data = [
+        date,
+        nvr,   # Package NVR (Name Version Release)
+        evaluation_summary.tp,
+        evaluation_summary.fp,
+        evaluation_summary.tn,
+        evaluation_summary.fn,
+        evaluation_summary.accuracy,
+        evaluation_summary.recall,
+        evaluation_summary.precision,
+        evaluation_summary.f1_score
+    ]
+
+    try:
+        # Authenticate using the service account JSON file
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(config.SERVICE_ACCOUNT_JSON_PATH, scope)
+        client = gspread.authorize(credentials)
+
+        sheet = client.open_by_url(config.AGGREGATE_RESULTS_G_SHEET).sheet1  # Assumes the data is in the first sheet
+
+        # Append the row at the bottom of the sheet
+        sheet.append_row(row_data, value_input_option='RAW')
+
+        print("Results added successfully to aggregate Google Sheet.")
+    except Exception as e:
+        print(f"Failed to write results to aggregate Google Sheet ({config.AGGREGATE_RESULTS_G_SHEET}).\nError: {e}")
     
 def write_ai_report_google_sheet(data, config:Config):
     header_data = ['AI prediction', 'Hint']
@@ -118,15 +154,15 @@ def write_results_table(workbook, worksheet, evaluation_summary):
 
 def write_confusion_matrix(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A8:A9", "Human Results", cell_formatting(workbook, "#00b903"))
-    worksheet.write(7, 1, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(7, 1, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(7, 2, evaluation_summary.tp, cell_formatting(workbook, '#28A745'))
-    worksheet.write(8, 1, 'Verified False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(8, 1, 'Verified True Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(8, 2, evaluation_summary.fp, cell_formatting(workbook, '#FF0000'))
 
     worksheet.merge_range("C6:D6", "AI Results", cell_formatting(workbook, "#4f8df1"))
-    worksheet.write(6, 2, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(6, 2, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(7, 3, evaluation_summary.fn, cell_formatting(workbook, '#FF0000'))
-    worksheet.write(6, 3, 'Predicted False Positives', cell_formatting(workbook, '#bfbfbf'))
+    worksheet.write(6, 3, 'Predicted True Positives', cell_formatting(workbook, '#bfbfbf'))
     worksheet.write(8, 3, evaluation_summary.tn, cell_formatting(workbook, '#28A745'))
 
 def write_model_performance(workbook, worksheet, evaluation_summary, METRICS_START_ROW):
