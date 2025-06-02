@@ -1,10 +1,11 @@
+from typing import Set
+
 from LLMService import LLMService
 from Utils.file_utils import read_known_errors_file
-from LLMService import LLMService
 from common.config import Config
 
 
-def capture_known_issues(main_process: LLMService, issue_list: list, config: Config):
+def capture_known_issues(main_process: LLMService, issue_set: Set, config: Config):
     """
     Identify and capture known false-positive issues.
     Returns:
@@ -20,7 +21,7 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
 
     already_seen_dict = {}
     context_dict = {}
-    for issue in issue_list:
+    for issue in issue_set:
         filter_response, context = main_process.filter_known_error(false_positive_db, issue)
         context_dict[issue.id] = convert_similar_issues_to_context_string(context)
         print(f"Response of filter_known_error: {filter_response}")
@@ -32,7 +33,7 @@ def capture_known_issues(main_process: LLMService, issue_list: list, config: Con
             already_seen_dict[issue.id] = filter_response 
             print(f"LLM found {issue.id} error trace inside known false positives list")
 
-    print(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
+    print(f"Known false positives: {len(already_seen_dict)} / {len(issue_set)} ")
     return already_seen_dict, context_dict
 
 def convert_similar_issues_to_context_string(similar_known_issues_list: list) -> str:
