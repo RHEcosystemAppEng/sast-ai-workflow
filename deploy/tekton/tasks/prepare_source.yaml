@@ -1,0 +1,82 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: prepare-source
+spec:
+  params:
+    - name: sourceCodeUrl
+      type: string
+      description: Source code URL (SRPM or Git repo)
+  workspaces:
+    - name: source-workspace
+      description: PVC shared by all tasks; full source tree will be placed here
+  steps:
+    - name: prepare-source
+      image: registry.access.redhat.com/ubi9/python-312
+      # run as root so we can yum-install rpm-build
+      securityContext:
+        runAsUser: 0
+      workingDir: $(workspaces.source-workspace.path)
+      env:
+        - name: HOME
+          value: $(workspaces.source-workspace.path)
+      script: |
+        #!/usr/bin/env sh
+        set -ex
+        SRC_URL="$(params.sourceCodeUrl)"
+        WORKDIR="$(workspaces.source-workspace.path)"
+        echo ">> Working directory: $WORKDIR"
+
+        # -------------------------------------------------
+        # CLEAN PREVIOUS CONTENT
+        echo ">> Cleaning workspace…"
+        rm -rf "${WORKDIR:?}/"* 
+        # -------------------------------------------------
+
+        echo ">> Processing source code URL: $SRC_URL"
+
+        if echo "$SRC_URL" | grep -iq '\.rpm$'; then
+          echo ">> Detected SRPM — downloading & expanding..."
+          yum install -y rpm-build curl --allowerasing && yum clean all
+
+          # init local rpmbuild tree *inside* PVC
+          mkdir -p "$HOME"/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          echo '%_topdir %(echo $HOME)/rpmbuild' > "$HOME/.rpmmacros"
+
+          curl -ksLf "$SRC_URL" -o "$HOME/package.src.rpm"
+          rpm -ivh "$HOME/package.src.rpm"
+
+          SPEC="$(find "$HOME/rpmbuild/SPECS" -name '*.spec' | head -n1)"
+          if [ -z "$SPEC" ]; then
+            echo "!! No .spec found in SRPM" >&2
+            exit 1
+          fi
+          echo ">> rpmbuild -bp $SPEC"
+          rpmbuild -bp "$SPEC"
+
+          # Copy complete source tree into PVC root
+          cp -r "$HOME/rpmbuild/BUILD"/* "$WORKDIR"/
+
+          # -------------------------------------------------
+          # OPTIONAL: Delete source tree after extraction
+          # To delete the source tree and rpmbuild directory after it has been copied to the workspace,
+          # uncomment the following lines:
+          # echo ">> Deleting source tree from rpmbuild..."
+          # rm -rf "$HOME/rpmbuild"
+          # -------------------------------------------------
+
+        else
+          echo ">> Treating URL as Git repo — cloning..."
+          git clone "$SRC_URL" "$WORKDIR"
+
+          # -------------------------------------------------
+          # OPTIONAL: Delete source tree after cloning
+          # To delete the source tree after it has been cloned to the workspace,
+          # uncomment the following lines:
+          # echo ">> Deleting source tree after cloning..."
+          # rm -rf "$WORKDIR"/*
+          # -------------------------------------------------
+        fi
+
+        echo ">> prepare-source completed. Contents of workspace:"
+        ls -lah "$WORKDIR"

@@ -1,4 +1,5 @@
 import os
+import httpx
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
@@ -57,13 +58,16 @@ class LLMService:
     @property
     def main_llm(self):
         if self._main_llm is None:
+            main_llm_http_client = httpx.Client(verify=False) # If self.llm_url also needs it
+
             # Decide which LLM to use based on the base_url
             if "nvidia" in self.llm_url.lower():
                 self._main_llm = ChatNVIDIA(
                     base_url=self.llm_url,
                     model=self.llm_model_name,
                     api_key=self.llm_api_key,
-                    temperature=0
+                    temperature=0,
+                    # http_client=main_llm_http_client, # if ChatNVIDIA supports it and if needed
                 )
             else:
                 self._main_llm = ChatOpenAI(
@@ -71,6 +75,7 @@ class LLMService:
                     model=self.llm_model_name,
                     api_key=self.llm_api_key,
                     temperature=0,
+                    http_client=main_llm_http_client, # Pass client if ChatOpenAI supports it and if needed
                     # top_p=0.01  # Todo: Try a different top_p, 0.01 gave bad results. Right now we're using the default (1.0) for ChatNVIDIA & ChatOpenAI, which is better, but maybe not the best.
                 )
         return self._main_llm
@@ -78,25 +83,32 @@ class LLMService:
     @property
     def embedding_llm(self):
         if self._embedding_llm is None:
+            # Create a custom httpx client with SSL verification disabled
+            custom_embedding_http_client = httpx.Client(verify=False) # <--- DISABLES SSL VERIFICATION
+
             self._embedding_llm = OpenAIEmbeddings(
                 openai_api_base=self.embedding_llm_url,
                 openai_api_key=self.embedding_api_key,
                 model=self.embedding_llm_model_name,
                 tiktoken_enabled=False,
-                show_progress_bar=True
+                show_progress_bar=True,
+                http_client=custom_embedding_http_client # <--- CUSTOM CLIENT
             )
         return self._embedding_llm
 
     @property
     def critique_llm(self):
         if self._critique_llm is None:
+            critique_llm_http_client = httpx.Client(verify=False) # If self._critique_base_url also needs it
+
             # Decide which LLM to use based on the base_url
             if "nvidia" in self._critique_base_url.lower():
                 self._critique_llm = ChatNVIDIA(
                     base_url=self._critique_base_url,
                     model=self._critique_llm_model_name,
                     api_key=self.critique_api_key,
-                    temperature=0.6
+                    temperature=0.6,
+                    # http_client=critique_llm_http_client, # If needed and supported
                 )
             else:
                 self._critique_llm = ChatOpenAI(
@@ -104,7 +116,8 @@ class LLMService:
                     model=self._critique_llm_model_name,
                     api_key="dummy_key",
                     temperature=0,
-                    top_p=0.01
+                    top_p=0.01,
+                    http_client=critique_llm_http_client, # If needed
                 )
         return self._critique_llm
 
