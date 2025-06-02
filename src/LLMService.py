@@ -18,6 +18,15 @@ from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 
+def _format_context_from_response(resp):
+    context_list = []
+    for doc in resp:
+        context_list.append({"false_positive_error_trace":doc.page_content,
+                             "reason_marked_false_positive":doc.metadata['reason_of_false_positive']
+                             })
+    return context_list
+
+
 class LLMService:
 
     def __init__(self, config:Config):
@@ -31,19 +40,19 @@ class LLMService:
         self._main_llm = None
         self._embedding_llm = None
         self.vector_db = None
-        self.knonw_issues_vector_db = None
+        self.known_issues_vector_db = None
         self.similarity_error_threshold = config.SIMILARITY_ERROR_THRESHOLD
         self.run_with_critique = config.RUN_WITH_CRITIQUE
         self._critique_llm = None
         self._critique_llm_model_name = config.CRITIQUE_LLM_MODEL_NAME
         self._critique_base_url = config.CRITIQUE_LLM_URL
         self.critique_api_key = getattr(config, "CRITIQUE_LLM_API_KEY", None)
-        
+
         # Initialize failure counters
         self.filter_retry_counter = 0
         self.judge_retry_counter = 0
         self.max_retry_limit = 3
-        
+
 
     @property
     def main_llm(self):
@@ -134,10 +143,10 @@ class LLMService:
             ("user", "Does the error trace of user_error_trace match any of the context_false_positives errors?\n"
             "user_error_trace: {user_error_trace}")
         ])
-        retriever = database.as_retriever(search_kwargs={"k": self.similarity_error_threshold, 
+        retriever = database.as_retriever(search_kwargs={"k": self.similarity_error_threshold,
                                                          'filter': {'issue_type': issue.issue_type}})
         resp = retriever.invoke(issue.trace)
-        examples_context_str= self._format_context_from_response(resp)
+        examples_context_str= _format_context_from_response(resp)
         print(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
         if not examples_context_str:
             # print(f"Not find any relevant context for issue id {issue.id}")
@@ -146,7 +155,7 @@ class LLMService:
                                     justifications=(f"No identical error trace found in the provided context. "
                                                     f"The context empty because no issue of type {issue.issue_type} in knonw isseu DB."),
                                     result="NO"
-                                )     
+                                )
             return response, examples_context_str
 
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
@@ -173,20 +182,13 @@ class LLMService:
                                 )
         return response, examples_context_str
 
-    def _format_context_from_response(self, resp):
-        context_list = []
-        for doc in resp:
-            context_list.append({"false_positive_error_trace":doc.page_content, 
-                                 "reason_marked_false_positive":doc.metadata['reason_of_false_positive']
-                                 })
-        return context_list
-    
-    def analayze(self, context: str, issue: Issue) -> tuple[AnalysisResponse, EvaluationResponse]:
+
+
+    def investigate_issue(self, context: str, issue: Issue) -> tuple[AnalysisResponse, EvaluationResponse]:
         """
         Analyze an issue to determine if it is a false positive or not.
 
         Args:
-            user_input: Query with error trace to analyze.
             context: The context to assist in the analysis.
             issue: The issue object with details like the error trace and issue ID.
 
@@ -196,10 +198,10 @@ class LLMService:
                 - critique_response (EvaluationResponse): The response of the critique model, if applicable.
         """
         analysis_prompt = analysis_response = recommendations_response = short_justifications_response = None
-        
+
         try:
-            analysis_prompt, analysis_response = self._analyze(context=context, issue=issue)
-            recommendations_response = self._recommand(issue=issue, context=context, analysis_response=analysis_response)
+            analysis_prompt, analysis_response = self._investigate_issue_with_retry(context=context, issue=issue)
+            recommendations_response = self._recommend(issue=issue, context=context, analysis_response=analysis_response)
             short_justifications_response = self._summarize_justification(analysis_prompt.to_string(), analysis_response, issue.id)
 
             llm_analysis_response = AnalysisResponse(investigation_result=analysis_response.investigation_result,
@@ -221,26 +223,27 @@ class LLMService:
                                                      recommendations=[failed_message] if recommendations_response is None else recommendations_response.recommendations,
                                                      instructions=[] if recommendations_response is None else recommendations_response.instructions,
                                                      prompt=failed_message if analysis_prompt is None else analysis_prompt.to_string(),
-                                                     short_justifications=f"{failed_message}. Please check the full justifications." 
-                                                                          if short_justifications_response is None 
+                                                     short_justifications=f"{failed_message}. Please check the full justifications."
+                                                                          if short_justifications_response is None
                                                                           else short_justifications_response.short_justifications
                                                      )
-        
+
         try:
             critique_response = self._evaluate(analysis_prompt.to_string(), llm_analysis_response, issue.id) if self.run_with_critique and analysis_response is not None else ""
         except Exception as e:
             print(f"Failed during evaluation process, set default values. Error is: {e}" )
-            critique_response = EvaluationResponse(critique_result=analysis_response.investigation_result, 
+            critique_response = EvaluationResponse(critique_result=analysis_response.investigation_result,
                                                    justifications=["Failed during evaluation process. Defaulting to first analysis_response"]
                                                    )
-            
+
         return llm_analysis_response, critique_response
+
 
     @retry(stop=stop_after_attempt(2),
            wait=wait_fixed(10),
            retry=retry_if_exception_type(Exception)
-    )
-    def _analyze(self, context: str, issue: Issue):
+           )
+    def _investigate_issue_with_retry(self, context: str, issue: Issue):
         """
         Analyze an issue to determine if it is a false positive or not.
 
@@ -291,14 +294,14 @@ class LLMService:
         )
         actual_prompt = analysis_prompt_chain.invoke(user_input)
         # print(f"Analysis prompt:   {actual_prompt.to_string()}")
-        
+
         try:
-            analysis_response = robust_structured_output(llm=self.main_llm, 
-                                                schema=JudgeLLMResponse, 
-                                                input=user_input, 
-                                                prompt_chain=analysis_prompt_chain, 
+            analysis_response = robust_structured_output(llm=self.main_llm,
+                                                schema=JudgeLLMResponse,
+                                                input=user_input,
+                                                prompt_chain=analysis_prompt_chain,
                                                 max_retries=self.max_retry_limit
-                                                )        
+                                                )
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
             raise e
@@ -306,10 +309,12 @@ class LLMService:
         # print(f"{analysis_response=}")
         return actual_prompt, analysis_response
 
+
+
     @retry(stop=stop_after_attempt(2),
            wait=wait_fixed(10),
            retry=retry_if_exception_type(Exception)
-    )
+           )
     def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse, issue_id: str) -> JustificationsSummary:
         """
         Summarize the justifications into a concise, engineer-style comment.
@@ -328,7 +333,7 @@ class LLMService:
                         '{"short_justifications": "C is an array of size BMAX+1, i is between 1 and BMAX (inclusive)"}]'
                     )
 
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system",
             "You are an experienced software engineer tasked with summarizing justifications for an investigation result. "
@@ -342,7 +347,7 @@ class LLMService:
             "{examples_str}"
             "\n\nRespond only in the following JSON format:"
              "{{\"short_justifications\": string}} "   
-             "short_justifications should be a clear, concise summary of the justification written in an engineer-style tone, highlighting the most impactful point."  
+             "short_justifications should be a clear, concise summary of the justification written in an engineer-style tone, highlighting the most impactful point."
             ),
             ("user",
             "Summarize the justifications provided in the following response into a concise, professional comment:"
@@ -350,7 +355,7 @@ class LLMService:
             "\n\nResponse: {response}"
             )
         ])
-        
+
         justification_summary_prompt_chain = (
                 {
                     "actual_prompt": RunnableLambda(lambda _: actual_prompt),
@@ -359,10 +364,10 @@ class LLMService:
                 }
                 | prompt
         )
-        
+
         try:
-            short_justification = robust_structured_output(llm=self.main_llm, 
-                                                           schema=JustificationsSummary, 
+            short_justification = robust_structured_output(llm=self.main_llm,
+                                                           schema=JustificationsSummary,
                                                            input=response,
                                                            prompt_chain=justification_summary_prompt_chain,
                                                            max_retries=self.max_retry_limit
@@ -371,14 +376,15 @@ class LLMService:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
             raise e
 
-        # print(f"{short_justification=}")
         return short_justification
-    
+
+
+
     @retry(stop=stop_after_attempt(2),
            wait=wait_fixed(10),
            retry=retry_if_exception_type(Exception)
-    )
-    def _recommand(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse) -> RecommendationsResponse: 
+           )
+    def _recommend(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse) -> RecommendationsResponse:
         """
         Evaluates a given CVE analysis and generates recommendations for further investigation, if necessary.
 
@@ -424,11 +430,11 @@ class LLMService:
                     "cve_error_trace": RunnableLambda(lambda _: issue.trace),
                     "analysis": RunnableLambda(lambda _: analysis_response.justifications),
                     "context": RunnableLambda(lambda _: context),
-                } 
+                }
                 | recommendations_prompt
             )
-            recommendations_response = robust_structured_output(llm=self.main_llm, 
-                                                                schema=RecommendationsResponse, 
+            recommendations_response = robust_structured_output(llm=self.main_llm,
+                                                                schema=RecommendationsResponse,
                                                                 input={},
                                                                 prompt_chain=recommendation_prompt_chain,
                                                                 max_retries=self.max_retry_limit
@@ -439,19 +445,21 @@ class LLMService:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
             raise e
 
-        return recommendations_response     
-    
+        return recommendations_response
+
+
+
     @retry(stop=stop_after_attempt(2),
            wait=wait_fixed(10),
            retry=retry_if_exception_type(Exception)
-    )
-    def _evaluate(self, actual_prompt, response, issue_id) -> EvaluationResponse:      
+           )
+    def _evaluate(self, actual_prompt, response, issue_id) -> EvaluationResponse:
         from langchain_core.prompts import ChatPromptTemplate
         from langchain_core.runnables import RunnablePassthrough
 
         prompt = ChatPromptTemplate.from_messages([
             # Should not use 'system' for deepseek-r1
-            ("user", 
+            ("user",
             "You are an experienced C developer tasked with analyzing code to identify potential flaws. "
             "You understand programming language control structures. Therefore, you are capable of verifying the "
             "call-hierarchy of a given source code. You can observe the runtime workflows. "
@@ -486,8 +494,8 @@ class LLMService:
                 | prompt
         )
         try:
-            critique_response = robust_structured_output(llm=self.main_llm, 
-                                                         schema=EvaluationResponse, 
+            critique_response = robust_structured_output(llm=self.main_llm,
+                                                         schema=EvaluationResponse,
                                                          input=response,
                                                          prompt_chain=evaluation_prompt_chain,
                                                          max_retries=self.max_retry_limit
@@ -497,7 +505,7 @@ class LLMService:
         except Exception as e:
             print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
             raise e
-        
+
         return critique_response
 
     def create_vdb(self, text_data):
@@ -505,11 +513,11 @@ class LLMService:
         return self.vector_db
 
     def create_vdb_for_known_issues(self, text_data):
-        metadata_list, error_trace_list = self._process_known_issues(text_data)
-        self.knonw_issues_vector_db = FAISS.from_texts(texts=error_trace_list, embedding=self.embedding_llm, metadatas=metadata_list)
-        return self.knonw_issues_vector_db
-    
-    def _process_known_issues(self, known_issues_list):
+        metadata_list, error_trace_list = self._extract_metadata_from_known_false_positives(text_data)
+        self.known_issues_vector_db = FAISS.from_texts(texts=error_trace_list, embedding=self.embedding_llm, metadatas=metadata_list)
+        return self.known_issues_vector_db
+
+    def _extract_metadata_from_known_false_positives(self, known_issues_list):
         """
         Returns:
             tuple: A tuple containing:
@@ -520,7 +528,7 @@ class LLMService:
         error_trace_list = []
         for item in known_issues_list:
             try:
-                lines = item.split("\n")            
+                lines = item.split("\n")
                 # Extract the last line as `reason_of_false_positive`
                 reason_of_false_positive = lines[-1] if lines else ""
                 # Extract the issue type (next word after "Error:")

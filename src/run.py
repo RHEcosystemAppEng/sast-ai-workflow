@@ -1,24 +1,22 @@
-import sys
 import os
+import sys
 
 from tornado.gen import sleep
 from tqdm import tqdm
-from collections import defaultdict
 
 from ExcelWriter import write_to_excel_file
 from LLMService import LLMService
 from MetricHandler import metric_request_from_prompt, MetricHandler
 from ReportReader import read_sast_report
-from Utils.output_utils import print_conclusion
-from Utils.html_utils import read_cve_html_file, format_cwe_context 
 from Utils.file_utils import get_human_verified_results
-from handlers.repo_handler_factory import repo_handler_factory
-from dto.EvaluationSummary import EvaluationSummary
-from dto.SummaryInfo import SummaryInfo
-from stage.filter_known_issues import capture_known_issues
+from Utils.output_utils import print_conclusion
 from common.config import Config
 from common.constants import TOKENIZERS_PARALLELISM
+from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.SummaryInfo import SummaryInfo
+from handlers.repo_handler_factory import repo_handler_factory
+from stage.filter_known_issues import capture_known_issues
 
 
 def main():
@@ -27,78 +25,23 @@ def main():
 
     llm_service = LLMService(config)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
-    issue_list = read_sast_report(config)
     repo_handler = repo_handler_factory(config)
+    issue_set = read_sast_report(config)
 
     summary_data = []
 
-    with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
+    with tqdm(total=len(issue_set), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
         print("\n")
-        selected_issue_set = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
-            # "def1",
-            # "def2",
-            # "def3",
-            # "def4",
-            # "def5",
-            # "def6",
-            # "def7", # FP - Very similar to known issue
-            # "def8",
-            # "def9",
-            # "def10",
-            # "def11",
-            # "def12",
-            # "def13",
-            # "def14",
-            # "def15",
-            # "def16",
-            # "def17",
-            # "def18",
-            # "def19",
-            # "def20",
-            # "def21",
-            # "def22",
-            # "def23",
-            # "def24",
-            # "def25",
-            # "def26",
-            # "def27",
-            # "def28",
-            # "def29",
-            # "def30",
-            # "def31",  # This one is known false positive
-            # "def32",
-            # "def33",
-            # "def34",
-            # "def35",
-            # "def36",
-            # "def37",
-            # "def38",
-            # "def39",
-            # "def40",
-            # "def41",
-            # "def42",
-            # "def43",
-            # "def44",
-            # "def45",
-            # "def46",
-            # "def47",
-            # "def48",  # This one is known false positive
-            # "def49",  # This one is known false positive
-            # "def50",  # This one is known false positive
-        }
-        already_seen_issue_ids, similar_known_issues_dict = capture_known_issues(llm_service, 
-                                                      set(e for e in issue_list if e.id in selected_issue_set),
-                                                      config)
+        already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(llm_service, issue_set, config)
 
-        for issue in issue_list:
-            if issue.id not in selected_issue_set: # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
-                continue
-            
-            # Set default values
+        for issue in issue_set:
+
             score, critique_response = {}, ""
-            if issue.id in already_seen_issue_ids.keys():
+
+
+            if issue.id in already_seen_issues_dict.keys():
                 print(f"{issue.id} already marked as a false positive since it's a known issue")
-                context = already_seen_issue_ids[issue.id].equal_error_trace
+                context = already_seen_issues_dict[issue.id].equal_error_trace
                 llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
                         is_final='TRUE',
@@ -107,7 +50,7 @@ def main():
                         short_justifications="The error is similar to one found in the provided known issues (Details in the full Justification)"
                         )
             else:
-                # get source code context by error trace
+                # build source code context by error trace
                 issue_source_code = repo_handler.get_source_code_blocks_from_error_trace(issue.trace)
                 source_code_context =  "".join([f'\ncode of {path} file:\n{code}' for path, code in issue_source_code.items()])
 
@@ -119,21 +62,20 @@ def main():
                 context = (
                     f"*** Source Code Context ***\n{source_code_context}\n\n"
                     f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
-                    
                 )
 
-                llm_response, critique_response = llm_service.analayze(context, issue)
+                llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                 retries = 0
-                while llm_response.is_second_analysis_needed() and retries < 2:                    
+                while llm_response.is_second_analysis_needed() and retries < 2:
                     missing_source_code = repo_handler.extract_missing_functions_or_macros(llm_response.instructions)
                     source_code_context += f'\n{missing_source_code}'
                     context = (
                         f"*** Source Code Context ***\n{source_code_context}\n\n" 
                         f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
-                        
+
                     )
-                    llm_response, critique_response = llm_service.analayze(context, issue)
+                    llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                     retries += 1
 

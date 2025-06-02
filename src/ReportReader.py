@@ -1,15 +1,15 @@
 import re
+from typing import Set
+
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
-from typing import List
+from oauth2client.service_account import ServiceAccountCredentials
 
 from common.config import Config
 from dto.Issue import Issue
 
 
-
-def read_sast_report(config:Config) -> List[Issue]:
+def read_sast_report(config:Config) -> Set[Issue]:
     print(f"Reading => {config.INPUT_REPORT_FILE_PATH}")
     if config.INPUT_REPORT_FILE_PATH.startswith("https"):
         return read_sast_report_google_sheet(config.SERVICE_ACCOUNT_JSON_PATH, config.INPUT_REPORT_FILE_PATH)
@@ -17,16 +17,15 @@ def read_sast_report(config:Config) -> List[Issue]:
 
 
 
-def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -> List[Issue]:
+def read_sast_report_google_sheet(service_account_file_path: str, google_sheet_url: str) -> Set[Issue]:
     """
-    Reads a Google Sheet and creates a list of Issue objects based on the 'Finding' column.
+    Reads a Google Sheet and creates a set of Issue objects based on the 'Finding' column.
     NOTE: Assumes issue details are in the 'Finding' 
           column of the first sheet (sheet name doesn't matter).
 
-    :param config: Config object containing configuration details, including:
-                   - INPUT_REPORT_FILE_PATH: URL of the Google Sheet.
-                   - SERVICE_ACCOUNT_JSON_PATH: Path to the service account JSON file for authentication.
-    :return: List of Issue objects.
+    :param google_sheet_url: valid Google spreadsheet link
+    :param service_account_file_path: file path string to service account JSON file
+    :return: Set of Issue objects.
     """
     # Define the scope for Google Sheets API
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -39,7 +38,7 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
     rows = sheet.get_all_records()
 
     # Create a list of Issue objects
-    issue_list = []
+    issue_set = set()
     for idx, row in enumerate(rows, start=1):
         finding = row.get('Finding')
         if not finding:
@@ -53,12 +52,12 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
         issue.issue_cve = match.group() if match else ""
         issue.issue_cve_link = f"https://cwe.mitre.org/data/definitions/{issue.issue_cve.split('-')[1]}.html" if match else ""
         issue.trace = "\n".join(lines[1:])
-        issue_list.append(issue)
+        issue_set.add(issue)
 
-    return issue_list
+    return issue_set
 
-def read_sast_report_local_html(file_path) -> List[Issue]:
-    issue_list = []
+def read_sast_report_local_html(file_path:str) -> Set[Issue]:
+    issue_set = set()
     with open(file_path, "r", encoding='utf-8') as f:
         soup = BeautifulSoup(f.read(), 'html.parser')
         all_pre_tags = soup.findAll('pre')
@@ -66,7 +65,7 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
         for tag in all_pre_tags[0].children:
             if tag.name == 'a' and tag.has_attr('id'):
                 if cur_issue.id != -1:
-                    issue_list.append(cur_issue)
+                    issue_set.add(cur_issue)
                 cur_issue = Issue(tag['id'])
             else:
                 if tag.name == 'b' and tag.find('span') and tag.find('a'):
@@ -79,7 +78,7 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
                 else:
                     cur_issue.trace += tag.text
 
-    return issue_list
+    return issue_set
 
 
 
