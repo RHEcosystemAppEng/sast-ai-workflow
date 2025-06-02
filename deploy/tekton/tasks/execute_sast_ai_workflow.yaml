@@ -1,0 +1,109 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: execute-sast-ai-workflow
+spec:
+  params:
+    - name: googleSpreadsheetUrl
+      type: string
+      description: "Google Spreadsheet URL"
+    - name: LLM_URL
+      type: string
+      default: ""
+    - name: LLM_MODEL_NAME
+      type: string
+      default: ""
+    - name: EMBEDDINGS_LLM_URL
+      type: string
+      default: ""
+    - name: EMBEDDINGS_LLM_MODEL_NAME
+      type: string
+      default: ""
+    - name: PROJECT_NAME
+      type: string
+      default: ""
+    - name: PROJECT_VERSION
+      type: string
+      default: ""
+    - name: INPUT_REPORT_FILE_PATH
+      type: string
+      default: ""
+  workspaces:
+    - name: source-workspace
+    - name: false-positives-workspace
+    - name: llm-api-key-ws
+    - name: embeddings-api-key-ws
+    - name: google-sa-json-ws
+    - name: cache-workspace
+  steps:
+    - name: run-sast-ai-workflow
+      image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
+      env:
+        - name: LLM_URL
+          value: "$(params.LLM_URL)"
+        - name: LLM_MODEL_NAME
+          value: "$(params.LLM_MODEL_NAME)"
+        - name: EMBEDDINGS_LLM_URL
+          value: "$(params.EMBEDDINGS_LLM_URL)"
+        - name: EMBEDDINGS_LLM_MODEL_NAME
+          value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+        - name: INPUT_REPORT_FILE_PATH 
+          value: "$(params.googleSpreadsheetUrl)"
+        - name: KNOWN_FALSE_POSITIVE_FILE_PATH 
+          value: "$(workspaces.false-positives-workspace.path)/ignore.err"
+        - name: GIT_REPO_PATH
+          value: "$(workspaces.source-workspace.path)"
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llm-api-key-secret
+              key: api_key
+        - name: EMBEDDINGS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: embeddings-api-key-secret
+              key: api_key
+        - name: SERVICE_ACCOUNT_JSON_PATH
+          value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+
+        - name: TMPDIR # Directs tempfile module and others
+          value: "$(workspaces.cache-workspace.path)/tmp" 
+        - name: OUTPUT_FILE_PATH # For config.py, to save the Excel file to a workspace
+          value: "$(workspaces.source-workspace.path)/sast_ai_output.xlsx" # Save in source-workspace (shared-workspace)
+
+      computeResources: 
+        requests:
+          ephemeral-storage: "1Gi"
+        limits:
+          ephemeral-storage: "2Gi"
+      script: |
+        #!/usr/bin/env sh
+        set -ex
+
+        echo "--- START: Storage Redirection Setup ---"
+        # Create the custom TMPDIR on the PVC if it doesn't exist
+        echo ">>> Ensuring custom TMPDIR exists: $(workspaces.cache-workspace.path)/tmp"
+        mkdir -p "$(workspaces.cache-workspace.path)/tmp"
+        
+        # Your existing debug commands (df -h, du -sh, etc.) are still good here
+        echo ">> Overall disk usage (df -h):"
+        df -h
+        echo ">> Usage of default /tmp (du -sh /tmp):" # This will be used less now
+        du -sh /tmp || echo "/tmp not found or inaccessible"
+        echo ">> Usage of PVC-backed TMPDIR ($(workspaces.cache-workspace.path)/tmp):"
+        du -sh "$(workspaces.cache-workspace.path)/tmp" || echo "PVC TMPDIR not found or inaccessible"
+        echo ">> Usage of cache-workspace root ($(workspaces.cache-workspace.path)):"
+        du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
+        echo "--- END: Storage Redirection Setup ---"
+
+        echo "Running SAST-AI-Workflow..."
+        # The python script no longer needs command-line args for these paths
+        # as they are picked up by Config.py from environment variables.
+        python /app/src/run.py
+
+        
+       
