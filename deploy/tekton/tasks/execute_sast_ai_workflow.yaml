@@ -74,7 +74,8 @@ spec:
           value: "$(workspaces.cache-workspace.path)/tmp" 
         - name: OUTPUT_FILE_PATH # For config.py, to save the Excel file to a workspace
           value: "$(workspaces.source-workspace.path)/sast_ai_output.xlsx" # Save in source-workspace (shared-workspace)
-
+        - name: LIBCLANG_PATH
+          value: "/usr/lib64/libclang.so.19.1"
       computeResources: 
         requests:
           ephemeral-storage: "1Gi"
@@ -89,10 +90,9 @@ spec:
         echo ">>> Ensuring custom TMPDIR exists: $(workspaces.cache-workspace.path)/tmp"
         mkdir -p "$(workspaces.cache-workspace.path)/tmp"
         
-        # Your existing debug commands (df -h, du -sh, etc.) are still good here
         echo ">> Overall disk usage (df -h):"
         df -h
-        echo ">> Usage of default /tmp (du -sh /tmp):" # This will be used less now
+        echo ">> Usage of default /tmp (du -sh /tmp):"
         du -sh /tmp || echo "/tmp not found or inaccessible"
         echo ">> Usage of PVC-backed TMPDIR ($(workspaces.cache-workspace.path)/tmp):"
         du -sh "$(workspaces.cache-workspace.path)/tmp" || echo "PVC TMPDIR not found or inaccessible"
@@ -101,8 +101,6 @@ spec:
         echo "--- END: Storage Redirection Setup ---"
 
         echo "Running SAST-AI-Workflow..."
-        # The python script no longer needs command-line args for these paths
-        # as they are picked up by Config.py from environment variables.
         python /app/src/run.py
 
         

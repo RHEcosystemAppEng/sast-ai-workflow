@@ -104,7 +104,6 @@ spec:
           value: "$(params.PROJECT_VERSION)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
-          
       workspaces:
         - name: source-workspace
           workspace: shared-workspace
