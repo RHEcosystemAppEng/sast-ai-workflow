@@ -56,7 +56,7 @@ spec:
         - name: KNOWN_FALSE_POSITIVE_FILE_PATH 
           value: "$(workspaces.false-positives-workspace.path)/ignore.err"
         - name: GIT_REPO_PATH
-          value: "$(workspaces.source-workspace.path)"
+          value: "$(workspaces.source-workspace.path)/systemd-257"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
