@@ -157,8 +157,8 @@ class CRepoHandler:
                 print(f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}")
             if source_code:
                 for file_path, exps_dict in source_code.items():
-                    heading_str = f'code of {file_path}' +  'file:\n{"\n\n'
-                    missing_source_codes += heading_str.join([exp for exp in exps_dict.values()])
+                    joined_exps = "\n\n".join([exp for exp in exps_dict.values()])
+                    missing_source_codes += f'code of {file_path} file:\n{joined_exps}'
         return missing_source_codes
 
     def extract_definition_from_source_code(self, function_names: set[str], source_code_file_path: str) -> dict[str, str]:

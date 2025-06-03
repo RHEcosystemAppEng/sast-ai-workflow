@@ -4,10 +4,15 @@ import pandas as pd
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
+from tenacity import retry_if_exception_type, stop_after_attempt, wait_fixed
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
+from Utils.log_utils import log_attempt_number
 from common.config import Config
+from common.constants import ALL_VALID_OPTIONS
 
 
 def read_source_code_file(path):
@@ -66,14 +71,7 @@ def get_human_verified_results_google_sheet(service_account_file_path, google_sh
                    - SERVICE_ACCOUNT_JSON_PATH: Path to the service account JSON file for authentication.
      :return: Dictionary of ground truth with generated IDs (e.g., 'def1', 'def2', ...).
     """
-    # Define the scope for Google Sheets API
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-
-    # Authenticate using the service account JSON file
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(service_account_file_path, scope)
-    client = gspread.authorize(credentials)
-
-    sheet = client.open_by_url(google_sheet_url).sheet1  # Assumes the data is in the first sheet
+    sheet = get_google_sheet(google_sheet_url, service_account_file_path, ignore_error=False)
     rows = sheet.get_all_records()
     
     # Create ground truth dict in case of human verified data already filled in the google sheet
@@ -81,7 +79,7 @@ def get_human_verified_results_google_sheet(service_account_file_path, google_sh
         ground_truth = {}
         for idx, row in enumerate(rows, start=1): # start=1 to get def1, def2, ...
             is_false_positive = row.get("False Positive?", "").strip().lower()
-            if is_false_positive not in ["y", "n"]:
+            if is_false_positive.lower() not in ALL_VALID_OPTIONS:
                 print(f"Warning: def{idx} has invalid value '{is_false_positive}' in 'False Positive?' column.")
 
             ground_truth[f"def{idx}"] = is_false_positive
@@ -119,3 +117,24 @@ def get_header_row(filename):
 def load_json_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
+
+@retry(stop=stop_after_attempt(5),
+       wait=wait_fixed(30),
+       retry=retry_if_exception_type(gspread.exceptions.APIError),
+       before_sleep=log_attempt_number
+      )
+def get_google_sheet(sheet_url:str, service_account_json_path:str, ignore_error:bool=True) -> None | gspread.Worksheet:
+    """ NOTE: Assumes the data is in the first sheet (sheet name doesn't matter)."""
+    # Define the scope for Google Sheets API
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    try:
+        # Authenticate using the service account JSON file
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(service_account_json_path, scope)
+        client = gspread.authorize(credentials)
+        sheet = client.open_by_url(sheet_url).sheet1  # Assumes the data is in the first sheet
+        return sheet
+    except Exception as e:
+        print(f"Failed to authenticate or open Google Sheet ({sheet_url}).\nError: {e}")
+        if ignore_error:
+            return None
+        raise e
