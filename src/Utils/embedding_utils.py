@@ -3,6 +3,7 @@ import time
 from langchain_community.vectorstores import FAISS
 from transformers import AutoTokenizer
 from Utils.file_utils import read_all_source_code_files
+from common.constants import *
 
 
 def generate_code_embeddings(llm_service):
@@ -37,7 +38,7 @@ def check_text_size_before_embedding(text: str, model_name: str):
     
     if token_count > max_tokens:
         print(
-            f"\033[91mWARNING: Text length is {token_count} tokens, exceeding the max allowed ({max_tokens}). \033[0m"
+            f"{RED}WARNING: Text length is {token_count} tokens, exceeding the max allowed ({max_tokens}). {RESET}"
             f"\nFirst 20 words of the text: {text.split()[:20]}"
         )
     # else:

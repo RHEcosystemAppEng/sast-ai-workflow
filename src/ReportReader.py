@@ -5,6 +5,7 @@ import gspread
 from bs4 import BeautifulSoup
 from oauth2client.service_account import ServiceAccountCredentials
 
+from Utils.file_utils import get_google_sheet
 from common.config import Config
 from dto.Issue import Issue
 
@@ -27,14 +28,7 @@ def read_sast_report_google_sheet(service_account_file_path: str, google_sheet_u
     :param service_account_file_path: file path string to service account JSON file
     :return: Set of Issue objects.
     """
-    # Define the scope for Google Sheets API
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-
-    # Authenticate using the service account JSON file
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(service_account_file_path, scope)
-    client = gspread.authorize(credentials)
-
-    sheet = client.open_by_url(google_sheet_url).sheet1  # Assumes the data is in the first sheet
+    sheet = get_google_sheet(google_sheet_url, service_account_file_path, ignore_error=False)
     rows = sheet.get_all_records()
 
     # Create a list of Issue objects
