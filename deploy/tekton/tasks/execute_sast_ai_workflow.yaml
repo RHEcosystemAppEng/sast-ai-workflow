@@ -75,7 +75,7 @@ spec:
         - name: OUTPUT_FILE_PATH # For config.py, to save the Excel file to a workspace
           value: "$(workspaces.source-workspace.path)/sast_ai_output.xlsx" # Save in source-workspace (shared-workspace)
         - name: LIBCLANG_PATH
-          value: "/usr/lib64/libclang.so.19.1"
+          value: "/usr/lib64/libclang.so.19.1.7"
       computeResources: 
         requests:
           ephemeral-storage: "1Gi"
@@ -98,6 +98,16 @@ spec:
         du -sh "$(workspaces.cache-workspace.path)/tmp" || echo "PVC TMPDIR not found or inaccessible"
         echo ">> Usage of cache-workspace root ($(workspaces.cache-workspace.path)):"
         du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
+        echo "DEBUG_STEP: Listing contents of false-positives-workspace (path: $(workspaces.false-positives-workspace.path)):"
+        
+        ls -lah "$(workspaces.false-positives-workspace.path)" || echo "DEBUG_STEP: Failed to list false-positives-workspace"
+        echo "DEBUG_STEP: Checking existence of ignore.err specifically:"
+        if [ -f "$(workspaces.false-positives-workspace.path)/ignore.err" ]; then
+            echo "DEBUG_STEP: ignore.err FOUND in false-positives-workspace."
+        else
+            echo "DEBUG_STEP: ignore.err NOT FOUND in false-positives-workspace."
+        fi
+        
         echo "--- END: Storage Redirection Setup ---"
 
         echo "Running SAST-AI-Workflow..."
