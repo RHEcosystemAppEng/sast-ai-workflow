@@ -28,6 +28,9 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: ""
+    - name: AGGREGATE_RESULTS_G_SHEET
+      type: string
+      default: ""
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
@@ -69,6 +72,8 @@ spec:
               key: api_key
         - name: SERVICE_ACCOUNT_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+        - name: AGGREGATE_RESULTS_G_SHEET
+          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
 
         - name: TMPDIR # Directs tempfile module and others
           value: "$(workspaces.cache-workspace.path)/tmp" 
