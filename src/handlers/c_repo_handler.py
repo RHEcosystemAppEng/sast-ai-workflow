@@ -164,31 +164,33 @@ class CRepoHandler:
     def extract_definition_from_source_code(self, function_names: set[str], source_code_file_path: str) -> dict[str, str]:
         """Extract the definitions of functions or macros that are referenced in the source code"""
 
-        source_code_file_path = os.path.join(self.repo_local_path, source_code_file_path)
-        args = ['-Xclang', '-fsyntax-only'] + self._get_clang_args_from_file(source_code_file_path) + self._get_includes_of_file(source_code_file_path)
-
-        translation_unit = self.index.parse(
-            source_code_file_path, 
-            options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
-            args=args)
-        
         source_code_dict = defaultdict(dict)
+        try: 
+            source_code_file_path = os.path.join(self.repo_local_path, source_code_file_path)
+            args = ['-Xclang', '-fsyntax-only'] + self._get_clang_args_from_file(source_code_file_path) + self._get_includes_of_file(source_code_file_path)
 
-        for cursor in translation_unit.cursor.walk_preorder():
-            if cursor.kind in [CursorKind.MACRO_INSTANTIATION, CursorKind.CALL_EXPR] and cursor.spelling in function_names:
-                if cursor.get_definition() and cursor.get_definition().location:
-                    file_path = cursor.get_definition().location.file.name
-                    source_code_dict[file_path].update({cursor.spelling: self._get_source_code_from_cursor(cursor.get_definition())})
-                else:
-                    if cursor.kind == CursorKind.MACRO_INSTANTIATION:
-                        file_path, line_number = self._get_macro_definition_file_location(macro_name=cursor.spelling)
+            translation_unit = self.index.parse(
+                source_code_file_path, 
+                options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
+                args=args)
+            
+            for cursor in translation_unit.cursor.walk_preorder():
+                if cursor.kind in [CursorKind.MACRO_INSTANTIATION, CursorKind.CALL_EXPR] and cursor.spelling in function_names:
+                    if cursor.get_definition() and cursor.get_definition().location:
+                        file_path = cursor.get_definition().location.file.name
+                        source_code_dict[file_path].update({cursor.spelling: self._get_source_code_from_cursor(cursor.get_definition())})
                     else:
-                        file_path, line_number = self._get_function_definition_file_location(cursor.spelling)
-                    if file_path:
-                        source_code_dict[file_path].update({cursor.spelling: self.get_source_code_by_line_number(file_path=file_path, line=int(line_number)+1)})
+                        if cursor.kind == CursorKind.MACRO_INSTANTIATION:
+                            file_path, line_number = self._get_macro_definition_file_location(macro_name=cursor.spelling)
+                        else:
+                            file_path, line_number = self._get_function_definition_file_location(cursor.spelling)
+                        if file_path:
+                            source_code_dict[file_path].update({cursor.spelling: self.get_source_code_by_line_number(file_path=file_path, line=int(line_number)+1)})
 
-        for diag in translation_unit.diagnostics:
-            print(f"[{diag.severity}] {diag.spelling}")
+            for diag in translation_unit.diagnostics:
+                print(f"[{diag.severity}] {diag.spelling}")
+        except Exception as e:
+            print(f"{e}, {type(e)}")
 
         found_symbols = set([symbol for symbols in source_code_dict.values() for symbol in symbols.keys()])
         if len(found_symbols) < len(function_names):

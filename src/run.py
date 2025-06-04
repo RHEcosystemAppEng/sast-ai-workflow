@@ -124,7 +124,8 @@ def main():
                     llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                     retries = 0
-                    while llm_response.is_second_analysis_needed() and retries < 2:                    
+                    while llm_response.is_second_analysis_needed() and retries < 2: 
+                        print(f"{llm_response.is_final=}\n{llm_response.recommendations=}\n{llm_response.instructions=}")                   
                         missing_source_code = repo_handler.extract_missing_functions_or_macros(llm_response.instructions)
                         source_code_context += f'\n{missing_source_code}'
                         context = (
@@ -146,7 +147,7 @@ def main():
                 print(f"{RED}An error occurred while processing issue ID {issue.id}.{RESET}\nError is: {e}")
                 if not llm_response:
                     # This issue will be excluded from evaluation.
-                    llm_response = AnalysisResponse(investigation_result="NOT A FALSE POSITIVE",
+                    llm_response = AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
                                                      is_final="TRUE",
                                                      justifications=FALLBACK_JUSTIFICATION_MESSAGE,
                                                      evaluation=[],
