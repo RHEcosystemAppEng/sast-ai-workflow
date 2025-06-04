@@ -26,11 +26,11 @@ def main():
     llm_service = LLMService(config)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
     repo_handler = repo_handler_factory(config)
-    issue_set = read_sast_report(config)
+    issue_list = read_sast_report(config)
 
     summary_data = []
 
-    with tqdm(total=len(issue_set), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
+    with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
         print("\n")
         # selected_issue_set = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
             # "def1",
@@ -86,10 +86,10 @@ def main():
         # }
         already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(llm_service, 
                                                     #   set(e for e in issue_set if e.id in selected_issue_set),   # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
-                                                      issue_set,   # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
+                                                      issue_list,   # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
                                                       config)
 
-        for issue in issue_set:
+        for issue in issue_list:
             # if issue.id not in selected_issue_set: # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
             #     continue
             
