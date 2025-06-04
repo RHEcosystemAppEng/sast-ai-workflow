@@ -28,6 +28,9 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: ""
+    - name: AGGREGATE_RESULTS_G_SHEET
+      type: string
+      default: ""
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
@@ -56,7 +59,7 @@ spec:
         - name: KNOWN_FALSE_POSITIVE_FILE_PATH 
           value: "$(workspaces.false-positives-workspace.path)/ignore.err"
         - name: GIT_REPO_PATH
-          value: "$(workspaces.source-workspace.path)"
+          value: "$(workspaces.source-workspace.path)/systemd-257"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -69,12 +72,15 @@ spec:
               key: api_key
         - name: SERVICE_ACCOUNT_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+        - name: AGGREGATE_RESULTS_G_SHEET
+          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
 
         - name: TMPDIR # Directs tempfile module and others
           value: "$(workspaces.cache-workspace.path)/tmp" 
         - name: OUTPUT_FILE_PATH # For config.py, to save the Excel file to a workspace
           value: "$(workspaces.source-workspace.path)/sast_ai_output.xlsx" # Save in source-workspace (shared-workspace)
-
+        - name: LIBCLANG_PATH
+          value: "/usr/lib64/libclang.so.19.1.7"
       computeResources: 
         requests:
           ephemeral-storage: "1Gi"
@@ -89,20 +95,27 @@ spec:
         echo ">>> Ensuring custom TMPDIR exists: $(workspaces.cache-workspace.path)/tmp"
         mkdir -p "$(workspaces.cache-workspace.path)/tmp"
         
-        # Your existing debug commands (df -h, du -sh, etc.) are still good here
         echo ">> Overall disk usage (df -h):"
         df -h
-        echo ">> Usage of default /tmp (du -sh /tmp):" # This will be used less now
+        echo ">> Usage of default /tmp (du -sh /tmp):"
         du -sh /tmp || echo "/tmp not found or inaccessible"
         echo ">> Usage of PVC-backed TMPDIR ($(workspaces.cache-workspace.path)/tmp):"
         du -sh "$(workspaces.cache-workspace.path)/tmp" || echo "PVC TMPDIR not found or inaccessible"
         echo ">> Usage of cache-workspace root ($(workspaces.cache-workspace.path)):"
         du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
+        echo "DEBUG_STEP: Listing contents of false-positives-workspace (path: $(workspaces.false-positives-workspace.path)):"
+        
+        ls -lah "$(workspaces.false-positives-workspace.path)" || echo "DEBUG_STEP: Failed to list false-positives-workspace"
+        echo "DEBUG_STEP: Checking existence of ignore.err specifically:"
+        if [ -f "$(workspaces.false-positives-workspace.path)/ignore.err" ]; then
+            echo "DEBUG_STEP: ignore.err FOUND in false-positives-workspace."
+        else
+            echo "DEBUG_STEP: ignore.err NOT FOUND in false-positives-workspace."
+        fi
+        
         echo "--- END: Storage Redirection Setup ---"
 
         echo "Running SAST-AI-Workflow..."
-        # The python script no longer needs command-line args for these paths
-        # as they are picked up by Config.py from environment variables.
         python /app/src/run.py
 
         
