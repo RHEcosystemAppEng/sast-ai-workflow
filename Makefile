@@ -9,7 +9,7 @@ TK := tkn --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
 SOURCE_URL                       ?= source/code/url
-SPREADSHEET_URL                  ?= google/spreadsheet/url
+# SPREADSHEET_URL                  ?= google/spreadsheet/url
 FALSE_POSITIVES_URL              ?= false/positives/url
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
@@ -50,7 +50,6 @@ run:
 	$(TK) pipeline start sast-ai-workflow-pipeline \
 	  -n $(NAMESPACE) \
 	  -p sourceCodeUrl="$(SOURCE_URL)" \
-	  -p googleSpreadsheetUrl="$(SPREADSHEET_URL)" \
 	  -p falsePositivesUrl="$(FALSE_POSITIVES_URL)" \
 	  -p LLM_URL="$(LLM_URL)" \
 	  -p LLM_MODEL_NAME="$(LLM_MODEL_NAME)" \
