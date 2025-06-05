@@ -7,9 +7,6 @@ spec:
     - name: sourceCodeUrl
       type: string
       description: "Source code URL (RPM package or Git repository URL)"
-    - name: googleSpreadsheetUrl
-      type: string
-      description: "Google Spreadsheet URL"
     - name: falsePositivesUrl
       type: string
       description: "GitLab repository URL for known false positives (optional)"
@@ -50,8 +47,8 @@ spec:
       params:
         - name: sourceCodeUrl
           value: "$(params.sourceCodeUrl)"
-        - name: spreadsheetUrl
-          value: "$(params.googleSpreadsheetUrl)"
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: falsePositivesUrl
           value: "$(params.falsePositivesUrl)"
 
@@ -88,8 +85,6 @@ spec:
       taskRef:
         name: execute-sast-ai-workflow
       params:
-        - name: googleSpreadsheetUrl
-          value: "$(params.googleSpreadsheetUrl)"
         - name: LLM_URL 
           value: "$(params.LLM_URL)"
         - name: LLM_MODEL_NAME

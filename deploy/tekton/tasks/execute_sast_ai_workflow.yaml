@@ -4,9 +4,6 @@ metadata:
   name: execute-sast-ai-workflow
 spec:
   params:
-    - name: googleSpreadsheetUrl
-      type: string
-      description: "Google Spreadsheet URL"
     - name: LLM_URL
       type: string
       default: ""
@@ -52,7 +49,7 @@ spec:
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
         - name: INPUT_REPORT_FILE_PATH 
-          value: "$(params.googleSpreadsheetUrl)"
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: KNOWN_FALSE_POSITIVE_FILE_PATH 
           value: "$(workspaces.false-positives-workspace.path)/ignore.err"
         - name: GIT_REPO_PATH
