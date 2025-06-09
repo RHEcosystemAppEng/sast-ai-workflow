@@ -57,6 +57,8 @@ spec:
           value: "$(workspaces.false-positives-workspace.path)/ignore.err"
         - name: GIT_REPO_PATH
           value: "$(workspaces.source-workspace.path)/systemd-257"
+        - name: AGGREGATE_RESULTS_G_SHEET
+          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -69,8 +71,6 @@ spec:
               key: api_key
         - name: SERVICE_ACCOUNT_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
-        - name: AGGREGATE_RESULTS_G_SHEET
-          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
 
         - name: TMPDIR # Directs tempfile module and others
           value: "$(workspaces.cache-workspace.path)/tmp" 
