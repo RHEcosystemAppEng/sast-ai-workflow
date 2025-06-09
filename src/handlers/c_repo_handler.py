@@ -22,16 +22,16 @@ class CRepoHandler:
     def __init__(self, config: Config) -> None:
         self.url, self.branch = get_repo_and_branch_from_url(config.GIT_REPO_PATH)
         
-        self.repo_local_path = config.GIT_REPO_PATH
+        # This variable holds the prefix for source code files as they appear in the report.
+        # It helps in locating the correct files by removing this prefix to the paths found in the error traces.
+        self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
+ 
+        self.repo_local_path = f"{config.GIT_REPO_PATH}/{self._report_file_prefix}"
         if config.DOWNLOAD_GIT_REPO:
             # downloading git repository for given project
             self.repo_local_path = download_repo(config.GIT_REPO_PATH)
         else:
             print("Skipping github repo download as per configuration.")
-
-        # This variable holds the prefix for source code files as they appear in the report.
-        # It helps in locating the correct files by removing this prefix to the paths found in the error traces.
-        self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
 
         # This list contains specific arguments to be passed to the Clang compiler.
         # These arguments are used to configure the parsing and analysis of the source code.
