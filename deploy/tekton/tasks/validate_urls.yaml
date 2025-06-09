@@ -9,7 +9,7 @@ spec:
       description: "URL of the source code (RPM package or Git repository URL)"
     - name: INPUT_REPORT_FILE_PATH
       type: string
-      description: "URL of the Google Spreadsheet"
+      description: "URL of the Google Spreadsheet or path to local HTML file"
     - name: falsePositivesUrl
       type: string
       description: "GitLab repository URL containing known false positive issues"
@@ -38,7 +38,7 @@ spec:
         fi
         curl -ksSfL "$FP_URL" || (echo "Error: False positives URL is invalid" && exit 1)
 
-    - name: validate-spreadsheet-url
+    - name: validate-report-file
       image: 'python:3.11-slim'
       script: |
         #!/bin/bash
@@ -47,26 +47,30 @@ spec:
         SPREADSHEET_URL="$(params.INPUT_REPORT_FILE_PATH)"
         echo "Validating Google Spreadsheet URL: $SPREADSHEET_URL"
 
-        # Extract Sheet ID from URL
-        SHEET_ID=$(echo "$SPREADSHEET_URL" | sed -n 's/.*\/spreadsheets\/d\/\([a-zA-Z0-9_-]*\).*/\1/p')
-
-        if [ -z "$SHEET_ID" ]; then
-            echo "✗ Invalid Google Sheets URL format"
-            echo "Expected format: https://docs.google.com/spreadsheets/d/{SHEET_ID}/..."
-            exit 1
-        fi
-
-        echo "Sheet ID: $SHEET_ID"
-
-        # Check if credentials workspace is provided
-        if [ -f "$(workspaces.credentials.path)/key.json" ]; then
-            echo "Service account credentials found - testing access..."
+        # Check if it's a URL (starts with http:// or https://)
+        if [[ "$SPREADSHEET_URL" =~ ^https?:// ]]; then
+            echo "Detected URL format - validating Google Spreadsheet..."
             
-            echo "Installing Google API libraries..."
-            pip install --quiet google-api-python-client google-auth
-            
-            # Create Python validation script
-            cat > /tmp/validate_sheets.py << 'PYTHON_SCRIPT'
+            # Extract Sheet ID from URL
+            SHEET_ID=$(echo "$SPREADSHEET_URL" | sed -n 's/.*\/spreadsheets\/d\/\([a-zA-Z0-9_-]*\).*/\1/p')
+
+            if [ -z "$SHEET_ID" ]; then
+                echo "Invalid Google Sheets URL format"
+                echo "Expected format: https://docs.google.com/spreadsheets/d/{SHEET_ID}/..."
+                exit 1
+            fi
+
+            echo "Sheet ID: $SHEET_ID"
+
+            # Check if credentials workspace is provided
+            if [ -f "$(workspaces.google-sa-json-ws.path)/service_account.json" ]; then
+                echo "Service account credentials found - testing access..."
+                
+                echo "Installing Google API libraries..."
+                pip install --quiet google-api-python-client google-auth
+                
+                # Create Python validation script
+                cat > /tmp/validate_sheets.py << 'PYTHON_SCRIPT'
         import os
         import sys
         from google.oauth2 import service_account
@@ -79,10 +83,10 @@ spec:
                     credentials_path,
                     scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
                 )
-                print("✓ Credentials loaded successfully")
+                print("Credentials loaded successfully")
                 
                 service = build('sheets', 'v4', credentials=credentials)
-                print("✓ Sheets API service created")
+                print("Sheets API service created")
                 
                 print("Testing access to spreadsheet...")
                 spreadsheet = service.spreadsheets().get(
@@ -91,20 +95,20 @@ spec:
                 ).execute()
                 
                 title = spreadsheet.get('properties', {}).get('title', 'Unknown')
-                print(f"✓ Successfully accessed spreadsheet: '{title}'")
-                print("✓ Spreadsheet access validation complete")
+                print(f"Successfully accessed spreadsheet: '{title}'")
+                print("Spreadsheet access validation complete")
                 
             except HttpError as e:
                 if e.resp.status == 403:
-                    print("✗ Access denied - service account lacks permissions")
+                    print("Access denied - service account lacks permissions")
                     print("  Make sure the service account email is shared with the spreadsheet")
                 elif e.resp.status == 404:
-                    print("✗ Spreadsheet not found - check the URL or permissions")
+                    print("Spreadsheet not found - check the URL or permissions")
                 else:
-                    print(f"✗ HTTP error {e.resp.status}: {e}")
+                    print(f"HTTP error {e.resp.status}: {e}")
                 sys.exit(1)
             except Exception as e:
-                print(f"✗ Error: {e}")
+                print(f"Error: {e}")
                 sys.exit(1)
 
         if __name__ == "__main__":
@@ -116,11 +120,24 @@ spec:
             credentials_path = sys.argv[2]
             validate_sheet_access(sheet_id, credentials_path)
         PYTHON_SCRIPT
-                    
-                    # Run the Python script with arguments
-                    python3 /tmp/validate_sheets.py "$SHEET_ID" "$(workspaces.credentials.path)/key.json"
-                else
-                    echo "⚠ No service account credentials provided"
-                    echo "✓ URL format validation passed"
-                    echo "Note: Cannot test access without credentials workspace"
-                fi
+                        
+                        # Run the Python script with arguments
+                        python3 /tmp/validate_sheets.py "$SHEET_ID" "$(workspaces.google-sa-json-ws.path)/service_account.json"
+                    else
+                        echo "No service account credentials provided"
+                        echo "URL format validation passed"
+                        echo "Note: Cannot test access without credentials workspace"
+                        exit 1
+                    fi
+        else
+            echo "Detected local file path - checking if file exists..."
+            
+            # Check if the file exists
+            if [ -f "$SPREADSHEET_URL" ]; then
+                echo "File exists: $SPREADSHEET_URL"
+                echo "Local file validation complete"
+            else
+                echo "File does not exist: $SPREADSHEET_URL"
+                exit 1
+            fi
+        fi
