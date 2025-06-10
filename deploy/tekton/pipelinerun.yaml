@@ -11,8 +11,6 @@ spec:
   params:
     - name: sourceCodeUrl
       value: "source/code/url"
-    - name: googleSpreadsheetUrl
-      value: "google/spreadsheet/url"
     - name: falsePositivesUrl
       value: "false/positives/url"
     - name: LLM_URL
