@@ -51,7 +51,9 @@ spec:
           value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: falsePositivesUrl
           value: "$(params.falsePositivesUrl)"
-
+      workspaces:
+        - name: google-sa-json-ws
+          workspace: google-sa-json-ws
     - name: prepare-source
       runAfter:
         - validate-urls

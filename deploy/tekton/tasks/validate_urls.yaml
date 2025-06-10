@@ -101,7 +101,7 @@ spec:
             except HttpError as e:
                 if e.resp.status == 403:
                     print("Access denied - service account lacks permissions")
-                    print("  Make sure the service account email is shared with the spreadsheet")
+                    print("Share the spreadsheet with the service account's email address")
                 elif e.resp.status == 404:
                     print("Spreadsheet not found - check the URL or permissions")
                 else:
