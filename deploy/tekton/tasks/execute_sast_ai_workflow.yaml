@@ -71,7 +71,8 @@ spec:
           value: "$(workspaces.cache-workspace.path)/tmp" 
         - name: OUTPUT_FILE_PATH # For config.py, to save the Excel file to a workspace
           value: "$(workspaces.source-workspace.path)/sast_ai_output.xlsx" # Save in source-workspace (shared-workspace)
-
+        - name: LIBCLANG_PATH
+          value: "/usr/lib64/libclang.so.19.1.7"
       computeResources: 
         requests:
           ephemeral-storage: "1Gi"
