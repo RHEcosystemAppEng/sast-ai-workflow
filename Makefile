@@ -9,7 +9,6 @@ TK := tkn --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
 SOURCE_URL                       ?= source/code/url
-SPREADSHEET_URL                  ?= google/spreadsheet/url
 FALSE_POSITIVES_URL              ?= false/positives/url
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
