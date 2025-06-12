@@ -30,17 +30,17 @@ spec:
         if [ -f "$TOKEN_FILE" ]; then
             GITLAB_TOKEN=$(cat "$TOKEN_FILE")
             echo "GitLab token found. Fetching file with authentication..."
-            curl -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
+            curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
               || (echo "Error: Could not fetch false positives file with token." && exit 1)
         else
             echo "No GitLab token file found; attempting unauthenticated fetch..."
-            curl -k -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
+            curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
               || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
         fi
         if [ -f "$(workspaces.false-positives-workspace.path)/ignore.err" ]; then
           echo "Success"
           exit 0
         else
-          echo "Error - Known false positives file could not be fetched"
+          echo "Error - file not found"
           exit 1
         fi
