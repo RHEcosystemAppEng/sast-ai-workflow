@@ -1,9 +1,11 @@
 import os
+import faiss
 import httpx
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
 from langchain_community.vectorstores import FAISS
+from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
@@ -526,8 +528,30 @@ class LLMService:
         return self.vector_db
 
     def create_vdb_for_known_issues(self, text_data):
+        """
+        This function creates a FAISS vector database for known issues.
+
+        If there are error traces in the text_data, it creates a populated FAISS database.
+        Otherwise, it returns an empty FAISS database.
+        """
         metadata_list, error_trace_list = self._extract_metadata_from_known_false_positives(text_data)
-        self.known_issues_vector_db = FAISS.from_texts(texts=error_trace_list, embedding=self.embedding_llm, metadatas=metadata_list)
+
+        if not error_trace_list:
+            # Create an empty FAISS index
+            # The dimension of the index must match the embedding model's output dimension.
+            # We get this by embedding a dummy text.
+            embedding_dimension = len(self.embedding_llm.embed_query("dummy"))
+            empty_index = faiss.IndexFlatL2(embedding_dimension)
+            
+            # Create an empty FAISS vector store
+            self.known_issues_vector_db = FAISS(
+                embedding_function=self.embedding_llm,
+                index=empty_index,
+                docstore=InMemoryDocstore(),
+                index_to_docstore_id={}   
+            )
+        else:
+            self.known_issues_vector_db = FAISS.from_texts(texts=error_trace_list, embedding=self.embedding_llm, metadatas=metadata_list)
         return self.known_issues_vector_db
 
     def _extract_metadata_from_known_false_positives(self, known_issues_list):

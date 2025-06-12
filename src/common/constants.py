@@ -25,7 +25,12 @@ SERVICE_ACCOUNT_JSON_PATH = "SERVICE_ACCOUNT_JSON_PATH"
 GREEN = "\033[92m"
 RED = "\033[91m"
 RESET = "\033[0m"
-RED_ERROR_FOR_LLM_REQUEST = "{RED}WARNING: An error occurred {max_retry_limit} times in {function_name} process. Please check this Issue-id {issue_id}.{RESET} \nError: {error}"
+RED_ERROR_FOR_LLM_REQUEST = (f"{RED}WARNING: An error occurred "
+                             "{max_retry_limit} times in {function_name} process. "
+                             "Please check this Issue-id {issue_id}."
+                             f"{RESET}"
+                             "\nError: {error}"
+                             )
 FALLBACK_JUSTIFICATION_MESSAGE = ["Failed during analyze process. Defaulting to: NOT A FALSE POSITIVE."]
 YES_OPTIONS = ["y", "yes"]
 NO_OPTIONS = ["n", "no"]
