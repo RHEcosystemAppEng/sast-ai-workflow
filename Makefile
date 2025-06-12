@@ -1,5 +1,5 @@
-NAMESPACE ?= sast-ai-workflow-test
-CONTEXT   ?= sast-ai-workflow-test/10-6-73-122:6443/kube:admin
+NAMESPACE ?= sast-ai-workflow
+CONTEXT   ?= sast-ai-workflow/10-6-73-122:6443/kube:admin
 
 # NAMESPACE ?= sast-ai-workflow
 # CONTEXT   ?= sast-ai-workflow/api-crc-testing:6443/kubeadmin # CRC
@@ -20,6 +20,8 @@ PROJECT_NAME					 ?= project-name
 PROJECT_VERSION					 ?= project-version
 
 INPUT_REPORT_FILE_PATH			 ?= input-report
+
+AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
 .PHONY: all tasks pvc pipeline run logs clean
 
@@ -56,6 +58,7 @@ run:
 	  -p PROJECT_NAME="$(PROJECT_NAME)" \
 	  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
 	  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
+	  -p AGGREGATE_RESULTS_G_SHEET="$(AGGREGATE_RESULTS_G_SHEET)" \
 	  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 	  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
       --workspace name=llm-api-key-ws,secret=llm-api-key-secret \

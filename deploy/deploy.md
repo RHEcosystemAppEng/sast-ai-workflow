@@ -139,7 +139,7 @@ make pvc
    #### 6.5.  **Apply the Tekton resources and run the pipeline:**
 
 ```bash
-make all SOURCE_URL="<your_source_code_url>" SPREADSHEET_URL="<your_spreadsheet_url>"** FALSE_POSITIVES_URL="<your_false_positives_url>" LLM_URL="<your_llm_url>" LLM_MODEL_NAME="<your_llm_model_name>" EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>" PROJECT_NAME="<your_project_name>" PROJECT_VERSION="<your_project_version>"
+make all SOURCE_URL="<your_source_code_url>" SPREADSHEET_URL="<your_spreadsheet_url>"** FALSE_POSITIVES_URL="<your_false_positives_url>" LLM_URL="<your_llm_url>" LLM_MODEL_NAME="<your_llm_model_name>" EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>" PROJECT_NAME="<your_project_name>" PROJECT_VERSION="<your_project_version>" INPUT_REPORT_FILE_PATH="<your_spreadsheet_url>"  AGGREGATE_RESULTS_G_SHEET="https://docs.google.com/spreadsheets/d/1B71aAzMlFIZihQOiObXXyfzLV04lqEHriT1bYZMQrtQ/edit?usp=sharing"
 ```
 
 Replace the placeholders with your actual values.
