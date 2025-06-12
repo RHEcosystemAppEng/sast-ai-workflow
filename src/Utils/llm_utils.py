@@ -91,6 +91,8 @@ def _handle_chat_nvidia(
             result = llm_chain.invoke(input)
             if result is not None:
                 return result
+            else:
+                last_exception = "No exception was raised, but the response is None"
         except Exception as e:
             last_exception = e
         print(WARNING_MESSAGE.format(model_type=schema))
