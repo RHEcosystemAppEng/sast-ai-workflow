@@ -31,7 +31,9 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: "input-report"
-      
+    - name: AGGREGATE_RESULTS_G_SHEET
+      type: string
+      default: "" 
   workspaces:
     - name: shared-workspace
     - name: gitlab-token-ws
@@ -103,6 +105,8 @@ spec:
           value: $(tasks.prepare-source.results.repo-local-path)
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: AGGREGATE_RESULTS_G_SHEET
+          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
           
       workspaces:
         - name: source-workspace
