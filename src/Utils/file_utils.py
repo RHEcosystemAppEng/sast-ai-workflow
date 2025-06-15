@@ -29,7 +29,7 @@ def read_source_code_file(path):
 def read_known_errors_file(path):
     with open(path, "r", encoding="utf-8") as f:
         plain_text = f.read()
-        doc_list = [item.strip() for item in plain_text.split("\n\n\n") if item.strip() != ""]
+        doc_list = [item.strip() for item in plain_text.split("\n\n") if item.strip()!='']
         return doc_list
 
 

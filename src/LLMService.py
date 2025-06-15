@@ -2,6 +2,7 @@ import os
 import faiss
 import httpx
 import logging
+import re
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
@@ -295,6 +296,7 @@ class LLMService:
             "* **Single Vulnerable Path is Sufficient:** If you identify even one specific sequence of execution within the provided code that potentially triggers the vulnerability described in the CVE, the result should be **TRUE POSITIVE**\n"
             "* **Direct Correlation:** Ensure a direct and demonstrable link between the code's behavior and the vulnerability described in the CVE.\n"
             "* **Focus on Provided Information:** Your analysis and justifications must be solely based on the text of the CVE report snippet and the provided source code. Do not make assumptions about the broader system or environment.\n"
+            "* If you identify syntax issue in the reported CVE - mark it as TRUE POSITIVE.\n"
             "* Check that all of the justifications are based on code that its implementation is provided in the context.\n"
             "**Begin your analysis.**\n"),
             HumanMessagePromptTemplate.from_template("{question}")
@@ -569,15 +571,23 @@ class LLMService:
         for item in known_issues_list:
             try:
                 lines = item.split("\n")
-                # Extract the last line as `reason_of_false_positive`
-                reason_of_false_positive = lines[-1] if lines else ""
+
+                # Extract the lines after the error trace as 'reason_of_false_positive'
+                reason_start_line_index = len(lines) - 1
+                pattern = r'#  \d+\|'
+                for line_index in range(len(lines)-1, -1, -1):
+                    if re.match(pattern, lines[line_index]):
+                        reason_start_line_index = line_index + 1
+                        break
+                reason_of_false_positive = "\n".join(lines[reason_start_line_index:])
+
                 # Extract the issue type (next word after "Error:")
                 issue_type = lines[0].split("Error:")[1].strip().split()[0]
                 metadata_list.append({
                     "reason_of_false_positive": reason_of_false_positive,
                     "issue_type": issue_type
                 })
-                error_trace = "\n".join(lines[:-1])
+                error_trace = "\n".join(lines[:reason_start_line_index])
                 check_text_size_before_embedding(error_trace, self.embedding_llm_model_name)
                 # Add the item without the last line
                 error_trace_list.append(error_trace)
