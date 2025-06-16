@@ -28,6 +28,15 @@ spec:
     - name: PROJECT_VERSION
       type: string
       default: "project-version"
+    - name: DOWNLOAD_REPO
+      type: string
+      default: false
+    - name: REPO_REMOTE_URL
+      type: string
+      default: ""
+    - name: REPO_LOCAL_PATH
+      type: string
+      default: "/workspaces/source-workspace"
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: "input-report"
@@ -99,6 +108,12 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
+        - name: DOWNLOAD_REPO
+          value: "$(params.DOWNLOAD_REPO)"
+        - name: REPO_REMOTE_URL
+          value: "$(params.REPO_REMOTE_URL)"
+        - name: REPO_LOCAL_PATH
+          value: "$(params.REPO_LOCAL_PATH)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
           
