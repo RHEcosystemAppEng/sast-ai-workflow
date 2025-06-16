@@ -19,6 +19,10 @@ EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 PROJECT_NAME					 ?= project-name
 PROJECT_VERSION					 ?= project-version
 
+DOWNLOAD_REPO					 ?= false
+REPO_REMOTE_URL					 ?= ""
+REPO_LOCAL_PATH					 ?= /path/to/repo
+
 INPUT_REPORT_FILE_PATH			 ?= input-report
 
 .PHONY: all tasks pvc pipeline run logs clean
@@ -55,6 +59,9 @@ run:
 	  -p EMBEDDINGS_LLM_MODEL_NAME="$(EMBEDDINGS_LLM_MODEL_NAME)" \
 	  -p PROJECT_NAME="$(PROJECT_NAME)" \
 	  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
+	  -p DOWNLOAD_REPO="$(DOWNLOAD_REPO)" \
+	  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
+	  -p REPO_LOCAL_PATH="$(REPO_LOCAL_PATH)" \
 	  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
 	  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 	  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
