@@ -34,6 +34,8 @@ class CRepoHandler:
             # Override self._report_file_prefix when a local path is provided in GIT_REPO_PATH. 
             # This is a safer approach because not all packages use the 'package-version' format for the dest folder name.
             _, self._report_file_prefix = os.path.split(config.GIT_REPO_PATH)
+            # Ensure the trailing slash is present
+            self._report_file_prefix = os.path.join(self._report_file_prefix, '')
             print("Skipping github repo download as per configuration.")
 
         # This list contains specific arguments to be passed to the Clang compiler.
