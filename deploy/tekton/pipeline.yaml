@@ -4,7 +4,7 @@ metadata:
   name: sast-ai-workflow-pipeline
 spec:
   params:
-    - name: sourceCodeUrl
+    - name: REPO_REMOTE_URL
       type: string
       description: "Source code URL (RPM package or Git repository URL)"
     - name: falsePositivesUrl
@@ -28,15 +28,6 @@ spec:
     - name: PROJECT_VERSION
       type: string
       default: "project-version"
-    - name: DOWNLOAD_REPO
-      type: string
-      default: false
-    - name: REPO_REMOTE_URL
-      type: string
-      default: ""
-    - name: REPO_LOCAL_PATH
-      type: string
-      default: "/workspaces/source-workspace"
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: "input-report"
@@ -54,8 +45,8 @@ spec:
       taskRef:
         name: validate-urls
       params:
-        - name: sourceCodeUrl
-          value: "$(params.sourceCodeUrl)"
+        - name: REPO_REMOTE_URL
+          value: "$(params.REPO_REMOTE_URL)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: falsePositivesUrl
@@ -69,8 +60,8 @@ spec:
       taskRef:
         name: prepare-source
       params:
-        - name: sourceCodeUrl
-          value: "$(params.sourceCodeUrl)"
+        - name: REPO_REMOTE_URL
+          value: "$(params.REPO_REMOTE_URL)"
       workspaces:
         - name: source-workspace
           workspace: shared-workspace
@@ -108,12 +99,8 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
-        - name: DOWNLOAD_REPO
-          value: "$(params.DOWNLOAD_REPO)"
-        - name: REPO_REMOTE_URL
-          value: "$(params.REPO_REMOTE_URL)"
         - name: REPO_LOCAL_PATH
-          value: "$(params.REPO_LOCAL_PATH)"
+          value: $(tasks.prepare-source.results.repo-local-path)
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
           

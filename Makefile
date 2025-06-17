@@ -8,7 +8,7 @@ CO := oc  --context $(CONTEXT)
 TK := tkn --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
-SOURCE_URL                       ?= source/code/url
+REPO_REMOTE_URL                       ?= source/code/url
 FALSE_POSITIVES_URL              ?= false/positives/url
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
@@ -50,7 +50,7 @@ run:
 	# start a new run, passing all params as env overrides
 	$(TK) pipeline start sast-ai-workflow-pipeline \
 	  -n $(NAMESPACE) \
-	  -p sourceCodeUrl="$(SOURCE_URL)" \
+	  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
 	  -p googleSpreadsheetUrl="$(SPREADSHEET_URL)" \
 	  -p falsePositivesUrl="$(FALSE_POSITIVES_URL)" \
 	  -p LLM_URL="$(LLM_URL)" \
@@ -59,9 +59,6 @@ run:
 	  -p EMBEDDINGS_LLM_MODEL_NAME="$(EMBEDDINGS_LLM_MODEL_NAME)" \
 	  -p PROJECT_NAME="$(PROJECT_NAME)" \
 	  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
-	  -p DOWNLOAD_REPO="$(DOWNLOAD_REPO)" \
-	  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
-	  -p REPO_LOCAL_PATH="$(REPO_LOCAL_PATH)" \
 	  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
 	  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 	  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
