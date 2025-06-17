@@ -33,7 +33,7 @@ jobs:
       run: |
         # Build the Docker image with the defined tag
         docker build . \
-          --file Dockerfile \
+          --file Containerfile \
           --tag ${IMAGE_NAME}:${IMAGE_TAG} \
           --tag ${IMAGE_NAME}:latest # Also tag with 'latest'
 
