@@ -1,4 +1,4 @@
-# SAST-AI-Workflow [![Quay.io](https://img.shields.io/badge/Quay.io-sast--ai--workflow-blue)](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
+# SAST-AI-Workflow [![Publish container to Quay.io](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/publish-container-image.yml/badge.svg)](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/publish-container-image.yml) [![Quay.io](https://img.shields.io/badge/Quay.io-sast--ai--workflow-blue)](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
 
 
 ## 🎯 Project Overview 
