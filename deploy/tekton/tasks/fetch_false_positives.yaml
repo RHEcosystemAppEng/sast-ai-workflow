@@ -18,6 +18,7 @@ spec:
       image: curlimages/curl:latest
       script: |
         #!/usr/bin/env sh
+        set -euo pipefail
         FP_URL="$(params.falsePositivesUrl)"
         if [ -z "$FP_URL" ]; then
           echo "No falsePositivesUrl provided; skipping fetch..."
@@ -35,4 +36,11 @@ spec:
             echo "No GitLab token file found; attempting unauthenticated fetch..."
             curl -k -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
               || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+        fi
+        if [ -f "$(workspaces.false-positives-workspace.path)/ignore.err" ]; then
+          echo "Success"
+          exit 0
+        else
+          echo "Error - Known false positives file could not be fetched"
+          exit 1
         fi

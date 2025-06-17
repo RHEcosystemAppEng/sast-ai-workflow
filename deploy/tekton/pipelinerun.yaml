@@ -5,11 +5,8 @@ metadata:
 spec:
   pipelineRef:
     name: sast-ai-workflow-pipeline
-  taskRunTemplate:
-    podTemplate:
-      hostNetwork: true  
   params:
-    - name: sourceCodeUrl
+    - name: REPO_REMOTE_URL
       value: "source/code/url"
     - name: falsePositivesUrl
       value: "false/positives/url"

@@ -77,6 +77,7 @@ class Config:
         # Check if DOWNLOAD_REPO is True then validate a REPO URL was provided
         if self.DOWNLOAD_REPO == True:
             required_cfg_vars.add(REPO_REMOTE_URL)
+        
         # make sure REPO_LOCAL_PATH exists, in the case DOWNLOAD_REPO is set to False
         else:
             required_cfg_files.add(REPO_LOCAL_PATH)
