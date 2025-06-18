@@ -1,15 +1,13 @@
 name: Publish container to Quay.io
 
 on:
-  pull_request:
-    types: [closed] # Triggers only when a pull request is closed
+  push:
     branches:
-      - main # Specifically for pull requests targeting the 'main' branch
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true # Ensures it runs only for merged PRs
 
     steps:
     - uses: actions/checkout@v4
@@ -26,17 +24,13 @@ jobs:
 
     - name: Build and push the Docker image
       env:
-        # Define the image name and tag
-        IMAGE_NAME: quay.io/ecosystem-appeng/sast-ai-workflow # Image will now be pushed to the 'ecosystem-appeng' organization
-        IMAGE_TAG: ${{ github.sha }} # Using the Git SHA as the tag for uniqueness
-
+        IMAGE_NAME: quay.io/ecosystem-appeng/sast-ai-workflow
+        IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Build the Docker image with the defined tag
         docker build . \
           --file Containerfile \
           --tag ${IMAGE_NAME}:${IMAGE_TAG} \
-          --tag ${IMAGE_NAME}:latest # Also tag with 'latest'
+          --tag ${IMAGE_NAME}:latest
 
-        # Push the built image to Quay.io
         docker push ${IMAGE_NAME}:${IMAGE_TAG}
         docker push ${IMAGE_NAME}:latest
