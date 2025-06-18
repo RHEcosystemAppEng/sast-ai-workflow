@@ -4,7 +4,7 @@ metadata:
   name: validate-urls
 spec:
   params:
-    - name: sourceCodeUrl
+    - name: REPO_REMOTE_URL
       type: string
       description: "URL of the source code (RPM package or Git repository URL)"
     - name: INPUT_REPORT_FILE_PATH
@@ -22,8 +22,8 @@ spec:
       image: curlimages/curl:latest
       script: |
         #!/usr/bin/env sh
-        echo "Validating source code URL: $(params.sourceCodeUrl)"
-        curl -ksSfL "$(params.sourceCodeUrl)" || (echo "Error: Source code URL is invalid" && exit 1)
+        echo "Validating source code URL: $(params.REPO_REMOTE_URL)"
+        curl -ksSfL "$(params.REPO_REMOTE_URL)" || (echo "Error: Source code URL is invalid" && exit 1)
 
     - name: validate-false-positives-url
       image: curlimages/curl:latest

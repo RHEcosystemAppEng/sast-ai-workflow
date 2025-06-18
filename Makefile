@@ -8,7 +8,7 @@ CO := oc  --context $(CONTEXT)
 TK := tkn --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
-SOURCE_URL                       ?= source/code/url
+REPO_REMOTE_URL                       ?= source/code/url
 FALSE_POSITIVES_URL              ?= false/positives/url
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
@@ -18,6 +18,10 @@ EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 
 PROJECT_NAME					 ?= project-name
 PROJECT_VERSION					 ?= project-version
+
+DOWNLOAD_REPO					 ?= false
+REPO_REMOTE_URL					 ?= ""
+REPO_LOCAL_PATH					 ?= /path/to/repo
 
 INPUT_REPORT_FILE_PATH			 ?= input-report
 
@@ -46,7 +50,7 @@ run:
 	# start a new run, passing all params as env overrides
 	$(TK) pipeline start sast-ai-workflow-pipeline \
 	  -n $(NAMESPACE) \
-	  -p sourceCodeUrl="$(SOURCE_URL)" \
+	  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
 	  -p googleSpreadsheetUrl="$(SPREADSHEET_URL)" \
 	  -p falsePositivesUrl="$(FALSE_POSITIVES_URL)" \
 	  -p LLM_URL="$(LLM_URL)" \
