@@ -1,6 +1,10 @@
+import logging
+
 from prettytable import PrettyTable
 from Utils.metrics_utils import get_metrics
 from common.constants import *
+
+logger = logging.getLogger()
 
 def cell_formatting(workbook, color):
     return workbook.add_format({
@@ -13,7 +17,7 @@ def cell_formatting(workbook, color):
 
 def print_conclusion(evaluation_summary, failed_item_ids):
     if failed_item_ids:
-        print(f"\n{RED}NOTE: The following failed items were excluded for accurate evaluation: {failed_item_ids}{RESET}")
+        logger.info(f"\n{RED}NOTE: The following failed items were excluded for accurate evaluation: {failed_item_ids}{RESET}")
 
     # Table for confusion matrix data
     cm_table = PrettyTable()
@@ -23,8 +27,8 @@ def print_conclusion(evaluation_summary, failed_item_ids):
     cm_table.add_row(["TN (Both human and AI labeled as real issue)", f"{GREEN}{evaluation_summary.tn}{RESET}"])
     cm_table.add_row(["FN (AI falsely labeled as real issue)", f"{RED}{evaluation_summary.fn}{RESET}"])
 
-    print("\n--- Confusion Matrix Data ---")
-    print(cm_table)
+    logger.info("\n--- Confusion Matrix Data ---")
+    logger.info(cm_table)
 
     accuracy, recall, precision, f1_score = get_metrics(
         evaluation_summary.tp, 
@@ -41,8 +45,8 @@ def print_conclusion(evaluation_summary, failed_item_ids):
     perf_table.add_row(["Precision", precision])
     perf_table.add_row(["F1 Score", f1_score])
 
-    print("\n--- Model Performance Metrics ---")
-    print(perf_table)
+    logger.info("\n--- Model Performance Metrics ---")
+    logger.info(perf_table)
     
 def filter_items_for_evaluation(summary_data):
     """
