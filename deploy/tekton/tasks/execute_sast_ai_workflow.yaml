@@ -4,6 +4,9 @@ metadata:
   name: execute-sast-ai-workflow
 spec:
   params:
+    - name: AGGREGATE_RESULTS_G_SHEET
+      type: string
+      default: ""
     - name: LLM_URL
       type: string
       default: ""
@@ -38,6 +41,8 @@ spec:
     - name: run-sast-ai-workflow
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
       env:
+        - name: AGGREGATE_RESULTS_G_SHEET
+          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: LLM_URL
           value: "$(params.LLM_URL)"
         - name: LLM_MODEL_NAME
@@ -92,7 +97,7 @@ spec:
         # Your existing debug commands (df -h, du -sh, etc.) are still good here
         echo ">> Overall disk usage (df -h):"
         df -h
-        echo ">> Usage of default /tmp (du -sh /tmp):" # This will be used less now
+        echo ">> Usage of default /tmp (du -sh /tmp):"
         du -sh /tmp || echo "/tmp not found or inaccessible"
         echo ">> Usage of PVC-backed TMPDIR ($(workspaces.cache-workspace.path)/tmp):"
         du -sh "$(workspaces.cache-workspace.path)/tmp" || echo "PVC TMPDIR not found or inaccessible"
@@ -101,8 +106,6 @@ spec:
         echo "--- END: Storage Redirection Setup ---"
 
         echo "Running SAST-AI-Workflow..."
-        # The python script no longer needs command-line args for these paths
-        # as they are picked up by Config.py from environment variables.
         python /app/src/run.py
 
         
