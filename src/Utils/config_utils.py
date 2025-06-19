@@ -1,12 +1,15 @@
 import os
 import yaml
+import logging
+
+logger = logging.getLogger()
 
 def print_config(config):
-    print("".center(80, '-'))
+    logger.info("".center(80, '-'))
     for key, value in config.items():
         if key not in ["LLM_API_KEY", "CRITIQUE_LLM_API_KEY"]:
-            print(f"{key} = {value}")
-    print("".center(80, '-'))
+            logger.info(f"{key} = {value}")
+    logger.info("".center(80, '-'))
 
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), "../..", "config", "default_config.yaml")
@@ -22,7 +25,7 @@ def load_config():
     # Load Main LLM details in case critique details not provided
     if config.get("RUN_WITH_CRITIQUE"):
         if not config.get("CRITIQUE_LLM_URL") or not os.getenv("CRITIQUE_LLM_API_KEY"):
-            print("Critique model details not provided - using main LLM details instead")
+            logger.info("Critique model details not provided - using main LLM details instead")
             config["CRITIQUE_LLM_URL"] = config.get("LLM_URL")
             os.environ["CRITIQUE_LLM_API_KEY"] = os.getenv("LLM_API_KEY")
     return config
@@ -64,7 +67,7 @@ def validate_configurations(config):
             "'CRITIQUE_LLM_MODEL_NAME' must be set when 'RUN_WITH_CRITIQUE' is True."
         )
     
-    print("All required configuration variables and files are valid and accessible.\n")
+    logger.info("All required configuration variables and files are valid and accessible.\n")
 
 
   

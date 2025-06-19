@@ -1,25 +1,28 @@
 import os
 import time
+import logging
+
 from langchain_community.vectorstores import FAISS
 from transformers import AutoTokenizer
 from Utils.file_utils import read_all_source_code_files
 from common.constants import *
 
+logger = logging.getLogger()
 
 def generate_code_embeddings(llm_service):
     if os.path.exists("./../faiss_index/index.faiss"):
-        print("Loading source code embeddings from file index")
+        logger.info("Loading source code embeddings from file index")
         src_db = FAISS.load_local("./../faiss_index", llm_service.embedding_llm,
                                   allow_dangerous_deserialization=True)
     else:
         code_text = read_all_source_code_files()
         src_text = code_text if len(code_text) > 0 else []
         start = time.time()
-        print("Creating embeddings for source code...")
+        logger.info("Creating embeddings for source code...")
         src_db = llm_service.create_vdb(src_text)
         src_db.save_local("./../faiss_index")
         end = time.time()
-        print(f"Src project files have embedded completely. It took : {end - start} seconds")
+        logger.info(f"Src project files have embedded completely. It took : {end - start} seconds")
 
     return src_db
 
@@ -37,9 +40,9 @@ def check_text_size_before_embedding(text: str, model_name: str):
     token_count = len(tokens["input_ids"])
     
     if token_count > max_tokens:
-        print(
+        logger.warning(
             f"{RED}WARNING: Text length is {token_count} tokens, exceeding the max allowed ({max_tokens}). {RESET}"
             f"\nFirst 20 words of the text: {text.split()[:20]}"
         )
     # else:
-    #     print(f"Text is within limit: {token_count} tokens.")
+    #     logger.info(f"Text is within limit: {token_count} tokens.")
