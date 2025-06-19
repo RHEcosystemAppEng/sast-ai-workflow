@@ -170,6 +170,16 @@ and the instructions provided to the main LLM.
 - **Optional Configuration**:
   - `USE_CRITIQUE_AS_FINAL_RESULTS`: Set to `true` to use critique results for final metrics calculation.
 
+### Optional - Set Logging Level
+
+You can set the logging level by setting the environment variable `LOG_LEVEL`. Possible values are:
+
+- `DEBUG` - Shows all messages (most verbose)
+- `INFO` - Shows informational, warning, error, and critical messages
+- `WARNING` - Shows warning, error, and critical messages only
+- `ERROR` - Shows error and critical messages only  
+- `CRITICAL` - Shows only critical messages (least verbose)
+
 ## Usage
 
 Run the main workflow by executing:

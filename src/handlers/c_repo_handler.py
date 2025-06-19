@@ -38,7 +38,7 @@ class CRepoHandler:
             # Ensure the trailing slash is present
             self._report_file_prefix = os.path.join(self._report_file_prefix, '')
             self.repo_local_path = config.REPO_LOCAL_PATH
-            logger.info("Skipping github repo download as per configuration.")
+            logger.debug("Skipping github repo download as per configuration.")
 
         # This list contains specific arguments to be passed to the Clang compiler.
         # These arguments are used to configure the parsing and analysis of the source code.
@@ -85,7 +85,7 @@ class CRepoHandler:
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
-                logger.info(f"Skipping missing file: {local_file_path}")
+                logger.debug(f"Skipping missing file: {local_file_path}")
                 continue
             
             source_code = self.get_source_code_by_line_number(local_file_path, int(line_number))
@@ -97,7 +97,7 @@ class CRepoHandler:
     def get_source_code_by_line_number(self, file_path: str, line: int) -> str:
         """Extract the full source code section (function, macro, or class) including the specified line in the source file"""
         if not os.path.exists(file_path):
-            logger.info(f"File not found: {file_path}")
+            logger.error(f"File not found: {file_path}")
             return None
 
         args = self._get_clang_args_from_file(file_path)
@@ -161,7 +161,7 @@ class CRepoHandler:
             try:
                 source_code = self.extract_definition_from_source_code(expressions_list, source_code_path)
             except Exception as e:
-                logger.info(f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}")
+                logger.error(f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}")
             if source_code:
                 for file_path, exps_dict in source_code.items():
                     joined_exps = "\n\n".join([exp for exp in exps_dict.values()])
@@ -197,7 +197,7 @@ class CRepoHandler:
             for diag in translation_unit.diagnostics:
                 logger.info(f"[{diag.severity}] {diag.spelling}")
         except Exception as e:
-            logger.info(f"{e}, {type(e)}")
+            logger.error(f"{e}, {type(e)}")
 
         found_symbols = set([symbol for symbols in source_code_dict.values() for symbol in symbols.keys()])
         if len(found_symbols) < len(function_names):
@@ -267,7 +267,7 @@ class CRepoHandler:
                 shell=True
             )
         except Exception as e:
-            logger.info(e)
+            logger.error(e)
 
         if result.stdout:
             file_path, code_line_number = result.stdout.strip().split(':')[:2]
@@ -288,7 +288,7 @@ class CRepoHandler:
                 check=False
             )
         except Exception as e:
-            logger.info(e)
+            logger.error(e)
 
         if result.stdout:
             file_path, code_line_number = result.stdout.strip().split(':')[:2]

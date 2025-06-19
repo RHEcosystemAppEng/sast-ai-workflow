@@ -70,7 +70,7 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
                         cur_issue.issue_cve = tag.find('a').text
                         cur_issue.issue_cve_link = tag.find('a')['href']
                     except AttributeError:
-                        logger.info(f"Exception when parsing tag: {tag}")
+                        logger.error(f"Exception when parsing tag: {tag}")
                 else:
                     cur_issue.trace += tag.text
 

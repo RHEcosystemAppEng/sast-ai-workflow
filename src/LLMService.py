@@ -191,7 +191,7 @@ class LLMService:
         try:
             response = robust_structured_output(llm=self.main_llm, schema=FilterResponse, input=issue.trace, prompt_chain=pattern_matching_prompt_chain, max_retries=self.max_retry_limit)
         except Exception as e:
-            logger.info(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="filter_known_error", issue_id=issue.id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="filter_known_error", issue_id=issue.id, error=e))
             response = FilterResponse(
                                     equal_error_trace=[],
                                     justifications="An error occurred twice during model output parsing. Defaulting to: NO",
@@ -232,7 +232,7 @@ class LLMService:
                                                      )
         except Exception as e:
             failed_message = "Failed during analyze process"
-            logger.info(f"{failed_message}, set default values for the fields it failed on. Error is: {e}" )
+            logger.error(f"{failed_message}, set default values for the fields it failed on. Error is: {e}" )
             llm_analysis_response = AnalysisResponse(investigation_result="NOT A FALSE POSITIVE" if analysis_response is None else analysis_response.investigation_result,
                                                      is_final="TRUE" if recommendations_response is None else recommendations_response.is_final,
                                                      justifications=FALLBACK_JUSTIFICATION_MESSAGE if analysis_response is None else analysis_response.justifications,
@@ -248,7 +248,7 @@ class LLMService:
         try:
             critique_response = self._evaluate(analysis_prompt.to_string(), llm_analysis_response, issue.id) if self.run_with_critique and analysis_response is not None else ""
         except Exception as e:
-            logger.info(f"Failed during evaluation process, set default values. Error is: {e}" )
+            logger.error(f"Failed during evaluation process, set default values. Error is: {e}" )
             critique_response = EvaluationResponse(critique_result=analysis_response.investigation_result,
                                                    justifications=["Failed during evaluation process. Defaulting to first analysis_response"]
                                                    )
@@ -320,7 +320,7 @@ class LLMService:
                                                 max_retries=self.max_retry_limit
                                                 )
         except Exception as e:
-            logger.info(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
             raise e
 
         # logger.info(f"{analysis_response=}")
@@ -390,7 +390,7 @@ class LLMService:
                                                            max_retries=self.max_retry_limit
                                                            )
         except Exception as e:
-            logger.info(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
             raise e
 
         return short_justification
@@ -459,7 +459,7 @@ class LLMService:
             # logger.info(f"recommendations_response: {recommendations_response=}")
 
         except Exception as e:
-            logger.info(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
             raise e
 
         return recommendations_response
@@ -520,7 +520,7 @@ class LLMService:
             logger.info(f"{critique_response=}")
 
         except Exception as e:
-            logger.info(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
             raise e
 
         return critique_response
@@ -582,7 +582,7 @@ class LLMService:
                 # Add the item without the last line
                 error_trace_list.append(error_trace)
             except Exception as e:
-                logger.info(f"Error occurred during process this known issue: {item}\nError: {e}")
+                logger.error(f"Error occurred during process this known issue: {item}\nError: {e}")
                 raise e
 
         return metadata_list, error_trace_list
