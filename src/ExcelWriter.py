@@ -37,7 +37,7 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
             pbar.update(1)
             sleep(1)
     except Exception as e:
-        logger.info("Error occurred during Excel writing:", e)
+        logger.error("Error occurred during Excel writing:", e)
 
 
 @retry(stop=stop_after_attempt(5),
@@ -82,10 +82,10 @@ def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_su
         logger.info("Results added successfully to aggregate Google Sheet.")
 
     except gspread.exceptions.APIError as e:
-        logger.info(f"An API error occurred while writing to {config.AGGREGATE_RESULTS_G_SHEET}.")
+        logger.error(f"An API error occurred while writing to {config.AGGREGATE_RESULTS_G_SHEET}.")
         raise e
     except Exception as e:
-        logger.info(f"An unexpected error occurred while performing sheet operations for {config.AGGREGATE_RESULTS_G_SHEET}.\nError: {e}")
+        logger.error(f"An unexpected error occurred while performing sheet operations for {config.AGGREGATE_RESULTS_G_SHEET}.\nError: {e}")
 
 
 @retry(stop=stop_after_attempt(5),
@@ -152,10 +152,10 @@ def write_ai_report_google_sheet(data, config:Config):
         logger.info("Results added successfully to Google Sheet.")
 
     except gspread.exceptions.APIError as e:
-        logger.info(f"An API error occurred while writing to {config.INPUT_REPORT_FILE_PATH}.")
+        logger.error(f"An API error occurred while writing to {config.INPUT_REPORT_FILE_PATH}.")
         raise e
     except Exception as e:
-        logger.info(f"An unexpected error occurred while performing sheet operations for ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+        logger.error(f"An unexpected error occurred while performing sheet operations for ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
 
 
 def write_ai_report_worksheet(data, workbook, config:Config):

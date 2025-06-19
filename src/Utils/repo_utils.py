@@ -31,7 +31,7 @@ def download_repo(repo_url: str) -> str:
         logger.info("Repository cloned successfully!")
 
     except Exception as e:
-        logger.info(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
 
     return destination_path
 

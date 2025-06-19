@@ -20,7 +20,7 @@ from handlers.repo_handler_factory import repo_handler_factory
 from stage.filter_known_issues import capture_known_issues
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
+logging.basicConfig(level=getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper()), format='%(asctime)s - %(levelname)s: %(message)s')
 logger = logging.getLogger()
 
 def main():
@@ -147,7 +147,7 @@ def main():
 
             
             except Exception as e:
-                logger.info(f"{RED}An error occurred while processing issue ID {issue.id}.{RESET}\nError is: {e}")
+                logger.error(f"{RED}An error occurred while processing issue ID {issue.id}.{RESET}\nError is: {e}")
                 if not llm_response:
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
@@ -180,7 +180,7 @@ def main():
     try:
         write_to_excel_file(summary_data, evaluation_summary, config)
     except Exception as e:
-        logger.info("Error occurred while generating excel file:", e)
+        logger.error("Error occurred while generating excel file:", e)
     finally:
         print_conclusion(evaluation_summary, failed_item_ids)
 

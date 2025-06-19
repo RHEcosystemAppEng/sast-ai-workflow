@@ -137,7 +137,7 @@ def get_google_sheet(sheet_url:str, service_account_json_path:str, ignore_error:
         sheet = client.open_by_url(sheet_url).sheet1  # Assumes the data is in the first sheet
         return sheet
     except Exception as e:
-        logger.info(f"Failed to authenticate or open Google Sheet ({sheet_url}).\nError: {e}")
+        logger.error(f"Failed to authenticate or open Google Sheet ({sheet_url}).\nError: {e}")
         if ignore_error:
             return None
         raise e

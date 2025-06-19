@@ -24,7 +24,7 @@ class EvaluationSummary:
         self.predicted_summary = get_predicted_summary(summary_data, config)
 
         if not self.ground_truth:
-            logger.info("No human verified results provided. Skipping metric calculations.")
+            logger.debug("No human verified results provided. Skipping metric calculations.")
             self.actual_true_positives, self.actual_false_positives = set(), set()
             self.predicted_true_positives, self.predicted_false_positives = count_predicted_values(self.predicted_summary)
             self.tp = self.tn = self.fp = self.fn = 0
