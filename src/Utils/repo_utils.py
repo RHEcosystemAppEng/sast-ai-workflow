@@ -1,9 +1,11 @@
 import git
 import re
 import os
+import logging
 
 from typing import Tuple
 
+logger = logging.getLogger()
 
 def download_repo(repo_url: str) -> str:
     try:
@@ -18,18 +20,18 @@ def download_repo(repo_url: str) -> str:
         destination_path = os.path.join(os.getcwd(), repo_name)
 
         # Clone the repo
-        print(f"Cloning {repo_url} into {destination_path}...")
+        logger.info(f"Cloning {repo_url} into {destination_path}...")
         repo = git.Repo.clone_from(repo_url, destination_path)
 
         # Checkout the specified branch or tag if provided
         if branch_or_tag:
-            print(f"Checking out {branch_or_tag}...")
+            logger.info(f"Checking out {branch_or_tag}...")
             repo.git.checkout(branch_or_tag)
 
-        print("Repository cloned successfully!")
+        logger.info("Repository cloned successfully!")
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.info(f"An error occurred: {e}")
 
     return destination_path
 

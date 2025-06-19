@@ -1,3 +1,5 @@
+import logging
+
 import re
 from typing import List
 
@@ -7,9 +9,10 @@ from Utils.file_utils import get_google_sheet
 from common.config import Config
 from dto.Issue import Issue
 
+logger = logging.getLogger()
 
 def read_sast_report(config:Config) -> List[Issue]:
-    print(f"Reading => {config.INPUT_REPORT_FILE_PATH}")
+    logger.info(f"Reading => {config.INPUT_REPORT_FILE_PATH}")
     if config.INPUT_REPORT_FILE_PATH.startswith("https"):
         return read_sast_report_google_sheet(config.SERVICE_ACCOUNT_JSON_PATH, config.INPUT_REPORT_FILE_PATH)
     return read_sast_report_local_html(config.INPUT_REPORT_FILE_PATH)
@@ -67,7 +70,7 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
                         cur_issue.issue_cve = tag.find('a').text
                         cur_issue.issue_cve_link = tag.find('a')['href']
                     except AttributeError:
-                        print(f"Exception when parsing tag: {tag}")
+                        logger.info(f"Exception when parsing tag: {tag}")
                 else:
                     cur_issue.trace += tag.text
 

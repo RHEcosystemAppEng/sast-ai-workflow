@@ -1,3 +1,5 @@
+import logging
+
 from typing import Type
 from pydantic import BaseModel
 from langchain_openai.chat_models.base import ChatOpenAI
@@ -7,6 +9,8 @@ from langchain_core.exceptions import OutputParserException, LangChainException
 from langchain.output_parsers.prompts import NAIVE_FIX
 from langchain_core.prompts.prompt import PromptTemplate
 from langchain_core.runnables import RunnableSerializable
+
+logger = logging.getLogger()
 
 
 ERROR_MESSAGE = ("Parsing failed after {max_retries} retries: {exception}"
@@ -54,9 +58,9 @@ def _handle_chat_openai(
     if result.get("parsed") is not None:
         return result.get("parsed")
 
-    print(WARNING_MESSAGE.format(model_type=schema))
+    logger.warning(WARNING_MESSAGE.format(model_type=schema))
     raw_content = result.get("raw").content
-    # print(f"{raw_content=}")
+    # logger.info(f"{raw_content=}")
 
     parser = PydanticOutputParser(pydantic_object=schema)
     fix_prompt = PromptTemplate.from_template(NAIVE_FIX + " Please don't change the content of the answer itself, but just the structure and data type of it.")
@@ -96,6 +100,6 @@ def _handle_chat_nvidia(
                                  "\nThis indicates that the response data was either insufficient for object construction or was invalid.")
         except Exception as e:
             last_exception = e
-        print(WARNING_MESSAGE.format(model_type=schema))
+        logger.warning(WARNING_MESSAGE.format(model_type=schema))
 
     raise LangChainException(ERROR_MESSAGE.format(max_retries=max_retries, exception=last_exception, input=input))

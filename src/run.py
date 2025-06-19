@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 
 from tornado.gen import sleep
 from tqdm import tqdm
@@ -19,6 +20,9 @@ from handlers.repo_handler_factory import repo_handler_factory
 from stage.filter_known_issues import capture_known_issues
 
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
+logger = logging.getLogger()
+
 def main():
     config = Config()
     os.environ[TOKENIZERS_PARALLELISM] = "false" # Turn off parallel processing for tokenization to avoid warnings
@@ -31,7 +35,6 @@ def main():
     summary_data = []
 
     with tqdm(total=len(issue_list), file=sys.stdout, desc="Full report scanning progress: ") as pbar:
-        print("\n")
         # selected_issue_set = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
             # "def1",
             # "def2",
@@ -97,7 +100,7 @@ def main():
             score, critique_response, context = {}, "", ""
             try:
                 if issue.id in already_seen_issues_dict.keys():
-                    print(f"{issue.id} already marked as a false positive since it's a known issue")
+                    logger.info(f"{issue.id} already marked as a false positive since it's a known issue")
                     context = already_seen_issues_dict[issue.id].equal_error_trace
                     llm_response = AnalysisResponse(
                             investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
@@ -125,7 +128,7 @@ def main():
 
                     retries = 0
                     while llm_response.is_second_analysis_needed() and retries < 2: 
-                        print(f"{llm_response.is_final=}\n{llm_response.recommendations=}\n{llm_response.instructions=}")                   
+                        logger.info(f"{llm_response.is_final=}\n{llm_response.recommendations=}\n{llm_response.instructions=}")                   
                         missing_source_code = repo_handler.extract_missing_functions_or_macros(llm_response.instructions)
                         source_code_context += f'\n{missing_source_code}'
                         context = (
@@ -144,7 +147,7 @@ def main():
 
             
             except Exception as e:
-                print(f"{RED}An error occurred while processing issue ID {issue.id}.{RESET}\nError is: {e}")
+                logger.info(f"{RED}An error occurred while processing issue ID {issue.id}.{RESET}\nError is: {e}")
                 if not llm_response:
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
@@ -156,7 +159,7 @@ def main():
                                                      prompt="",
                                                      short_justifications=FALLBACK_JUSTIFICATION_MESSAGE
                                                      )
-                    print("Default values have been set")
+                    logger.info("Default values have been set")
                 else:
                     # This issue will be included in the evaluation.
                     incomplete_message = "Note: Analysis incomplete due to a processing error."
@@ -177,7 +180,7 @@ def main():
     try:
         write_to_excel_file(summary_data, evaluation_summary, config)
     except Exception as e:
-        print("Error occurred while generating excel file:", e)
+        logger.info("Error occurred while generating excel file:", e)
     finally:
         print_conclusion(evaluation_summary, failed_item_ids)
 
