@@ -6,10 +6,14 @@ spec:
   pipelineRef:
     name: sast-ai-workflow-pipeline
   params:
+    - name: PROJECT_NAME
+      value: "project-name"
+    - name: PROJECT_VERSION
+      value: "project-version"
     - name: REPO_REMOTE_URL
-      value: "source/code/url"
-    - name: falsePositivesUrl
-      value: "false/positives/url"
+      value: "rpm-package-url"
+    - name: FALSE_POSITIVES_URL
+      value: "git-lab-url"
     - name: LLM_URL
       value: ""
     - name: LLM_MODEL_NAME
@@ -18,10 +22,6 @@ spec:
       value: ""
     - name: EMBEDDINGS_LLM_MODEL_NAME
       value: "embedding-llm-model"
-    - name: PROJECT_NAME
-      value: "project-name"
-    - name: PROJECT_VERSION
-      value: "project-version"
     - name: INPUT_REPORT_FILE_PATH
       value: "input-report"
   workspaces:

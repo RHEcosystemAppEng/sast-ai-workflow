@@ -1,3 +1,9 @@
+# Check if .env file exists and load it
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
 CONTEXT := $(shell oc config current-context)
 NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
 
@@ -50,7 +56,7 @@ run:
 	$(TK) pipeline start sast-ai-workflow-pipeline \
 	  -n $(NAMESPACE) \
 	  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
-	  -p falsePositivesUrl="$(FALSE_POSITIVES_URL)" \
+	  -p FALSE_POSITIVES_URL="$(FALSE_POSITIVES_URL)" \
 	  -p LLM_URL="$(LLM_URL)" \
 	  -p LLM_MODEL_NAME="$(LLM_MODEL_NAME)" \
 	  -p EMBEDDINGS_LLM_URL="$(EMBEDDINGS_LLM_URL)" \
