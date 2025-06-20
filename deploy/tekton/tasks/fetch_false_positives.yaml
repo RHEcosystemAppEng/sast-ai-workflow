@@ -4,7 +4,7 @@ metadata:
   name: fetch-false-positives
 spec:
   params:
-    - name: falsePositivesUrl
+    - name: FALSE_POSITIVES_URL
       type: string
       description: "Optional GitLab URL containing known false positives"
   workspaces:
@@ -19,7 +19,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -euo pipefail
-        FP_URL="$(params.falsePositivesUrl)"
+        FP_URL="$(params.FALSE_POSITIVES_URL)"
         if [ -z "$FP_URL" ]; then
           echo "No falsePositivesUrl provided; skipping fetch..."
           exit 0

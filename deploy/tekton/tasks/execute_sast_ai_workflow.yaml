@@ -1,9 +1,20 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: execute-sast-ai-workflow
+  name: execute-ai-analysis
 spec:
   params:
+    - name: PROJECT_NAME
+      type: string
+      default: ""
+    - name: PROJECT_VERSION
+      type: string
+      default: ""
+    - name: REPO_LOCAL_PATH
+      type: string
+    - name: INPUT_REPORT_FILE_PATH
+      type: string
+      default: ""
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: ""
@@ -19,17 +30,6 @@ spec:
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: ""
-    - name: PROJECT_NAME
-      type: string
-      default: ""
-    - name: PROJECT_VERSION
-      type: string
-      default: ""
-    - name: REPO_LOCAL_PATH
-      type: string
-    - name: INPUT_REPORT_FILE_PATH
-      type: string
-      default: ""
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
@@ -41,6 +41,16 @@ spec:
     - name: run-sast-ai-workflow
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
       env:
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+        - name: REPO_LOCAL_PATH
+          value: "$(params.REPO_LOCAL_PATH)"
+        - name: KNOWN_FALSE_POSITIVE_FILE_PATH
+          value: "$(workspaces.false-positives-workspace.path)/ignore.err"
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: LLM_URL
@@ -51,16 +61,6 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
-        - name: PROJECT_NAME
-          value: "$(params.PROJECT_NAME)"
-        - name: PROJECT_VERSION
-          value: "$(params.PROJECT_VERSION)"
-        - name: INPUT_REPORT_FILE_PATH 
-          value: "$(params.INPUT_REPORT_FILE_PATH)"
-        - name: KNOWN_FALSE_POSITIVE_FILE_PATH 
-          value: "$(workspaces.false-positives-workspace.path)/ignore.err"
-        - name: REPO_LOCAL_PATH
-          value: "$(params.REPO_LOCAL_PATH)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
