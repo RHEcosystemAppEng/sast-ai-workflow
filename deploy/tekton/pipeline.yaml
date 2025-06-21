@@ -4,12 +4,22 @@ metadata:
   name: sast-ai-workflow-pipeline
 spec:
   params:
+    - name: PROJECT_NAME
+      type: string
+      default: "project-name"
+    - name: PROJECT_VERSION
+      type: string
+      default: "project-version"
     - name: REPO_REMOTE_URL
       type: string
       description: "Source code URL (RPM package or Git repository URL)"
-    - name: falsePositivesUrl
+    - name: FALSE_POSITIVES_URL
       type: string
       description: "GitLab repository URL for known false positives (optional)"
+    - name: INPUT_REPORT_FILE_PATH
+      type: string
+      description: "Google Spreadsheet URL or OSH report .html file path"
+      default: "input-report"
     - name: LLM_URL
       type: string
       default: "http://<<please-set-llm-url>>"
@@ -22,15 +32,6 @@ spec:
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: "embedding-llm-model"
-    - name: PROJECT_NAME
-      type: string
-      default: "project-name"
-    - name: PROJECT_VERSION
-      type: string
-      default: "project-version"
-    - name: INPUT_REPORT_FILE_PATH
-      type: string
-      default: "input-report"
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: "" 
@@ -38,8 +39,7 @@ spec:
     - name: shared-workspace
     - name: gitlab-token-ws
       optional: true
-    - name: llm-api-key-ws 
-    - name: embeddings-api-key-ws
+    - name: llm-credentials-ws 
     - name: google-sa-json-ws 
     - name: cache-workspace
   tasks:
@@ -51,8 +51,8 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
-        - name: falsePositivesUrl
-          value: "$(params.falsePositivesUrl)"
+        - name: FALSE_POSITIVES_URL
+          value: "$(params.FALSE_POSITIVES_URL)"
       workspaces:
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
@@ -74,30 +74,22 @@ spec:
       taskRef:
         name: fetch-false-positives
       params:
-        - name: falsePositivesUrl
-          value: "$(params.falsePositivesUrl)"
+        - name: FALSE_POSITIVES_URL
+          value: "$(params.FALSE_POSITIVES_URL)"
       workspaces:
         - name: false-positives-workspace
           workspace: shared-workspace
         - name: gitlab-token-ws
           workspace: gitlab-token-ws
 
-    - name: run-sast-ai
+    - name: execute-ai-analysis
       runAfter:
         - prepare-source
         - fetch-false-positives
       taskRef:
-        name: execute-sast-ai-workflow
+        name: execute-ai-analysis
       params:
-        - name: LLM_URL 
-          value: "$(params.LLM_URL)"
-        - name: LLM_MODEL_NAME
-          value: "$(params.LLM_MODEL_NAME)"
-        - name: EMBEDDINGS_LLM_URL 
-          value: "$(params.EMBEDDINGS_LLM_URL)"
-        - name: EMBEDDINGS_LLM_MODEL_NAME
-          value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
-        - name: PROJECT_NAME 
+        - name: PROJECT_NAME
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
@@ -105,6 +97,14 @@ spec:
           value: $(tasks.prepare-source.results.repo-local-path)
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: LLM_URL
+          value: "$(params.LLM_URL)"
+        - name: LLM_MODEL_NAME
+          value: "$(params.LLM_MODEL_NAME)"
+        - name: EMBEDDINGS_LLM_URL
+          value: "$(params.EMBEDDINGS_LLM_URL)"
+        - name: EMBEDDINGS_LLM_MODEL_NAME
+          value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
           
@@ -113,10 +113,8 @@ spec:
           workspace: shared-workspace
         - name: false-positives-workspace
           workspace: shared-workspace
-        - name: llm-api-key-ws
-          workspace: llm-api-key-ws
-        - name: embeddings-api-key-ws 
-          workspace: embeddings-api-key-ws
+        - name: llm-credentials-ws
+          workspace: llm-credentials-ws
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
         - name: cache-workspace
