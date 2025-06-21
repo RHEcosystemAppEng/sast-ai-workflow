@@ -39,50 +39,69 @@ oc whoami --show-console
 
 ### 3. Create Secrets and Patch the Pipeline Service Account
 
-   This project requires a GitLab token secret and a Quay pull secret.
+   This project requires several secrets for GitLab token, LLM API keys, Google service account, and Quay registry access.
 
-   #### 3.1. Create Secrets
-   * **Create the Kubernetes Secret:**
+   #### 3.1. Automated Secret Creation (Recommended)
+
+       **Prerequisites:**
+    * Create a `.env` file in the project root with the following variables:
+      ```env
+      # Copy this template to .env and fill in your actual values
+      
+      # GitLab API token for accessing repositories
+      GITLAB_TOKEN=your_gitlab_token_here
+      
+      # LLM API key for the main language model
+      LLM_API_KEY=your_llm_api_key_here
+      
+      # Embeddings API key for the embedding model
+      EMBEDDINGS_API_KEY=your_embeddings_api_key_here
+      
+      # Path to Google Service Account JSON file (relative to project root)
+      GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./service_account.json
+      
+      # Optional: Override default Docker config path if needed
+      # DOCKER_CONFIG_PATH=/custom/path/to/docker/config.json
+      ```
+   * Place your Google service account JSON file in the project root as `service_account.json` (or specify custom path in `.env`)
+   * Login to Quay.io registry: `podman login quay.io` (or `docker login quay.io`)
+
+   **Create all secrets automatically:**
+   ```bash
+   make secrets
+   ```
+
+   This single command will:
+   - Create GitLab token secret from your `.env` file
+   - Create LLM and embeddings API key secrets from your `.env` file  
+   - Create Google service account secret from the JSON file
+   - Create Quay pull secret from your local Docker/Podman credentials
+   - Patch the pipeline service account to use the image pull secret
+
+   #### 3.2. Manual Secret Creation (Alternative)
+
+   If you prefer to create secrets manually or need to troubleshoot:
+
+   * **Create the Kubernetes Secrets:**
 
         ```bash
         oc -n $(NAMESPACE) create secret generic gitlab-token-secret --from-literal=gitlab_token="$(GITLAB_TOKEN)"
-        ```
-
-        Replace `$(GITLAB_TOKEN)` with the actual GitLab access token and `$(NAMESPACE)` with the OpenShift namespace where you'll deploy the project (e.g., `sast-ai-workflow`).
-
-        Similarly:
-
-        ```bash
         oc -n $(NAMESPACE) create secret generic embeddings-api-key-secret --from-literal=api_key="$(EMBEDDINGS_API_KEY)"
-        ```
-
-        ```bash
         oc -n $(NAMESPACE) create secret generic llm-api-key-secret --from-literal=api_key="$(LLM_API_KEY)"
-        ```
-
-        ```bash
         oc -n $(NAMESPACE) create secret generic google-service-account-secret --from-file=service_account.json=/path/to/google/service/account/secret.json
         ```
 
-   #### 3.2. Create Quay Pull Secret
+   * **Create Quay Pull Secret:**
 
-   * To pull images from our private Quay.io registry, you'll need to create an image pull secret.
-        * If you already have a `dockerconfig.json` file (e.g., from `docker login` or `podman login`), you can create the secret from that:
+        ```bash
+        oc --context $(CONTEXT) create secret generic quay-sast-puller --from-file=.dockerconfigjson=$XDG_RUNTIME_DIR/containers/auth.json --type=kubernetes.io/dockerconfigjson -n $(NAMESPACE)
+        ```
 
-            ```bash
-            oc --context $(CONTEXT) create secret generic quay-sast-puller --from-file=.dockerconfigjson=$XDG_RUNTIME_DIR/containers/auth.json --type=kubernetes.io/dockerconfigjson -n $(NAMESPACE)
-            ```
-
-        * If you don't have a `dockerconfig.json` file, you will need to create one, or use the oc create secret docker-registry command.
-   #### 3.3. Patch the Pipeline Service Account
-
-   * Tekton Pipelines uses a service account to pull images. You need to patch this service account to use the Quay pull secret. The default service account is `pipeline`.
+   * **Patch the Pipeline Service Account:**
 
         ```bash
         oc --context $(CONTEXT) patch serviceaccount pipeline -n $(NAMESPACE) -p '{"imagePullSecrets": [{"name": "quay-sast-puller"}]}'
         ```
-
-        Replace `pipeline` with the name of the service account used by your Tekton tasks if it's different.
 
 ### 4. Create PVC
 
@@ -105,13 +124,15 @@ make pvc
 
    | Command       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
    | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-   | `all`         | Executes `tasks`, `pipeline` and `run` sequentially.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+   | `all`         | Executes `setup`, `tasks`, `pipeline` and `run` sequentially - does everything from infrastructure setup to pipeline execution.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+   | `setup`       | Executes `pvc` and `secrets` sequentially - sets up the basic infrastructure needed for the pipeline.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
    | `tasks`       | Applies the Tekton Task definitions (e.g., `validate_urls.yaml`, `prepare_source.yaml` etc.).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
    | `pvc`         | Applies the PersistentVolumeClaim (PVC) definition (`pvc.yaml`) to create the shared workspace.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+   | `secrets`     | Creates all required Kubernetes secrets automatically from `.env` file variables and patches the pipeline service account.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
    | `pipeline`    | Applies the Tekton Pipeline definition (`pipeline.yaml`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
    | `run`         | Deletes any previous PipelineRun and starts a new one with the specified parameters. You can override the pipeline parameters using environment variables (e.g., `make run SOURCE_URL="..."`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
    | `logs`        | Displays the logs of the running PipelineRun.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-   | `clean`       | Deletes all the Tekton Task, Pipeline, and PipelineRun resources.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+   | `clean`       | Performs a complete cleanup by deleting all PipelineRuns, TaskRuns, Tekton resources, ALL PVCs in the namespace, orphaned PVs, secrets, and unpatching the pipeline service account. **Warning: This deletes ALL PVCs in the namespace, not just the ones created by this project.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ### 6. Example Usage
 
@@ -124,30 +145,53 @@ make pvc
         oc --context sast-ai-workflow/api-crc-testing:6443/kubeadmin project sast-ai-workflow
         ```
 
-   #### 6.2.  **Create the necessary secrets:**
+   #### 6.2.  **Set up your environment file:**
 
-        See step 3.1
+        Create a `.env` file in the project root with your credentials:
+        ```env
+        # GitLab API token for accessing repositories
+        GITLAB_TOKEN=your_gitlab_token_here
+        
+        # LLM API key for the main language model
+        LLM_API_KEY=your_llm_api_key_here
+        
+        # Embeddings API key for the embedding model
+        EMBEDDINGS_API_KEY=your_embeddings_api_key_here
+        
+        # Path to Google Service Account JSON file
+        GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./service_account.json
+        ```
 
-   #### 6.3.  **Patch the pipeline service account:**
+        Place your Google service account JSON file as `service_account.json` in the project root.
+        Login to Quay.io: `podman login quay.io`
 
-        See step 3.2
+   #### 6.3.  **Run everything with a single command:**
 
-   #### 6.4.  **Create the PVC:**
+        ```bash
+        make all
+        ```
 
-        See step 4
+        This single command does everything: creates PVCs, secrets, applies Tekton resources, and runs the pipeline.
 
-   #### 6.5.  **Apply the Tekton resources and run the pipeline:**
+   #### Alternative: Step-by-step approach
+
+   If you prefer to run steps individually:
+
+   * **Set up infrastructure:** `make setup`
+   * **Apply Tekton resources and run:** `make tasks pipeline run`
+
+   #### 6.4.  **Full example with parameters:**
 
 ```bash
-make all SOURCE_URL="<your_source_code_url>" \
-SPREADSHEET_URL="<your_spreadsheet_url>" \
-FALSE_POSITIVES_URL="<your_false_positives_url>" \
-LLM_URL="<your_llm_url>" \
-LLM_MODEL_NAME="<your_llm_model_name>" \
-EMBEDDINGS_LLM_URL="<your_embeddings_llm_url>" \
-EMBEDDINGS_LLM_MODEL_NAME="<your_embeddings_llm_model_name>" \
-PROJECT_NAME="<your_project_name>" \
-PROJECT_VERSION="<your_project_version>"
+make all SOURCE_URL="https://download.devel.redhat.com/brewroot/vol/rhel-10/packages/systemd/257/9.el10/src/systemd-257-9.el10.src.rpm" \
+ PROJECT_NAME="systemd" \
+ PROJECT_VERSION="257-9" \
+ SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY" \
+ FALSE_POSITIVES_URL="https://gitlab.cee.redhat.com/osh/known-false-positives/-/raw/master/systemd/ignore.err" \
+ LLM_URL="https://llama-31-test-yossi-test.apps.ai-dev03.kni.syseng.devcluster.openshift.com/v1" \
+ LLM_MODEL_NAME="llama-31-test" \
+ EMBEDDINGS_LLM_URL="https://all-mpnet-base-v2-sast-ai-embedding.apps.ai-dev03.kni.syseng.devcluster.openshift.com/v1" \
+ EMBEDDINGS_LLM_MODEL_NAME="sentence-transformers/all-mpnet-base-v2" 
 ```
 
 Replace the placeholders with your actual values.
