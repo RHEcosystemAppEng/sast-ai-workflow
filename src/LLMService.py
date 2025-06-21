@@ -37,7 +37,7 @@ class LLMService:
         self.llm_api_key = config.LLM_API_KEY
         self.llm_model_name = config.LLM_MODEL_NAME
         self.embedding_llm_url = config.EMBEDDINGS_LLM_URL
-        self.embedding_api_key = config.EMBEDDINGS_API_KEY
+        self.embedding_api_key = config.EMBEDDINGS_LLM_API_KEY
         self.embedding_llm_model_name = config.EMBEDDINGS_LLM_MODEL_NAME
 
         self._main_llm = None

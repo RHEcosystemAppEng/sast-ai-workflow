@@ -39,8 +39,7 @@ spec:
     - name: shared-workspace
     - name: gitlab-token-ws
       optional: true
-    - name: llm-api-key-ws 
-    - name: embeddings-api-key-ws
+    - name: llm-credentials-ws 
     - name: google-sa-json-ws 
     - name: cache-workspace
   tasks:
@@ -114,10 +113,8 @@ spec:
           workspace: shared-workspace
         - name: false-positives-workspace
           workspace: shared-workspace
-        - name: llm-api-key-ws
-          workspace: llm-api-key-ws
-        - name: embeddings-api-key-ws 
-          workspace: embeddings-api-key-ws
+        - name: llm-credentials-ws
+          workspace: llm-credentials-ws
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
         - name: cache-workspace
