@@ -35,7 +35,7 @@ GITLAB_TOKEN                     ?= ""
 LLM_API_KEY                      ?= ""
 EMBEDDINGS_API_KEY               ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
-DOCKER_CONFIG_PATH               ?= $(XDG_RUNTIME_DIR)/containers/auth.json
+DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 .PHONY: all setup tasks pvc secrets pipeline run logs clean
 
@@ -93,15 +93,35 @@ secrets:
 		echo "Created google-service-account-secret"; \
 	fi
 	# Create Quay pull secret
-	@if [ ! -f "$(DOCKER_CONFIG_PATH)" ]; then \
-		echo "Warning: Docker config file not found at $(DOCKER_CONFIG_PATH)"; \
+	@echo "Looking for Docker/Podman auth config..."
+	@DOCKER_AUTH_FILE=""; \
+	if [ -f "$(DOCKER_CONFIG_PATH)" ]; then \
+		DOCKER_AUTH_FILE="$(DOCKER_CONFIG_PATH)"; \
+		echo "Found auth config at: $(DOCKER_CONFIG_PATH)"; \
+	elif [ -f "$(XDG_RUNTIME_DIR)/containers/auth.json" ]; then \
+		DOCKER_AUTH_FILE="$(XDG_RUNTIME_DIR)/containers/auth.json"; \
+		echo "Found auth config at: $(XDG_RUNTIME_DIR)/containers/auth.json"; \
+	elif [ -f "$(HOME)/.docker/config.json" ]; then \
+		DOCKER_AUTH_FILE="$(HOME)/.docker/config.json"; \
+		echo "Found auth config at: $(HOME)/.docker/config.json"; \
+	elif [ -f "$(HOME)/.config/containers/auth.json" ]; then \
+		DOCKER_AUTH_FILE="$(HOME)/.config/containers/auth.json"; \
+		echo "Found auth config at: $(HOME)/.config/containers/auth.json"; \
+	fi; \
+	if [ -z "$$DOCKER_AUTH_FILE" ]; then \
+		echo "Warning: Docker config file not found in common locations:"; \
+		echo "  - $(DOCKER_CONFIG_PATH)"; \
+		echo "  - $(XDG_RUNTIME_DIR)/containers/auth.json"; \
+		echo "  - $(HOME)/.docker/config.json"; \
+		echo "  - $(HOME)/.config/containers/auth.json"; \
 		echo "Please run 'podman login quay.io' or 'docker login quay.io' first"; \
+		echo "Or set DOCKER_CONFIG_PATH in your .env file to the correct path"; \
 	else \
 		$(CO) create secret generic quay-sast-puller \
-			--from-file=.dockerconfigjson="$(DOCKER_CONFIG_PATH)" \
+			--from-file=.dockerconfigjson="$$DOCKER_AUTH_FILE" \
 			--type=kubernetes.io/dockerconfigjson \
 			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f -; \
-		echo "Created quay-sast-puller secret"; \
+		echo "Created quay-sast-puller secret from $$DOCKER_AUTH_FILE"; \
 	fi
 	# Patch pipeline service account to use Quay pull secret
 	@$(CO) patch serviceaccount pipeline \
