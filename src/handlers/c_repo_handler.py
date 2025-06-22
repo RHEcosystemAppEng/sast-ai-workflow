@@ -61,6 +61,9 @@ class CRepoHandler:
 
         clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
         self.index = clang.cindex.Index.create()
+        
+        # Track all found symbols across method calls
+        self.all_found_symbols = set()
 
     @property
     def compile_commands_json(self):
@@ -143,8 +146,8 @@ class CRepoHandler:
                     with open(file_path, "r") as f:
                         lines = f.readlines()
                         numbered_lines = [
-                            f"{i + start_line}| {line}"
-                            for i, line in enumerate(lines[start_line - 1 : end_line])
+                            f"{i}| {line}"
+                            for i, line in enumerate(lines[start_line - 1 : end_line, start=start_line])
                         ]
                         source_code = "".join(numbered_lines)
 
@@ -159,8 +162,11 @@ class CRepoHandler:
             logger.info(f"No function found in {file_path} near line {line}")
             with open(file_path, "r") as f:
                 lines = f.readlines()
-                source_code = "".join(lines[min(0, line - 100) : max(line + 100, len(lines))])
-
+                start_line = max(0, line - 100)
+                end_line = min(line + 100, len(lines))
+                numbered_lines = [f"{i}| {line}" for i, line in enumerate(lines[start_line - 1 : end_line], start=start_line)]
+                source_code = "".join(numbered_lines)
+        
         return source_code
 
     def extract_missing_functions_or_macros(self, instructions) -> str:
@@ -175,15 +181,19 @@ class CRepoHandler:
         source_code_dict = defaultdict(list)
         for instruction in instructions:
             path = get_path(instruction.referring_source_code_path)
-            source_code_dict[path].append(instruction.expression_name)
+            if instruction.expression_name not in self.all_found_symbols:
+                source_code_dict[path].append(instruction.expression_name)
+            else:
+                print(f"Skipping {instruction.expression_name} - the context contains the code already.")
 
         missing_source_codes = ""
         for source_code_path, expressions_list in source_code_dict.items():
             source_code = ""
             try:
-                source_code = self.extract_definition_from_source_code(
+                found_symbols, source_code = self.extract_definition_from_source_code(
                     expressions_list, source_code_path
                 )
+                self.all_found_symbols.update(found_symbols)
             except Exception as e:
                 logger.error(
                     f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}"
@@ -196,7 +206,7 @@ class CRepoHandler:
 
     def extract_definition_from_source_code(
         self, function_names: set[str], source_code_file_path: str
-    ) -> dict[str, str]:
+    ) -> tuple[set[str], dict[str, dict[str, str]]]:
         """Extract the definitions of functions or macros that are referenced in the source code"""
 
         source_code_dict = defaultdict(dict)
@@ -258,7 +268,7 @@ class CRepoHandler:
             for missing_symbol in set(function_names).difference(found_symbols):
                 file_path, line_number = self._get_function_definition_file_location(missing_symbol)
                 if not file_path:
-                    file_path, line_number = self._get_function_definition_file_location(
+                    file_path, line_number = self._get_macro_definition_file_location(
                         missing_symbol
                     )
                 if file_path:
@@ -273,7 +283,7 @@ class CRepoHandler:
             missing_functions = set(function_names).difference(found_symbols)
             logger.info(f"Missing source code of {missing_functions}")
 
-        return source_code_dict
+        return found_symbols, source_code_dict
 
     def _get_clang_args_from_file(self, file_path: str) -> list[str]:
         """Extract the used macros in the source code file for constructing Clang arguments"""
@@ -325,7 +335,7 @@ class CRepoHandler:
         command = [
             "grep "
             + "-nHr "
-            + r'"^[a-zA-Z_][a-zA-Z0-9_[:space:]\*]*'
+            + r'"^[a-zA-Z_][a-zA-Z0-9_[:space:]\*]* '
             + function_name
             + r'[[:space:]]*\([^;{]*\)[[:space:]]*" '
             + self.repo_local_path
@@ -364,3 +374,8 @@ class CRepoHandler:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]
 
         return file_path, code_line_number
+    
+    def reset_found_symbols(self):
+        """Reset the accumulated found symbols for a new analysis session."""
+        self.all_found_symbols.clear()
+    
