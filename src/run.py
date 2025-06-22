@@ -166,7 +166,7 @@ def main():
                         )
 
                         retries += 1
-
+                    repo_handler.reset_found_symbols()
                     # let's calculate numbers for quality of the response we received here!
                     if config.CALCULATE_METRICS:
                         metric_request = metric_request_from_prompt(llm_response)
