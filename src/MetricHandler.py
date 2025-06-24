@@ -8,7 +8,7 @@ from ragas.embeddings import LangchainEmbeddingsWrapper
 from dto.MetricRequest import MetricRequest
 from dto.LLMResponse import AnalysisResponse
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 class MetricHandler:
     def __init__(self, main_llm, embedding_llm):

@@ -16,7 +16,7 @@ from Utils.output_utils import cell_formatting
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:Config):
     logger.info(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, '*'))
@@ -125,14 +125,14 @@ def write_ai_report_google_sheet(data, config:Config):
         if header_data[0] in current_headers:
             start_col_for_data = current_headers.index(header_data[0]) + 1
             # Headers found, use existing column
-            logger.info(f"Found existing new headers ({header_data}) starting at column {start_col_for_data}.")
+            logger.debug(f"Found existing new headers ({header_data}) starting at column {start_col_for_data}.")
         else:
             # Insert the headers in the next empty columns
             cell_range = gspread.utils.rowcol_to_a1(1, num_cols + 1) + ":" + gspread.utils.rowcol_to_a1(1, num_cols + len(header_data))
             sheet.update([header_data], cell_range)
             start_col_for_data = num_cols + 1
             sheet.format(cell_range, {'textFormat': {'bold': True}})
-            logger.info(f"New headers ({header_data}) written successfully.")
+            logger.debug(f"New headers ({header_data}) written successfully.")
 
         start_row_for_data = 2 # Assuming data starts from the second row (after headers)
         batch_update_data = []

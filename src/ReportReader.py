@@ -9,7 +9,7 @@ from Utils.file_utils import get_google_sheet
 from common.config import Config
 from dto.Issue import Issue
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def read_sast_report(config:Config) -> List[Issue]:
     logger.info(f"Reading => {config.INPUT_REPORT_FILE_PATH}")

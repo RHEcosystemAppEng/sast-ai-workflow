@@ -9,7 +9,7 @@ from Utils.metrics_utils import (
 )
 from common.config import Config
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 class EvaluationSummary:
     """

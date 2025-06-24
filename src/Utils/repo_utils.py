@@ -5,7 +5,7 @@ import logging
 
 from typing import Tuple
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def download_repo(repo_url: str) -> str:
     try:

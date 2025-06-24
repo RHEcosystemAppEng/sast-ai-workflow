@@ -11,7 +11,7 @@ from common.config import Config
 from Utils.repo_utils import get_repo_and_branch_from_url, download_repo
 from Utils.file_utils import load_json_file
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class CRepoHandler:

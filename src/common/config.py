@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from common.constants import *
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 class Config:
     def __init__(self):

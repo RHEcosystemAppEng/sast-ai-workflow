@@ -1,5 +1,6 @@
 import os
 import sys
+from Utils.log_utils import setup_logging
 import logging
 
 from tornado.gen import sleep
@@ -20,8 +21,9 @@ from handlers.repo_handler_factory import repo_handler_factory
 from stage.filter_known_issues import capture_known_issues
 
 
-logging.basicConfig(level=getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper()), format='%(asctime)s - %(levelname)s: %(message)s')
-logger = logging.getLogger()
+# Setup logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
 def main():
     config = Config()
@@ -147,7 +149,7 @@ def main():
 
             
             except Exception as e:
-                logger.error(f"{RED}An error occurred while processing issue ID {issue.id}.{RESET}\nError is: {e}")
+                logger.error(f"An error occurred while processing issue ID {issue.id}.\nError is: {e}")
                 if not llm_response:
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
