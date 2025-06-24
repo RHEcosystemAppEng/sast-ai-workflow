@@ -31,6 +31,31 @@ logger = logging.getLogger(__name__)
 
 
 class Config:
+    # Type hints for dynamically loaded attributes
+    REPO_REMOTE_URL: str
+    DOWNLOAD_REPO: bool
+    REPO_LOCAL_PATH: str
+    CONFIG_H_PATH: str
+    COMPILE_COMMANDS_JSON_PATH: str
+    LIBCLANG_PATH: str
+    PROJECT_NAME: str
+    PROJECT_VERSION: str
+    LLM_URL: str
+    LLM_MODEL_NAME: str
+    EMBEDDINGS_LLM_URL: str
+    EMBEDDINGS_LLM_MODEL_NAME: str
+    INPUT_REPORT_FILE_PATH: str
+    KNOWN_FALSE_POSITIVE_FILE_PATH: str
+    OUTPUT_FILE_PATH: str
+    AGGREGATE_RESULTS_G_SHEET: str
+    HUMAN_VERIFIED_FILE_PATH: str
+    USE_KNOWN_FALSE_POSITIVE_FILE: bool
+    CALCULATE_METRICS: bool
+    RUN_WITH_CRITIQUE: bool
+    CRITIQUE_LLM_URL: str
+    CRITIQUE_LLM_MODEL_NAME: str
+    SERVICE_ACCOUNT_JSON_PATH: str
+    
     def __init__(self):
         self.load_config()
         self.print_config()
@@ -90,16 +115,10 @@ class Config:
             EMBEDDINGS_LLM_URL,
             EMBEDDINGS_LLM_MODEL_NAME,
             INPUT_REPORT_FILE_PATH,
-            KNOWN_FALSE_POSITIVE_FILE_PATH,
             OUTPUT_FILE_PATH,
         }
-        required_cfg_files = {INPUT_REPORT_FILE_PATH, KNOWN_FALSE_POSITIVE_FILE_PATH}
-
-        for var in required_cfg_vars:
-            value = self.__dict__[var]
-            if not value:
-                raise ValueError(f"Configuration variable '{var}' is not set or is empty.")
-
+        required_cfg_files = {INPUT_REPORT_FILE_PATH}
+            
         # Check if DOWNLOAD_REPO is True then validate a REPO URL was provided
         if self.DOWNLOAD_REPO is True:
             required_cfg_vars.add(REPO_REMOTE_URL)
@@ -107,6 +126,12 @@ class Config:
         # make sure REPO_LOCAL_PATH exists, in the case DOWNLOAD_REPO is set to False
         else:
             required_cfg_files.add(REPO_LOCAL_PATH)
+
+        # Validate that required configuration variables are set
+        for var in required_cfg_vars:
+            value = self.__dict__[var]
+            if not value:
+                raise ValueError(f"Configuration variable '{var}' is not set or is empty.")
 
         # Check if CONFIG_H_PATH is accessible if it was provided
         if self.CONFIG_H_PATH:
@@ -124,6 +149,9 @@ class Config:
         # Ensure service account JSON exists if write aggregate resutls to Google Sheet
         if self.AGGREGATE_RESULTS_G_SHEET:
             required_cfg_files.add(SERVICE_ACCOUNT_JSON_PATH)
+
+        if self.USE_KNOWN_FALSE_POSITIVE_FILE:
+            required_cfg_files.add(KNOWN_FALSE_POSITIVE_FILE_PATH)
 
         # Validate that input files exist and are accessible
         for var in required_cfg_files:
