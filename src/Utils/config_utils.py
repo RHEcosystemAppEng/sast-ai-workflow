@@ -2,7 +2,7 @@ import os
 import yaml
 import logging
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def print_config(config):
     logger.info("".center(80, '-'))

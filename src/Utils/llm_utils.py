@@ -10,7 +10,7 @@ from langchain.output_parsers.prompts import NAIVE_FIX
 from langchain_core.prompts.prompt import PromptTemplate
 from langchain_core.runnables import RunnableSerializable
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 ERROR_MESSAGE = ("Parsing failed after {max_retries} retries: {exception}"

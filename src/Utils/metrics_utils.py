@@ -6,7 +6,7 @@ from decimal import Decimal
 from common.config import Config
 from common.constants import YES_OPTIONS
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def count_predicted_values(data):
     # Positives = real isse

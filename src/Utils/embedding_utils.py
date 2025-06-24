@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from Utils.file_utils import read_all_source_code_files
 from common.constants import *
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def generate_code_embeddings(llm_service):
     if os.path.exists("./../faiss_index/index.faiss"):
@@ -41,7 +41,7 @@ def check_text_size_before_embedding(text: str, model_name: str):
     
     if token_count > max_tokens:
         logger.warning(
-            f"{RED}WARNING: Text length is {token_count} tokens, exceeding the max allowed ({max_tokens}). {RESET}"
+            f"WARNING: Text length is {token_count} tokens, exceeding the max allowed ({max_tokens}). "
             f"\nFirst 20 words of the text: {text.split()[:20]}"
         )
     # else:

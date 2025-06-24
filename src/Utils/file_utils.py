@@ -16,7 +16,7 @@ from Utils.log_utils import log_attempt_number
 from common.config import Config
 from common.constants import ALL_VALID_OPTIONS
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def read_source_code_file(path):
     with open(path, "r", encoding='utf-8') as f:

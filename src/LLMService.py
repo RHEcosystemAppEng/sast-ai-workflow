@@ -21,7 +21,7 @@ from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, Justificati
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 def _format_context_from_response(resp):
     context_list = []
@@ -164,7 +164,7 @@ class LLMService:
                                                          'filter': {'issue_type': issue.issue_type}})
         resp = retriever.invoke(issue.trace)
         examples_context_str= _format_context_from_response(resp)
-        logger.info(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
+        logger.debug(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
         if not examples_context_str:
             # logger.info(f"Not find any relevant context for issue id {issue.id}")
             response = FilterResponse(
@@ -186,8 +186,8 @@ class LLMService:
                 }
                 | prompt
         )
-        # actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
-        # logger.info(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
+        actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
+        logger.debug(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
         try:
             response = robust_structured_output(llm=self.main_llm, schema=FilterResponse, input=issue.trace, prompt_chain=pattern_matching_prompt_chain, max_retries=self.max_retry_limit)
         except Exception as e:
@@ -310,7 +310,7 @@ class LLMService:
                 | analysis_prompt
         )
         actual_prompt = analysis_prompt_chain.invoke(user_input)
-        # logger.info(f"Analysis prompt:   {actual_prompt.to_string()}")
+        logger.debug(f"Analysis prompt:   {actual_prompt.to_string()}")
 
         try:
             analysis_response = robust_structured_output(llm=self.main_llm,
@@ -323,7 +323,7 @@ class LLMService:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
             raise e
 
-        # logger.info(f"{analysis_response=}")
+        logger.debug(f"{analysis_response=}")
         return actual_prompt, analysis_response
 
 
@@ -456,7 +456,7 @@ class LLMService:
                                                                 prompt_chain=recommendation_prompt_chain,
                                                                 max_retries=self.max_retry_limit
                                                                 )
-            # logger.info(f"recommendations_response: {recommendations_response=}")
+            logger.debug(f"recommendations_response: {recommendations_response=}")
 
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
@@ -517,7 +517,7 @@ class LLMService:
                                                          prompt_chain=evaluation_prompt_chain,
                                                          max_retries=self.max_retry_limit
                                                         )
-            logger.info(f"{critique_response=}")
+            logger.debug(f"{critique_response=}")
 
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
@@ -539,7 +539,7 @@ class LLMService:
         metadata_list, error_trace_list = self._extract_metadata_from_known_false_positives(text_data)
 
         if not error_trace_list:
-            logger.info(f"{RED}Note: No known issues were found. The investigation will be based solely on the source code.{RESET}")
+            logger.info(f"Note: No known issues were found. The investigation will be based solely on the source code.")
             # Create an empty FAISS index
             # The dimension of the index must match the embedding model's output dimension.
             # We get this by embedding a dummy text.
