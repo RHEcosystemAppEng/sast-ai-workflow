@@ -1,9 +1,12 @@
 import os
 import yaml
+import logging
 
 from dotenv import load_dotenv
 
 from common.constants import *
+
+logger = logging.getLogger(__name__)
 
 class Config:
     def __init__(self):
@@ -26,7 +29,7 @@ class Config:
         # Load Main LLM details in case critique details not provided
         if config.get(RUN_WITH_CRITIQUE):
             if not config.get(CRITIQUE_LLM_URL) or not os.getenv(CRITIQUE_LLM_API_KEY):
-                print("Critique model details not provided - using main LLM details instead")
+                logger.info("Critique model details not provided - using main LLM details instead")
                 config[CRITIQUE_LLM_URL] = config.get(LLM_URL)
                 self.CRITIQUE_LLM_API_KEY = os.getenv(LLM_API_KEY)
 
@@ -44,13 +47,13 @@ class Config:
 
     def print_config(self):
         masked_vars = [LLM_API_KEY, EMBEDDINGS_LLM_API_KEY]
-        print(" Process started! ".center(80, '-'))
-        print("".center(80, '-'))
+        logger.info(" Process started! ".center(80, '-'))
+        logger.info("".center(80, '-'))
         for key, value in self.__dict__.items():
             if key in masked_vars:
                 value = "******"
-            print(f"{key}={value}")
-        print("".center(80, '-'))
+            logger.info(f"{key}={value}")
+        logger.info("".center(80, '-'))
 
     def validate_configurations(self):
         required_cfg_vars = {
@@ -118,4 +121,4 @@ class Config:
             raise ValueError(f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True.")
 
 
-        print("All required configuration variables and files are valid and accessible.\n")
+        logger.info("All required configuration variables and files are valid and accessible.\n")

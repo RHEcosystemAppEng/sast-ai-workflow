@@ -1,9 +1,12 @@
 import math
+import logging
+
 from decimal import Decimal
 
 from common.config import Config
 from common.constants import YES_OPTIONS
 
+logger = logging.getLogger(__name__)
 
 def count_predicted_values(data):
     # Positives = real isse
@@ -25,7 +28,7 @@ def count_actual_values(data, ground_truth):
     
     for (issue_id, _, _) in data:
         if not issue_id in ground_truth:
-            print(f"WARNING: Issue ID {issue_id} does not exist in the human verified excel sheet")
+            logger.warning(f"WARNING: Issue ID {issue_id} does not exist in the human verified excel sheet")
         elif ground_truth[issue_id].lower() in YES_OPTIONS:
             negatives.add(issue_id)
         else:

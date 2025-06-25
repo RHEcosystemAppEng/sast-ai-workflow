@@ -3,6 +3,8 @@ import glob
 import pandas as pd
 import gspread
 import json
+import logging
+
 from oauth2client.service_account import ServiceAccountCredentials
 from tenacity import retry_if_exception_type, stop_after_attempt, wait_fixed
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
@@ -14,6 +16,7 @@ from Utils.log_utils import log_attempt_number
 from common.config import Config
 from common.constants import ALL_VALID_OPTIONS
 
+logger = logging.getLogger(__name__)
 
 def read_source_code_file(path):
     with open(path, "r", encoding='utf-8') as f:
@@ -56,7 +59,7 @@ def get_human_verified_results_local_excel(filename):
         )
     
     ground_truth = dict(zip(df[expected_issue_id], df[expected_false_positive]))
-    print(f"Successfully loaded ground truth from {filename}")
+    logger.info(f"Successfully loaded ground truth from {filename}")
     return ground_truth
 
 def get_human_verified_results_google_sheet(service_account_file_path, google_sheet_url):
@@ -80,14 +83,14 @@ def get_human_verified_results_google_sheet(service_account_file_path, google_sh
         for idx, row in enumerate(rows, start=1): # start=1 to get def1, def2, ...
             is_false_positive = row.get("False Positive?", "").strip().lower()
             if is_false_positive.lower() not in ALL_VALID_OPTIONS:
-                print(f"Warning: def{idx} has invalid value '{is_false_positive}' in 'False Positive?' column.")
+                logger.warning(f"Warning: def{idx} has invalid value '{is_false_positive}' in 'False Positive?' column.")
 
             ground_truth[f"def{idx}"] = is_false_positive
 
     else:
         ground_truth = None
     
-    print(f"Successfully loaded ground truth from {google_sheet_url}")
+    logger.info(f"Successfully loaded ground truth from {google_sheet_url}")
     return ground_truth
 
 def read_all_source_code_files():
@@ -101,7 +104,7 @@ def read_all_source_code_files():
             count = count + 1
             for k in read_source_code_file(src_filename):
                 res_list.append(k.page_content)  # adding source code file as text to embeddings
-    print(f"Total files: {count}")
+    logger.info(f"Total files: {count}")
     return res_list
 
 def read_answer_template_file(path):
@@ -134,7 +137,7 @@ def get_google_sheet(sheet_url:str, service_account_json_path:str, ignore_error:
         sheet = client.open_by_url(sheet_url).sheet1  # Assumes the data is in the first sheet
         return sheet
     except Exception as e:
-        print(f"Failed to authenticate or open Google Sheet ({sheet_url}).\nError: {e}")
+        logger.error(f"Failed to authenticate or open Google Sheet ({sheet_url}).\nError: {e}")
         if ignore_error:
             return None
         raise e

@@ -2,6 +2,7 @@ import re
 import os
 import clang.cindex
 import subprocess
+import logging
 
 from collections import defaultdict
 from clang.cindex import TranslationUnit, CursorKind, Cursor
@@ -10,6 +11,7 @@ from common.config import Config
 from Utils.repo_utils import get_repo_and_branch_from_url, download_repo
 from Utils.file_utils import load_json_file
 
+logger = logging.getLogger(__name__)
 
 
 class CRepoHandler:
@@ -36,7 +38,7 @@ class CRepoHandler:
             # Ensure the trailing slash is present
             self._report_file_prefix = os.path.join(self._report_file_prefix, '')
             self.repo_local_path = config.REPO_LOCAL_PATH
-            print("Skipping github repo download as per configuration.")
+            logger.debug("Skipping github repo download as per configuration.")
 
         # This list contains specific arguments to be passed to the Clang compiler.
         # These arguments are used to configure the parsing and analysis of the source code.
@@ -83,7 +85,7 @@ class CRepoHandler:
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
-                print(f"Skipping missing file: {local_file_path}")
+                logger.debug(f"Skipping missing file: {local_file_path}")
                 continue
             
             source_code = self.get_source_code_by_line_number(local_file_path, int(line_number))
@@ -95,7 +97,7 @@ class CRepoHandler:
     def get_source_code_by_line_number(self, file_path: str, line: int) -> str:
         """Extract the full source code section (function, macro, or class) including the specified line in the source file"""
         if not os.path.exists(file_path):
-            print(f"File not found: {file_path}")
+            logger.error(f"File not found: {file_path}")
             return None
 
         args = self._get_clang_args_from_file(file_path)
@@ -133,7 +135,7 @@ class CRepoHandler:
 
         if source_code is None:
             # If the interested source code line number is not inside a code block, returning 100 lines before and after
-            print(f"No function found in {file_path} near line {line}")
+            logger.info(f"No function found in {file_path} near line {line}")
             with open(file_path, "r") as f:
                 lines = f.readlines()
                 source_code = "".join(lines[min(0, line - 100):max(line + 100, len(lines))])
@@ -159,7 +161,7 @@ class CRepoHandler:
             try:
                 source_code = self.extract_definition_from_source_code(expressions_list, source_code_path)
             except Exception as e:
-                print(f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}")
+                logger.error(f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}")
             if source_code:
                 for file_path, exps_dict in source_code.items():
                     joined_exps = "\n\n".join([exp for exp in exps_dict.values()])
@@ -193,9 +195,9 @@ class CRepoHandler:
                             source_code_dict[file_path].update({cursor.spelling: self.get_source_code_by_line_number(file_path=file_path, line=int(line_number)+1)})
 
             for diag in translation_unit.diagnostics:
-                print(f"[{diag.severity}] {diag.spelling}")
+                logger.info(f"[{diag.severity}] {diag.spelling}")
         except Exception as e:
-            print(f"{e}, {type(e)}")
+            logger.error(f"{e}, {type(e)}")
 
         found_symbols = set([symbol for symbols in source_code_dict.values() for symbol in symbols.keys()])
         if len(found_symbols) < len(function_names):
@@ -207,7 +209,7 @@ class CRepoHandler:
                     source_code_dict[file_path].update({missing_symbol: self.get_source_code_by_line_number(file_path=file_path, line=int(line_number)+1)})
                     found_symbols.add(missing_symbol)
             missing_functions = set(function_names).difference(found_symbols)
-            print(f"Missing source code of {missing_functions}")
+            logger.info(f"Missing source code of {missing_functions}")
             
         return source_code_dict
     
@@ -265,7 +267,7 @@ class CRepoHandler:
                 shell=True
             )
         except Exception as e:
-            print(e)
+            logger.error(e)
 
         if result.stdout:
             file_path, code_line_number = result.stdout.strip().split(':')[:2]
@@ -286,7 +288,7 @@ class CRepoHandler:
                 check=False
             )
         except Exception as e:
-            print(e)
+            logger.error(e)
 
         if result.stdout:
             file_path, code_line_number = result.stdout.strip().split(':')[:2]

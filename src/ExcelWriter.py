@@ -1,5 +1,6 @@
 import sys
 import time
+import logging
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 import xlsxwriter
@@ -15,10 +16,10 @@ from Utils.output_utils import cell_formatting
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
 
-
+logger = logging.getLogger(__name__)
 
 def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:Config):
-    print(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, '*'))
+    logger.info(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, '*'))
     
     try:
         with tqdm(total=len(data), file=sys.stdout, desc="Writing to " + config.OUTPUT_FILE_PATH + ": ") as pbar:
@@ -36,7 +37,7 @@ def write_to_excel_file(data:list, evaluation_summary:EvaluationSummary, config:
             pbar.update(1)
             sleep(1)
     except Exception as e:
-        print("Error occurred during Excel writing:", e)
+        logger.error("Error occurred during Excel writing:", e)
 
 
 @retry(stop=stop_after_attempt(5),
@@ -78,13 +79,13 @@ def write_summary_results_to_aggregate_google_sheet(config:Config, evaluation_su
     try:
         # Append the row at the bottom of the sheet
         sheet.append_row(row_data, value_input_option='RAW')
-        print("Results added successfully to aggregate Google Sheet.")
+        logger.info("Results added successfully to aggregate Google Sheet.")
 
     except gspread.exceptions.APIError as e:
-        print(f"An API error occurred while writing to {config.AGGREGATE_RESULTS_G_SHEET}.")
+        logger.error(f"An API error occurred while writing to {config.AGGREGATE_RESULTS_G_SHEET}.")
         raise e
     except Exception as e:
-        print(f"An unexpected error occurred while performing sheet operations for {config.AGGREGATE_RESULTS_G_SHEET}.\nError: {e}")
+        logger.error(f"An unexpected error occurred while performing sheet operations for {config.AGGREGATE_RESULTS_G_SHEET}.\nError: {e}")
 
 
 @retry(stop=stop_after_attempt(5),
@@ -124,14 +125,14 @@ def write_ai_report_google_sheet(data, config:Config):
         if header_data[0] in current_headers:
             start_col_for_data = current_headers.index(header_data[0]) + 1
             # Headers found, use existing column
-            print(f"Found existing new headers ({header_data}) starting at column {start_col_for_data}.")
+            logger.debug(f"Found existing new headers ({header_data}) starting at column {start_col_for_data}.")
         else:
             # Insert the headers in the next empty columns
             cell_range = gspread.utils.rowcol_to_a1(1, num_cols + 1) + ":" + gspread.utils.rowcol_to_a1(1, num_cols + len(header_data))
             sheet.update([header_data], cell_range)
             start_col_for_data = num_cols + 1
             sheet.format(cell_range, {'textFormat': {'bold': True}})
-            print(f"New headers ({header_data}) written successfully.")
+            logger.debug(f"New headers ({header_data}) written successfully.")
 
         start_row_for_data = 2 # Assuming data starts from the second row (after headers)
         batch_update_data = []
@@ -148,13 +149,13 @@ def write_ai_report_google_sheet(data, config:Config):
             # will fill out from that starting cell.
             sheet.update(batch_update_data, f'{gspread.utils.rowcol_to_a1(start_row_for_data, start_col_for_data)}')
 
-        print("Results added successfully to Google Sheet.")
+        logger.info("Results added successfully to Google Sheet.")
 
     except gspread.exceptions.APIError as e:
-        print(f"An API error occurred while writing to {config.INPUT_REPORT_FILE_PATH}.")
+        logger.error(f"An API error occurred while writing to {config.INPUT_REPORT_FILE_PATH}.")
         raise e
     except Exception as e:
-        print(f"An unexpected error occurred while performing sheet operations for ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
+        logger.error(f"An unexpected error occurred while performing sheet operations for ({config.INPUT_REPORT_FILE_PATH}).\nError: {e}")
 
 
 def write_ai_report_worksheet(data, workbook, config:Config):

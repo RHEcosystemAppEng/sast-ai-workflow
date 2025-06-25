@@ -1,6 +1,7 @@
 import os
 import faiss
 import httpx
+import logging
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
@@ -20,6 +21,7 @@ from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, Justificati
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
+logger = logging.getLogger(__name__)
 
 def _format_context_from_response(resp):
     context_list = []
@@ -162,9 +164,9 @@ class LLMService:
                                                          'filter': {'issue_type': issue.issue_type}})
         resp = retriever.invoke(issue.trace)
         examples_context_str= _format_context_from_response(resp)
-        print(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
+        logger.debug(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
         if not examples_context_str:
-            # print(f"Not find any relevant context for issue id {issue.id}")
+            # logger.info(f"Not find any relevant context for issue id {issue.id}")
             response = FilterResponse(
                                     equal_error_trace=[],
                                     justifications=(f"No identical error trace found in the provided context. "
@@ -184,12 +186,12 @@ class LLMService:
                 }
                 | prompt
         )
-        # actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
-        # print(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
+        actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
+        logger.debug(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
         try:
             response = robust_structured_output(llm=self.main_llm, schema=FilterResponse, input=issue.trace, prompt_chain=pattern_matching_prompt_chain, max_retries=self.max_retry_limit)
         except Exception as e:
-            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="filter_known_error", issue_id=issue.id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="filter_known_error", issue_id=issue.id, error=e))
             response = FilterResponse(
                                     equal_error_trace=[],
                                     justifications="An error occurred twice during model output parsing. Defaulting to: NO",
@@ -230,7 +232,7 @@ class LLMService:
                                                      )
         except Exception as e:
             failed_message = "Failed during analyze process"
-            print(f"{failed_message}, set default values for the fields it failed on. Error is: {e}" )
+            logger.error(f"{failed_message}, set default values for the fields it failed on. Error is: {e}" )
             llm_analysis_response = AnalysisResponse(investigation_result="NOT A FALSE POSITIVE" if analysis_response is None else analysis_response.investigation_result,
                                                      is_final="TRUE" if recommendations_response is None else recommendations_response.is_final,
                                                      justifications=FALLBACK_JUSTIFICATION_MESSAGE if analysis_response is None else analysis_response.justifications,
@@ -246,7 +248,7 @@ class LLMService:
         try:
             critique_response = self._evaluate(analysis_prompt.to_string(), llm_analysis_response, issue.id) if self.run_with_critique and analysis_response is not None else ""
         except Exception as e:
-            print(f"Failed during evaluation process, set default values. Error is: {e}" )
+            logger.error(f"Failed during evaluation process, set default values. Error is: {e}" )
             critique_response = EvaluationResponse(critique_result=analysis_response.investigation_result,
                                                    justifications=["Failed during evaluation process. Defaulting to first analysis_response"]
                                                    )
@@ -308,7 +310,7 @@ class LLMService:
                 | analysis_prompt
         )
         actual_prompt = analysis_prompt_chain.invoke(user_input)
-        # print(f"Analysis prompt:   {actual_prompt.to_string()}")
+        logger.debug(f"Analysis prompt:   {actual_prompt.to_string()}")
 
         try:
             analysis_response = robust_structured_output(llm=self.main_llm,
@@ -318,10 +320,10 @@ class LLMService:
                                                 max_retries=self.max_retry_limit
                                                 )
         except Exception as e:
-            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_analyze", issue_id=issue.id, error=e))
             raise e
 
-        # print(f"{analysis_response=}")
+        logger.debug(f"{analysis_response=}")
         return actual_prompt, analysis_response
 
 
@@ -388,7 +390,7 @@ class LLMService:
                                                            max_retries=self.max_retry_limit
                                                            )
         except Exception as e:
-            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_summarize_justification", issue_id=issue_id, error=e))
             raise e
 
         return short_justification
@@ -454,10 +456,10 @@ class LLMService:
                                                                 prompt_chain=recommendation_prompt_chain,
                                                                 max_retries=self.max_retry_limit
                                                                 )
-            # print(f"recommendations_response: {recommendations_response=}")
+            logger.debug(f"recommendations_response: {recommendations_response=}")
 
         except Exception as e:
-            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_recommand", issue_id=issue.id, error=e))
             raise e
 
         return recommendations_response
@@ -515,10 +517,10 @@ class LLMService:
                                                          prompt_chain=evaluation_prompt_chain,
                                                          max_retries=self.max_retry_limit
                                                         )
-            print(f"{critique_response=}")
+            logger.debug(f"{critique_response=}")
 
         except Exception as e:
-            print(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(max_retry_limit=self.max_retry_limit, function_name="_evaluate", issue_id=issue_id, error=e))
             raise e
 
         return critique_response
@@ -537,7 +539,7 @@ class LLMService:
         metadata_list, error_trace_list = self._extract_metadata_from_known_false_positives(text_data)
 
         if not error_trace_list:
-            print(f"{RED}Note: No known issues were found. The investigation will be based solely on the source code.{RESET}")
+            logger.info(f"Note: No known issues were found. The investigation will be based solely on the source code.")
             # Create an empty FAISS index
             # The dimension of the index must match the embedding model's output dimension.
             # We get this by embedding a dummy text.
@@ -580,7 +582,7 @@ class LLMService:
                 # Add the item without the last line
                 error_trace_list.append(error_trace)
             except Exception as e:
-                print(f"Error occurred during process this known issue: {item}\nError: {e}")
+                logger.error(f"Error occurred during process this known issue: {item}\nError: {e}")
                 raise e
 
         return metadata_list, error_trace_list

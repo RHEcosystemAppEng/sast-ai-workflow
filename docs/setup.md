@@ -170,6 +170,52 @@ and the instructions provided to the main LLM.
 - **Optional Configuration**:
   - `USE_CRITIQUE_AS_FINAL_RESULTS`: Set to `true` to use critique results for final metrics calculation.
 
+### Logging Configuration
+
+You can configure logging behavior using environment variables:
+
+#### Log Level
+Set the logging level with `LOG_LEVEL`. Possible values are:
+
+- `DEBUG` - Shows all messages (most verbose)
+- `INFO` - Shows informational, warning, error, and critical messages (default)
+- `WARNING` - Shows warning, error, and critical messages only
+- `ERROR` - Shows error and critical messages only  
+- `CRITICAL` - Shows only critical messages (least verbose)
+
+#### File Logging (Optional)
+Enable file logging by setting `LOG_FILE` to your desired log file path.
+
+#### Module-Specific Debug Logging
+You can enable DEBUG level logging for specific modules while keeping others at INFO level using `DEBUG_MODULES`. Use comma-separated values for multiple modules.
+
+#### Configuration Examples
+
+```bash
+# Basic usage - INFO level, console only
+LOG_LEVEL=INFO
+
+# Debug everything
+LOG_LEVEL=DEBUG
+
+# INFO level with file logging
+LOG_LEVEL=INFO
+LOG_FILE=app.log
+
+# INFO level globally, but DEBUG for specific modules
+LOG_LEVEL=INFO
+DEBUG_MODULES=llm_utils
+
+# Multiple modules with DEBUG, others at INFO, with file logging
+LOG_LEVEL=INFO
+DEBUG_MODULES=llm_utils,LLMService
+LOG_FILE=debug.log
+```
+
+#### Output Format
+- **Console**: Colored output for better readability during development
+- **File**: Plain text without colors for log analysis tools and production use
+
 ## Usage
 
 Run the main workflow by executing:

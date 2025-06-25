@@ -1,9 +1,12 @@
+import logging
+
 from typing import List
 
 from LLMService import LLMService
 from Utils.file_utils import read_known_errors_file
 from common.config import Config
 
+logger = logging.getLogger(__name__)
 
 def capture_known_issues(main_process: LLMService, issue_list: List, config: Config):
     """
@@ -24,16 +27,16 @@ def capture_known_issues(main_process: LLMService, issue_list: List, config: Con
     for issue in issue_list:
         filter_response, context = main_process.filter_known_error(false_positive_db, issue)
         context_dict[issue.id] = convert_similar_issues_to_context_string(context)
-        print(f"Response of filter_known_error: {filter_response}")
+        logger.debug(f"Response of filter_known_error: {filter_response}")
 
         result_value = filter_response.result.strip().lower()
-        print(f"{issue.id} Is known false positive? {result_value}")
+        logger.debug(f"{issue.id} Is known false positive? {result_value}")
 
         if "yes" in result_value:
             already_seen_dict[issue.id] = filter_response 
-            print(f"LLM found {issue.id} error trace inside known false positives list")
+            logger.info(f"LLM found {issue.id} error trace inside known false positives list")
 
-    print(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
+    logger.info(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
     return already_seen_dict, context_dict
 
 def convert_similar_issues_to_context_string(similar_known_issues_list: list) -> str:
