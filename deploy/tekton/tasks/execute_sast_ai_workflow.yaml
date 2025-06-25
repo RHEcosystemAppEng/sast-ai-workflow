@@ -70,7 +70,7 @@ spec:
             secretKeyRef:
               name: sast-ai-default-llm-creds
               key: embeddings_llm_api_key
-                - name: LLM_MODEL_NAME
+        - name: LLM_MODEL_NAME
           valueFrom:
             secretKeyRef:
               name: sast-ai-default-llm-creds
