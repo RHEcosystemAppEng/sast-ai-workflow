@@ -15,7 +15,7 @@ from Utils.llm_utils import robust_structured_output
 from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, RED_ERROR_FOR_LLM_REQUEST, RESET
+from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, RED_ERROR_FOR_LLM_REQUEST
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JustificationsSummary, RecommendationsResponse, EvaluationResponse
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
