@@ -35,6 +35,8 @@ class Config:
         self.TOKENIZERS_PARALLELISM = False
         self.LLM_API_KEY = os.getenv(LLM_API_KEY)
         self.EMBEDDINGS_LLM_API_KEY = os.getenv(EMBEDDINGS_LLM_API_KEY)
+        self.LLM_MODEL_NAME = os.getenv(LLM_MODEL_NAME)
+        self.EMBEDDINGS_LLM_MODEL_NAME = os.getenv(EMBEDDINGS_LLM_MODEL_NAME)
         self._convert_str_to_bool()
 
     def _convert_str_to_bool(self):
