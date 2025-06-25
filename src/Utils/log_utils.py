@@ -39,10 +39,11 @@ def setup_logging():
     """Setup logging with console colors and optional file logging"""
     log_level = getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper())
     
-    # Create logger
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger()
     logger.setLevel(log_level)
-    logger.handlers.clear()  # Clear existing handlers
+    
+    # Clear existing handlers to avoid duplicates
+    logger.handlers.clear()
     
     # Console handler with colors
     console_handler = logging.StreamHandler(sys.stdout)
@@ -69,11 +70,9 @@ def setup_logging():
     
     return logger
 
-# Get logger instance
-logger = logging.getLogger(__name__)
-
 def log_attempt_number(retry_state):
     """Log the attempt number and the exception that caused the retry."""
+    logger = logging.getLogger(__name__)
     logger.warning(
         f"Retrying: "
         f"Attempt number {retry_state.attempt_number} "
