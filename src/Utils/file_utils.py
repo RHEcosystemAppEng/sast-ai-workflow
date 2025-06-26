@@ -14,7 +14,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 
 from Utils.log_utils import log_attempt_number
 from common.config import Config
-from common.constants import ALL_VALID_OPTIONS
+from common.constants import ALL_VALID_OPTIONS, KNOWN_FALSE_POSITIVE_FILE_SEPARATOR
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def read_source_code_file(path):
 def read_known_errors_file(path):
     with open(path, "r", encoding='utf-8') as f:
         plain_text = f.read()
-        doc_list = [item.strip() for item in plain_text.split("\n\n") if item.strip()!='']
+        doc_list = [item.strip() for item in plain_text.split(KNOWN_FALSE_POSITIVE_FILE_SEPARATOR) if item.strip()!='']
         return doc_list
 
 def get_human_verified_results(config:Config):
