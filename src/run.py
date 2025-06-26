@@ -41,7 +41,7 @@ def main():
     with tqdm(
         total=len(issue_list), file=sys.stdout, desc="Full report scanning progress: "
     ) as pbar:
-        # selected_issue_set = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
+        # selected_issue_list = {  # WE SHOULD REMOVE THIS WHEN WE RUN ENTIRE REPORT!
         # "def1",
         # "def2",
         # "def3",
@@ -97,14 +97,14 @@ def main():
         if config.USE_KNOWN_FALSE_POSITIVE_FILE:
             already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(
                 llm_service,
-                #   set(e for e in issue_set if e.id in selected_issue_set),
+                # [e for e in issue_list if e.id in selected_issue_list],
                 # # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
                 issue_list,  # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
                 config,
             )
 
         for issue in issue_list:
-            # if issue.id not in selected_issue_set:
+            # if issue.id not in selected_issue_list:
             # # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
             #     continue
 

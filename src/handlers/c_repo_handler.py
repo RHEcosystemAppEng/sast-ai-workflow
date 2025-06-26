@@ -115,7 +115,7 @@ class CRepoHandler:
         including the specified line in the source file"""
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
-            return None
+            return ""
 
         args = self._get_clang_args_from_file(file_path)
         translation_unit = self.index.parse(
@@ -147,7 +147,7 @@ class CRepoHandler:
                         lines = f.readlines()
                         numbered_lines = [
                             f"{i}| {line}"
-                            for i, line in enumerate(lines[start_line - 1 : end_line, start=start_line])
+                            for i, line in enumerate(lines[start_line - 1 : end_line], start=start_line)
                         ]
                         source_code = "".join(numbered_lines)
 
@@ -178,16 +178,16 @@ class CRepoHandler:
             path = path.split(":")[0]
             return path
 
-        source_code_dict = defaultdict(list)
+        expressions_by_path = defaultdict(set)
         for instruction in instructions:
             path = get_path(instruction.referring_source_code_path)
             if instruction.expression_name not in self.all_found_symbols:
-                source_code_dict[path].append(instruction.expression_name)
+                expressions_by_path[path].add(instruction.expression_name)
             else:
                 print(f"Skipping {instruction.expression_name} - the context contains the code already.")
 
         missing_source_codes = ""
-        for source_code_path, expressions_list in source_code_dict.items():
+        for source_code_path, expressions_list in expressions_by_path.items():
             source_code = ""
             try:
                 found_symbols, source_code = self.extract_definition_from_source_code(
