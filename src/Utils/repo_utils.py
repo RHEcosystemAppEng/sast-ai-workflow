@@ -1,19 +1,20 @@
-import git
-import re
-import os
 import logging
-
+import os
+import re
 from typing import Tuple
 
+import git
+
 logger = logging.getLogger(__name__)
+
 
 def download_repo(repo_url: str) -> str:
     try:
         repo_url, branch_or_tag = get_repo_and_branch_from_url(repo_url)
 
         # Extract the project name (the last part before "/tree/")
-        repo_name = repo_url.rstrip('/').split('/')[-1]
-        if repo_name.endswith('.git'):
+        repo_name = repo_url.rstrip("/").split("/")[-1]
+        if repo_name.endswith(".git"):
             repo_name = repo_name[:-4]
 
         # Set the destination path to the current directory
@@ -40,7 +41,7 @@ def get_repo_and_branch_from_url(repo_url: str) -> Tuple[str, str]:
     # Identify if the URL has a branch or tag with "/tree/"
     if "/tree/" in repo_url:
         # Split URL to separate repository URL and branch/tag
-        repo_url, branch_or_tag = re.split(r'/tree/', repo_url, maxsplit=1)
+        repo_url, branch_or_tag = re.split(r"/tree/", repo_url, maxsplit=1)
     else:
         branch_or_tag = None
 
