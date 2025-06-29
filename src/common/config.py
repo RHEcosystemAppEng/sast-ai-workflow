@@ -1,12 +1,34 @@
-import os
-import yaml
 import logging
+import os
 
+import yaml
 from dotenv import load_dotenv
 
-from common.constants import *
+from common.constants import (
+    CONFIG_H_PATH,
+    CRITIQUE_LLM_API_KEY,
+    CRITIQUE_LLM_MODEL_NAME,
+    CRITIQUE_LLM_URL,
+    EMBEDDINGS_LLM_API_KEY,
+    EMBEDDINGS_LLM_MODEL_NAME,
+    EMBEDDINGS_LLM_URL,
+    HUMAN_VERIFIED_FILE_PATH,
+    INPUT_REPORT_FILE_PATH,
+    KNOWN_FALSE_POSITIVE_FILE_PATH,
+    LLM_API_KEY,
+    LLM_MODEL_NAME,
+    LLM_URL,
+    OUTPUT_FILE_PATH,
+    PROJECT_NAME,
+    PROJECT_VERSION,
+    REPO_LOCAL_PATH,
+    REPO_REMOTE_URL,
+    RUN_WITH_CRITIQUE,
+    SERVICE_ACCOUNT_JSON_PATH,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class Config:
     def __init__(self):
@@ -15,8 +37,10 @@ class Config:
         self.validate_configurations()
 
     def load_config(self):
-        load_dotenv() # Take environment variables from .env
-        config_path = os.path.join(os.path.dirname(__file__), "../..", "config", "default_config.yaml")
+        load_dotenv()  # Take environment variables from .env
+        config_path = os.path.join(
+            os.path.dirname(__file__), "../..", "config", "default_config.yaml"
+        )
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
@@ -47,13 +71,13 @@ class Config:
 
     def print_config(self):
         masked_vars = [LLM_API_KEY, EMBEDDINGS_LLM_API_KEY]
-        logger.info(" Process started! ".center(80, '-'))
-        logger.info("".center(80, '-'))
+        logger.info(" Process started! ".center(80, "-"))
+        logger.info("".center(80, "-"))
         for key, value in self.__dict__.items():
             if key in masked_vars:
                 value = "******"
             logger.info(f"{key}={value}")
-        logger.info("".center(80, '-'))
+        logger.info("".center(80, "-"))
 
     def validate_configurations(self):
         required_cfg_vars = {
@@ -67,20 +91,17 @@ class Config:
             KNOWN_FALSE_POSITIVE_FILE_PATH,
             OUTPUT_FILE_PATH,
         }
-        required_cfg_files = {
-            INPUT_REPORT_FILE_PATH,
-            KNOWN_FALSE_POSITIVE_FILE_PATH
-        }
+        required_cfg_files = {INPUT_REPORT_FILE_PATH, KNOWN_FALSE_POSITIVE_FILE_PATH}
 
         for var in required_cfg_vars:
             value = self.__dict__[var]
             if not value:
                 raise ValueError(f"Configuration variable '{var}' is not set or is empty.")
-            
+
         # Check if DOWNLOAD_REPO is True then validate a REPO URL was provided
-        if self.DOWNLOAD_REPO == True:
+        if self.DOWNLOAD_REPO is True:
             required_cfg_vars.add(REPO_REMOTE_URL)
-        
+
         # make sure REPO_LOCAL_PATH exists, in the case DOWNLOAD_REPO is set to False
         else:
             required_cfg_files.add(REPO_LOCAL_PATH)
@@ -111,14 +132,17 @@ class Config:
         # Validate that environment variable LLM API key exist
         if not self.LLM_API_KEY:
             raise ValueError(f"Environment variable {LLM_API_KEY} is not set or is empty.")
-        
+
         # Validate that environment variable Embedding API key exist
         if not self.EMBEDDINGS_LLM_API_KEY:
-            raise ValueError(f"Environment variable {EMBEDDINGS_LLM_API_KEY} is not set or is empty.")
+            raise ValueError(
+                f"Environment variable {EMBEDDINGS_LLM_API_KEY} is not set or is empty."
+            )
 
         # Validate critique config if RUN_WITH_CRITIQUE is True
         if self.RUN_WITH_CRITIQUE and not self.CRITIQUE_LLM_MODEL_NAME:
-            raise ValueError(f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True.")
-
+            raise ValueError(
+                f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True."
+            )
 
         logger.info("All required configuration variables and files are valid and accessible.\n")

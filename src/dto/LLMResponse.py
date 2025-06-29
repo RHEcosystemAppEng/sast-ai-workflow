@@ -1,6 +1,6 @@
 import json
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from dataclasses import dataclass, field, asdict
 
 
 class CVEValidationStatus(Enum):
@@ -12,9 +12,9 @@ class CVEValidationStatus(Enum):
 class AnalysisResponse:
     investigation_result: str
     is_final: str
-    prompt: str = ''
+    prompt: str = ""
     justifications: list[str] = field(default_factory=list)
-    short_justifications: str = ''
+    short_justifications: str = ""
     recommendations: list[str] = field(default_factory=list)
     instructions: list[dict] = field(default_factory=list)
     evaluation: list = field(default_factory=list)
@@ -23,14 +23,13 @@ class AnalysisResponse:
         return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
 
     def is_second_analysis_needed(self):
-        return self.is_final == 'FALSE' and self.instructions and self.is_true_positive()
-    
+        return self.is_final == "FALSE" and self.instructions and self.is_true_positive()
+
     def to_dict(self):
         return asdict(self)
 
     def to_json(self, indent=None):
         data = asdict(self)
         if self.instructions:
-            data['instructions'] = [instr.__dict__ for instr in self.instructions]
+            data["instructions"] = [instr.__dict__ for instr in self.instructions]
         return json.dumps(data, indent=indent)
-    
