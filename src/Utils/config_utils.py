@@ -1,15 +1,18 @@
-import os
-import yaml
 import logging
+import os
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
+
 def print_config(config):
-    logger.info("".center(80, '-'))
+    logger.info("".center(80, "-"))
     for key, value in config.items():
         if key not in ["LLM_API_KEY", "CRITIQUE_LLM_API_KEY"]:
             logger.info(f"{key} = {value}")
-    logger.info("".center(80, '-'))
+    logger.info("".center(80, "-"))
+
 
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), "../..", "config", "default_config.yaml")
@@ -21,7 +24,7 @@ def load_config():
         env_value = os.getenv(key)
         if env_value is not None:
             config[key] = env_value
-    
+
     # Load Main LLM details in case critique details not provided
     if config.get("RUN_WITH_CRITIQUE"):
         if not config.get("CRITIQUE_LLM_URL") or not os.getenv("CRITIQUE_LLM_API_KEY"):
@@ -29,6 +32,7 @@ def load_config():
             config["CRITIQUE_LLM_URL"] = config.get("LLM_URL")
             os.environ["CRITIQUE_LLM_API_KEY"] = os.getenv("LLM_API_KEY")
     return config
+
 
 def validate_configurations(config):
     # Check for required configuration variables
@@ -38,12 +42,9 @@ def validate_configurations(config):
         "EMBEDDINGS_LLM_MODEL_NAME",
         "REPORT_FILE_PATH",
         "KNOWN_FALSE_POSITIVE_FILE_PATH",
-        "OUTPUT_FILE_PATH"
+        "OUTPUT_FILE_PATH",
     ]
-    required_cfg_files = [
-        "REPORT_FILE_PATH",
-        "KNOWN_FALSE_POSITIVE_FILE_PATH"
-    ]
+    required_cfg_files = ["REPORT_FILE_PATH", "KNOWN_FALSE_POSITIVE_FILE_PATH"]
 
     for var in required_cfg_vars:
         value = config[var]
@@ -59,15 +60,10 @@ def validate_configurations(config):
     # Validate that environment variable LLM API key exist
     llm_api_key = os.environ.get("LLM_API_KEY")
     if not llm_api_key:
-        raise ValueError(f"Environment variable 'LLM_API_KEY' is not set or is empty.")
-    
+        raise ValueError("Environment variable 'LLM_API_KEY' is not set or is empty.")
+
     # Validate critique config if RUN_WITH_CRITIQUE is True
     if config.get("RUN_WITH_CRITIQUE") and not config.get("CRITIQUE_LLM_MODEL_NAME"):
-        raise ValueError(
-            "'CRITIQUE_LLM_MODEL_NAME' must be set when 'RUN_WITH_CRITIQUE' is True."
-        )
-    
+        raise ValueError("'CRITIQUE_LLM_MODEL_NAME' must be set when 'RUN_WITH_CRITIQUE' is True.")
+
     logger.info("All required configuration variables and files are valid and accessible.\n")
-
-
-  
