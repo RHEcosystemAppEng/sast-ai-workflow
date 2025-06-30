@@ -89,11 +89,13 @@ def main():
             # "def49",  # This one is known false positive
             # "def50",  # This one is known false positive
         # }
-        already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(llm_service, 
-                                                    #   set(e for e in issue_set if e.id in selected_issue_set),   # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
-                                                      issue_list,   # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
-                                                      config)
-
+        already_seen_issues_dict, similar_known_issues_dict = {}, {}
+        if config.USE_KNOWN_FALSE_POSITIVE_FILE:
+            already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(llm_service, 
+                                                        #   set(e for e in issue_set if e.id in selected_issue_set),   # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
+                                                        issue_list,   # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
+                                                        config)
+            
         for issue in issue_list:
             # if issue.id not in selected_issue_set: # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
             #     continue
@@ -141,7 +143,7 @@ def main():
                         llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                         retries += 1
-
+                    repo_handler.reset_found_symbols()
                     # let's calculate numbers for quality of the response we received here!
                     if config.CALCULATE_METRICS:
                         metric_request = metric_request_from_prompt(llm_response)
