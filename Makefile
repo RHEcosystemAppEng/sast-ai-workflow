@@ -80,6 +80,8 @@ secrets:
 			--from-literal=llm_api_key="$(LLM_API_KEY)" \
 			--from-literal=embeddings_llm_url="$(EMBEDDINGS_LLM_URL)" \
 			--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
+		    --from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
+    		--from-literal=embedding_llm_model_name="$(EMBEDDINGS_LLM_MODEL_NAME)" \
 			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f -; \
 		echo "Created sast-ai-default-llm-creds with both LLM and embeddings API keys"; \
 	else \
