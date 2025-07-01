@@ -1,6 +1,5 @@
-from handlers.c_repo_handler import CRepoHandler
 from common.config import Config
-
+from handlers.c_repo_handler import CRepoHandler
 
 
 class SystemdRepoHandler(CRepoHandler):

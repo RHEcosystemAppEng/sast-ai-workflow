@@ -1,12 +1,12 @@
 import logging
-
 from typing import List
 
+from common.config import Config
 from LLMService import LLMService
 from Utils.file_utils import read_known_errors_file
-from common.config import Config
 
 logger = logging.getLogger(__name__)
+
 
 def capture_known_issues(main_process: LLMService, issue_list: List, config: Config):
     """
@@ -33,23 +33,24 @@ def capture_known_issues(main_process: LLMService, issue_list: List, config: Con
         logger.debug(f"{issue.id} Is known false positive? {result_value}")
 
         if "yes" in result_value:
-            already_seen_dict[issue.id] = filter_response 
+            already_seen_dict[issue.id] = filter_response
             logger.info(f"LLM found {issue.id} error trace inside known false positives list")
 
     logger.info(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
     return already_seen_dict, context_dict
 
+
 def convert_similar_issues_to_context_string(similar_known_issues_list: list) -> str:
-    """Convert a list of known false positive CVE examples into a formatted string. """
+    """Convert a list of known false positive CVE examples into a formatted string."""
     formatted_context = ""
     for i in range(len(similar_known_issues_list)):
         example_number = i + 1
         formatted_context += (
-            f"\n** Example-{example_number} **\n" 
+            f"\n** Example-{example_number} **\n"
             f"(Example-{example_number}) Known False Positive:\n"
             f"{similar_known_issues_list[i]['false_positive_error_trace']}\n"
             f"(Example-{example_number}) Reason Marked as False Positive:\n"
             f"{similar_known_issues_list[i]['reason_marked_false_positive']}"
-            )
-                            
+        )
+
     return formatted_context

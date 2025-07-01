@@ -25,13 +25,15 @@ CRITIQUE_LLM_URL = "CRITIQUE_LLM_URL"
 CRITIQUE_LLM_MODEL_NAME = "CRITIQUE_LLM_MODEL_NAME"
 CRITIQUE_LLM_API_KEY = "CRITIQUE_LLM_API_KEY"
 SERVICE_ACCOUNT_JSON_PATH = "SERVICE_ACCOUNT_JSON_PATH"
-RED_ERROR_FOR_LLM_REQUEST = (f"WARNING: An error occurred "
-                             "{max_retry_limit} times in {function_name} process. "
-                             "Please check this Issue-id {issue_id}."
-                             "\nError: {error}"
-                             )
-FALLBACK_JUSTIFICATION_MESSAGE = ["Failed during analyze process. Defaulting to: NOT A FALSE POSITIVE."]
+RED_ERROR_FOR_LLM_REQUEST = (
+    "WARNING: An error occurred "
+    "{max_retry_limit} times in {function_name} process. "
+    "Please check this Issue-id {issue_id}."
+    "\nError: {error}"
+)
+FALLBACK_JUSTIFICATION_MESSAGE = [
+    "Failed during analyze process. Defaulting to: NOT A FALSE POSITIVE."
+]
 YES_OPTIONS = ["y", "yes"]
 NO_OPTIONS = ["n", "no"]
 ALL_VALID_OPTIONS = YES_OPTIONS + NO_OPTIONS
-

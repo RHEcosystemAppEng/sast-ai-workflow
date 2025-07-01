@@ -1,9 +1,10 @@
+import textwrap
+
 import requests
 from bs4 import BeautifulSoup
-import requests
 from bs4.element import Comment
-import textwrap
-from Utils.text_processing_utils import create_text_splitter 
+
+from Utils.text_processing_utils import create_text_splitter
 
 
 def format_cwe_context(raw_text_chunks, line_width=80):
@@ -17,14 +18,15 @@ def format_cwe_context(raw_text_chunks, line_width=80):
         wrapped_chunks.append(wrapped)
 
     combined_text = "\n\n".join(wrapped_chunks)  # ensures blank line between chunks
-    
+
     formatted_text = f"=== CWE Context Start ===\n{combined_text}\n=== CWE Context End ==="
     return formatted_text
+
 
 def read_cve_html_file(path, config=None):
     text_splitter = create_text_splitter(config)
     res = requests.get(path)
-    soup = BeautifulSoup(res.content, 'html.parser')
+    soup = BeautifulSoup(res.content, "html.parser")
 
     tags_to_collect = [
         "Description",
@@ -32,7 +34,7 @@ def read_cve_html_file(path, config=None):
         "Observed_Examples",
         " Weakness_Ordinalities",
         "Detection_Methods",
-        "Affected_Resources"
+        "Affected_Resources",
     ]
 
     doc_text_chunks = []
@@ -40,13 +42,13 @@ def read_cve_html_file(path, config=None):
         div = soup.find("div", {"id": tag})
         if not div:
             continue
-        
+
         raw_strings = div.find_all(string=True)
         visible_text = list(filter(remove_html_tags, raw_strings))
         visible_text = [t.strip() for t in visible_text if t.strip()]
         if not visible_text:
             continue
-        
+
         section_text = " ".join(visible_text)
         titled_section_text = f"{tag}:\n\n{section_text}"
         section_chunks = text_splitter.split_text(titled_section_text)
@@ -56,15 +58,17 @@ def read_cve_html_file(path, config=None):
 
     return formatted_cwe_texts
 
+
 def remove_html_tags(element):
-    if element.parent.name in ['style', 'script', 'head', 'title', 'meta', '[document]']:
+    if element.parent.name in ["style", "script", "head", "title", "meta", "[document]"]:
         return False
     if isinstance(element, Comment):
         return False
     return True
 
+
 def text_from_html(body):
-    soup = BeautifulSoup(body, 'html.parser')
+    soup = BeautifulSoup(body, "html.parser")
     texts = soup.findAll(string=True)
     visible_texts = filter(remove_html_tags, texts)
-    return u" ".join(t.strip() for t in visible_texts)
+    return " ".join(t.strip() for t in visible_texts)
