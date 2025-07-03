@@ -1,41 +1,56 @@
 name: Gemini AI Code Reviewer
 
 on:
+  # Trigger when a PR is created or updated
+  pull_request:
+    types: [opened, synchronize]
+  # Trigger when a comment is made on a PR
   issue_comment:
     types: [created]
 
-permissions: write-all
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
-  gemini-code-review:
+  # This job runs when a new PR is created or updated
+  review_on_pr_creation:
     runs-on: ubuntu-latest
-    if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/gemini-review')
+    # This job only runs for pull_request events
+    if: github.event_name == 'pull_request'
     steps:
-      - name: PR Info
-        run: |
-          echo "Comment: ${{ github.event.comment.body }}"
-          echo "Issue Number: ${{ github.event.issue.number }}"
-          echo "Repository: ${{ github.repository }}"
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Checkout Repo
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Get PR Details
-        id: pr
-        run: |
-          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
-          echo "head_sha=$(echo $PR_JSON | jq -r .head.sha)" >> $GITHUB_OUTPUT
-          echo "base_sha=$(echo $PR_JSON | jq -r .base.sha)" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: truongnh1992/gemini-ai-code-reviewer@main
+      - name: Run Gemini AI Code Reviewer
+        uses: truongnh1992/gemini-ai-code-reviewer@main
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-pro-preview-05-06 # Optional, default is `gemini-2.0-flash-001`
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GEMINI_MODEL: gemini-1.5-pro-preview-0514
           EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
+
+  # This job runs when a comment triggers the review
+  review_on_comment:
+    runs-on: ubuntu-latest
+    # This job only runs for issue_comment events that contain the magic phrase
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/gemini-review')
+    steps:
+      - name: Get PR Details
+        id: pr-details
+        run: |
+          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          echo "head_ref=$(echo $PR_JSON | jq -r .head.ref)" >> $GITHUB_OUTPUT
+          echo "head_repo_uri=$(echo $PR_JSON | jq -r .head.repo.git_url)" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pr-details.outputs.head_repo_uri }}
+          ref: ${{ steps.pr-details.outputs.head_ref }}
