@@ -1,10 +1,8 @@
 name: Gemini AI Code Reviewer
 
 on:
-  # Trigger when a PR is created or updated
-  pull_request:
-    types: [opened, synchronize]
-  # Trigger when a comment is made on a PR
+  # The pull_request trigger has been removed.
+  # The workflow will now only run on issue comments.
   issue_comment:
     types: [created]
 
@@ -13,28 +11,11 @@ permissions:
   pull-requests: write
 
 jobs:
-  # This job runs when a new PR is created or updated
-  review_on_pr_creation:
-    runs-on: ubuntu-latest
-    # This job only runs for pull_request events
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+  # The 'review_on_pr_creation' job has been completely removed.
 
-      - name: Run Gemini AI Code Reviewer
-        uses: truongnh1992/gemini-ai-code-reviewer@main
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GEMINI_MODEL: gemini-1.5-pro-preview-0514
-          EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
-
-  # This job runs when a comment triggers the review
+  # This job runs only when a comment triggers the review.
   review_on_comment:
     runs-on: ubuntu-latest
-    # This job only runs for issue_comment events that contain the magic phrase
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
@@ -45,12 +26,21 @@ jobs:
         run: |
           PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
           echo "head_ref=$(echo $PR_JSON | jq -r .head.ref)" >> $GITHUB_OUTPUT
-          echo "head_repo_uri=$(echo $PR_JSON | jq -r .head.repo.git_url)" >> $GITHUB_OUTPUT
+          echo "head_repo_full_name=$(echo $PR_JSON | jq -r .head.repo.full_name)" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout PR Branch
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.pr-details.outputs.head_repo_uri }}
+          repository: ${{ steps.pr-details.outputs.head_repo_full_name }}
           ref: ${{ steps.pr-details.outputs.head_ref }}
+
+      - name: Run Gemini AI Code Reviewer
+        uses: truongnh1992/gemini-ai-code-reviewer@main
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          GEMINI_MODEL: gemini-1.5-pro-preview-0514
+          EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
