@@ -1,43 +1,24 @@
 name: Gemini AI Code Reviewer
 
-on:
-  # The workflow will now only run on issue comments.
-  issue_comment:
-    types: [created]
-
-permissions:
-  contents: read
-  pull-requests: write
+on: [pull_request]
 
 jobs:
-  # This job runs only when a comment triggers the review.
-  review_on_comment:
+  review:
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/gemini-review')
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - name: Get PR Details
-        id: pr-details
-        run: |
-          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
-          echo "head_ref=$(echo $PR_JSON | jq -r .head.ref)" >> $GITHUB_OUTPUT
-          echo "head_repo_full_name=$(echo $PR_JSON | jq -r .head.repo.full_name)" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout PR Branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: sshnaidm/gemini-code-review-action@v1
         with:
-          repository: ${{ steps.pr-details.outputs.head_repo_full_name }}
-          ref: ${{ steps.pr-details.outputs.head_ref }}
-
-      - name: Run Gemini AI Code Reviewer
-        uses: truongnh1992/gemini-ai-code-reviewer@main
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PR_NUMBER: ${{ github.event.issue.number }}
-          GEMINI_MODEL: gemini-1.5-pro-preview-0514
-          EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
+          gemini-key: ${{ secrets.GEMINI_API_KEY }}
+          prompt: |
+            Please review this code with focus on:
+            - Design
+            - Performance optimizations
+            - Best practices
+            - Readability
+          add-files: 'true'
+          context-lines: '20'
+          review-title: 'Code Review by Gemini AI'
