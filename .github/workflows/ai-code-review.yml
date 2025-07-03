@@ -1,6 +1,7 @@
 name: Gemini AI Code Reviewer
 
 on:
+  # The workflow will now only run on issue comments.
   issue_comment:
     types: [created]
 
@@ -9,6 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
+  # This job runs only when a comment triggers the review.
   review_on_comment:
     runs-on: ubuntu-latest
     if: |
@@ -24,13 +26,6 @@ jobs:
           echo "head_repo_full_name=$(echo $PR_JSON | jq -r .head.repo.full_name)" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # --- NEW DEBUGGING STEP ---
-      # This step will print the exact values being used below.
-      - name: Debug PR Details
-        run: |
-          echo "DEBUG: The Repository value being passed is: '${{ steps.pr-details.outputs.head_repo_full_name }}'"
-          echo "DEBUG: The Ref value being passed is: '${{ steps.pr-details.outputs.head_ref }}'"
 
       - name: Checkout PR Branch
         uses: actions/checkout@v4
