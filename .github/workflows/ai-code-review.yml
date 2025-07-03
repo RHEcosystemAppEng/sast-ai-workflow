@@ -15,13 +15,27 @@ jobs:
         id: get_diff
         shell: bash
         env:
+          # The clone URL of the forked repository
+          PULL_REQUEST_HEAD_REPO_URL: "${{ github.event.pull_request.head.repo.clone_url }}"
+          # The branch name of the pull request head (e.g., "feature-branch")
           PULL_REQUEST_HEAD_REF: "${{ github.event.pull_request.head.ref }}"
+          # The branch name of the pull request base (e.g., "main")
           PULL_REQUEST_BASE_REF: "${{ github.event.pull_request.base.ref }}"
         run: |-
-          git fetch origin "${{ env.PULL_REQUEST_HEAD_REF }}"
+          # Add the forked repository, where the head branch exists, as a remote
+          git remote add fork "${{ env.PULL_REQUEST_HEAD_REPO_URL }}"
+          
+          # Fetch the head branch from the fork and the base branch from origin
+          git fetch fork "${{ env.PULL_REQUEST_HEAD_REF }}"
           git fetch origin "${{ env.PULL_REQUEST_BASE_REF }}"
+
+          # Checkout the head branch to work with it
           git checkout "${{ env.PULL_REQUEST_HEAD_REF }}"
+
+          # Create the diff against the base branch from the origin repository
           git diff "origin/${{ env.PULL_REQUEST_BASE_REF }}" > "diff.txt"
+          
+          # Format the diff for the action output
           {
             echo "pull_request_diff<<EOF";
             cat "diff.txt";
