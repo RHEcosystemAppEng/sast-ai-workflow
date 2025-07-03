@@ -10,7 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from common.config import Config
-from common.constants import ALL_VALID_OPTIONS
+from common.constants import ALL_VALID_OPTIONS, KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR
 from Utils.log_utils import log_attempt_number
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def read_source_code_file(path):
 def read_known_errors_file(path):
     with open(path, "r", encoding="utf-8") as f:
         plain_text = f.read()
-        doc_list = [item.strip() for item in plain_text.split("\n\n\n") if item.strip() != ""]
+        doc_list = [item.strip() for item in plain_text.split(KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR) if item.strip()!='']
         return doc_list
 
 
