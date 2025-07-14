@@ -39,19 +39,19 @@ DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 .PHONY: all setup tasks pvc secrets pipeline run logs clean
 
-all: setup tasks pipeline scripts run
+all: setup tasks pipeline scripts prompts run
 
 setup: pvc secrets
 
 tasks:
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/validate_urls.yaml
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/prepare_source.yaml
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/fetch_false_positives.yaml
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/tasks/execute_sast_ai_workflow.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/validate_urls.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/prepare_source.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/fetch_false_positives.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml
 
 pvc:
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pvc.yaml
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/cache_pvc.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/cache_pvc.yaml
 
 secrets:
 	@echo "Creating secrets in namespace $(NAMESPACE)..."
@@ -137,11 +137,14 @@ secrets:
 	@echo "All secrets created successfully!"
 
 pipeline:
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pipeline.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/pipeline.yaml
 
 scripts:
-	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/scripts/upload_to_drive_cm.yaml
-	
+	$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml
+
+prompts:
+	$(CO) apply -n $(NAMESPACE) -f tekton/prompts-config-map.yaml
+
 run:
 	# remove any old run
 	$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
@@ -223,11 +226,8 @@ clean:
 	# Delete Tekton resources
 	@echo "Deleting Tekton resource definitions..."
 	$(CO) delete -n $(NAMESPACE) \
-		-f deploy/tekton/tasks/validate_urls.yaml \
-		-f deploy/tekton/tasks/prepare_source.yaml \
-		-f deploy/tekton/tasks/fetch_false_positives.yaml \
-		-f deploy/tekton/tasks/execute_sast_ai_workflow.yaml \
-		-f deploy/tekton/pipeline.yaml \
+		-f tekton/tasks/ \
+		-f tekton/pipeline.yaml \
 		--ignore-not-found
 	# Delete all PVCs in the namespace (including any left behind from previous runs)
 	@echo "Deleting all PVCs..."
@@ -245,6 +245,10 @@ clean:
 		-p '{"imagePullSecrets": null}' \
 		--type=merge \
 		--ignore-not-found=true || true
+	# Delete prompts
+	@echo "Deleting Prompts CM..."
+	@$(CO) delete -f  tekton/prompts-config-map.yaml \
+		-n $(NAMESPACE) --ignore-not-found || true
 	# Delete secrets
 	@echo "Deleting secrets..."
 	@$(CO) delete secret gitlab-token-secret \

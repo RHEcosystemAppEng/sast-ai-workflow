@@ -67,6 +67,7 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 | `secrets` | Create secrets from .env file |
 | `pvc` | Create persistent volume claims |
 | `tasks` | Apply Tekton task definitions |
+| `prompts` | apply a prompts configmap to override default prompts
 | `pipeline` | Apply pipeline definition |
 | `run` | Execute pipeline (requires tkn CLI or shows manual command) |
 | `logs` | View pipeline logs |
@@ -108,8 +109,11 @@ make setup          # Infrastructure only
 make tasks pipeline  # Tekton resources
 make run            # Execute pipeline
 ```
+### 7. Overriding Prompts
 
-### 7. Troubleshooting
+To customize prompts, edit the `deploy/tekton/prompts-config-map.yaml` file. This file contains all default prompts and you can modify any of them to override the default behavior.
+
+### 8. Troubleshooting
 
 - **View logs:** `make logs`
 - **Clean environment:** `make clean` (⚠️ deletes everything)
