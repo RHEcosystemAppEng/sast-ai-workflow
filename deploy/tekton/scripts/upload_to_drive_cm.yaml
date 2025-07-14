@@ -1,0 +1,182 @@
+# ConfigMap containing the upload script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gdrive-upload-scripts
+data:
+  gdrive_upload.py: |
+    import sys
+    import os
+    import time
+    from datetime import datetime
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+    from googleapiclient.errors import HttpError
+    from google.oauth2.service_account import Credentials
+    
+    def create_date_folder(service, parent_folder_id):
+        """Create a date-based folder structure using YYYY-MM-DD format"""
+        now = datetime.now()
+        folder_name = now.strftime("%Y-%m-%d")
+        
+        print(f"Creating/finding folder: {folder_name}")
+        
+        # Check if folder already exists - WITH SHARED DRIVE SUPPORT
+        query = f"name='{folder_name}' and '{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = service.files().list(
+            q=query,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        folders = results.get('files', [])
+        
+        if folders:
+            folder_id = folders[0]['id']
+            print(f"Folder already exists: {folder_name} (ID: {folder_id})")
+            return folder_id
+        
+        # Create new folder - WITH SHARED DRIVE SUPPORT
+        folder_metadata = {
+            'name': folder_name,
+            'parents': [parent_folder_id],
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        
+        folder = service.files().create(
+            body=folder_metadata,
+            supportsAllDrives=True
+        ).execute()
+        folder_id = folder.get('id')
+        print(f"Created new folder: {folder_name} (ID: {folder_id})")
+        return folder_id
+    
+    def upload_file(service, file_path, filename, parent_folder_id, max_retries=3):
+        """Upload file to Google Drive with retry mechanism"""
+        print(f"Uploading file with base name: {filename}")
+        
+        # Add timestamp to filename for unique identification
+        base_name, ext = os.path.splitext(filename)
+        if not ext:  # If no extension provided, assume .xlsx
+            ext = '.xlsx'
+        
+        timestamp = datetime.now().strftime("%H-%M-%S")
+        timestamped_filename = f"{base_name}_{timestamp}{ext}"
+        
+        print(f"Final filename with timestamp: {timestamped_filename}")
+        
+        # Check if file already exists (just in case, though timestamp should make it unique)
+        query = f"name='{timestamped_filename}' and '{parent_folder_id}' in parents and trashed=false"
+        results = service.files().list(
+            q=query,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        existing_files = results.get('files', [])
+        
+        if existing_files:
+            # This should be very rare with timestamp, but add seconds if needed
+            timestamp_with_seconds = datetime.now().strftime("%H-%M-%S")
+            timestamped_filename = f"{base_name}_{timestamp_with_seconds}{ext}"
+            print(f"File still exists, using: {timestamped_filename}")
+        
+        file_metadata = {
+            'name': timestamped_filename,
+            'parents': [parent_folder_id]
+        }
+        
+        # Retry logic for file upload
+        for attempt in range(max_retries):
+            try:
+                print(f"Upload attempt {attempt + 1} of {max_retries}")
+                
+                # Create new MediaFileUpload instance for each attempt
+                media = MediaFileUpload(file_path, resumable=True)
+                
+                file = service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id,name,webViewLink',
+                    supportsAllDrives=True
+                ).execute()
+                
+                print(f"File uploaded successfully on attempt {attempt + 1}!")
+                print(f"  File ID: {file.get('id')}")
+                print(f"  File Name: {file.get('name')}")
+                print(f"  View Link: {file.get('webViewLink')}")
+                return file.get('id')
+                
+            except HttpError as e:
+                print(f"HTTP Error on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # Exponential backoff: 2, 4, 8 seconds
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print("All upload attempts failed")
+                    raise
+                    
+            except Exception as e:
+                print(f"Unexpected error on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # Exponential backoff: 2, 4, 8 seconds
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print("All upload attempts failed")
+                    raise
+        
+        # This should never be reached, but just in case
+        raise Exception("Upload failed after all retry attempts")
+    
+    def verify_parent_folder_access(service, folder_id):
+        """Verify we can access the parent folder"""
+        try:
+            folder_info = service.files().get(
+                fileId=folder_id,
+                supportsAllDrives=True,
+                fields='id,name,mimeType,driveId,teamDriveId'
+            ).execute()
+            
+            print(f"Parent folder access verified:")
+            print(f"  Name: {folder_info.get('name')}")
+            print(f"  Type: {folder_info.get('mimeType')}")
+            print(f"  Drive ID: {folder_info.get('driveId', 'My Drive')}")
+            
+            return True
+        except Exception as e:
+            print(f"✗ Cannot access parent folder: {e}")
+            return False
+    
+    def main():
+        try:
+            # Initialize credentials and service
+            credentials = Credentials.from_service_account_file(os.environ['GOOGLE_APPLICATION_CREDENTIALS'])
+            service = build('drive', 'v3', credentials=credentials)
+            
+            # Get parameters
+            excel_file = sys.argv[1]
+            filename = sys.argv[2]
+            parent_folder_id = sys.argv[3]
+            
+            # Verify parent folder access first
+            if not verify_parent_folder_access(service, parent_folder_id):
+                print("ERROR: Cannot access the specified parent folder")
+                return 1
+            
+            # Always create date folder
+            target_folder_id = create_date_folder(service, parent_folder_id)
+            
+            # Upload file with retry mechanism
+            file_id = upload_file(service, excel_file, filename, target_folder_id)
+            
+            print("=== Upload completed successfully! ===")
+            return 0
+            
+        except Exception as e:
+            print(f"ERROR: Upload failed - {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 1
+    
+    if __name__ == "__main__":
+        sys.exit(main())

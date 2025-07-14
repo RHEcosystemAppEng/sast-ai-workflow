@@ -19,6 +19,9 @@ spec:
     - name: excel-file-name
       description: "the name of the excel file name to set in the drive"
       type: string
+    - name: GOOGLE_APPLICATION_CREDENTIALS
+      description: "the full path of the google service account credentials file"
+      type: string
   workspaces:
     - name: source
       description: "Workspace containing the generated Excel file"
@@ -26,6 +29,11 @@ spec:
     - name: google-sa-json-ws
       description: "Workspace containing Google service account JSON file"
       mountPath: /workspace/google-sa
+  volumes:
+    - name: gdrive-scripts
+      configMap:
+        name: gdrive-upload-scripts
+        defaultMode: 0755
   steps:
     - name: validate-and-prepare
       image: registry.redhat.io/ubi9/ubi:latest
@@ -39,7 +47,7 @@ spec:
         if [ ! -f "$EXCEL_FILE" ]; then
           echo "ERROR: Excel file not found at $EXCEL_FILE"
           echo "Available files in workspace:"
-          ls -la /workspace/source/ || echo "Workspace is empty or inaccessible"
+          ls -la $(workspaces.source.path) || echo "Workspace is empty or inaccessible"
           exit 1
         fi
         
@@ -90,7 +98,7 @@ spec:
         echo "=== Checking service account credentials ==="
         
         # Check if service account file exists in workspace
-        if [ ! -f "$(workspaces.google-sa-json-ws.path)/service_account.json" ]; then
+        if [ ! -f "$(params.GOOGLE_APPLICATION_CREDENTIALS)" ]; then
           echo "Service account file not found in google-sa-json-ws workspace"
           echo "Pipeline will exit gracefully without uploading"
           exit 0
@@ -103,13 +111,16 @@ spec:
       image: google/cloud-sdk:slim
       env:
         - name: GOOGLE_APPLICATION_CREDENTIALS
-          value: /tmp/service-account.json
+          value: "$(params.GOOGLE_APPLICATION_CREDENTIALS)"
         - name: GDRIVE_FOLDER_ID_FROM_CM
           valueFrom:
             configMapKeyRef:
               name: gdrive-config
               key: folder-id
               optional: true
+      volumeMounts:
+        - name: gdrive-scripts
+          mountPath: /scripts
       script: |
         #!/bin/bash
         set -e
@@ -133,7 +144,7 @@ spec:
         fi
         
         # Check service account
-        if [ ! -f "$(workspaces.google-sa-json-ws.path)/service_account.json" ]; then
+        if [ ! -f "$(params.GOOGLE_APPLICATION_CREDENTIALS)" ]; then
           echo "Skipping Google Drive upload - service account not available"
           echo "This is not an error - pipeline continues gracefully"
           exit 0
@@ -150,10 +161,6 @@ spec:
         # Install Python packages in virtual environment
         pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib
         
-        # Extract service account credentials from workspace
-        echo "Setting up service account credentials..."
-        cp "$(workspaces.google-sa-json-ws.path)/service_account.json" /tmp/service-account.json
-        
         # Get file information directly from parameters and workspaces
         EXCEL_FILE="$(workspaces.source.path)/$(params.excel-file-path)"
         EXCEL_FILENAME="$(params.excel-file-name)"
@@ -162,157 +169,8 @@ spec:
         echo "Remote filename: $EXCEL_FILENAME"
         echo "Target folder ID: $GDRIVE_FOLDER_ID"
         
-        # Create Python script for Google Drive operations with Shared Drive support
-        cat > /tmp/gdrive_upload.py << 'EOF'
-        import sys
-        import os
-        from datetime import datetime
-        from googleapiclient.discovery import build
-        from googleapiclient.http import MediaFileUpload
-        from google.oauth2.service_account import Credentials
-        
-        def create_date_folder(service, parent_folder_id):
-            """Create a date-based folder structure using YYYY-MM-DD format"""
-            now = datetime.now()
-            folder_name = now.strftime("%Y-%m-%d")
-            
-            print(f"Creating/finding folder: {folder_name}")
-            
-            # Check if folder already exists - WITH SHARED DRIVE SUPPORT
-            query = f"name='{folder_name}' and '{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-            results = service.files().list(
-                q=query,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True
-            ).execute()
-            folders = results.get('files', [])
-            
-            if folders:
-                folder_id = folders[0]['id']
-                print(f"Folder already exists: {folder_name} (ID: {folder_id})")
-                return folder_id
-            
-            # Create new folder - WITH SHARED DRIVE SUPPORT
-            folder_metadata = {
-                'name': folder_name,
-                'parents': [parent_folder_id],
-                'mimeType': 'application/vnd.google-apps.folder'
-            }
-            
-            folder = service.files().create(
-                body=folder_metadata,
-                supportsAllDrives=True
-            ).execute()
-            folder_id = folder.get('id')
-            print(f"Created new folder: {folder_name} (ID: {folder_id})")
-            return folder_id
-        
-        def upload_file(service, file_path, filename, parent_folder_id):
-            """Upload file to Google Drive with timestamp"""
-            print(f"Uploading file with base name: {filename}")
-            
-            # Add timestamp to filename for unique identification
-            base_name, ext = os.path.splitext(filename)
-            if not ext:  # If no extension provided, assume .xlsx
-                ext = '.xlsx'
-            
-            timestamp = datetime.now().strftime("%H-%M-%S")
-            timestamped_filename = f"{base_name}_{timestamp}{ext}"
-            
-            print(f"Final filename with timestamp: {timestamped_filename}")
-            
-            # Check if file already exists (just in case, though timestamp should make it unique)
-            query = f"name='{timestamped_filename}' and '{parent_folder_id}' in parents and trashed=false"
-            results = service.files().list(
-                q=query,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True
-            ).execute()
-            existing_files = results.get('files', [])
-            
-            if existing_files:
-                # This should be very rare with timestamp, but add seconds if needed
-                timestamp_with_seconds = datetime.now().strftime("%H-%M-%S")
-                timestamped_filename = f"{base_name}_{timestamp_with_seconds}{ext}"
-                print(f"File still exists, using: {timestamped_filename}")
-            
-            file_metadata = {
-                'name': timestamped_filename,
-                'parents': [parent_folder_id]
-            }
-            
-            media = MediaFileUpload(file_path, resumable=True)
-            file = service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id,name,webViewLink',
-                supportsAllDrives=True
-            ).execute()
-            
-            print(f"File uploaded successfully!")
-            print(f"  File ID: {file.get('id')}")
-            print(f"  File Name: {file.get('name')}")
-            print(f"  View Link: {file.get('webViewLink')}")
-            return file.get('id')
-        
-        def verify_parent_folder_access(service, folder_id):
-            """Verify we can access the parent folder"""
-            try:
-                folder_info = service.files().get(
-                    fileId=folder_id,
-                    supportsAllDrives=True,
-                    fields='id,name,mimeType,driveId,teamDriveId'
-                ).execute()
-                
-                print(f"Parent folder access verified:")
-                print(f"  Name: {folder_info.get('name')}")
-                print(f"  Type: {folder_info.get('mimeType')}")
-                print(f"  Drive ID: {folder_info.get('driveId', 'My Drive')}")
-                
-                return True
-            except Exception as e:
-                print(f"✗ Cannot access parent folder: {e}")
-                return False
-        
-        def main():
-            try:
-                # Initialize credentials and service
-                credentials = Credentials.from_service_account_file('/tmp/service-account.json')
-                service = build('drive', 'v3', credentials=credentials)
-                
-                # Get parameters
-                excel_file = sys.argv[1]
-                filename = sys.argv[2]
-                parent_folder_id = sys.argv[3]
-                
-                # Verify parent folder access first
-                if not verify_parent_folder_access(service, parent_folder_id):
-                    print("ERROR: Cannot access the specified parent folder")
-                    return 1
-                
-                # Always create date folder
-                target_folder_id = create_date_folder(service, parent_folder_id)
-                
-                # Upload file
-                file_id = upload_file(service, excel_file, filename, target_folder_id)
-                
-                print("=== Upload completed successfully! ===")
-                return 0
-                
-            except Exception as e:
-                print(f"ERROR: Upload failed - {str(e)}")
-                import traceback
-                traceback.print_exc()
-                return 1
-        
-        if __name__ == "__main__":
-            sys.exit(main())
-        EOF
-        
-        # Execute the upload
         echo "Executing Google Drive upload..."
-        source /tmp/venv/bin/activate
-        python /tmp/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE_FOLDER_ID"
+        python /scripts/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE_FOLDER_ID"
         
         if [ $? -eq 0 ]; then
           echo "=== Google Drive upload completed successfully! ==="
