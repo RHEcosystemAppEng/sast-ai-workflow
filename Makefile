@@ -39,7 +39,7 @@ DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 .PHONY: all setup tasks pvc secrets pipeline run logs clean
 
-all: setup tasks pipeline run
+all: setup tasks pipeline scripts run
 
 setup: pvc secrets
 
@@ -139,6 +139,9 @@ secrets:
 pipeline:
 	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/pipeline.yaml
 
+scripts:
+	$(CO) apply -n $(NAMESPACE) -f deploy/tekton/scripts/upload_to_drive_cm.yaml
+	
 run:
 	# remove any old run
 	$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \

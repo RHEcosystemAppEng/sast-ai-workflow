@@ -38,7 +38,11 @@ spec:
     - name: GDRIVE_FOLDER_ID
       type: string
       description: "Google Drive folder ID for uploading SAST results (optional)"
-      default: "1-alhALixl2Fn2wIWUD_MRwfHhYgIZrQE"
+      default: ""
+    - name: GDRIVE_SA_FILE_NAME
+      type: string
+      description: "Optional GDrive SA file name"
+      default: "service_account.json"
   workspaces:
     - name: shared-workspace
     - name: gitlab-token-ws
@@ -134,6 +138,8 @@ spec:
           value: "sast_ai_output.xlsx"
         - name: excel-file-name
           value: "$(params.PROJECT_NAME)-$(params.PROJECT_VERSION)"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "$(workspaces.google-sa-json-ws.path)/$(params.GDRIVE_SA_FILE_NAME)"
       workspaces:
         - name: source
           workspace: shared-workspace
