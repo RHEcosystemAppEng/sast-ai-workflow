@@ -5,6 +5,7 @@ from typing import List
 from bs4 import BeautifulSoup
 
 from common.config import Config
+from common.constants import REGEX_PATTERNS
 from dto.Issue import Issue
 from Utils.file_utils import get_google_sheet
 
@@ -45,7 +46,7 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
         # TODO - please leave a example string for finding
         lines = finding.split("\n")
         issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
-        match = re.search(r"CWE-\d+", lines[0])
+        match = re.search(REGEX_PATTERNS["CWE_PATTERN"], lines[0])
         issue.issue_cve = match.group() if match else ""
         issue.issue_cve_link = (
             f"https://cwe.mitre.org/data/definitions/{issue.issue_cve.split('-')[1]}.html"

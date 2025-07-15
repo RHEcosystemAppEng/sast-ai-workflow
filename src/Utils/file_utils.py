@@ -29,8 +29,9 @@ def read_source_code_file(path):
 def read_known_errors_file(path):
     with open(path, "r", encoding="utf-8") as f:
         plain_text = f.read()
-        doc_list = [item.strip() for item in plain_text.split(KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR) if item.strip()!='']
-        return doc_list
+        doc_set = set()
+        doc_set = {item.strip() for item in plain_text.split(KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR) if item.strip()!=''}
+        return doc_set
 
 
 def get_human_verified_results(config: Config):
