@@ -1,6 +1,17 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class KnownFalsePositive:
+    error_trace: str
+    reason_of_false_positive: str
+    issue_type: str
+    issue_cwe: Optional[str] = None
+    similarity_score: Optional[float] = None
 
 
 class FilterResponse(BaseModel):
@@ -12,7 +23,7 @@ class FilterResponse(BaseModel):
         description="Matching error trace lines.\
             If there are no matching lines, return an empty list []."
     )
-    justifications: str = Field(description="Reasons for classification.")
+    justifications: str = Field(description="Reasons for classification this error trace is the same as the error trace the user provided.")
     result: Literal["YES", "NO"] = Field(
         description="'YES' if it matches a known false positive, otherwise 'NO'."
     )
