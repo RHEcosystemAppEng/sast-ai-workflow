@@ -35,6 +35,14 @@ spec:
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: "" 
+    - name: GDRIVE_FOLDER_ID
+      type: string
+      description: "Google Drive folder ID for uploading SAST results (optional)"
+      default: ""
+    - name: GDRIVE_SA_FILE_NAME
+      type: string
+      description: "Optional GDrive SA file name"
+      default: "service_account.json"
   workspaces:
     - name: shared-workspace
     - name: gitlab-token-ws
@@ -56,6 +64,7 @@ spec:
       workspaces:
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
+
     - name: prepare-source
       runAfter:
         - validate-urls
@@ -70,7 +79,7 @@ spec:
 
     - name: fetch-false-positives
       runAfter:
-        - validate-urls
+        - prepare-source
       taskRef:
         name: fetch-false-positives
       params:
@@ -84,7 +93,6 @@ spec:
 
     - name: execute-ai-analysis
       runAfter:
-        - prepare-source
         - fetch-false-positives
       taskRef:
         name: execute-ai-analysis
@@ -107,7 +115,6 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
-          
       workspaces:
         - name: source-workspace
           workspace: shared-workspace
@@ -119,3 +126,22 @@ spec:
           workspace: google-sa-json-ws
         - name: cache-workspace
           workspace: cache-workspace
+    - name: upload-results-to-gdrive
+      runAfter:
+        - execute-ai-analysis
+      taskRef:
+        name: upload-to-gdrive
+      params:
+        - name: gdrive-folder-id
+          value: "$(params.GDRIVE_FOLDER_ID)"
+        - name: excel-file-path
+          value: "sast_ai_output.xlsx"
+        - name: excel-file-name
+          value: "$(params.PROJECT_NAME)-$(params.PROJECT_VERSION)"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "$(workspaces.google-sa-json-ws.path)/$(params.GDRIVE_SA_FILE_NAME)"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: google-sa-json-ws
+          workspace: google-sa-json-ws
