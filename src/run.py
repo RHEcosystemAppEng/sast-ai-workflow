@@ -115,7 +115,7 @@ def main():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
                     )
-                    context = already_seen_issues_dict[issue.id].equal_error_trace
+                    context = already_seen_issues_dict[issue.id] #equal_error_trace
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
                         is_final="TRUE",
