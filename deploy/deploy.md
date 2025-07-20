@@ -2,6 +2,21 @@
 
 This guide covers deployment on a local OpenShift cluster using CodeReady Containers (CRC) or an existing OpenShift cluster.
 
+### Directory Structure
+
+```
+deploy/
+├── Makefile                    # Main deployment automation
+├── deploy.md                  # This documentation  
+├── scripts/                   # Deployment utility scripts
+│   └── generate_prompts.py    # ConfigMap generation from templates
+└── tekton/                    # Kubernetes/Tekton resources
+    ├── tasks/                 # Individual pipeline tasks
+    ├── scripts/               # ConfigMaps for pipeline scripts  
+    ├── prompts-config-map.yaml # Generated prompt templates
+    └── *.yaml                 # Other pipeline resources
+```
+
 ### 1. Install CRC (Local Development)
 
 **For existing OpenShift clusters, skip to step 2.**
@@ -67,7 +82,8 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 | `secrets` | Create secrets from .env file |
 | `pvc` | Create persistent volume claims |
 | `tasks` | Apply Tekton task definitions |
-| `prompts` | apply a prompts configmap to override default prompts
+| `generate-prompts` | Generate ConfigMap from prompt template files |
+| `prompts` | Generate and apply prompts ConfigMap to cluster |
 | `pipeline` | Apply pipeline definition |
 | `run` | Execute pipeline (requires tkn CLI or shows manual command) |
 | `logs` | View pipeline logs |
@@ -109,13 +125,96 @@ make setup          # Infrastructure only
 make tasks pipeline  # Tekton resources
 make run            # Execute pipeline
 ```
-### 7. Overriding Prompts
+### 7. Customizing Prompts
 
-To customize prompts, edit the `deploy/tekton/prompts-config-map.yaml` file. This file contains all default prompts and you can modify any of them to override the default behavior.
+The SAST AI Workflow uses a template-based prompt system with a single source of truth. Prompts are now managed through individual template files rather than being hardcoded.
 
-### 8. Troubleshooting
+#### 7.1. Template-Based Prompt System
 
+All prompts are stored as individual YAML template files in `src/templates/prompts/`:
+
+```
+src/templates/prompts/
+├── analysis_system_prompt.yaml
+├── analysis_human_prompt.yaml
+├── filter_system_prompt.yaml
+├── filter_human_prompt.yaml
+├── recommendations_prompt.yaml
+├── justification_summary_system_prompt.yaml
+├── justification_summary_human_prompt.yaml
+└── evaluation_prompt.yaml
+```
+
+#### 7.2. How to Customize Prompts
+
+**Option 1: Edit Template Files (Recommended)**
+
+1. Edit the appropriate template file in `src/templates/prompts/`
+2. Each file has this structure:
+   ```yaml
+   template: |
+     Your prompt content here...
+     {placeholders} are preserved for runtime substitution
+   ```
+3. Regenerate the ConfigMap: `make generate-prompts`
+4. Apply to cluster: `make prompts`
+
+**Option 2: Environment Variable Override**
+
+Set environment variables to override specific prompts:
+```bash
+export ANALYSIS_SYSTEM_PROMPT="Your custom prompt here..."
+export FILTER_SYSTEM_PROMPT="Another custom prompt..."
+```
+
+**Option 3: Direct ConfigMap Edit (Not Recommended)**
+
+Edit `deploy/tekton/prompts-config-map.yaml` directly, but note that changes will be lost when `make generate-prompts` is run.
+
+#### 7.3. Prompt Template Guidelines
+
+- Keep `{placeholder}` variables intact (e.g., `{cve_error_trace}`, `{context}`)
+- Use YAML literal block scalar (`|`) for multi-line prompts
+- Test prompts locally before deploying to cluster
+- Document any significant changes for team members
+
+#### 7.4. Applying Prompt Changes
+
+```bash
+# Option 1: Regenerate and apply (recommended)
+make prompts
+
+# Option 2: Step by step
+make generate-prompts  # Generate ConfigMap from templates
+make prompts          # Apply to cluster
+
+# Option 3: Apply without regenerating (if manually edited)
+oc apply -f tekton/prompts-config-map.yaml
+```
+
+### 8. Testing Prompt Generation
+
+Before deploying, you can test prompt generation locally:
+
+```bash
+# Test from project root
+cd deploy
+make generate-prompts
+
+# Verify the generated ConfigMap looks correct
+head -20 tekton/prompts-config-map.yaml
+
+# Check that all 8 prompts are included
+grep -c "prompt:" tekton/prompts-config-map.yaml  # Should show 8
+```
+
+This ensures all template files are valid and the ConfigMap generation works correctly.
+
+### 9. Troubleshooting
+
+#### General Issues
 - **View logs:** `make logs`
 - **Clean environment:** `make clean` (⚠️ deletes everything)
 - **Check secrets:** `oc get secrets`
 - **Manual pipeline execution:** Use the command displayed when `tkn` CLI is not available
+

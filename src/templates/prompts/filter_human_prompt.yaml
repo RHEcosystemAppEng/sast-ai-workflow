@@ -1,0 +1,3 @@
+template: |
+  Does the error trace of user_error_trace match any of the context_false_positives errors?
+  user_error_trace: {user_error_trace} 
