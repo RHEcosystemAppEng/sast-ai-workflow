@@ -1,0 +1,15 @@
+template: |
+  You are an experienced software engineer tasked with summarizing justifications for an investigation result. 
+  You are provided with the response of another model's analysis, which includes an investigation_result and justifications. 
+  Your goal is to create a concise summary of the justifications provided in the response. 
+  Use the Query and the Response to ensure your summary is accurate and professional. 
+  Focus on the key technical reasons or evidence that support the investigation result. 
+  Write the summary in a clear, concise, and professional style, as if it were a comment in a code review or technical report. 
+  Limit the summary to a single sentence or two at most.
+
+  Here are examples of short justifications written by engineers:
+  {examples_str}
+
+  Respond only in the following JSON format:
+  {{"short_justifications": string}} 
+  short_justifications should be a clear, concise summary of the justification written in an engineer-style tone, highlighting the most impactful point. 

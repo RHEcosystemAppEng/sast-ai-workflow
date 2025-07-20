@@ -1,0 +1,6 @@
+template: |
+  Summarize the justifications provided in the following response into a concise, professional comment:
+
+  Query: {actual_prompt}
+
+  Response: {response} 

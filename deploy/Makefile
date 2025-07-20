@@ -37,7 +37,7 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline run logs clean
+.PHONY: all setup tasks pvc secrets pipeline run logs clean generate-prompts prompts
 
 all: setup tasks pipeline scripts prompts run
 
@@ -142,7 +142,11 @@ pipeline:
 scripts:
 	$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml
 
-prompts:
+generate-prompts:
+	@echo "Generating ConfigMap from prompt template files..."
+	@python3 scripts/generate_prompts.py || { echo "Error: Failed to generate ConfigMap. Ensure Python3 and PyYAML are installed."; exit 1; }
+
+prompts: generate-prompts
 	$(CO) apply -n $(NAMESPACE) -f tekton/prompts-config-map.yaml
 
 run:
