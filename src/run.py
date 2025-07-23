@@ -188,7 +188,7 @@ def main():
                         recommendations=[],
                         instructions=[],
                         prompt="",
-                        short_justifications=FALLBACK_JUSTIFICATION_MESSAGE,
+                        short_justifications=FALLBACK_JUSTIFICATION_MESSAGE[0],
                     )
                     logger.info("Default values have been set")
                 else:

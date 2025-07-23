@@ -164,3 +164,6 @@ cython_debug/
 
 # Tekton prompts config map
 deploy/tekton/prompts-config-map.yaml
+
+# Cursor
+.cursorrules

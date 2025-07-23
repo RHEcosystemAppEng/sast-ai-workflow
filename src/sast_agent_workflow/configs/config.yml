@@ -1,0 +1,22 @@
+functions:
+  sast_placeholder_function:
+    _type: sast_placeholder_function
+    description: "Placeholder function for SAST analysis - to be implemented"
+    placeholder_param: "This is a placeholder value"
+
+llms:
+  sast_llm:
+    _type: nim
+    model_name: ${LLM_MODEL_NAME}
+
+workflow:
+  _type: sast_agent
+  sast_placeholder_function_name: sast_placeholder_function
+  description: "SAST agent workflow for static application security testing"
+
+general:
+  use_uvloop: true
+  logging:
+    console:
+      _type: console
+      level: INFO
