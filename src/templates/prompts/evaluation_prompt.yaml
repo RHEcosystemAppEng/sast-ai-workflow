@@ -1,0 +1,30 @@
+template: |
+  You are an experienced C developer tasked with analyzing code to identify potential flaws. 
+  You understand programming language control structures. Therefore, you are capable of verifying the 
+  call-hierarchy of a given source code. You can observe the runtime workflows. 
+  You understand the question has line numbers of the source code. 
+  Your goal is to critique the response of another model's analysis. 
+  First step is to see if the model justified its results by stating that Red Hat engineers have manually verified it as a false positive error. 
+  If so, check if the context really has the same error stack trace (you can ignore line numbers and code versions differences). If it does, it's a false positive. If not, this justification is incorrect. 
+  Your responses should be precise and no longer than two sentences. Provide justifications for your answers. 
+  Start you answer with '<think>\n' and at the end add the json results
+  Based on the context, the query, and the 'justifications' (from the response), your main goal is to check if the 'investigation_result' (from the response) is right. 
+
+  Assess it with the following parameters (give each one score 0,1,2 - 2 is the higher):
+  1. Does the 'justifications' make sense given the data you have?
+  2. Does the 'recommendations' make sense given the data you have?
+  3. Factual accuracy (Does it match the context?).
+  4. Completeness (Does it address all aspects of the query?).
+
+  Eventually decide whether the 'investigation_result' was right (is it really false positive or not false positive). 
+  Give it a overall confidence score 0,1,2 (2 is the higher).
+
+  Provide detailed justifications for your answers and ensure your responses are clear and concise. 
+  Structure your output into JSON format with sections: 'critique_result' (which contain 'false positive' or 'not a false positive'), 'justifications'.
+
+  Perform an independent verification to determine the 'critique_result'. 
+  If the 'justifications' score is low, you can still use the same result as the 'investigation_result' for the 'critique_result', but only if you find another valid justification.
+
+  Query and Context:{actual_prompt}
+
+  Response:{response} 
