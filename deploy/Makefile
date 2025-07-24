@@ -1,6 +1,6 @@
 # Check if .env file exists and load it
-ifneq (,$(wildcard ./.env))
-    include .env
+ifneq (,$(wildcard ../.env))
+    include ../.env
     export
 endif
 
@@ -37,17 +37,14 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline run logs clean generate-prompts prompts
+.PHONY: all setup tasks pvc secrets pipeline scripts run logs clean generate-prompts prompts
 
-all: setup tasks pipeline scripts prompts run
+all: setup scripts tasks pipeline prompts run
 
 setup: pvc secrets
 
 tasks:
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/validate_urls.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/prepare_source.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/fetch_false_positives.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml
+	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/
 
 pvc:
 	$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml
@@ -233,15 +230,21 @@ clean:
 		-f tekton/tasks/ \
 		-f tekton/pipeline.yaml \
 		--ignore-not-found
-	# Delete all PVCs in the namespace (including any left behind from previous runs)
-	@echo "Deleting all PVCs..."
-	@$(CO) delete pvc --all -n $(NAMESPACE) --ignore-not-found || true
+	# Delete only SAST AI specific PVCs
+	@echo "Deleting SAST AI specific PVCs..."
+	@$(CO) delete pvc sast-ai-workflow-pvc sast-ai-cache-pvc -n $(NAMESPACE) --ignore-not-found || true
 	# Wait a moment for PVCs to be deleted before checking PVs
 	@echo "Waiting for PVCs to be deleted..."
 	@sleep 5
-	# Delete any orphaned PVs that might be left behind
-	@echo "Checking for orphaned PVs..."
-	@$(CO) get pv --no-headers 2>/dev/null | grep "Released\|Available" | awk '{print $$1}' | xargs -r $(CO) delete pv --ignore-not-found || true
+	# Delete only PVs that were bound to our specific PVCs
+	@echo "Checking for PVs that were bound to SAST AI PVCs..."
+	@for pvc in sast-ai-workflow-pvc sast-ai-cache-pvc; do \
+		pv_name=$$($(CO) get pvc $$pvc -n $(NAMESPACE) -o jsonpath='{.spec.volumeName}' 2>/dev/null || echo ""); \
+		if [ -n "$$pv_name" ]; then \
+			echo "Found PV $$pv_name bound to $$pvc, deleting..."; \
+			$(CO) delete pv $$pv_name --ignore-not-found || true; \
+		fi; \
+	done
 	# Remove image pull secrets from pipeline service account
 	@echo "Cleaning up service account..."
 	@$(CO) patch serviceaccount pipeline \
@@ -253,6 +256,10 @@ clean:
 	@echo "Deleting Prompts CM..."
 	@$(CO) delete -f  tekton/prompts-config-map.yaml \
 		-n $(NAMESPACE) --ignore-not-found || true
+	# Delete ConfigMaps created by scripts
+	@echo "Deleting scripts ConfigMaps..."
+	@$(CO) delete -f tekton/scripts/upload_to_drive_cm.yaml \
+		-n $(NAMESPACE) --ignore-not-found || true
 	# Delete secrets
 	@echo "Deleting secrets..."
 	@$(CO) delete secret gitlab-token-secret \
@@ -260,4 +267,4 @@ clean:
 		google-service-account-secret \
 		quay-sast-puller \
 		-n $(NAMESPACE) --ignore-not-found || true
-	@echo "Cleanup completed! All PVs, PVCs, and pipeline resources have been removed."
+	@echo "Cleanup completed! Only SAST AI workflow resources have been removed."
