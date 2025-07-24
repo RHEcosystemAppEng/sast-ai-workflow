@@ -1,12 +1,8 @@
-# pylint: disable=unused-import
-# flake8: noqa
-
 import json
 import logging
 from io import TextIOWrapper
-from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from aiq.builder.builder import Builder
 from aiq.builder.framework_enum import LLMFrameworkEnum
@@ -14,9 +10,8 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-# Import existing data models without src prefix
 from common.config import Config
-from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
+from dto.SASTWorkflowModels import SASTWorkflowTracker
 
 # Import any tools which need to be automatically registered here
 from sast_agent_workflow.tools.sast_placeholder_function import sast_placeholder_function
@@ -74,7 +69,6 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         """Convert string input to SASTWorkflowTracker"""
         logger.debug("Converting input to SASTWorkflowTracker: %s", input_str)
         try:
-            # (moved import json to the top of the file)
             data = json.loads(input_str)
             
             # Check if config field exists, if not create it
