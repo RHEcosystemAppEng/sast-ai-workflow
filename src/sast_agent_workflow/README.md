@@ -37,7 +37,7 @@ This workflow provides a skeleton for implementing SAST analysis capabilities us
    uv pip install -e .
    ```
 
-   **Note:** For subsequent updates, use `aiq workflow reinstall sast_ai_workflow`
+   **Note:** For subsequent updates, use `aiq workflow reinstall sast_agent_workflow`
 
 ## Usage
 

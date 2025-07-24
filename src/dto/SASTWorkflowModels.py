@@ -8,7 +8,6 @@ the central tracker object and per-issue data models.
 from typing import Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
-# Import existing data models without src prefix
 from common.config import Config
 from dto.LLMResponse import AnalysisResponse
 
