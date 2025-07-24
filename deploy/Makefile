@@ -1,6 +1,6 @@
 # Check if .env file exists and load it
-ifneq (,$(wildcard ./.env))
-    include .env
+ifneq (,$(wildcard ../.env))
+    include ../.env
     export
 endif
 
@@ -37,41 +37,50 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline run logs clean generate-prompts prompts
+.PHONY: all setup tasks pvc secrets pipeline scripts run logs clean generate-prompts prompts
 
-all: setup tasks pipeline scripts prompts run
+all: setup scripts tasks pipeline prompts run
 
-setup: pvc secrets
+setup: 
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Infrastructure Setup"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Context: $(CONTEXT)"
+	@echo "   Namespace: $(NAMESPACE)"
+	@echo ""
+	@$(MAKE) --no-print-directory pvc secrets
 
 tasks:
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/validate_urls.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/prepare_source.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/fetch_false_positives.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml
+	@echo "📋 Setting up Tekton Tasks..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/ > /dev/null 2>&1
+	@echo "   ✓ Tasks deployed successfully"
 
 pvc:
-	$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml
-	$(CO) apply -n $(NAMESPACE) -f tekton/cache_pvc.yaml
+	@echo "💾 Setting up Persistent Volume Claims..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml > /dev/null 2>&1
+	@$(CO) apply -n $(NAMESPACE) -f tekton/cache_pvc.yaml > /dev/null 2>&1
+	@echo "   ✓ Workspace PVC created"
+	@echo "   ✓ Cache PVC created"
 
 secrets:
-	@echo "Creating secrets in namespace $(NAMESPACE)..."
+	@echo "🔐 Configuring Secrets..."
 	# Create GitLab token secret
 	@if [ -z "$(GITLAB_TOKEN)" ]; then \
-		echo "Warning: GITLAB_TOKEN is not set. Please set it in .env file"; \
+		echo "   ⚠️  GitLab token not configured"; \
 	else \
 		$(CO) create secret generic gitlab-token-secret \
 			--from-literal=gitlab_token="$(GITLAB_TOKEN)" \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f -; \
-		echo "Created gitlab-token-secret"; \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		echo "   ✓ GitLab token secret"; \
 	fi
 	# Create consolidated LLM credentials secret
 	@LLM_MISSING=""; EMBEDDINGS_MISSING=""; \
 	if [ -z "$(LLM_API_KEY)" ]; then \
-		echo "Warning: LLM_API_KEY is not set. Please set it in .env file"; \
+		echo "   ⚠️  LLM API key not configured"; \
 		LLM_MISSING="true"; \
 	fi; \
 	if [ -z "$(EMBEDDINGS_LLM_API_KEY)" ]; then \
-		echo "Warning: EMBEDDINGS_LLM_API_KEY is not set. Please set it in .env file"; \
+		echo "   ⚠️  Embeddings API key not configured"; \
 		EMBEDDINGS_MISSING="true"; \
 	fi; \
 	if [ -z "$$LLM_MISSING" ] && [ -z "$$EMBEDDINGS_MISSING" ]; then \
@@ -82,81 +91,75 @@ secrets:
 			--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
 			--from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
 			--from-literal=embedding_llm_model_name="$(EMBEDDINGS_LLM_MODEL_NAME)" \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f -; \
-		echo "Created sast-ai-default-llm-creds with both LLM and embeddings API keys"; \
-	else \
-		echo "Skipping LLM credentials secret creation due to missing API keys"; \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		echo "   ✓ LLM credentials secret"; \
 	fi
 	# Create Google Service Account secret
 	@if [ ! -f "$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" ]; then \
-		echo "Warning: Google service account JSON file not found at $(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)"; \
-		echo "Please set GOOGLE_SERVICE_ACCOUNT_JSON_PATH in .env file or place service_account.json in project root"; \
+		echo "   ⚠️  Google service account not found"; \
 	else \
 		$(CO) create secret generic google-service-account-secret \
 			--from-file=service_account.json="$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f -; \
-		echo "Created google-service-account-secret"; \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		echo "   ✓ Google service account secret"; \
 	fi
 	# Create Quay pull secret
-	@echo "Looking for Docker/Podman auth config..."
 	@DOCKER_AUTH_FILE=""; \
 	if [ -f "$(DOCKER_CONFIG_PATH)" ]; then \
 		DOCKER_AUTH_FILE="$(DOCKER_CONFIG_PATH)"; \
-		echo "Found auth config at: $(DOCKER_CONFIG_PATH)"; \
 	elif [ -f "$(XDG_RUNTIME_DIR)/containers/auth.json" ]; then \
 		DOCKER_AUTH_FILE="$(XDG_RUNTIME_DIR)/containers/auth.json"; \
-		echo "Found auth config at: $(XDG_RUNTIME_DIR)/containers/auth.json"; \
 	elif [ -f "$(HOME)/.docker/config.json" ]; then \
 		DOCKER_AUTH_FILE="$(HOME)/.docker/config.json"; \
-		echo "Found auth config at: $(HOME)/.docker/config.json"; \
 	elif [ -f "$(HOME)/.config/containers/auth.json" ]; then \
 		DOCKER_AUTH_FILE="$(HOME)/.config/containers/auth.json"; \
-		echo "Found auth config at: $(HOME)/.config/containers/auth.json"; \
 	fi; \
 	if [ -z "$$DOCKER_AUTH_FILE" ]; then \
-		echo "Warning: Docker config file not found in common locations:"; \
-		echo "  - $(DOCKER_CONFIG_PATH)"; \
-		echo "  - $(XDG_RUNTIME_DIR)/containers/auth.json"; \
-		echo "  - $(HOME)/.docker/config.json"; \
-		echo "  - $(HOME)/.config/containers/auth.json"; \
-		echo "Please run 'podman login quay.io' or 'docker login quay.io' first"; \
-		echo "Or set DOCKER_CONFIG_PATH in your .env file to the correct path"; \
+		echo "   ⚠️  Container registry auth not found"; \
 	else \
 		$(CO) create secret generic quay-sast-puller \
 			--from-file=.dockerconfigjson="$$DOCKER_AUTH_FILE" \
 			--type=kubernetes.io/dockerconfigjson \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f -; \
-		echo "Created quay-sast-puller secret from $$DOCKER_AUTH_FILE"; \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		echo "   ✓ Container registry pull secret"; \
 	fi
 	# Patch pipeline service account to use Quay pull secret
 	@$(CO) patch serviceaccount pipeline \
 		-n $(NAMESPACE) \
 		-p '{"imagePullSecrets": [{"name": "quay-sast-puller"}]}' \
-		--type=merge
-	@echo "Patched pipeline service account with image pull secret"
-	@echo "All secrets created successfully!"
+		--type=merge > /dev/null 2>&1
+	@echo "   ✓ Service account configured"
 
 pipeline:
-	$(CO) apply -n $(NAMESPACE) -f tekton/pipeline.yaml
+	@echo "🔧 Deploying Pipeline..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/pipeline.yaml > /dev/null 2>&1
+	@echo "   ✓ Pipeline definition deployed"
 
 scripts:
-	$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml
+	@echo "📜 Setting up Scripts..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml > /dev/null 2>&1
+	@echo "   ✓ Upload scripts configured"
 
 generate-prompts:
-	@echo "Generating ConfigMap from prompt template files..."
-	@python3 scripts/generate_prompts.py || { echo "Error: Failed to generate ConfigMap. Ensure Python3 and PyYAML are installed."; exit 1; }
+	@python3 scripts/generate_prompts.py > /dev/null 2>&1 || { echo "   ❌ Failed to generate prompts"; exit 1; }
 
-prompts: generate-prompts
-	$(CO) apply -n $(NAMESPACE) -f tekton/prompts-config-map.yaml
+prompts: 
+	@echo "💬 Configuring Prompts..."
+	@$(MAKE) --no-print-directory generate-prompts
+	@$(CO) apply -n $(NAMESPACE) -f tekton/prompts-config-map.yaml > /dev/null 2>&1
+	@echo "   ✓ Prompt templates deployed"
 
 run:
+	@echo ""
+	@echo "🏃 Starting Pipeline Execution..."
 	# remove any old run
-	$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
-		-n $(NAMESPACE) --ignore-not-found
+	@$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
+		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
 
 	# Check if tkn CLI is available
 	@if command -v tkn >/dev/null 2>&1; then \
-		echo "Tekton CLI found. Starting pipeline run..."; \
+		echo "   ✓ Tekton CLI found, launching pipeline..."; \
+		echo ""; \
 		$(TK) pipeline start sast-ai-workflow-pipeline \
 		  -n $(NAMESPACE) \
 		  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
@@ -176,35 +179,31 @@ run:
 		  --workspace name=cache-workspace,claimName=sast-ai-cache-pvc \
 		  --showlog; \
 	else \
+		echo "   ❌ Tekton CLI (tkn) not installed"; \
 		echo ""; \
-		echo "==============================================================================="; \
-		echo "Tekton CLI (tkn) is not installed. Please install it to run the pipeline."; \
-		echo "Or manually run the pipeline using the following command:"; \
+		echo "   Install tkn CLI: https://tekton.dev/docs/cli/"; \
+		echo "   Or run manually:"; \
 		echo ""; \
-		echo "tkn --context $(CONTEXT) pipeline start sast-ai-workflow-pipeline \\"; \
-		echo "  -n $(NAMESPACE) \\"; \
-		echo "  -p REPO_REMOTE_URL=\"$(REPO_REMOTE_URL)\" \\"; \
-		echo "  -p FALSE_POSITIVES_URL=\"$(FALSE_POSITIVES_URL)\" \\"; \
-		echo "  -p LLM_URL=\"$(LLM_URL)\" \\"; \
-		echo "  -p LLM_MODEL_NAME=\"$(LLM_MODEL_NAME)\" \\"; \
-		echo "  -p EMBEDDINGS_LLM_URL=\"$(EMBEDDINGS_LLM_URL)\" \\"; \
-		echo "  -p EMBEDDINGS_LLM_MODEL_NAME=\"$(EMBEDDINGS_LLM_MODEL_NAME)\" \\"; \
-		echo "  -p PROJECT_NAME=\"$(PROJECT_NAME)\" \\"; \
-		echo "  -p PROJECT_VERSION=\"$(PROJECT_VERSION)\" \\"; \
-		echo "  -p INPUT_REPORT_FILE_PATH=\"$(INPUT_REPORT_FILE_PATH)\" \\"; \
-		echo "  -p AGGREGATE_RESULTS_G_SHEET=\"$(AGGREGATE_RESULTS_G_SHEET)\" \\"; \
-		echo "  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \\"; \
-		echo "  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \\"; \
-		echo "  --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \\"; \
-		echo "  --workspace name=google-sa-json-ws,secret=google-service-account-secret \\"; \
-		echo "  --workspace name=cache-workspace,claimName=sast-ai-cache-pvc \\"; \
-		echo "  --showlog"; \
+		echo "   tkn --context $(CONTEXT) pipeline start sast-ai-workflow-pipeline \\"; \
+		echo "     -n $(NAMESPACE) \\"; \
+		echo "     -p REPO_REMOTE_URL=\"$(REPO_REMOTE_URL)\" \\"; \
+		echo "     -p FALSE_POSITIVES_URL=\"$(FALSE_POSITIVES_URL)\" \\"; \
+		echo "     -p LLM_URL=\"$(LLM_URL)\" \\"; \
+		echo "     -p LLM_MODEL_NAME=\"$(LLM_MODEL_NAME)\" \\"; \
+		echo "     -p EMBEDDINGS_LLM_URL=\"$(EMBEDDINGS_LLM_URL)\" \\"; \
+		echo "     -p EMBEDDINGS_LLM_MODEL_NAME=\"$(EMBEDDINGS_LLM_MODEL_NAME)\" \\"; \
+		echo "     -p PROJECT_NAME=\"$(PROJECT_NAME)\" \\"; \
+		echo "     -p PROJECT_VERSION=\"$(PROJECT_VERSION)\" \\"; \
+		echo "     -p INPUT_REPORT_FILE_PATH=\"$(INPUT_REPORT_FILE_PATH)\" \\"; \
+		echo "     -p AGGREGATE_RESULTS_G_SHEET=\"$(AGGREGATE_RESULTS_G_SHEET)\" \\"; \
+		echo "     --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \\"; \
+		echo "     --workspace name=gitlab-token-ws,secret=gitlab-token-secret \\"; \
+		echo "     --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \\"; \
+		echo "     --workspace name=google-sa-json-ws,secret=google-service-account-secret \\"; \
+		echo "     --workspace name=cache-workspace,claimName=sast-ai-cache-pvc \\"; \
+		echo "     --showlog"; \
 		echo ""; \
-		echo "To install Tekton CLI, visit: https://tekton.dev/docs/cli/"; \
-		echo "==============================================================================="; \
-		echo ""; \
-		echo "Infrastructure setup completed successfully!"; \
-		echo "Pipeline resources are ready. Install tkn CLI and run the above command to execute."; \
+		echo "   ✅ Infrastructure setup completed successfully!"; \
 	fi
 
 logs:
@@ -220,44 +219,68 @@ logs:
 	fi
 
 clean:
-	@echo "Cleaning up all resources in namespace $(NAMESPACE)..."
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🧹 SAST AI Workflow - Cleanup"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Context: $(CONTEXT)"
+	@echo "   Namespace: $(NAMESPACE)"
+	@echo ""
 	# Delete all PipelineRuns first (this should release PVCs they're using)
-	@echo "Deleting all PipelineRuns..."
-	@$(CO) delete pipelinerun --all -n $(NAMESPACE) --ignore-not-found || true
+	@echo "🏃 Cleaning Pipeline Runs..."
+	@$(CO) delete pipelinerun --all -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Pipeline runs removed"
 	# Delete all TaskRuns that might be left behind
-	@echo "Deleting all TaskRuns..."
-	@$(CO) delete taskrun --all -n $(NAMESPACE) --ignore-not-found || true
+	@echo "📋 Cleaning Task Runs..."
+	@$(CO) delete taskrun --all -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Task runs removed"
 	# Delete Tekton resources
-	@echo "Deleting Tekton resource definitions..."
-	$(CO) delete -n $(NAMESPACE) \
+	@echo "🔧 Removing Pipeline Resources..."
+	@$(CO) delete -n $(NAMESPACE) \
 		-f tekton/tasks/ \
 		-f tekton/pipeline.yaml \
-		--ignore-not-found
-	# Delete all PVCs in the namespace (including any left behind from previous runs)
-	@echo "Deleting all PVCs..."
-	@$(CO) delete pvc --all -n $(NAMESPACE) --ignore-not-found || true
+		--ignore-not-found > /dev/null 2>&1
+	@echo "   ✓ Pipeline definitions removed"
+	@echo "   ✓ Task definitions removed"
+	# Delete only SAST AI specific PVCs
+	@echo "💾 Cleaning Storage..."
+	@$(CO) delete pvc sast-ai-workflow-pvc sast-ai-cache-pvc -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Persistent volume claims removed"
 	# Wait a moment for PVCs to be deleted before checking PVs
-	@echo "Waiting for PVCs to be deleted..."
 	@sleep 5
-	# Delete any orphaned PVs that might be left behind
-	@echo "Checking for orphaned PVs..."
-	@$(CO) get pv --no-headers 2>/dev/null | grep "Released\|Available" | awk '{print $$1}' | xargs -r $(CO) delete pv --ignore-not-found || true
+	# Delete only PVs that were bound to our specific PVCs
+	@for pvc in sast-ai-workflow-pvc sast-ai-cache-pvc; do \
+		pv_name=$$($(CO) get pvc $$pvc -n $(NAMESPACE) -o jsonpath='{.spec.volumeName}' 2>/dev/null || echo ""); \
+		if [ -n "$$pv_name" ]; then \
+			$(CO) delete pv $$pv_name --ignore-not-found > /dev/null 2>&1 || true; \
+		fi; \
+	done
+	@echo "   ✓ Persistent volumes cleaned"
 	# Remove image pull secrets from pipeline service account
-	@echo "Cleaning up service account..."
+	@echo "👤 Cleaning Service Accounts..."
 	@$(CO) patch serviceaccount pipeline \
 		-n $(NAMESPACE) \
 		-p '{"imagePullSecrets": null}' \
 		--type=merge \
-		--ignore-not-found=true || true
+		--ignore-not-found=true > /dev/null 2>&1 || true
+	@echo "   ✓ Service account reset"
 	# Delete prompts
-	@echo "Deleting Prompts CM..."
+	@echo "💬 Removing Prompts..."
 	@$(CO) delete -f  tekton/prompts-config-map.yaml \
-		-n $(NAMESPACE) --ignore-not-found || true
+		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Prompt templates removed"
+	# Delete ConfigMaps created by scripts
+	@echo "📜 Cleaning Scripts..."
+	@$(CO) delete -f tekton/scripts/upload_to_drive_cm.yaml \
+		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Script configurations removed"
 	# Delete secrets
-	@echo "Deleting secrets..."
+	@echo "🔐 Removing Secrets..."
 	@$(CO) delete secret gitlab-token-secret \
 		sast-ai-default-llm-creds \
 		google-service-account-secret \
 		quay-sast-puller \
-		-n $(NAMESPACE) --ignore-not-found || true
-	@echo "Cleanup completed! All PVs, PVCs, and pipeline resources have been removed."
+		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ All secrets removed"
+	@echo ""
+	@echo "✅ Cleanup completed successfully!"
+	@echo ""
