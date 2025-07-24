@@ -30,9 +30,8 @@ class SASTWorkflowTracker(BaseModel):
     
     # Workflow configuration and tracking
     config: Config = Field(description="Configuration object containing settings for the entire workflow")
-    max_iterations: int = Field(default=5, description="Maximum number of analysis loops allowed for any single issue")
     iteration_count: int = Field(default=0, description="Number of analysis cycles the entire report has been through")
     
-    # Batch data
+    # Data and metrics
     issues: Dict[str, PerIssueData] = Field(default_factory=dict, description="Dictionary where key is issue_id and value is per-issue data")
     metrics: dict = Field(default_factory=dict, description="Dictionary to hold calculated metrics about the workflow run") 

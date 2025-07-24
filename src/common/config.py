@@ -18,6 +18,7 @@ from common.constants import (
     LLM_API_KEY,
     LLM_MODEL_NAME,
     LLM_URL,
+    MAX_ANALYSIS_ITERATIONS,
     OUTPUT_FILE_PATH,
     PROJECT_NAME,
     PROJECT_VERSION,
@@ -55,6 +56,7 @@ class Config:
     CRITIQUE_LLM_URL: str
     CRITIQUE_LLM_MODEL_NAME: str
     SERVICE_ACCOUNT_JSON_PATH: str
+    MAX_ANALYSIS_ITERATIONS: int
     
     # Prompt template type hints
     ANALYSIS_SYSTEM_PROMPT: str
