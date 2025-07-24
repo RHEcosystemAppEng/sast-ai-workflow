@@ -3,10 +3,10 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools >= 64", "setuptools-scm>=8"]
 
 [tool.setuptools_scm]
-root = "aiqtoolkit"
+# Must be present (although empty) to activat   e auto-versioning
 
 [project]
-name = "sast_ai_workflow"
+name = "sast_agent_workflow"
 dynamic = ["version", "dependencies"]
 requires-python = ">=3.13"
 description = "SAST AI Workflow - NeMo Agent for Static Application Security Testing"
@@ -19,11 +19,8 @@ dependencies = {file = ["requirements.txt"]}
 where = ["src"]
 include = ["*"]
 
-[tool.uv.sources]
-aiqtoolkit = { path = "aiqtoolkit", editable = true }
-
 [project.entry-points.'aiq.components']
-sast_ai_workflow = "sast_agent_workflow.register"
+sast_agent_workflow = "sast_agent_workflow.register"
 
 [project.scripts]
-sast-ai-workflow = "run:main" 
+sast_agent_workflow = "run:main" 
