@@ -150,7 +150,7 @@ def main():
                     llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                     retries = 0
-                    while llm_response.is_second_analysis_needed() and retries < 2:
+                    while llm_response.is_second_analysis_needed() and retries < config.MAX_ANALYSIS_ITERATIONS:
                         logger.info(
                             f"{llm_response.is_final=}\n{llm_response.recommendations=}\n\
                                 {llm_response.instructions=}"
