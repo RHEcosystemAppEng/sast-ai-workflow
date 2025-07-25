@@ -30,6 +30,10 @@ INPUT_REPORT_FILE_PATH			 ?= http://<<please-set-google-spreadsheet-url>>
 
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
+# GitOps Configuration
+GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
+ARGOCD_NAMESPACE                 ?= sast-ai
+
 # Secret configuration (loaded from .env file)
 GITLAB_TOKEN                     ?= ""
 LLM_API_KEY                      ?= ""
@@ -37,7 +41,7 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline scripts run logs clean generate-prompts prompts
+.PHONY: all setup tasks pvc secrets pipeline scripts run logs clean generate-prompts prompts argocd-deploy argocd-clean argocd-status argocd-sync gitops-setup
 
 all: setup scripts tasks pipeline prompts run
 
@@ -283,4 +287,96 @@ clean:
 	@echo "   ✓ All secrets removed"
 	@echo ""
 	@echo "✅ Cleanup completed successfully!"
+	@echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# GitOps / ArgoCD Integration
+# ═══════════════════════════════════════════════════════════════════════════════════
+
+gitops-setup: argocd-deploy
+	@echo ""
+	@echo "🎉 GitOps Setup Complete!"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   ✅ ArgoCD will now automatically sync Tekton resources from GitHub"
+	@echo "   📦 Repository: $(GITHUB_REPO_URL)"
+	@echo "   🌿 Branch: HEAD (tracks latest)"
+	@echo "   📁 Sync Path: deploy/tekton"
+	@echo "   🎯 Target: $(NAMESPACE) namespace"
+	@echo "   ⏱️  Sync Frequency: Every ~3 minutes"
+	@echo ""
+	@echo "🔄 Next Steps:"
+	@echo "   1️⃣  Make changes to files in deploy/tekton/"
+	@echo "   2️⃣  Commit and push to main branch"
+	@echo "   3️⃣  Watch ArgoCD automatically sync changes"
+	@echo "   4️⃣  Monitor: make argocd-status"
+	@echo ""
+
+argocd-deploy:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "⚙️  GitOps Configuration - ArgoCD Application Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   📦 Repository: $(GITHUB_REPO_URL)"
+	@echo "   🎯 Target Namespace: $(NAMESPACE)"
+	@echo "   🔧 ArgoCD Namespace: $(ARGOCD_NAMESPACE)"
+	@echo ""
+	@echo "🚀 Deploying ArgoCD Application..."
+	# Create the target namespace if it doesn't exist
+	@$(CO) create namespace $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1 || true
+	@echo "   ✓ Target namespace '$(NAMESPACE)' ready"
+	# Apply the ArgoCD Application with variable substitution
+	@sed 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g; s|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g; s|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' argocd/argocd-application.yaml | $(CO) apply -f - > /dev/null 2>&1
+	@echo "   ✓ ArgoCD Application 'sast-ai-workflow' deployed"
+	@echo "   ✓ Automatic sync enabled (prune: true, self-heal: true)"
+	@echo ""
+	@sleep 2
+	@$(MAKE) --no-print-directory argocd-status
+
+argocd-status:
+	@echo "📊 ArgoCD Application Status:"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@if $(CO) get application sast-ai-workflow -n $(ARGOCD_NAMESPACE) > /dev/null 2>&1; then \
+		echo "   ✅ Application Found: sast-ai-workflow"; \
+		APP_STATUS=$$($(CO) get application sast-ai-workflow -n $(ARGOCD_NAMESPACE) -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown"); \
+		HEALTH_STATUS=$$($(CO) get application sast-ai-workflow -n $(ARGOCD_NAMESPACE) -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown"); \
+		REPO_URL=$$($(CO) get application sast-ai-workflow -n $(ARGOCD_NAMESPACE) -o jsonpath='{.spec.source.repoURL}' 2>/dev/null || echo "Unknown"); \
+		echo "   🔄 Sync Status: $$APP_STATUS"; \
+		echo "   ❤️  Health Status: $$HEALTH_STATUS"; \
+		echo "   📦 Repository: $$REPO_URL"; \
+		echo "   📁 Path: deploy/tekton"; \
+		echo "   🎯 Target: $(NAMESPACE)"; \
+		echo ""; \
+		if [ "$$APP_STATUS" = "Synced" ] && [ "$$HEALTH_STATUS" = "Healthy" ]; then \
+			echo "   🎉 GitOps is working perfectly!"; \
+		elif [ "$$APP_STATUS" = "OutOfSync" ]; then \
+			echo "   ⚠️  Application is out of sync - will auto-sync soon"; \
+		else \
+			echo "   ℹ️  Application is synchronizing..."; \
+		fi; \
+	else \
+		echo "   ❌ ArgoCD Application 'sast-ai-workflow' not found"; \
+		echo "   📍 Namespace: $(ARGOCD_NAMESPACE)"; \
+		echo "   💡 Run 'make argocd-deploy' to create it"; \
+	fi
+	@echo ""
+
+argocd-sync:
+	@echo "🔄 Triggering Manual Sync..."
+	@if $(CO) get application sast-ai-workflow -n $(ARGOCD_NAMESPACE) > /dev/null 2>&1; then \
+		$(CO) patch application sast-ai-workflow -n $(ARGOCD_NAMESPACE) --type merge -p '{"operation":{"sync":{}}}' > /dev/null 2>&1 || true; \
+		echo "   ✓ Manual sync triggered"; \
+		echo "   ⏱️  Check status in a few seconds: make argocd-status"; \
+	else \
+		echo "   ❌ ArgoCD Application not found. Run 'make argocd-deploy' first"; \
+	fi
+
+argocd-clean:
+	@echo "🧹 Removing ArgoCD Application..."
+	@$(CO) delete application sast-ai-workflow -n $(ARGOCD_NAMESPACE) --ignore-not-found > /dev/null 2>&1
+	@if [ $$? -eq 0 ]; then \
+		echo "   ✓ ArgoCD Application 'sast-ai-workflow' removed"; \
+	else \
+		echo "   ℹ️  ArgoCD Application was not found or already removed"; \
+	fi
+	@echo "   ℹ️  Note: Target namespace '$(NAMESPACE)' and Tekton resources are preserved"
+	@echo "   ℹ️  Use 'make clean' to remove all SAST AI Workflow resources"
 	@echo ""
