@@ -30,6 +30,10 @@ spec:
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: ""
+    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+      type: string
+      description: "Whether to use known false positive file for filtering (true/false)"
+      default: "true"
   workspaces:
     - name: source-workspace
     - name: false-positives-workspace
@@ -48,6 +52,8 @@ spec:
           value: "$(params.REPO_LOCAL_PATH)"
         - name: KNOWN_FALSE_POSITIVE_FILE_PATH
           value: "$(workspaces.false-positives-workspace.path)/ignore.err"
+        - name: USE_KNOWN_FALSE_POSITIVE_FILE
+          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: AGGREGATE_RESULTS_G_SHEET
