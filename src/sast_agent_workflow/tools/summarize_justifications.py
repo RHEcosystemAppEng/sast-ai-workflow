@@ -7,7 +7,6 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-# Import data models without src prefix
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 
 logger = logging.getLogger(__name__)
@@ -34,9 +33,6 @@ async def summarize_justifications(
     async def _summarize_justifications_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """
         Summarize justifications function for SAST workflow.
-        
-        TODO: Implement actual justification summarization logic
-        Takes a SASTWorkflowTracker and returns it after summarizing justifications.
         """
         logger.info("Running Summarize_Justifications node - summarizing justifications")
         logger.info(f"Summarize_Justifications node processing tracker with {len(tracker.issues)} issues")
@@ -55,4 +51,4 @@ async def summarize_justifications(
     except GeneratorExit:
         logger.info("Summarize_Justifications function exited early!")
     finally:
-        logger.info("Cleaning up Summarize_Justifications function.") 
+        logger.info("Cleaning up Summarize_Justifications function.")

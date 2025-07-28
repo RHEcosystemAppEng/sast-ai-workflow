@@ -16,6 +16,7 @@ from common.constants import (
     INPUT_REPORT_FILE_PATH,
     KNOWN_FALSE_POSITIVE_FILE_PATH,
     LLM_API_KEY,
+    LLM_API_TYPE,
     LLM_MODEL_NAME,
     LLM_URL,
     MAX_ANALYSIS_ITERATIONS,
@@ -43,6 +44,7 @@ class Config:
     PROJECT_VERSION: str
     LLM_URL: str
     LLM_MODEL_NAME: str
+    LLM_API_TYPE: str
     EMBEDDINGS_LLM_URL: str
     EMBEDDINGS_LLM_MODEL_NAME: str
     INPUT_REPORT_FILE_PATH: str
@@ -180,6 +182,7 @@ class Config:
             PROJECT_VERSION,
             LLM_URL,
             LLM_MODEL_NAME,
+            LLM_API_TYPE,
             EMBEDDINGS_LLM_URL,
             EMBEDDINGS_LLM_MODEL_NAME,
             INPUT_REPORT_FILE_PATH,
@@ -242,6 +245,10 @@ class Config:
             raise ValueError(
                 f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True."
             )
+        
+        # Validate that LLM_API_TYPE is valid
+        if self.LLM_API_TYPE not in ["openai", "nim"]:
+            raise ValueError(f"Invalid LLM_API_TYPE: {self.LLM_API_TYPE}, must be 'openai' or 'nim'.")
 
         # Validate that prompt templates are loaded
         prompt_vars = ['ANALYSIS_SYSTEM_PROMPT', 'ANALYSIS_HUMAN_PROMPT', 'FILTER_SYSTEM_PROMPT', 

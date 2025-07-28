@@ -9,7 +9,7 @@ from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 
-# Import any tools which need to be automatically registered here
+# Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \
         filter, data_fetcher, judge_llm_analysis, \
         evaluate_analysis, summarize_justifications, \
@@ -30,7 +30,7 @@ class SASTAgentConfig(FunctionBaseConfig, name="sast_agent"):
     calculate_metrics_function_name: str = Field(description="Function name for Calculate_Metrics node")
     write_results_function_name: str = Field(description="Function name for Write_Results node")
     
-    description: str = Field(default="SAST agent workflow for static application security testing",
+    description: str = Field(default="SAST agent workflow for analyzing SAST issues and determining if they are false alarms",
                            description="Workflow function description")
 
 
@@ -141,7 +141,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         try:
             return tracker.model_dump_json(
                 indent=2,
-                exclude={'config'},  # Exclude config field since it's complex
+                exclude={'config'},  # Exclude config field since it's complex and not relevant to the output
             )
         except Exception as e:
             logger.error("Failed to convert SASTWorkflowTracker to str: %s", e)

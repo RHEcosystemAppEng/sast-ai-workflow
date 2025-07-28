@@ -7,7 +7,6 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-# Import data models without src prefix
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 
 logger = logging.getLogger(__name__)
@@ -34,9 +33,6 @@ async def write_results(
     async def _write_results_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """
         Write results function for SAST workflow.
-        
-        TODO: Implement actual results writing logic
-        Takes a SASTWorkflowTracker and returns it after writing results.
         """
         logger.info("Running Write_Results node - writing results")
         logger.info(f"Write_Results node processing tracker with {len(tracker.issues)} issues")
@@ -55,4 +51,4 @@ async def write_results(
     except GeneratorExit:
         logger.info("Write_Results function exited early!")
     finally:
-        logger.info("Cleaning up Write_Results function.") 
+        logger.info("Cleaning up Write_Results function.")

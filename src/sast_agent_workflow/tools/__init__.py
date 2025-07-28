@@ -24,4 +24,4 @@ __all__ = [
     'summarize_justifications',
     'calculate_metrics',
     'write_results',
-] 
+]

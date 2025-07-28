@@ -7,7 +7,6 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-# Import data models without src prefix
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 
 logger = logging.getLogger(__name__)
@@ -52,4 +51,4 @@ async def data_fetcher(
     except GeneratorExit:
         logger.info("Data_Fetcher function exited early!")
     finally:
-        logger.info("Cleaning up Data_Fetcher function.") 
+        logger.info("Cleaning up Data_Fetcher function.")

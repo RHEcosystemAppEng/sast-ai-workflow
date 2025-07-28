@@ -80,6 +80,7 @@ podman run -d --name sast-ai-app \
 -e LLM_URL=http://<<please-set-llm-url>> \
 -e LLM_MODEL_NAME="<Model Name>" \
 -e LLM_API_KEY=<your_key> \
+-e LLM_API_TYPE=<nim/openai> \
 -e EMBEDDINGS_LLM_URL=http://<<please-set-embedding-llm-url>> \
 -e EMBEDDINGS_API_KEY=<your_key> \
 -e EMBEDDINGS_LLM_MODEL_NAME=<<embeddings-llm-model-name>> \
@@ -112,6 +113,7 @@ environment variables.
 | PROJECT_VERSION                |  ""                                       | ✔             | 257-9                                      | Version of the project being analyzed.                                                                                           |
 | LLM_URL                        | http://\<<please-set-llm-url\>>           | ✔             | https://integrate.api.nvidia.com/v1        | URL of the language model endpoint.                                                                                              |
 | LLM_MODEL_NAME                 | \<<please-set-llm-model-name\>>           | ✔             | nvidia/llama-3.1-nemotron-70b-instruct     | Identifier of the language model to use.                                                                                         |
+| LLM_API_TYPE                   | nim                                       | ✔             | openai                                     | Used to determine the type of llm to use, must be "nim" or "openai".                                                                                    |
 | EMBEDDINGS_LLM_URL             | http://\<<please-set-embedding-llm-url\>> | ✔             | https://integrate.api.nvidia.com/v1        | URL of the embedding model endpoint.                                                                                              |
 | EMBEDDINGS_LLM_MODEL_NAME      | \<<please-set-embeddings-llm-model-name\>>| ✔             | all-mpnet-base-v2                          | Model used for generating embeddings.                                                                                            |
 | INPUT_REPORT_FILE_PATH         | /path/to/report.html                      | ✔             | /path/to/report.html or https://docs.google.com/spreadsheets/d/\<sheet-id\> | Path to the SAST HTML report or URL of a Google Sheet containing the report.                                                                                                        |
