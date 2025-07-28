@@ -1,19 +1,27 @@
 # SAST Agent Workflow
 
+> **Note:** This README is temporary and is only used during the development phase of NeMo integration.
+
 ## Overview
 
-This workflow provides a skeleton for implementing SAST analysis capabilities using an AI agent approach. The workflow is designed as a `sast_agent` type and includes placeholder functionality that can be extended for actual SAST analysis tasks.
+This workflow provides a skeleton for implementing SAST analysis capabilities using an AI agent approach. The workflow is designed as a `sast_agent` type and implements various tools for SAST analysis and result processing.
 
 ## Structure
 
 - **Workflow Type**: `sast_agent` - Custom workflow type registered in `register.py`
-- **Functions**: 
-  - `sast_placeholder_function` - Placeholder for SAST analysis functionality
-- **Agent Registration**: `sast_agent` workflow type defines how the agent works (placeholder for LangGraph flow)
+- **Tools Package**: Contains the following analysis and processing tools:
+  - calculate_metrics
+  - data_fetcher
+  - evaluate_analysis
+  - filter
+  - judge_llm_analysis
+  - pre_process
+  - summarize_justifications
+  - write_results
 
 ## Files
 
-- `src/sast_agent_workflow/tools/sast_placeholder_function.py` - Placeholder function implementation
+- `src/sast_agent_workflow/tools/` - Directory containing all analysis and processing tools
 - `src/sast_agent_workflow/register.py` - Defines and registers the `sast_agent` workflow, including its LangGraph-based logic
 - `configs/config.yml` - Workflow configuration
 - `pyproject.toml` - Package configuration
@@ -26,13 +34,7 @@ This workflow provides a skeleton for implementing SAST analysis capabilities us
    source .venv/bin/activate
    ```
 
-2. Install dependencies:
-   ```bash
-   uv pip install agentiq
-   uv pip install aiqtoolkit[langchain]
-   ```
-
-3. Install the SAST workflow package (first time):
+2. Install the SAST workflow package (first time):
    ```bash
    uv pip install -e .
    ```
@@ -41,17 +43,11 @@ This workflow provides a skeleton for implementing SAST analysis capabilities us
 
 ## Usage
 
-Run the SAST agent workflow with test data:
+Run the SAST agent workflow:
 ```bash
-aiq run --config_file src/sast_agent_workflow/configs/config.yml --input_file sast_test_data.json
+aiq run --config_file src/sast_agent_workflow/configs/config.yml --input <some str>
 ```
 
-**Note:** The `sast_test_data.json` file is temporary and will be replaced with the current input format of the original workflow.
-
-## Development
-
-This is a skeleton/template that should be customized with actual SAST analysis logic:
-
-1. Replace the placeholder function with real SAST analysis capabilities
-2. Add additional functions as needed for your specific SAST workflow
-3. Integrate with existing SAST tools and analysis pipelines
+**Note:** The string input is only present because NeMo requires some input parameter, but this input is not actually used in the workflow. The real inputs come from:
+1. The `default_config.yaml` file
+2. Environment variables

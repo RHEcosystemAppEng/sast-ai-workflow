@@ -29,8 +29,8 @@ class SASTWorkflowTracker(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
     # Workflow configuration and tracking
-    config: Config = Field(description="Configuration object containing settings for the entire workflow")
-    iteration_count: int = Field(default=0, description="Number of analysis cycles the entire report has been through")
+    config: Config|None = Field(default=None, description="Configuration object containing settings for the entire workflow")
+    iteration_count: int = Field(default=2, description="Number of analysis cycles the entire report has been through")
     
     # Data and metrics
     issues: Dict[str, PerIssueData] = Field(default_factory=dict, description="Dictionary where key is issue_id and value is per-issue data")
