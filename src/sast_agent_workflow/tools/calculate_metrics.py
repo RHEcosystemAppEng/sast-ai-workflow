@@ -7,7 +7,6 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-# Import data models without src prefix
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 
 logger = logging.getLogger(__name__)
@@ -34,9 +33,6 @@ async def calculate_metrics(
     async def _calculate_metrics_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """
         Calculate metrics function for SAST workflow.
-        
-        TODO: Implement actual metrics calculation logic
-        Takes a SASTWorkflowTracker and returns it after calculating metrics.
         """
         logger.info("Running Calculate_Metrics node - calculating metrics")
         logger.info(f"Calculate_Metrics node processing tracker with {len(tracker.issues)} issues")
@@ -55,4 +51,4 @@ async def calculate_metrics(
     except GeneratorExit:
         logger.info("Calculate_Metrics function exited early!")
     finally:
-        logger.info("Cleaning up Calculate_Metrics function.") 
+        logger.info("Cleaning up Calculate_Metrics function.")

@@ -7,5 +7,3 @@ This package contains the complete SAST AI workflow system including:
 - File handlers and utilities
 - Integration with AIQ toolkit
 """
-
-__version__ = "0.1.0" 

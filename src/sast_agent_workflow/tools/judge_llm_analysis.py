@@ -7,7 +7,6 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-# Import data models without src prefix
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 
 logger = logging.getLogger(__name__)
@@ -34,42 +33,13 @@ async def judge_llm_analysis(
     async def _judge_llm_analysis_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """
         Judge LLM analysis function for SAST workflow.
-        
-        TODO: Implement actual LLM analysis logic
-        Takes a SASTWorkflowTracker and returns it after LLM analysis.
         """
         logger.info("Running Judge_LLM_Analysis node - performing LLM analysis")
         logger.info(f"Judge_LLM_Analysis node processing tracker with {len(tracker.issues)} issues")
         
-        try:
-            from LLMService import LLMService
-            from langchain_core.prompts import ChatPromptTemplate
-            
-            if not tracker.config or not tracker.config.LLM_URL or not tracker.config.LLM_API_KEY:
-                logger.error("Missing required LLM configuration (LLM_URL or LLM_API_KEY)")
-                return tracker
-            
-            llm_service = LLMService(config=tracker.config)
-            
-            # Create a simple test prompt
-            test_prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are a helpful assistant."),
-                ("user", "Where is the capital of France?")
-            ])
-            
-            # Make a test call to the LLM
-            try:
-                response = llm_service.main_llm.invoke(test_prompt.format())
-                logger.info(f"LLM Test Response: {response.content}")
-                tracker.issues["def1"].analysis_response = response.content
-            except Exception as e:
-                logger.error(f"Error during LLM test call: {str(e)}")
-                raise
-                
-        except Exception as e:
-            logger.error(f"Error in Judge_LLM_Analysis: {str(e)}")
-            # Don't fail the pipeline, just log the error
-            
+        # TODO: Implement actual LLM analysis logic here
+        
+        # Update iteration count to show processing
         tracker.iteration_count += 1
         
         logger.info("Judge_LLM_Analysis node completed")
@@ -84,4 +54,4 @@ async def judge_llm_analysis(
     except GeneratorExit:
         logger.info("Judge_LLM_Analysis function exited early!")
     finally:
-        logger.info("Cleaning up Judge_LLM_Analysis function.") 
+        logger.info("Cleaning up Judge_LLM_Analysis function.")

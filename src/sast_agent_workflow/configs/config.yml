@@ -5,11 +5,11 @@ functions:
   
   filter:
     _type: filter
-    description: "Filter function that filters SAST issues"
+    description: "Filter function that filters known false positives and retrieve similar issues"
   
   data_fetcher:
     _type: data_fetcher
-    description: "Data fetcher function that fetches required data for analysis"
+    description: "Data fetcher function that fetches required source code for analysis"
   
   judge_llm_analysis:
     _type: judge_llm_analysis
@@ -17,7 +17,7 @@ functions:
   
   evaluate_analysis:
     _type: evaluate_analysis
-    description: "Evaluate analysis function that evaluates the results of SAST analysis"
+    description: "Evaluate analysis function that evaluates the results of the analysis and provides recommendations for the next steps"
   
   summarize_justifications:
     _type: summarize_justifications
@@ -29,11 +29,13 @@ functions:
   
   write_results:
     _type: write_results
-    description: "Write results function that writes the final SAST analysis results"
+    description: "Write results function that writes the final SAST analysis results to the outputs specified in the configuration."
 
 llms:
-  sast_llm:
-    _type: nim
+  main_llm:
+    _type: ${LLM_API_TYPE}
+    api_key: ${LLM_API_KEY}
+    base_url: ${LLM_URL}
     model_name: ${LLM_MODEL_NAME}
 
 workflow:

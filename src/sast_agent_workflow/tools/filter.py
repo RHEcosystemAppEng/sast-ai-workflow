@@ -51,4 +51,4 @@ async def filter(
     except GeneratorExit:
         logger.info("Filter function exited early!")
     finally:
-        logger.info("Cleaning up Filter function.") 
+        logger.info("Cleaning up Filter function.")
