@@ -34,7 +34,7 @@ spec:
       default: "embedding-llm-model"
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
-      default: "" 
+      default: ""
     - name: GDRIVE_FOLDER_ID
       type: string
       description: "Google Drive folder ID for uploading SAST results (optional)"
@@ -43,6 +43,10 @@ spec:
       type: string
       description: "Optional GDrive SA file name"
       default: "service_account.json"
+    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+      type: string
+      description: "Whether to use known false positive file for filtering (true/false)"
+      default: "true"
   workspaces:
     - name: shared-workspace
     - name: gitlab-token-ws
@@ -115,6 +119,9 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
+        - name: USE_KNOWN_FALSE_POSITIVE_FILE
+          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+          
       workspaces:
         - name: source-workspace
           workspace: shared-workspace
