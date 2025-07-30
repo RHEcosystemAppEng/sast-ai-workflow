@@ -115,7 +115,8 @@ def main():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
                     )
-                    context = already_seen_issues_dict[issue.id].equal_error_trace
+                    equal_error_trace = already_seen_issues_dict[issue.id] #equal_error_trace (List[str])
+                    context = "\n".join(equal_error_trace) if equal_error_trace else "No matching trace found"
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
                         is_final="TRUE",
@@ -188,7 +189,7 @@ def main():
                         recommendations=[],
                         instructions=[],
                         prompt="",
-                        short_justifications=FALLBACK_JUSTIFICATION_MESSAGE,
+                        short_justifications=FALLBACK_JUSTIFICATION_MESSAGE[0],
                     )
                     logger.info("Default values have been set")
                 else:

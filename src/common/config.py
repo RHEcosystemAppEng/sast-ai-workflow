@@ -4,6 +4,7 @@ import os
 import yaml
 from dotenv import load_dotenv
 
+from Utils.validation_utils import validate_similarity_threshold
 from common.constants import (
     CONFIG_H_PATH,
     CRITIQUE_LLM_API_KEY,
@@ -25,6 +26,7 @@ from common.constants import (
     REPO_REMOTE_URL,
     RUN_WITH_CRITIQUE,
     SERVICE_ACCOUNT_JSON_PATH,
+    SIMILARITY_ERROR_THRESHOLD,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +45,8 @@ class Config:
     LLM_URL: str
     LLM_MODEL_NAME: str
     EMBEDDINGS_LLM_URL: str
-    EMBEDDINGS_LLM_MODEL_NAME: str
+    EMBEDDINGS_LLM_MODEL_NAME: str | None
+    EMBEDDINGS_LLM_API_KEY: str | None 
     INPUT_REPORT_FILE_PATH: str
     KNOWN_FALSE_POSITIVE_FILE_PATH: str
     OUTPUT_FILE_PATH: str
@@ -54,7 +57,9 @@ class Config:
     RUN_WITH_CRITIQUE: bool
     CRITIQUE_LLM_URL: str
     CRITIQUE_LLM_MODEL_NAME: str
+    CRITIQUE_LLM_API_KEY: str | None 
     SERVICE_ACCOUNT_JSON_PATH: str
+    SIMILARITY_ERROR_THRESHOLD: int
     
     # Prompt template type hints
     ANALYSIS_SYSTEM_PROMPT: str
@@ -182,6 +187,7 @@ class Config:
             EMBEDDINGS_LLM_MODEL_NAME,
             INPUT_REPORT_FILE_PATH,
             OUTPUT_FILE_PATH,
+            SIMILARITY_ERROR_THRESHOLD,
         }
         required_cfg_files = {INPUT_REPORT_FILE_PATH}
             
@@ -240,6 +246,10 @@ class Config:
             raise ValueError(
                 f"'{CRITIQUE_LLM_MODEL_NAME}' must be set when '{RUN_WITH_CRITIQUE}' is True."
             )
+        
+        # Validate that similarity error threshold is a valid value
+        if not validate_similarity_threshold(self.SIMILARITY_ERROR_THRESHOLD):
+            raise ValueError(f"Configuration variable '{SIMILARITY_ERROR_THRESHOLD}' is not a valid value.")
 
         # Validate that prompt templates are loaded
         prompt_vars = ['ANALYSIS_SYSTEM_PROMPT', 'ANALYSIS_HUMAN_PROMPT', 'FILTER_SYSTEM_PROMPT', 
