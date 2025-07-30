@@ -11,12 +11,13 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from pydantic.types import SecretStr
 
 from Utils.llm_utils import robust_structured_output
 from Utils.file_utils import read_answer_template_file
 from Utils.embedding_utils import check_text_size_before_embedding
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, RED_ERROR_FOR_LLM_REQUEST
+from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, RED_ERROR_FOR_LLM_REQUEST, REGEX_PATTERNS
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JustificationsSummary, RecommendationsResponse, EvaluationResponse
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
@@ -24,23 +25,15 @@ from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_t
 
 logger = logging.getLogger(__name__)
 
-def _format_context_from_response(resp):
-    context_list = []
-    for doc in resp:
-        context_list.append({"false_positive_error_trace":doc.page_content,
-                             "reason_marked_false_positive":doc.metadata['reason_of_false_positive']
-                             })
-    return context_list
-
 
 class LLMService:
 
     def __init__(self, config:Config):
         self.llm_url = config.LLM_URL
-        self.llm_api_key = config.LLM_API_KEY
+        self.llm_api_key = SecretStr(config.LLM_API_KEY) if config.LLM_API_KEY else None
         self.llm_model_name = config.LLM_MODEL_NAME
         self.embedding_llm_url = config.EMBEDDINGS_LLM_URL
-        self.embedding_api_key = config.EMBEDDINGS_LLM_API_KEY
+        self.embedding_api_key = SecretStr(config.EMBEDDINGS_LLM_API_KEY) if config.EMBEDDINGS_LLM_API_KEY else None
         self.embedding_llm_model_name = config.EMBEDDINGS_LLM_MODEL_NAME
 
         self._main_llm = None
@@ -52,7 +45,7 @@ class LLMService:
         self._critique_llm = None
         self._critique_llm_model_name = config.CRITIQUE_LLM_MODEL_NAME
         self._critique_base_url = config.CRITIQUE_LLM_URL
-        self.critique_api_key = getattr(config, "CRITIQUE_LLM_API_KEY", None)
+        self.critique_api_key = SecretStr(config.CRITIQUE_LLM_API_KEY) if hasattr(config, "CRITIQUE_LLM_API_KEY") and config.CRITIQUE_LLM_API_KEY else None
 
         # Store prompt templates from config
         self.analysis_system_prompt = config.ANALYSIS_SYSTEM_PROMPT
@@ -136,7 +129,7 @@ class LLMService:
                 )
         return self._critique_llm
 
-    def filter_known_error(self, database, issue: Issue):
+    def filter_known_error(self, issue: Issue, similar_findings_context: str) -> FilterResponse:
         """
         Check if an issue exactly matches a known false positive.
         
@@ -147,34 +140,32 @@ class LLMService:
         Returns:
             tuple: A tuple containing:
             - response (FilterResponse): A structured response with the analysis result.
-            - examples_context_str (str): N (N=SIMILARITY_ERROR_THRESHOLD) most similar known issues of the same type of the query issue.
+            - similar_findings_context (str): N (N=SIMILARITY_ERROR_THRESHOLD) most similar known issues of the same type of the query issue.
         """
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", self.filter_system_prompt),
             ("user", self.filter_human_prompt)
         ])
         
-        retriever = database.as_retriever(search_kwargs={"k": self.similarity_error_threshold,
-                                                         'filter': {'issue_type': issue.issue_type}})
-        resp = retriever.invoke(issue.trace)
-        examples_context_str= _format_context_from_response(resp)
-        logger.debug(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
-        if not examples_context_str:
+        
+        logger.debug(f"[issue-ID - {issue.id}] Found This context:\n{similar_findings_context}")
+        if not similar_findings_context:
             # logger.info(f"Not find any relevant context for issue id {issue.id}")
             response = FilterResponse(
                                     equal_error_trace=[],
                                     justifications=(f"No identical error trace found in the provided context. "
-                                                    f"The context empty because no issue of type {issue.issue_type} in knonw isseu DB."),
+                                                    f"The context empty because no issue of type {issue.issue_type} in known issue DB."),
                                     result="NO"
                                 )
-            return response, examples_context_str
+            return response
 
         template_path = os.path.join(os.path.dirname(__file__), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
 
         pattern_matching_prompt_chain = (
                 {
-                    "context": RunnableLambda(lambda _: examples_context_str),
+                    "context": RunnableLambda(lambda _: similar_findings_context),
                     "answer_template": RunnableLambda(lambda _: answer_template),
                     "user_error_trace": RunnablePassthrough()
                 }
@@ -191,7 +182,7 @@ class LLMService:
                                     justifications="An error occurred twice during model output parsing. Defaulting to: NO",
                                     result="NO"
                                 )
-        return response, examples_context_str
+        return response
 
 
 
@@ -485,6 +476,9 @@ class LLMService:
                     logger.warning(f"Missing issue_type, skipping known False positive {item}")
                     continue
 
+                match_cwe = re.search(f"({REGEX_PATTERNS['CWE_PATTERN']})", lines[0])
+                cwe_str = match_cwe.group(1) if match_cwe else None
+
                 # Extract the lines after the error trace as 'reason_of_false_positive'
                 reason_start_line_index = len(lines) - 1
                 code_block_line_pattern = re.compile(r'#\s*\d+\|')
@@ -498,9 +492,10 @@ class LLMService:
 
                 metadata_list.append({
                     "reason_of_false_positive": reason_of_false_positive,
-                    "issue_type": issue_type
+                    "issue_type": issue_type,
+                    "issue_cwe": cwe_str
                 })
-                error_trace = "\n".join(lines[:reason_start_line_index])
+                error_trace = "\n".join(lines[1:reason_start_line_index])
                 check_text_size_before_embedding(error_trace, self.embedding_llm_model_name)
                 # Add the item without the last line
                 error_trace_list.append(error_trace)
