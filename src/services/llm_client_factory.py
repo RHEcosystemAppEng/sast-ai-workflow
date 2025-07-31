@@ -10,6 +10,7 @@ from langchain_openai.chat_models.base import ChatOpenAI
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.language_models import BaseLLM
 from langchain_core.embeddings import Embeddings
+from pydantic.types import SecretStr
 
 from common.config import Config
 
@@ -27,14 +28,14 @@ class LLMClientFactory:
             return ChatNVIDIA(
                 base_url=config.LLM_URL,
                 model=config.LLM_MODEL_NAME,
-                api_key=config.LLM_API_KEY,
+                api_key=SecretStr(config.LLM_API_KEY) if config.LLM_API_KEY else None,
                 temperature=0,
             )
         else:
             return ChatOpenAI(
                 base_url=config.LLM_URL,
                 model=config.LLM_MODEL_NAME,
-                api_key=config.LLM_API_KEY,
+                api_key=SecretStr(config.LLM_API_KEY) if config.LLM_API_KEY else None,
                 temperature=0,
                 http_client=http_client,
             )
@@ -45,7 +46,7 @@ class LLMClientFactory:
         
         return OpenAIEmbeddings(
             openai_api_base=config.EMBEDDINGS_LLM_URL,
-            openai_api_key=config.EMBEDDINGS_LLM_API_KEY,
+            openai_api_key=SecretStr(config.EMBEDDINGS_LLM_API_KEY) if config.EMBEDDINGS_LLM_API_KEY else None,
             model=config.EMBEDDINGS_LLM_MODEL_NAME,
             tiktoken_enabled=False,
             show_progress_bar=True,
@@ -60,7 +61,7 @@ class LLMClientFactory:
             return ChatNVIDIA(
                 base_url=config.CRITIQUE_LLM_URL,
                 model=config.CRITIQUE_LLM_MODEL_NAME,
-                api_key=getattr(config, "CRITIQUE_LLM_API_KEY", None),
+                api_key=SecretStr(config.CRITIQUE_LLM_API_KEY) if hasattr(config, "CRITIQUE_LLM_API_KEY") and config.CRITIQUE_LLM_API_KEY else None,
                 temperature=0.6,
             )
         else:
