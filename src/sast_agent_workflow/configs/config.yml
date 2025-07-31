@@ -1,0 +1,60 @@
+functions:
+  pre_process:
+    _type: pre_process
+    description: "Pre-processing function that initializes the SAST workflow"
+  
+  filter:
+    _type: filter
+    description: "Filter function that filters known false positives and retrieve similar issues"
+  
+  data_fetcher:
+    _type: data_fetcher
+    description: "Data fetcher function that fetches required source code for analysis"
+  
+  judge_llm_analysis:
+    _type: judge_llm_analysis
+    description: "Judge LLM analysis function that performs LLM-based analysis of SAST issues"
+  
+  evaluate_analysis:
+    _type: evaluate_analysis
+    description: "Evaluate analysis function that evaluates the results of the analysis and provides recommendations for the next steps"
+  
+  summarize_justifications:
+    _type: summarize_justifications
+    description: "Summarize justifications function that summarizes analysis justifications"
+  
+  calculate_metrics:
+    _type: calculate_metrics
+    description: "Calculate metrics function that calculates performance metrics for SAST analysis"
+  
+  write_results:
+    _type: write_results
+    description: "Write results function that writes the final SAST analysis results to the outputs specified in the configuration."
+
+llms:
+  main_llm:
+    _type: ${LLM_API_TYPE}
+    api_key: ${LLM_API_KEY}
+    base_url: ${LLM_URL}
+    model_name: ${LLM_MODEL_NAME}
+
+workflow:
+  _type: sast_agent
+  pre_process_function_name: pre_process
+  filter_function_name: filter
+  data_fetcher_function_name: data_fetcher
+  judge_llm_analysis_function_name: judge_llm_analysis
+  evaluate_analysis_function_name: evaluate_analysis
+  summarize_justifications_function_name: summarize_justifications
+  calculate_metrics_function_name: calculate_metrics
+  write_results_function_name: write_results
+  description: "SAST agent workflow for static application security testing"
+
+general:
+  use_uvloop: true
+  logging:
+    console:
+      _type: console
+      level: INFO
+  front_end:
+    type: console
