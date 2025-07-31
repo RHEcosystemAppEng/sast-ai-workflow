@@ -13,6 +13,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
 from Utils.embedding_utils import check_text_size_before_embedding
+from common.constants import REGEX_PATTERNS
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,9 @@ class VectorStoreService:
                     logger.warning(f"Missing issue_type, skipping known False positive {item}")
                     continue
 
+                match_cwe = re.search(f"({REGEX_PATTERNS['CWE_PATTERN']})", lines[0])
+                cwe_str = match_cwe.group(1) if match_cwe else None
+
                 # Extract the lines after the error trace as 'reason_of_false_positive'
                 reason_start_line_index = len(lines) - 1
                 code_block_line_pattern = re.compile(r'#\s*\d+\|')
@@ -103,10 +107,11 @@ class VectorStoreService:
 
                 metadata_list.append({
                     "reason_of_false_positive": reason_of_false_positive,
-                    "issue_type": issue_type
+                    "issue_type": issue_type,
+                    "issue_cwe": cwe_str
                 })
                 
-                error_trace = "\n".join(lines[:reason_start_line_index])
+                error_trace = "\n".join(lines[1:reason_start_line_index])
                 check_text_size_before_embedding(error_trace, embedding_llm.model)
                 error_trace_list.append(error_trace)
                 

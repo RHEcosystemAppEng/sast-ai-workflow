@@ -129,6 +129,72 @@ class IssueAnalysisService:
         
         return response, examples_context_str
     
+    def filter_known_issues_from_context(self, issue: Issue, similar_findings_context: str, main_llm: BaseLLM) -> FilterResponse:
+        """
+        Check if an issue exactly matches a known false positive using provided context.
+        
+        Args:
+            issue: The issue object with details like the error trace and issue ID
+            similar_findings_context: The context containing similar findings
+            main_llm: The main LLM for filtering
+            
+        Returns:
+            response (FilterResponse): A structured response with the analysis result
+        """
+        logger.debug(f"[issue-ID - {issue.id}] Found This context:\n{similar_findings_context}")
+        
+        if not similar_findings_context:
+            response = FilterResponse(
+                equal_error_trace=[],
+                justifications=(f"No identical error trace found in the provided context. "
+                              f"The context empty because no issue of type {issue.issue_type} in known issue DB."),
+                result="NO"
+            )
+            return response
+
+        template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "known_issue_filter_resp.json")
+        answer_template = read_answer_template_file(template_path)
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", self.filter_system_prompt),
+            ("user", self.filter_human_prompt)
+        ])
+        
+        pattern_matching_prompt_chain = (
+            {
+                "context": RunnableLambda(lambda _: similar_findings_context),
+                "answer_template": RunnableLambda(lambda _: answer_template),
+                "user_error_trace": RunnablePassthrough()
+            }
+            | prompt
+        )
+        
+        actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
+        logger.debug(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
+        
+        try:
+            response = robust_structured_output(
+                llm=main_llm,
+                schema=FilterResponse,
+                input=issue.trace,
+                prompt_chain=pattern_matching_prompt_chain,
+                max_retries=self.max_retry_limit
+            )
+        except Exception as e:
+            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
+                max_retry_limit=self.max_retry_limit, 
+                function_name="filter_known_error", 
+                issue_id=issue.id, 
+                error=e
+            ))
+            response = FilterResponse(
+                equal_error_trace=[],
+                justifications="An error occurred twice during model output parsing. Defaulting to: NO",
+                result="NO"
+            )
+        
+        return response
+    
     def analyze_issue(self, issue: Issue, context: str, main_llm: BaseLLM, 
                      critique_llm: BaseLLM = None) -> Tuple[AnalysisResponse, EvaluationResponse]:
         """
