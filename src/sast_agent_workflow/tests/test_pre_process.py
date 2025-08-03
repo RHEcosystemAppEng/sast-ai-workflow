@@ -3,14 +3,13 @@ Unit tests for the pre_process tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock, patch, AsyncMock
-import asyncio
+from unittest.mock import Mock, patch
 
-from common.constants import FALSE, NOT_A_FALSE_POSITIVE
+from common.constants import FALSE
 from sast_agent_workflow.tools.pre_process import pre_process, PreProcessConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from common.config import Config
 from handlers.protocols import RepoHandlerProtocol
 from aiq.builder.builder import Builder
@@ -59,7 +58,7 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
             
             # Verify default analysis response
             analysis_resp = per_issue_data.analysis_response
-            self.assertEqual(analysis_resp.investigation_result, NOT_A_FALSE_POSITIVE)
+            self.assertEqual(analysis_resp.investigation_result, CVEValidationStatus.TRUE_POSITIVE.value)
             self.assertEqual(analysis_resp.is_final, FALSE)
         
         # Verify external dependencies were called

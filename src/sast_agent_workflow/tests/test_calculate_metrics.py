@@ -3,9 +3,8 @@ Unit tests for the calculate_metrics tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from common.constants import FALSE, NOT_A_FALSE_POSITIVE
 from sast_agent_workflow.tools.calculate_metrics import calculate_metrics, CalculateMetricsConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue

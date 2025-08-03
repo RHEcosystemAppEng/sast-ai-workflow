@@ -6,7 +6,7 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, TOKENIZERS_PARALLELISM
+from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, TOKENIZERS_PARALLELISM
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from dto.SummaryInfo import SummaryInfo
@@ -130,8 +130,7 @@ def main():
                         justifications=[
                             f"The error is similar to one found in the provided context: {context}"
                         ],
-                        short_justifications="The error is similar to one found in the provided \
-                            known issues (Details in the full Justification)",
+                        short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
                     )
                 else:
                     # get source code context by error trace

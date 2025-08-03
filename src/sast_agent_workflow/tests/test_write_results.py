@@ -3,9 +3,8 @@ Unit tests for the write_results tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from common.constants import FALSE, NOT_A_FALSE_POSITIVE
 from sast_agent_workflow.tools.write_results import write_results, WriteResultsConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue

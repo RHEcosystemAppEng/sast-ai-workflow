@@ -3,9 +3,8 @@ Unit tests for the summarize_justifications tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from common.constants import FALSE, NOT_A_FALSE_POSITIVE
 from sast_agent_workflow.tools.summarize_justifications import summarize_justifications, SummarizeJustificationsConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue
