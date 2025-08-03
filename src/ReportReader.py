@@ -41,7 +41,7 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
         if not finding:
             continue
 
-        issue = Issue(f"def{idx}")
+        issue = Issue(id=f"def{idx}")
         # TODO - please leave a example string for finding
         lines = finding.split("\n")
         issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
@@ -63,12 +63,12 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
     with open(file_path, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
         all_pre_tags = soup.findAll("pre")
-        cur_issue = Issue(-1)
+        cur_issue = Issue(id="-1")
         for tag in all_pre_tags[0].children:
             if tag.name == "a" and tag.has_attr("id"):
                 if cur_issue.id != -1:
                     issue_list.append(cur_issue)
-                cur_issue = Issue(tag["id"])
+                cur_issue = Issue(id=tag["id"])
             else:
                 if tag.name == "b" and tag.find("span") and tag.find("a"):
                     try:
