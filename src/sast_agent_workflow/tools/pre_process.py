@@ -2,7 +2,9 @@ from io import TextIOWrapper
 import json
 import logging
 
+from ReportReader import read_sast_report
 from common.config import Config
+from common.constants import FALSE, NOT_A_FALSE_POSITIVE
 from pydantic import Field
 
 from aiq.builder.builder import Builder
@@ -10,7 +12,9 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-from dto.SASTWorkflowModels import SASTWorkflowTracker
+from dto.LLMResponse import AnalysisResponse
+from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
+from handlers.repo_handler_factory import repo_handler_factory
 
 
 logger = logging.getLogger(__name__)
@@ -34,22 +38,12 @@ async def pre_process(
     
     logger.info("Initializing Pre_Process function...")
     
-    def _temp_create_basic_sast_tracker_for_testing() -> SASTWorkflowTracker:
-        """Just a temporary function for testing to create a SASTWorkflowTracker from a JSON file path"""
-        logger.debug("Converting TextIOWrapper to SASTWorkflowTracker")
-        try:        
-            # Check if config field exists, if not create it
-            if 'config' not in temp_data_for_testing:
-                logger.info("Missing 'config' field in JSON, creating config object")
-                temp_data_for_testing['config'] = Config()
-            
-            # Now create SASTWorkflowTracker with the complete data
-            return SASTWorkflowTracker.model_validate(temp_data_for_testing)
-        except Exception as e:
-            logger.error(f"Failed to create SASTWorkflowTracker from temp_data_for_testing: {e}")
-            raise
-
-
+    def _create_default_analysis_response() -> AnalysisResponse:
+        default_field_value = "This is a default value, if it's not replaced, something went wrong"
+        return AnalysisResponse(investigation_result=NOT_A_FALSE_POSITIVE, 
+                                is_final=FALSE, justifications=[default_field_value], 
+                                short_justifications=default_field_value, recommendations=[default_field_value], 
+                                instructions=[], evaluation=[default_field_value], prompt=default_field_value)
     
     async def _pre_process_fn(empty_input: dict) -> SASTWorkflowTracker:
         """
@@ -57,10 +51,17 @@ async def pre_process(
         """
         logger.info("Running Pre_Process node - initializing workflow")
         
-        # TODO: Implement actual pre-processing logic here
+        config = Config()
+        issue_list = read_sast_report(config)
+  
+        issues_dict = {}
+        for issue in issue_list:
+          issues_dict[issue.id] = PerIssueData(issue=issue, source_code={}, similar_known_issues="", analysis_response=_create_default_analysis_response())
         
-        # Create a basic SASTWorkflowTracker for the workflow
-        tracker = _temp_create_basic_sast_tracker_for_testing()
+        tracker = SASTWorkflowTracker(issues=issues_dict, config=config, iteration_count=0, metrics={})
+        
+        # Initialize the repo handler, just to download the repo if needed
+        repo_handler_factory(config)
         
         logger.info("Pre_Process node completed")
         return tracker
@@ -76,29 +77,3 @@ async def pre_process(
     finally:
         logger.info("Cleaning up Pre_Process function.") 
         
-# This is a temporary data for testing the SASTWorkflowTracker, it will be removed when pre_process is implemented
-temp_data_for_testing = {
-  "max_iterations": 3,
-  "iteration_count": 0,
-  "issues": {
-    "def1": {
-      "original_report_data": "cockpit-310.2/src/bridge/cockpitdisksamples.c:220: freed_arg: \"free\" frees \"key\".\ncockpit-310.2/src/bridge/cockpitdisksamples.c:215: deref_arg: Calling \"strcmp\" dereferences freed pointer \"(char const *)key\".\n#  213|     while (fscanf (io_fp, \"%m[^: ]: %\" G_GUINT64_FORMAT \"\\n\", &key, &value) == 2)\n#  214|       {\n#  215|->       if (g_str_equal (key, \"read_bytes\"))\n#  216|           disk_read = value;\n#  217|         else if (g_str_equal (key, \"write_bytes\"))",
-      "source_code": {
-        "src/bridge/cockpitdisksamples.c": "def authenticate_user(user_id):\n    cursor.execute('SELECT * FROM users WHERE id = ' + user_id)\n    return cursor.fetchone()",
-        "/app/models/user.py": "class User:\n    def __init__(self, id, username):\n        self.id = id\n        self.username = username"
-      },
-      "similar_known_issues": "Similar issue found in CVE-2019-1234: SQL injection in user authentication. Previous analysis showed parameterized queries needed. Status: FALSE POSITIVE after code review showed input validation present.",
-      "analysis_response": None
-    },
-    "def2": {
-      "original_report_data": "Cross-site Scripting (XSS) vulnerability found in profile template. CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting'). Severity: MEDIUM. Location: /app/templates/profile.html:15",
-      "source_code": {
-        "/app/templates/profile.html": "<div class='profile-name'>\n    <h2>{{ user.name }}</h2>\n    <p>Welcome back, {{ user.display_name }}!</p>\n</div>",
-        "/app/controllers/profile_controller.py": "def show_profile(user_id):\n    user = User.find(user_id)\n    return render_template('profile.html', user=user)"
-      },
-      "similar_knowqn_issues": "Similar XSS pattern found in previous scans. Template engines typically auto-escape by default. Need to verify if manual HTML insertion is happening. Previous similar issues were mostly FALSE POSITIVES due to auto-escaping.",
-      "analysis_response": None
-    }
-  },
-  "metrics": {}
-}

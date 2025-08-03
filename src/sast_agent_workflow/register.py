@@ -139,6 +139,10 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         """Convert SASTWorkflowTracker to string"""
         logger.debug("Converting SASTWorkflowTracker to str")
         try:
+            # For debug, print the tracker to the console
+            from pprint import pprint
+            tracker_dict = tracker.model_dump(exclude={'config'})
+            pprint(tracker_dict)
             return tracker.model_dump_json(
                 indent=2,
                 exclude={'config'},  # Exclude config field since it's complex and not relevant to the output
