@@ -3,9 +3,8 @@ Unit tests for the judge_llm_analysis tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from common.constants import FALSE, NOT_A_FALSE_POSITIVE
 from sast_agent_workflow.tools.judge_llm_analysis import judge_llm_analysis, JudgeLLMAnalysisConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue

@@ -7,15 +7,13 @@ to simplify and standardize testing across all workflow tools.
 
 import asyncio
 from unittest.mock import Mock
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from common.config import Config
-from common.constants import NOT_A_FALSE_POSITIVE, FALSE
-from handlers.protocols import RepoHandlerProtocol
-from aiq.builder.builder import Builder
+from common.constants import FALSE
 
 
 class TestUtils:
@@ -59,7 +57,7 @@ class TestUtils:
         return issues
 
     @staticmethod
-    def create_sample_per_issue_data_dict(issues: List[Issue], is_false_positive: str = NOT_A_FALSE_POSITIVE, is_final: str = FALSE, instructions: list = []) -> Dict[str, PerIssueData]:
+    def create_sample_per_issue_data_dict(issues: List[Issue], is_false_positive: str = CVEValidationStatus.TRUE_POSITIVE.value, is_final: str = FALSE, instructions: list = []) -> Dict[str, PerIssueData]:
         """Create a dictionary of PerIssueData from issues."""
         issues_dict = {}
         for i, issue in enumerate(issues):
@@ -73,7 +71,7 @@ class TestUtils:
         return issues_dict
     
     @staticmethod
-    def create_sample_analysis_response(is_false_positive: str = NOT_A_FALSE_POSITIVE, is_final: str = FALSE, 
+    def create_sample_analysis_response(is_false_positive: str = CVEValidationStatus.TRUE_POSITIVE.value, is_final: str = FALSE, 
                                         instructions: list = [], justifications: list = ["Test justification"], 
                                         short_justifications: str = "Short justification", 
                                         recommendations: list = ["Test recommendation"], evaluation: list = ["Test evaluation"], prompt: str = "Test prompt") -> AnalysisResponse:
