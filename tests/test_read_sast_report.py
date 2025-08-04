@@ -196,10 +196,10 @@ class TestReadSastReport:
         
         # Test 3: Truncated HTML (simulating file corruption during transfer)
         # preparation - test #3
-        with open('/Users/gziv/Dev/sast-ai-workflow/tests/systemd-252-46.el9_5.2.html', 'r') as f:
-            original_html = f.read()
-        
-        truncated_html = original_html[:500]
+        truncated_html = '''<!DOCTYPE html>
+        <html>
+        <body>
+        <pre>Some random text without proper SAST structure due to truncation...'''
         truncated_file = tmp_path / "truncated.html"
         truncated_file.write_text(truncated_html)
         
