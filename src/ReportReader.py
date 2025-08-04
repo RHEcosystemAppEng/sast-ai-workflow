@@ -34,6 +34,11 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
     sheet = get_google_sheet(google_sheet_url, service_account_file_path, ignore_error=False)
     rows = sheet.get_all_records()
 
+    # Check for empty sheet
+    if not rows:
+        logger.warning(f"No rows found in Google Sheet: {google_sheet_url}")
+        return []
+
     # Create a list of Issue objects
     issue_list = []
     for idx, row in enumerate(rows, start=1):
@@ -60,17 +65,49 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
 
 def read_sast_report_local_html(file_path) -> List[Issue]:
     issue_list = []
+    
+    # Check if file exists
+    import os
+    if not os.path.exists(file_path):
+        logger.error(f"File not found: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
     with open(file_path, "r", encoding="utf-8") as f:
-        soup = BeautifulSoup(f.read(), "html.parser")
-        all_pre_tags = soup.findAll("pre")
+        content = f.read()
+        
+        # Check for empty file
+        if len(content.strip()) == 0:
+            logger.warning(f"Empty HTML file detected: {file_path}")
+            return []
+            
+        try:
+            soup = BeautifulSoup(content, "html.parser")
+        except Exception as e:
+            logger.error(f"BeautifulSoup parsing failed for {file_path}: {e}")
+            raise ValueError(f"HTML parsing failed: {e}")
+            
+        all_pre_tags = soup.find_all("pre")
+        
+        # Check if no <pre> tags found (corrupted/invalid structure)
+        if not all_pre_tags:
+            logger.warning(f"No <pre> tags found in HTML file - possibly corrupted: {file_path}")
+            return []
+            
         cur_issue = Issue(-1)
+        tags_processed = 0
+        valid_tags_found = 0
+        
         for tag in all_pre_tags[0].children:
+            tags_processed += 1
+            
             if tag.name == "a" and tag.has_attr("id"):
+                valid_tags_found += 1
                 if cur_issue.id != -1:
                     issue_list.append(cur_issue)
                 cur_issue = Issue(tag["id"])
             else:
                 if tag.name == "b" and tag.find("span") and tag.find("a"):
+                    valid_tags_found += 1
                     try:
                         cur_issue.issue_type = tag.find("span").text
                         cur_issue.issue_cve = tag.find("a").text
@@ -79,5 +116,11 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
                         logger.error(f"Exception when parsing tag: {tag}")
                 else:
                     cur_issue.trace += tag.text
+        
+        # Log if very few valid tags were found (possible corruption)
+        if tags_processed > 0 and valid_tags_found == 0:
+            logger.warning(f"No valid SAST tags found in {tags_processed} processed tags - file may be corrupted: {file_path}")
+        elif tags_processed > 10 and valid_tags_found < (tags_processed * 0.1):
+            logger.warning(f"Very few valid SAST tags found ({valid_tags_found}/{tags_processed}) - file may be corrupted: {file_path}")
 
     return issue_list
