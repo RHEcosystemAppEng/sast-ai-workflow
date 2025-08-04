@@ -19,6 +19,7 @@ from FilterKnownIssues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
+from Utils.validation_utils import validate_issue
 
 # Setup logging
 setup_logging()
@@ -109,8 +110,9 @@ def main():
             #     continue
 
             # Set default values
-            score, critique_response, context = {}, "", ""
+            score, critique_response, context, llm_response = {}, "", "", None
             try:
+                validate_issue(issue)
                 if issue.id in already_seen_issues_dict.keys():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
@@ -145,8 +147,8 @@ def main():
                     )
 
                     # cwe_context = ""
-                    # if issue.issue_cve_link:
-                    # cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
+                    # if issue.issue_cwe_link:
+                    # cwe_texts = read_cve_html_file(issue.issue_cwe_link, config)
                     # cwe_context = "".join(cwe_texts)
 
                     context = (
