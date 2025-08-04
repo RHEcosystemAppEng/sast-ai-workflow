@@ -8,7 +8,7 @@ import logging
 from typing import Tuple
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain_core.language_models import BaseLLM
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_community.vectorstores import FAISS
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
@@ -53,83 +53,7 @@ class IssueAnalysisService:
         self.evaluation_prompt = config.EVALUATION_PROMPT
         self.similarity_error_threshold = config.SIMILARITY_ERROR_THRESHOLD
     
-    def filter_known_issues(self, issue: Issue, vector_store: FAISS, main_llm: BaseLLM) -> Tuple[FilterResponse, str]:
-        """
-        Check if an issue exactly matches a known false positive.
-        
-        Args:
-            issue: The issue object with details like the error trace and issue ID
-            vector_store: The vector database of known false positives
-            main_llm: The main LLM for filtering
-            
-        Returns:
-            tuple: A tuple containing:
-            - response (FilterResponse): A structured response with the analysis result
-            - examples_context_str: Most similar known issues of the same type
-        """
-        resp = self.vector_service.similarity_search(
-            vector_store=vector_store,
-            query=issue.trace,
-            k=self.similarity_error_threshold,
-            filter_criteria={'issue_type': issue.issue_type}
-        )
-        
-        examples_context_str = _format_context_from_response(resp)
-        logger.debug(f"[issue-ID - {issue.id}] Found This context:\n{examples_context_str}")
-        
-        if not examples_context_str:
-            response = FilterResponse(
-                equal_error_trace=[],
-                justifications=(f"No identical error trace found in the provided context. "
-                              f"The context empty because no issue of type {issue.issue_type} in known issue DB."),
-                result="NO"
-            )
-            return response, examples_context_str
-
-        template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "known_issue_filter_resp.json")
-        answer_template = read_answer_template_file(template_path)
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", self.filter_system_prompt),
-            ("user", self.filter_human_prompt)
-        ])
-        
-        pattern_matching_prompt_chain = (
-            {
-                "context": RunnableLambda(lambda _: examples_context_str),
-                "answer_template": RunnableLambda(lambda _: answer_template),
-                "user_error_trace": RunnablePassthrough()
-            }
-            | prompt
-        )
-        
-        actual_prompt = pattern_matching_prompt_chain.invoke(issue.trace)
-        logger.debug(f"\n\n\nFiltering prompt:\n{actual_prompt.to_string()}")
-        
-        try:
-            response = robust_structured_output(
-                llm=main_llm,
-                schema=FilterResponse,
-                input=issue.trace,
-                prompt_chain=pattern_matching_prompt_chain,
-                max_retries=self.max_retry_limit
-            )
-        except Exception as e:
-            logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
-                max_retry_limit=self.max_retry_limit, 
-                function_name="filter_known_error", 
-                issue_id=issue.id, 
-                error=e
-            ))
-            response = FilterResponse(
-                equal_error_trace=[],
-                justifications="An error occurred twice during model output parsing. Defaulting to: NO",
-                result="NO"
-            )
-        
-        return response, examples_context_str
-    
-    def filter_known_issues_from_context(self, issue: Issue, similar_findings_context: str, main_llm: BaseLLM) -> FilterResponse:
+    def filter_known_issues_from_context(self, issue: Issue, similar_findings_context: str, main_llm: BaseChatModel) -> FilterResponse:
         """
         Check if an issue exactly matches a known false positive using provided context.
         
@@ -155,6 +79,7 @@ class IssueAnalysisService:
         template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "known_issue_filter_resp.json")
         answer_template = read_answer_template_file(template_path)
 
+        # Should not use 'system' for deepseek-r1
         prompt = ChatPromptTemplate.from_messages([
             ("system", self.filter_system_prompt),
             ("user", self.filter_human_prompt)
@@ -195,8 +120,8 @@ class IssueAnalysisService:
         
         return response
     
-    def analyze_issue(self, issue: Issue, context: str, main_llm: BaseLLM, 
-                     critique_llm: BaseLLM = None) -> Tuple[AnalysisResponse, EvaluationResponse]:
+    def analyze_issue(self, issue: Issue, context: str, main_llm: BaseChatModel, 
+                     critique_llm: BaseChatModel = None) -> Tuple[AnalysisResponse, EvaluationResponse]:
         """
         Analyze an issue to determine if it is a false positive or not.
         
@@ -262,10 +187,11 @@ class IssueAnalysisService:
         return llm_analysis_response, critique_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _investigate_issue_with_retry(self, context: str, issue: Issue, main_llm: BaseLLM):
+    def _investigate_issue_with_retry(self, context: str, issue: Issue, main_llm: BaseChatModel):
         """Analyze an issue to determine if it is a false positive or not."""
         user_input = "Investigate if the following problem needs to be fixed or can be considered false positive. " + issue.trace
         
+        # Should not use 'system' for deepseek-r1
         analysis_prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template(self.analysis_system_prompt),
             HumanMessagePromptTemplate.from_template(self.analysis_human_prompt)
@@ -305,13 +231,14 @@ class IssueAnalysisService:
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
     def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse, 
-                                issue_id: str, main_llm: BaseLLM) -> JustificationsSummary:
+                                issue_id: str, main_llm: BaseChatModel) -> JustificationsSummary:
         """Summarize the justifications into a concise, engineer-style comment."""
         examples_str = ('[{"short_justifications": "t is reassigned so previously freed value is replaced by malloced string"}, '
                        '{"short_justifications": "There is a check for k<0"}, '
                        '{"short_justifications": "i is between 1 and BMAX, line 1623 checks that j < i, array C is of the size BMAX+1"}, '
                        '{"short_justifications": "C is an array of size BMAX+1, i is between 1 and BMAX (inclusive)"}]')
 
+        # Should not use 'system' for deepseek-r1
         prompt = ChatPromptTemplate.from_messages([
             ("system", self.justification_summary_system_prompt),
             ("user", self.justification_summary_human_prompt)
@@ -347,7 +274,7 @@ class IssueAnalysisService:
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
     def _recommend(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse, 
-                  main_llm: BaseLLM) -> RecommendationsResponse:
+                  main_llm: BaseChatModel) -> RecommendationsResponse:
         """Generate recommendations for further investigation, if necessary."""
         recommendations_prompt = ChatPromptTemplate.from_messages([
             HumanMessagePromptTemplate.from_template(self.recommendations_prompt)
@@ -384,7 +311,7 @@ class IssueAnalysisService:
         return recommendations_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _evaluate(self, actual_prompt, response, issue_id, critique_llm: BaseLLM) -> EvaluationResponse:
+    def _evaluate(self, actual_prompt, response, issue_id, critique_llm: BaseChatModel) -> EvaluationResponse:
         """Evaluate an analysis using critique model."""
         prompt = ChatPromptTemplate.from_messages([
             ("user", self.evaluation_prompt)
