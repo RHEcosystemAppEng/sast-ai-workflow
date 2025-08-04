@@ -8,7 +8,7 @@ import logging
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai.chat_models.base import ChatOpenAI
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_core.language_models import BaseLLM
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
 from pydantic.types import SecretStr
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LLMClientFactory:
     """Factory class for creating different types of LLM clients"""
     
-    def create_main_llm(self, config: Config) -> BaseLLM:
+    def create_main_llm(self, config: Config) -> BaseChatModel:
         """Create the main LLM client for analysis tasks"""
         http_client = httpx.Client(verify=False)
         
@@ -53,7 +53,7 @@ class LLMClientFactory:
             http_client=custom_http_client
         )
     
-    def create_critique_llm(self, config: Config) -> BaseLLM:
+    def create_critique_llm(self, config: Config) -> BaseChatModel:
         """Create the critique LLM client for evaluation tasks"""
         http_client = httpx.Client(verify=False)
         
