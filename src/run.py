@@ -19,6 +19,7 @@ from stage.filter_known_issues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
+from Utils.validation_utils import validate_issue
 
 # Setup logging
 setup_logging()
@@ -109,13 +110,21 @@ def main():
             #     continue
 
             # Set default values
-            score, critique_response, context = {}, "", ""
+            score, critique_response, context, llm_response = {}, "", "", None
             try:
+                validate_issue(issue)
                 if issue.id in already_seen_issues_dict.keys():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
                     )
-                    context = already_seen_issues_dict[issue.id].equal_error_trace
+                    equal_error_trace = already_seen_issues_dict[
+                        issue.id
+                    ]  # equal_error_trace (List[str])
+                    context = (
+                        "\n".join(equal_error_trace)
+                        if equal_error_trace
+                        else "No matching trace found"
+                    )
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
                         is_final="TRUE",
@@ -139,8 +148,8 @@ def main():
                     )
 
                     # cwe_context = ""
-                    # if issue.issue_cve_link:
-                    # cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
+                    # if issue.issue_cwe_link:
+                    # cwe_texts = read_cve_html_file(issue.issue_cwe_link, config)
                     # cwe_context = "".join(cwe_texts)
 
                     context = (
@@ -150,7 +159,10 @@ def main():
                     llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                     retries = 0
-                    while llm_response.is_second_analysis_needed() and retries < config.MAX_ANALYSIS_ITERATIONS:
+                    while (
+                        llm_response.is_second_analysis_needed()
+                        and retries < config.MAX_ANALYSIS_ITERATIONS
+                    ):
                         logger.info(
                             f"{llm_response.is_final=}\n{llm_response.recommendations=}\n\
                                 {llm_response.instructions=}"
