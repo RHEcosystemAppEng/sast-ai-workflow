@@ -125,8 +125,8 @@ class SarifReportReader(BaseReportReader):
             version = data.get("version")
             if not version or version not in self.SUPPORTED_SARIF_VERSIONS:
                 logger.warning(
-                    f"Unsupported SARIF version: {version}. "
-                    f"Supported versions: {self.SUPPORTED_SARIF_VERSIONS}"
+                    f"Unsupported SARIF version: {version}."
+                    "Supported versions: {self.SUPPORTED_SARIF_VERSIONS}"
                 )
                 return version is not None  # Still try to process if version exists
 
@@ -249,9 +249,9 @@ class SarifReportReader(BaseReportReader):
         issue.issue_label = self._extract_issue_label(result, rule)
 
         # Extract CVE/CWE information
-        cve_info = self._extract_cve_info(result, rule)
-        issue.issue_cve = cve_info["cve"]
-        issue.issue_cve_link = cve_info["cve_link"]
+        cwe_info = self._extract_cwe_info(result, rule)
+        issue.issue_cwe = cwe_info["cwe"]
+        issue.issue_cwe_link = cwe_info["cwe_link"]
 
         # Build comprehensive trace information
         issue.trace = self._build_trace_info(result, rule, tool_info)
@@ -324,83 +324,73 @@ class SarifReportReader(BaseReportReader):
 
         return "SARIF Result"
 
-    def _extract_cve_info(self, result: Dict[str, Any], rule: Dict[str, Any]) -> Dict[str, str]:
+    def _extract_cwe_info(self, result: Dict[str, Any], rule: Dict[str, Any]) -> Dict[str, str]:
         """
-        Extract CVE/CWE information from result or rule.
+        Extract CWE information from result or rule.
         """
-        cve_info = {"cve": "", "cve_link": ""}
+        cwe_info = {"cwe": "", "cwe_link": ""}
 
-        # First, check result properties (common in SARIF files)
-        result_properties = result.get("properties", {})
-        for key, value in result_properties.items():
-            if isinstance(value, str):
-                # Check for direct CWE/CVE values (e.g., "cwe": "CWE-798")
-                if key.lower() in ["cwe", "cve"] and value.startswith(("CWE-", "CVE-")):
-                    cve_info["cve"] = value.upper()
-                    cve_info["cve_link"] = self._generate_cve_link(value.upper())
-                    return cve_info
-                # Check for CWE/CVE patterns in any property value
-                cve_match = re.search(r"(CWE-\d+|CVE-\d{4}-\d+)", value, re.IGNORECASE)
-                if cve_match:
-                    cve = cve_match.group(1).upper()
-                    cve_info["cve"] = cve
-                    cve_info["cve_link"] = self._generate_cve_link(cve)
-                    return cve_info
-
-        # Check rule properties for CVE/CWE information
-        if rule:
-            # Check rule properties
-            properties = rule.get("properties", {})
-
-            # Look for CVE in various places
-            for key, value in properties.items():
+        # Check result properties for CWE
+        if "properties" in result and isinstance(result["properties"], dict):
+            for key, value in result["properties"].items():
                 if isinstance(value, str):
-                    # Check for direct CWE/CVE values
-                    if key.lower() in ["cwe", "cve"] and value.startswith(("CWE-", "CVE-")):
-                        cve_info["cve"] = value.upper()
-                        cve_info["cve_link"] = self._generate_cve_link(value.upper())
-                        return cve_info
-                    # Check for patterns
-                    cve_match = re.search(r"(CWE-\d+|CVE-\d{4}-\d+)", value, re.IGNORECASE)
-                    if cve_match:
-                        cve = cve_match.group(1).upper()
-                        cve_info["cve"] = cve
-                        cve_info["cve_link"] = self._generate_cve_link(cve)
-                        return cve_info
+                    # Check for direct CWE values
+                    if key.lower() == "cwe" and value.startswith("CWE-"):
+                        cwe_info["cwe"] = value.upper()
+                        cwe_info["cwe_link"] = self._generate_cwe_link(value.upper())
+                        return cwe_info
+                    # Check for CWE patterns in any property value
+                    vuln_match = re.search(r"(CWE-\d+)", value, re.IGNORECASE)
+                    if vuln_match:
+                        vuln_id = vuln_match.group(1).upper()
+                        cwe_info["cwe"] = vuln_id
+                        cwe_info["cwe_link"] = self._generate_cwe_link(vuln_id)
+                        return cwe_info
+
+        # Check rule properties for CWE information
+        if "properties" in rule and isinstance(rule["properties"], dict):
+            for key, value in rule["properties"].items():
+                if isinstance(value, str):
+                    # Check for direct CWE values
+                    if key.lower() == "cwe" and value.startswith("CWE-"):
+                        cwe_info["cwe"] = value.upper()
+                        cwe_info["cwe_link"] = self._generate_cwe_link(value.upper())
+                        return cwe_info
+                    # Check for patterns in tags
+                    if key.lower() == "tags":
+                        vuln_match = re.search(r"(CWE-\d+)", value, re.IGNORECASE)
+                        if vuln_match:
+                            vuln_id = vuln_match.group(1).upper()
+                            cwe_info["cwe"] = vuln_id
+                            cwe_info["cwe_link"] = self._generate_cwe_link(vuln_id)
+                            return cwe_info
 
             # Check rule descriptions
-            for desc_key in ["shortDescription", "fullDescription"]:
-                desc_obj = rule.get(desc_key, {})
-                if isinstance(desc_obj, dict) and "text" in desc_obj:
-                    cve_match = re.search(
-                        r"(CWE-\d+|CVE-\d{4}-\d+)", desc_obj["text"], re.IGNORECASE
-                    )
-                    if cve_match:
-                        cve = cve_match.group(1).upper()
-                        cve_info["cve"] = cve
-                        cve_info["cve_link"] = self._generate_cve_link(cve)
-                        return cve_info
+            if "shortDescription" in rule and "text" in rule["shortDescription"]:
+                vuln_match = re.search(
+                    r"(CWE-\d+)", rule["shortDescription"]["text"], re.IGNORECASE
+                )
+                if vuln_match:
+                    vuln_id = vuln_match.group(1).upper()
+                    cwe_info["cwe"] = vuln_id
+                    cwe_info["cwe_link"] = self._generate_cwe_link(vuln_id)
+                    return cwe_info
 
-        # Check result message if no CVE found in rule
-        message = result.get("message", {})
-        if isinstance(message, dict) and "text" in message:
-            cve_match = re.search(r"(CWE-\d+|CVE-\d{4}-\d+)", message["text"], re.IGNORECASE)
-            if cve_match:
-                cve = cve_match.group(1).upper()
-                cve_info["cve"] = cve
-                cve_info["cve_link"] = self._generate_cve_link(cve)
+        # Check result message as a last resort
+        if "message" in result and "text" in result["message"]:
+            vuln_match = re.search(r"(CWE-\d+)", result["message"]["text"], re.IGNORECASE)
+            if vuln_match:
+                vuln_id = vuln_match.group(1).upper()
+                cwe_info["cwe"] = vuln_id
+                cwe_info["cwe_link"] = self._generate_cwe_link(vuln_id)
 
-        return cve_info
+        return cwe_info
 
-    def _generate_cve_link(self, cve: str) -> str:
-        """
-        Generate appropriate link for CVE or CWE.
-        """
-        if cve.startswith("CWE-"):
-            cwe_id = cve.split("-")[1]
-            return f"https://cwe.mitre.org/data/definitions/{cwe_id}.html"
-        elif cve.startswith("CVE-"):
-            return f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={cve}"
+    def _generate_cwe_link(self, cwe_id: str) -> str:
+        """Generate a link to the CWE online database."""
+        if cwe_id.startswith("CWE-"):
+            cwe_number = cwe_id.split("-")[-1]
+            return f"https://cwe.mitre.org/data/definitions/{cwe_number}.html"
         return ""
 
     def _build_trace_info(
@@ -426,7 +416,8 @@ class SarifReportReader(BaseReportReader):
         # Add code context
         code_context = self._build_code_context(result["locations"][0])
         trace_parts.append(code_context)
-        return "\n".join(trace_parts)
+        # Join parts and strip trailing whitespace for consistency
+        return "\n".join(trace_parts).rstrip()
 
     def _build_code_context(self, location: Dict[str, Any]) -> str:
         """
@@ -450,7 +441,19 @@ class SarifReportReader(BaseReportReader):
                 if code_text.startswith("Problem detected in this context:\n"):
                     code_text = code_text[len("Problem detected in this context:\n") :]
                 if code_text:
-                    return code_text
+                    # Add '# ' prefix to each line to match expected trace format
+                    lines = code_text.split("\n")
+                    formatted_lines = []
+                    for line in lines:
+                        if line.strip():  # Only format non-empty lines
+                            # Check if line already starts with '# ' to avoid double prefixing
+                            if not line.startswith("#"):
+                                formatted_lines.append(f"#  {line.strip()}")
+                            else:
+                                formatted_lines.append(line)
+                        else:
+                            formatted_lines.append(line)
+                    return "\n".join(formatted_lines)
 
             return ""
 

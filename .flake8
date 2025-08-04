@@ -1,0 +1,9 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, W503
+
+# Per-file ignores
+per-file-ignores =
+    # Test files can have imports after sys.path modifications
+    tests/*.py:E402
+    tests/fixtures.py:E501
