@@ -186,20 +186,32 @@ class CRepoHandler:
 
     def extract_missing_functions_or_macros(self, instructions) -> str:
         """Get definitions of an expression"""
+        
+        if not instructions:
+            logger.debug("No instructions provided for function/macro extraction")
+            return ""
 
         def get_path(path: str):
-            path = path.removeprefix(self.repo_local_path)
-            path = path.removeprefix(self._report_file_prefix)
-            path = path.split(":")[0]
-            return path
+            try:
+                path = path.removeprefix(self.repo_local_path)
+                path = path.removeprefix(self._report_file_prefix)
+                path = path.split(":")[0]
+                return path
+            except (AttributeError, TypeError) as e:
+                logger.warning(f"Invalid path format: {path}. Error: {e}")
+                return ""
 
         expressions_by_path = defaultdict(set)
         for instruction in instructions:
-            path = get_path(instruction.referring_source_code_path)
-            if instruction.expression_name not in self.all_found_symbols:
-                expressions_by_path[path].add(instruction.expression_name)
-            else:
-                print(f"Skipping {instruction.expression_name} - the context contains the code already.")
+            try:
+                path = get_path(instruction.referring_source_code_path)
+                if path and instruction.expression_name not in self.all_found_symbols:
+                    expressions_by_path[path].add(instruction.expression_name)
+                elif instruction.expression_name in self.all_found_symbols:
+                    logger.debug(f"Skipping {instruction.expression_name} - the context contains the code already.")
+            except AttributeError as e:
+                logger.warning(f"Invalid instruction format: {instruction}. Error: {e}")
+                continue
 
         missing_source_codes = ""
         for source_code_path, expressions_list in expressions_by_path.items():
