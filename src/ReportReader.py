@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from typing import List
 
@@ -67,7 +68,6 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
     issue_list = []
     
     # Check if file exists
-    import os
     if not os.path.exists(file_path):
         logger.error(f"File not found: {file_path}")
         raise FileNotFoundError(f"File not found: {file_path}")
