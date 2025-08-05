@@ -2,7 +2,12 @@
 Pytest configuration and shared fixtures for SAST-AI-Workflow tests.
 """
 import pytest
+import sys
+import os
 from unittest.mock import Mock
+
+# Add src directory to Python path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 # TODO: Import actual classes and services once we implement the tests
 # from src.LLMService import LLMService
 # from src.common.config import Config

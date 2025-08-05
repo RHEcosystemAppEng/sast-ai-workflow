@@ -3,61 +3,192 @@ Tests for investigate_issue function in LLMService.py
 Covers core LLM analysis for vulnerability classification.
 """
 import pytest
+import logging
 from unittest.mock import Mock, patch
-# TODO: from src.LLMService import LLMService
+from src.LLMService import LLMService
+from src.dto.Issue import Issue
+from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from src.dto.ResponseStructures import JudgeLLMResponse, RecommendationsResponse, JustificationsSummary, EvaluationResponse
+from common.config import Config
 
 
 class TestInvestigateIssue:
-    """Test class for investigate_issue function - Core LLM Analysis Tests"""
 
-    # Real LLM Tests
-    def test_given_true_positive_issue_when_investigating_with_real_llm_then_classifies_correctly_with_accurate_reasoning(self, mock_llm_service, sample_issue):
-        """Real LLM correctly identifies true positives with accurate reasoning."""
-        # TODO: Implement test with real LLM for true positive classification
-        pass
+    def test_given_valid_issue_when_investigating_then_returns_analysis_response(self):
+        # preparation
+        mock_config = Mock(spec=Config)
+        mock_config.LLM_URL = "http://test-llm"
+        mock_config.LLM_API_KEY = "test-key"
+        mock_config.LLM_MODEL_NAME = "test-model"
+        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"
+        mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
+        mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
+        mock_config.RUN_WITH_CRITIQUE = False
+        mock_config.CRITIQUE_LLM_URL = None
+        mock_config.CRITIQUE_LLM_API_KEY = None
+        mock_config.CRITIQUE_LLM_MODEL_NAME = None
+        mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
+        mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
+        mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
+        mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
+        mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
+        mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
+        mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
+        mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
 
-    def test_given_false_positive_issue_when_investigating_with_real_llm_then_classifies_accurately_based_on_safe_practices(self, mock_llm_service, sample_issue):
-        """Real LLM accurately identifies false positives based on safe coding practices."""
-        # TODO: Implement test with real LLM for false positive classification
-        pass
+        test_issue = Issue("test-issue-1")
+        test_issue.issue_type = "BUFFER_SIZE"
+        test_issue.issue_cve = "CWE-474"
+        test_issue.trace = "buffer overflow at line 121"
 
-    def test_given_ambiguous_vulnerability_when_investigating_with_real_llm_then_provides_detailed_reasoning(self, mock_llm_service):
-        """Real LLM provides detailed reasoning for ambiguous cases."""
-        # TODO: Implement test for ambiguous vulnerability handling
-        pass
+        mock_analysis_response = JudgeLLMResponse(
+            investigation_result="TRUE POSITIVE",
+            justifications=["Buffer overflow vulnerability detected"]
+        )
 
-    def test_given_identical_inputs_when_investigating_with_real_llm_then_demonstrates_consistent_behavior(self, mock_llm_service, sample_issue):
-        """Real LLM demonstrates consistent behavior for identical inputs."""
-        # TODO: Implement test for LLM consistency across runs
-        pass
+        mock_recommendations_response = RecommendationsResponse(
+            is_final="TRUE",
+            justifications=["Analysis complete"],
+            recommendations=["Fix buffer bounds"],
+            instructions=[]
+        )
 
-    def test_given_context_window_limits_when_investigating_with_real_llm_then_handles_large_context(self, mock_llm_service):
-        """Real LLM handles large context that approaches token limits."""
-        # TODO: Implement test for context window management
-        pass
+        mock_summary_response = JustificationsSummary(
+            short_justifications="Buffer overflow found"
+        )
 
-    # Mock LLM Tests
-    def test_given_malformed_json_response_when_investigating_with_mock_llm_then_handles_gracefully(self, mock_llm_service):
-        """Mock LLM test for graceful handling of invalid JSON responses."""
-        # TODO: Implement test for malformed JSON response handling
-        pass
+        # testing
+        with patch.object(LLMService, '_investigate_issue_with_retry') as mock_investigate, \
+             patch.object(LLMService, '_recommend') as mock_recommend, \
+             patch.object(LLMService, '_summarize_justification') as mock_summarize:
+            
+            mock_prompt = Mock()
+            mock_prompt.to_string.return_value = "test prompt"
+            mock_investigate.return_value = (mock_prompt, mock_analysis_response)
+            mock_recommend.return_value = mock_recommendations_response
+            mock_summarize.return_value = mock_summary_response
 
-    def test_given_partial_response_when_investigating_with_mock_llm_then_handles_incomplete_data(self, mock_llm_service):
-        """Mock LLM test for handling partial or incomplete responses."""
-        # TODO: Implement test for partial response handling
-        pass
+            llm_service = LLMService(mock_config)
+            analysis_result, critique_result = llm_service.investigate_issue("test context", test_issue)
 
-    def test_given_network_failure_when_investigating_with_mock_llm_then_retries_with_backoff(self, mock_llm_service):
-        """Mock LLM test for network failure and retry mechanisms."""
-        # TODO: Implement test for network failure and retry logic
-        pass
+            # assertion
+            assert type(analysis_result).__name__ == "AnalysisResponse"
+            assert analysis_result.investigation_result == "TRUE POSITIVE"
+            assert analysis_result.is_final == "TRUE"
+            assert "Buffer overflow vulnerability detected" in analysis_result.justifications
+            assert "Fix buffer bounds" in analysis_result.recommendations
+            assert analysis_result.short_justifications == "Buffer overflow found"
+            mock_investigate.assert_called_once_with(context="test context", issue=test_issue)
+            mock_recommend.assert_called_once()
+            mock_summarize.assert_called_once()
 
-    def test_given_token_limit_exceeded_when_investigating_with_mock_llm_then_handles_limit_errors(self, mock_llm_service):
-        """Mock LLM test for token limit handling."""
-        # TODO: Implement test for token limit error handling
-        pass
+    def test_given_exception_in_analysis_when_investigating_then_returns_fallback_response(self):
+        # preparation
+        mock_config = Mock(spec=Config)
+        mock_config.LLM_URL = "http://test-llm"
+        mock_config.LLM_API_KEY = "test-key"
+        mock_config.LLM_MODEL_NAME = "test-model"
+        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"
+        mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
+        mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
+        mock_config.RUN_WITH_CRITIQUE = False
+        mock_config.CRITIQUE_LLM_URL = None
+        mock_config.CRITIQUE_LLM_API_KEY = None
+        mock_config.CRITIQUE_LLM_MODEL_NAME = None
+        mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
+        mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
+        mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
+        mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
+        mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
+        mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
+        mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
+        mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
 
-    def test_given_api_authentication_failure_when_investigating_with_mock_llm_then_handles_auth_errors(self, mock_llm_service):
-        """Mock LLM test for API authentication failure handling."""
-        # TODO: Implement test for authentication error handling
-        pass
+        test_issue = Issue("test-issue-1")
+        test_issue.issue_type = "BUFFER_SIZE"
+        test_issue.issue_cve = "CWE-474"
+        test_issue.trace = "buffer overflow at line 121"
+
+        # testing
+        with patch.object(LLMService, '_investigate_issue_with_retry') as mock_investigate:
+            mock_investigate.side_effect = Exception("LLM service unavailable")
+            
+            llm_service = LLMService(mock_config)
+            analysis_result, critique_result = llm_service.investigate_issue("test context", test_issue)
+
+            # assertion
+            assert type(analysis_result).__name__ == "AnalysisResponse"
+            assert analysis_result.investigation_result == "NOT A FALSE POSITIVE"
+            assert analysis_result.is_final == "TRUE"
+            assert "Failed during analyze process" in analysis_result.evaluation
+            assert "Failed during analyze process" in analysis_result.recommendations
+            assert "Failed during analyze process" in analysis_result.short_justifications
+            mock_investigate.assert_called_once_with(context="test context", issue=test_issue)
+
+    def test_given_false_positive_classification_when_investigating_then_returns_false_positive_response(self):
+        # preparation
+        mock_config = Mock(spec=Config)
+        mock_config.LLM_URL = "http://test-llm"
+        mock_config.LLM_API_KEY = "test-key"
+        mock_config.LLM_MODEL_NAME = "test-model"
+        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"
+        mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
+        mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
+        mock_config.RUN_WITH_CRITIQUE = False
+        mock_config.CRITIQUE_LLM_URL = None
+        mock_config.CRITIQUE_LLM_API_KEY = None
+        mock_config.CRITIQUE_LLM_MODEL_NAME = None
+        mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
+        mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
+        mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
+        mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
+        mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
+        mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
+        mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
+        mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
+
+        test_issue = Issue("test-issue-2")
+        test_issue.issue_type = "BUFFER_SIZE" 
+        test_issue.issue_cve = "CWE-474"
+        test_issue.trace = "false positive case"
+
+        mock_analysis_response = JudgeLLMResponse(
+            investigation_result=" FALSE POSITIVE",
+            justifications=["Input validation prevents overflow"]
+        )
+
+        mock_recommendations_response = RecommendationsResponse(
+            is_final="TRUE",
+            justifications=["No action needed"],
+            recommendations=["No fix required"],
+            instructions=[]
+        )
+
+        mock_summary_response = JustificationsSummary(
+            short_justifications="Safe input validation"
+        )
+
+        # testing
+        with patch.object(LLMService, '_investigate_issue_with_retry') as mock_investigate, \
+             patch.object(LLMService, '_recommend') as mock_recommend, \
+             patch.object(LLMService, '_summarize_justification') as mock_summarize:
+            
+            mock_prompt = Mock()
+            mock_prompt.to_string.return_value = "test prompt"
+            mock_investigate.return_value = (mock_prompt, mock_analysis_response)
+            mock_recommend.return_value = mock_recommendations_response
+            mock_summarize.return_value = mock_summary_response
+
+            llm_service = LLMService(mock_config)
+            analysis_result, critique_result = llm_service.investigate_issue("test context", test_issue)
+
+            # assertion
+            assert type(analysis_result).__name__ == "AnalysisResponse"
+            assert analysis_result.investigation_result == " FALSE POSITIVE"
+            assert analysis_result.is_final == "TRUE"
+            assert "Input validation prevents overflow" in analysis_result.justifications
+            assert "No fix required" in analysis_result.recommendations
+            assert analysis_result.short_justifications == "Safe input validation"
