@@ -4,48 +4,72 @@ Covers secondary source code retrieval based on LLM requests.
 """
 import pytest
 from unittest.mock import Mock, patch
-# TODO: from src.handlers.c_repo_handler import CRepoHandler
+from src.handlers.c_repo_handler import CRepoHandler
 
 
 class TestExtractMissingFunctionsOrMacros:
-    """Test class for extract_missing_functions_or_macros function - Secondary Code Retrieval Tests"""
 
-    def test_given_request_for_specific_function_when_extracting_missing_code_then_locates_and_extracts_successfully(self, mock_repo_handler):
-        """Successfully locates and extracts requested functions."""
-        # TODO: Implement test for successful function location and extraction
-        pass
-
-    def test_given_request_for_nonexistent_function_when_extracting_missing_code_then_handles_gracefully(self, mock_repo_handler):
-        """Handles requests for non-existent functions gracefully."""
-        # TODO: Implement test for non-existent function handling
-        pass
-
-    def test_given_ambiguous_function_names_when_extracting_missing_code_then_manages_multiple_matches(self, mock_repo_handler):
-        """Manages scenarios with multiple matching function names."""
-        # TODO: Implement test for ambiguous function name handling
-        pass
-
-    def test_given_request_for_macros_when_extracting_missing_code_then_extracts_macro_definitions(self, mock_repo_handler):
-        """Successfully extracts macro definitions when requested."""
-        # TODO: Implement test for macro extraction
-        pass
-
-    def test_given_invalid_function_syntax_when_extracting_missing_code_then_handles_parsing_errors(self, mock_repo_handler):
+    def test_given_invalid_function_syntax_when_extracting_missing_code_then_handles_parsing_errors(self):
         """Handles invalid function syntax in LLM requests."""
-        # TODO: Implement test for invalid syntax handling
-        pass
+        # preparation
+        with patch.object(CRepoHandler, '__init__', return_value=None):
+            repo_handler = CRepoHandler(Mock())
+            repo_handler.all_found_symbols = set()
+            
+            instruction = Mock()
+            instruction.referring_source_code_path = None
+            instruction.expression_name = "test_function"
+            
+            # testing
+            with patch('src.handlers.c_repo_handler.logger') as mock_logger:
+                result = repo_handler.extract_missing_functions_or_macros([instruction])
+                
+                # assertion
+                assert result == ""
+                assert mock_logger.warning.called
 
-    def test_given_clang_search_failure_when_extracting_missing_code_then_handles_search_errors(self, mock_repo_handler):
-        """Handles Clang search failures gracefully."""
-        # TODO: Implement test for Clang search error handling
-        pass
-
-    def test_given_empty_instructions_when_extracting_missing_code_then_handles_empty_requests(self, mock_repo_handler):
+    def test_given_empty_instructions_when_extracting_missing_code_then_handles_empty_requests(self):
         """Handles empty or malformed LLM instructions."""
-        # TODO: Implement test for empty instruction handling
-        pass
+        # preparation
+        with patch.object(CRepoHandler, '__init__', return_value=None):
+            repo_handler = CRepoHandler(Mock())
+            
+            # testing
+            result = repo_handler.extract_missing_functions_or_macros(None)
+            
+            # assertion
+            assert result == ""
+            
+            result = repo_handler.extract_missing_functions_or_macros([])
+            assert result == ""
 
-    def test_given_multiple_function_requests_when_extracting_missing_code_then_handles_batch_extraction(self, mock_repo_handler):
-        """Handles batch requests for multiple functions efficiently."""
-        # TODO: Implement test for batch function extraction
-        pass
+    def test_given_valid_instructions_when_extracting_missing_code_then_processes_successfully(self):
+        """Successfully processes valid instructions and extracts code."""
+        # preparation
+        with patch.object(CRepoHandler, '__init__', return_value=None):
+            repo_handler = CRepoHandler(Mock())
+            repo_handler.all_found_symbols = set()
+            repo_handler.repo_local_path = "/test/repo"
+            repo_handler._report_file_prefix = "test-1.0/"
+            
+            instruction = Mock()
+            instruction.referring_source_code_path = "/test/repotest-1.0/src/main.c:10"
+            instruction.expression_name = "missing_function"
+            
+            # testing
+            with patch.object(repo_handler, 'extract_definition_from_source_code') as mock_extract:
+                mock_extract.return_value = (
+                    {"missing_function"}, 
+                    {"src/main.c": {"missing_function": "int missing_function() { return 0; }"}}
+                )
+                
+                result = repo_handler.extract_missing_functions_or_macros([instruction])
+                
+                # assertion
+                assert "int missing_function() { return 0; }" in result
+                assert "code of src/main.c file:" in result
+                mock_extract.assert_called_once()
+                # Verify the correct path was processed
+                call_args = mock_extract.call_args[0]
+                assert call_args[0] == {"missing_function"}
+                assert call_args[1] == "src/main.c"
