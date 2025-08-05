@@ -11,7 +11,7 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from sast_agent_workflow.tests.test_utils import TestUtils
+from tests.aiq_tests.test_utils import TestUtils
 
 
 class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
@@ -27,8 +27,8 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         # Create a sample tracker with issues
         self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    async def test_judge_llm_analysis_fn_basic_state_change(self):
-        """Basic test for _judge_llm_analysis_fn execution - verifies SASTWorkflowTracker state changes.
+    async def test_given_sample_tracker_when_judge_llm_analysis_executed_then_updates_analysis_response_and_increments_iteration(self):
+        """Given a sample tracker, when judge_llm_analysis is executed, then it updates analysis response and increments iteration.
            
            Expected state changes for Judge_LLM_Analysis tool:
            - analysis_response fields should be updated (investigation_result, justifications, is_final, prompt)
@@ -43,22 +43,21 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
            - Analysis response field updates
            - Edge case tests (empty issues, etc.)
         """
+        # preparation
         # TODO: Mock the actual LLM service dependencies when implemented
         
-        judge_result = await TestUtils.run_single_fn(judge_llm_analysis, self.judge_llm_analysis_config, self.builder, self.sample_tracker)
+        # testing
+        result_tracker = await TestUtils.run_single_fn(judge_llm_analysis, self.judge_llm_analysis_config, self.builder, self.sample_tracker)
         
-        # Verify the result is still a SASTWorkflowTracker
-        self.assertIsInstance(judge_result, SASTWorkflowTracker)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
         
-        # Verify iteration count was incremented (key state change for this tool)
-        self.assertEqual(judge_result.iteration_count, 1)
+        self.assertEqual(result_tracker.iteration_count, 1)
         
-        # Verify basic tracker properties
-        self.assertEqual(len(judge_result.issues), 2)
-        self.assertEqual(judge_result.config, self.sample_tracker.config)
+        self.assertEqual(len(result_tracker.issues), 2)
+        self.assertEqual(result_tracker.config, self.sample_tracker.config)
         
-        # Verify issues structure is preserved
-        for issue_id, per_issue_data in judge_result.issues.items():
+        for per_issue_data in result_tracker.issues.values():
             self.assertIsNotNone(per_issue_data.issue)
             self.assertIsInstance(per_issue_data.issue, Issue)
             self.assertIsNotNone(per_issue_data.analysis_response)

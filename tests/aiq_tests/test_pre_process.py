@@ -13,7 +13,7 @@ from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from common.config import Config
 from handlers.protocols import RepoHandlerProtocol
 from aiq.builder.builder import Builder
-from sast_agent_workflow.tests.test_utils import TestUtils
+from tests.aiq_tests.test_utils import TestUtils
 
 class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
     """Test cases for the pre_process core function (_pre_process_fn)."""
@@ -29,39 +29,34 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
     @patch('sast_agent_workflow.tools.pre_process.repo_handler_factory')
     @patch('sast_agent_workflow.tools.pre_process.read_sast_report')
     @patch('sast_agent_workflow.tools.pre_process.Config')
-    async def test_pre_process_fn_successful_execution(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
-        """Test _pre_process_fn execution with valid input.
-           Verify that the result is a SASTWorkflowTracker and that the issues are properly structured.
-        """
-        # Setup mocks
+    async def test_given_valid_input_when_pre_process_executed_then_returns_structured_workflow_tracker(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
+        """Given valid input, when pre_process is executed, then it returns a properly structured SASTWorkflowTracker."""
+        # preparation
         mock_config_class.return_value = self.mock_config
         mock_read_sast_report.return_value = self.sample_issues
         mock_repo_handler_factory.return_value = self.mock_repo_handler
         
-        pre_process_result = await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
+        # testing
+        result_tracker = await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
         
-        # Verify the result is a SASTWorkflowTracker
-        self.assertIsInstance(pre_process_result, SASTWorkflowTracker)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
         
-        # Verify tracker properties
-        self.assertEqual(len(pre_process_result.issues), 2)
-        self.assertEqual(pre_process_result.iteration_count, 0)
-        self.assertEqual(pre_process_result.config, self.mock_config)
+        self.assertEqual(len(result_tracker.issues), 2)
+        self.assertEqual(result_tracker.iteration_count, 0)
+        self.assertEqual(result_tracker.config, self.mock_config)
         
-        # Verify issues are properly structured
-        for _, per_issue_data in pre_process_result.issues.items():
+        for per_issue_data in result_tracker.issues.values():
             self.assertIsInstance(per_issue_data, PerIssueData)
             self.assertIsInstance(per_issue_data.issue, Issue)
             self.assertEqual(per_issue_data.source_code, {})
             self.assertEqual(per_issue_data.similar_known_issues, "")
             self.assertIsInstance(per_issue_data.analysis_response, AnalysisResponse)
             
-            # Verify default analysis response
             analysis_resp = per_issue_data.analysis_response
             self.assertEqual(analysis_resp.investigation_result, CVEValidationStatus.TRUE_POSITIVE.value)
             self.assertEqual(analysis_resp.is_final, FALSE)
         
-        # Verify external dependencies were called
         mock_config_class.assert_called_once()
         mock_read_sast_report.assert_called_once_with(self.mock_config)
         mock_repo_handler_factory.assert_called_once_with(self.mock_config)
@@ -69,32 +64,33 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
     @patch('sast_agent_workflow.tools.pre_process.repo_handler_factory')
     @patch('sast_agent_workflow.tools.pre_process.read_sast_report')
     @patch('sast_agent_workflow.tools.pre_process.Config')
-    async def test_pre_process_fn_empty_issues(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
-        """Test _pre_process_fn with empty issue list."""
-        # Setup mocks
+    async def test_given_empty_issue_list_when_pre_process_executed_then_returns_empty_workflow_tracker(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
+        """Given an empty issue list, when pre_process is executed, then it returns an empty SASTWorkflowTracker."""
+        # preparation
         mock_config_class.return_value = self.mock_config
-        mock_read_sast_report.return_value = []  # Empty issue list
+        mock_read_sast_report.return_value = []
         mock_repo_handler_factory.return_value = self.mock_repo_handler
         
-        pre_process_result = await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
+        # testing
+        result_tracker = await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
             
-        # Verify the result
-        self.assertIsInstance(pre_process_result, SASTWorkflowTracker)
-        self.assertEqual(len(pre_process_result.issues), 0)
-        self.assertEqual(pre_process_result.iteration_count, 0)
-        self.assertEqual(pre_process_result.config, self.mock_config)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+        self.assertEqual(len(result_tracker.issues), 0)
+        self.assertEqual(result_tracker.iteration_count, 0)
+        self.assertEqual(result_tracker.config, self.mock_config)
 
     @patch('sast_agent_workflow.tools.pre_process.repo_handler_factory')
     @patch('sast_agent_workflow.tools.pre_process.read_sast_report')
     @patch('sast_agent_workflow.tools.pre_process.Config')
-    async def test_pre_process_fn_read_sast_report_error(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
-        """Test _pre_process_fn when read_sast_report raises an exception."""
-        # Setup mocks
+    async def test_given_sast_report_read_failure_when_pre_process_executed_then_raises_exception(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
+        """Given SAST report read failure, when pre_process is executed, then it raises an exception."""
+        # preparation
         mock_config_class.return_value = self.mock_config
         mock_read_sast_report.side_effect = Exception("Failed to read SAST report")
         mock_repo_handler_factory.return_value = self.mock_repo_handler
                     
-        # Should raise the exception
+        # testing & assertion
         with self.assertRaises(Exception) as context:
             await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
             
@@ -103,14 +99,14 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
     @patch('sast_agent_workflow.tools.pre_process.repo_handler_factory')
     @patch('sast_agent_workflow.tools.pre_process.read_sast_report')
     @patch('sast_agent_workflow.tools.pre_process.Config')
-    async def test_pre_process_fn_repo_handler_error(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
-        """Test _pre_process_fn when repo_handler_factory raises an exception."""
-        # Setup mocks
+    async def test_given_repo_handler_factory_failure_when_pre_process_executed_then_raises_exception(self, mock_config_class, mock_read_sast_report, mock_repo_handler_factory):
+        """Given repo handler initialization failure, when pre_process is executed, then it raises an exception."""
+        # preparation
         mock_config_class.return_value = self.mock_config
         mock_read_sast_report.return_value = self.sample_issues
         mock_repo_handler_factory.side_effect = Exception("Failed to initialize repo handler")
         
-        # Should raise the exception
+        # testing & assertion
         with self.assertRaises(Exception) as context:
             await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
         
