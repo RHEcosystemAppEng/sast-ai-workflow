@@ -28,4 +28,4 @@ jobs:
           pip install -e .
 
       - name: Run tests
-        run: python -m pytest src/sast_agent_workflow/tests/
+        run: PYTHONPATH=. pytest tests/aiq_tests/

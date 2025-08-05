@@ -11,7 +11,7 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from sast_agent_workflow.tests.test_utils import TestUtils
+from tests.aiq_tests.test_utils import TestUtils
 
 
 class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
@@ -27,9 +27,9 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         # Create a sample tracker with issues
         self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    async def test_calculate_metrics_fn_basic_state_change(self):
-        """Basic test for _calculate_metrics_fn execution - verifies SASTWorkflowTracker state changes.
-           
+    async def test_given_sample_tracker_when_calculate_metrics_executed_then_preserves_tracker_structure_and_updates_metrics(self):
+        """Given a sample tracker, when calculate_metrics is executed, then it preserves tracker structure and updates metrics.
+            
            Expected state changes for Calculate_Metrics tool:
            - global metrics dictionary should be populated with ragas metrics
            - Only runs if metrics calculation is enabled in config
@@ -41,27 +41,26 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
            - Config-based enable/disable tests
            - Error handling tests (calculation failures)
         """
+        # preparation
         # TODO: Mock the actual metrics calculation dependencies when implemented
         
-        calculate_result = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, self.sample_tracker)
+        # testing
+        result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, self.sample_tracker)
         
-        # Verify the result is still a SASTWorkflowTracker
-        self.assertIsInstance(calculate_result, SASTWorkflowTracker)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
         
-        # Verify basic tracker properties remain intact
-        self.assertEqual(len(calculate_result.issues), 2)
-        self.assertEqual(calculate_result.iteration_count, 0)  # Should not change in calculate_metrics
-        self.assertEqual(calculate_result.config, self.sample_tracker.config)
+        self.assertEqual(len(result_tracker.issues), 2)
+        self.assertEqual(result_tracker.iteration_count, 0)
+        self.assertEqual(result_tracker.config, self.sample_tracker.config)
         
-        # Verify issues structure is preserved
-        for issue_id, per_issue_data in calculate_result.issues.items():
+        for per_issue_data in result_tracker.issues.values():
             self.assertIsNotNone(per_issue_data.issue)
             self.assertIsInstance(per_issue_data.issue, Issue)
             self.assertIsNotNone(per_issue_data.analysis_response)
             self.assertIsInstance(per_issue_data.analysis_response, AnalysisResponse)
         
-        # Verify metrics structure exists (key state change for this tool)
-        self.assertIsInstance(calculate_result.metrics, dict)
+        self.assertIsInstance(result_tracker.metrics, dict)
         
         # TODO: Add specific assertions for calculate_metrics tool state changes when implemented:
         # - Verify metrics dictionary is populated with calculated statistics

@@ -11,7 +11,7 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from sast_agent_workflow.tests.test_utils import TestUtils
+from tests.aiq_tests.test_utils import TestUtils
 
 
 class TestFilterCore(unittest.IsolatedAsyncioTestCase):
@@ -27,8 +27,8 @@ class TestFilterCore(unittest.IsolatedAsyncioTestCase):
         # Create a sample tracker with issues
         self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    async def test_filter_fn_basic_state_change(self):
-        """Basic test for _filter_fn execution - verifies SASTWorkflowTracker state changes.
+    async def test_given_sample_tracker_when_filter_executed_then_populates_similar_issues_and_marks_known_false_positives(self):
+        """Given a sample tracker, when filter is executed, then it populates similar issues and marks known false positives.
            
            Expected state changes for Filter tool:
            - similar_known_issues field should be populated for each issue
@@ -43,20 +43,20 @@ class TestFilterCore(unittest.IsolatedAsyncioTestCase):
            - Error handling tests
            - Edge case tests (empty issues, service failures, etc.)
         """
+        # preparation
         # TODO: Mock the actual filter dependencies (VectorDB, LLM services) when implemented
         
-        filter_result = await TestUtils.run_single_fn(filter, self.filter_config, self.builder, self.sample_tracker)
+        # testing
+        result_tracker = await TestUtils.run_single_fn(filter, self.filter_config, self.builder, self.sample_tracker)
         
-        # Verify the result is still a SASTWorkflowTracker
-        self.assertIsInstance(filter_result, SASTWorkflowTracker)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
         
-        # Verify basic tracker properties remain intact
-        self.assertEqual(len(filter_result.issues), 2)
-        self.assertEqual(filter_result.iteration_count, 0)  # Should not change in filter
-        self.assertEqual(filter_result.config, self.sample_tracker.config)
+        self.assertEqual(len(result_tracker.issues), 2)
+        self.assertEqual(result_tracker.iteration_count, 0)
+        self.assertEqual(result_tracker.config, self.sample_tracker.config)
         
-        # Verify issues structure is preserved
-        for _, per_issue_data in filter_result.issues.items():
+        for per_issue_data in result_tracker.issues.values():
             self.assertIsNotNone(per_issue_data.issue)
             self.assertIsInstance(per_issue_data.issue, Issue)
             self.assertIsInstance(per_issue_data.analysis_response, AnalysisResponse)
