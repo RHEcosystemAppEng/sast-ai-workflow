@@ -19,7 +19,7 @@ def capture_known_issues(main_process: LLMService, issue_list: List, config: Con
     """
     try:
         text_false_positives = read_known_errors_file(config.KNOWN_FALSE_POSITIVE_FILE_PATH)
-    except Exception as e:
+    except (FileNotFoundError, PermissionError, ValueError) as e:
         logger.error(f"Failed to read known false positives file: {e}")
         return {}, {}
     
@@ -47,7 +47,7 @@ def capture_known_issues(main_process: LLMService, issue_list: List, config: Con
             result_value = filter_response.result.strip().lower()
             logger.debug(f"{issue.id} Is known false positive? {result_value}")
 
-            if "yes" in result_value:
+            if result_value == "yes":
                 already_seen_dict[issue.id] = filter_response
                 logger.info(f"LLM found {issue.id} error trace inside known false positives list")
         except Exception as e:
