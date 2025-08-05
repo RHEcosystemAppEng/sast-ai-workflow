@@ -11,7 +11,7 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from sast_agent_workflow.tests.test_utils import TestUtils
+from tests.aiq_tests.test_utils import TestUtils
 
 
 class TestEvaluateAnalysisCore(unittest.IsolatedAsyncioTestCase):
@@ -27,8 +27,8 @@ class TestEvaluateAnalysisCore(unittest.IsolatedAsyncioTestCase):
         # Create a sample tracker with issues
         self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    async def test_evaluate_analysis_fn_basic_state_change(self):
-        """Basic test for _evaluate_analysis_fn execution - verifies SASTWorkflowTracker state changes.
+    async def test_given_sample_tracker_when_evaluate_analysis_executed_then_updates_final_flag_and_evaluation(self):
+        """Given a sample tracker, when evaluate_analysis is executed, then it updates final flag and evaluation.
            
            Expected state changes for Evaluate_Analysis tool:
            - is_final flag should be updated for processed issues
@@ -44,20 +44,20 @@ class TestEvaluateAnalysisCore(unittest.IsolatedAsyncioTestCase):
            - Non-final issue filtering tests
            - Edge case tests (empty issues, etc.)
         """
+        # preparation
         # TODO: Mock the actual LLM evaluation service dependencies when implemented
         
-        evaluate_result = await TestUtils.run_single_fn(evaluate_analysis, self.evaluate_analysis_config, self.builder, self.sample_tracker)
+        # testing
+        result_tracker = await TestUtils.run_single_fn(evaluate_analysis, self.evaluate_analysis_config, self.builder, self.sample_tracker)
         
-        # Verify the result is still a SASTWorkflowTracker
-        self.assertIsInstance(evaluate_result, SASTWorkflowTracker)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
         
-        # Verify basic tracker properties remain intact
-        self.assertEqual(len(evaluate_result.issues), 2)
-        self.assertEqual(evaluate_result.iteration_count, 0)  # Should not change in evaluate_analysis
-        self.assertEqual(evaluate_result.config, self.sample_tracker.config)
+        self.assertEqual(len(result_tracker.issues), 2)
+        self.assertEqual(result_tracker.iteration_count, 0)
+        self.assertEqual(result_tracker.config, self.sample_tracker.config)
         
-        # Verify issues structure is preserved
-        for issue_id, per_issue_data in evaluate_result.issues.items():
+        for per_issue_data in result_tracker.issues.values():
             self.assertIsNotNone(per_issue_data.issue)
             self.assertIsInstance(per_issue_data.issue, Issue)
             self.assertIsNotNone(per_issue_data.analysis_response)

@@ -11,7 +11,7 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from sast_agent_workflow.tests.test_utils import TestUtils
+from tests.aiq_tests.test_utils import TestUtils
 
 
 class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
@@ -27,8 +27,9 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
         # Create a sample tracker with issues
         self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    async def test_write_results_fn_basic_state_change(self):
-        """Basic test for _write_results_fn execution - verifies SASTWorkflowTracker state changes.
+    async def test_given_sample_tracker_when_write_results_executed_then_preserves_all_data_unchanged_and_calls_external_services(self):
+        """Given a sample tracker, when write_results is executed, then it preserves all data unchanged,
+           and calls external services as configured for output.
            
            Expected state changes for Write_Results tool:
            - This is a terminal node that produces final output files
@@ -42,27 +43,26 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
            - Config-based destination handling tests
            - Error handling tests (file write failures, network issues)
         """
+        # preparation
         # TODO: Mock the actual output writing dependencies when implemented
         
-        write_result = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, self.sample_tracker)
+        # testing
+        result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, self.sample_tracker)
         
-        # Verify the result is still a SASTWorkflowTracker
-        self.assertIsInstance(write_result, SASTWorkflowTracker)
+        # assertion
+        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
         
-        # Verify all tracker properties remain unchanged (terminal read-only operation)
-        self.assertEqual(len(write_result.issues), 2)
-        self.assertEqual(write_result.iteration_count, 0)  # Should not change in write_results
-        self.assertEqual(write_result.config, self.sample_tracker.config)
-        self.assertEqual(write_result.metrics, self.sample_tracker.metrics)
+        self.assertEqual(len(result_tracker.issues), 2)
+        self.assertEqual(result_tracker.iteration_count, 0)
+        self.assertEqual(result_tracker.config, self.sample_tracker.config)
+        self.assertEqual(result_tracker.metrics, self.sample_tracker.metrics)
         
-        # Verify issues structure is completely preserved
-        for issue_id, per_issue_data in write_result.issues.items():
+        for issue_id, per_issue_data in result_tracker.issues.items():
             self.assertIsNotNone(per_issue_data.issue)
             self.assertIsInstance(per_issue_data.issue, Issue)
             self.assertIsNotNone(per_issue_data.analysis_response)
             self.assertIsInstance(per_issue_data.analysis_response, AnalysisResponse)
             
-            # Compare with original data to ensure no state changes
             original_data = self.sample_tracker.issues[issue_id]
             self.assertEqual(per_issue_data.issue.id, original_data.issue.id)
             self.assertEqual(per_issue_data.source_code, original_data.source_code)

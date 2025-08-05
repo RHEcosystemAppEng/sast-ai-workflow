@@ -51,17 +51,37 @@ async def pre_process(
         """
         logger.info("Running Pre_Process node - initializing workflow")
         
-        config = Config()
-        issue_list = read_sast_report(config)
-  
+        try:
+            config = Config()
+        except Exception as e:
+            logger.error(f"Failed to initialize configuration: {e}")
+            raise RuntimeError(f"Configuration initialization failed: {e}") from e
+        try:
+            issue_list = read_sast_report(config)
+        except Exception as e:
+            logger.error(f"Failed to read SAST report: {e}")
+            raise RuntimeError(f"Failed to read SAST report: {e}") from e
         issues_dict = {}
         for issue in issue_list:
-          issues_dict[issue.id] = PerIssueData(issue=issue, source_code={}, similar_known_issues="", analysis_response=_create_default_analysis_response())
-        
-        tracker = SASTWorkflowTracker(issues=issues_dict, config=config, iteration_count=0, metrics={})
-        
-        # Initialize the repo handler, just to download the repo if needed
-        repo_handler_factory(config)
+          issues_dict[issue.id] = PerIssueData(issue=issue,
+                                               source_code={}, 
+                                               similar_known_issues="", 
+                                               analysis_response=_create_default_analysis_response()
+                                               ) 
+        tracker = SASTWorkflowTracker(
+            issues=issues_dict, 
+            config=config, 
+            iteration_count=0, 
+            metrics={}
+        )
+        try:
+            # Initialize the repo handler, just to download the repo if needed
+            # TODO: Refactor this - factory creation should not perform side effects like downloading repos
+            #       Consider separating repo initialization/downloading from factory creation
+            repo_handler_factory(config)
+        except Exception as e:
+            logger.error(f"Failed to initialize repository handler: {e}")
+            raise RuntimeError(f"Repository handler initialization failed: {e}") from e
         
         logger.info("Pre_Process node completed")
         return tracker
