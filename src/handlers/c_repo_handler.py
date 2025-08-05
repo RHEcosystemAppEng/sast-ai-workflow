@@ -90,19 +90,34 @@ class CRepoHandler:
     def get_source_code_blocks_from_error_trace(self, error_trace: str) -> dict:
         """Parse an error trace and extracts relevant functions bodies"""
 
-        source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+        try:
+            source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+        except Exception as e:
+            logger.warning(f"Failed to parse error trace: {e}")
+            return {}
+            
         error_code_sources = defaultdict(set)
 
         for file_path, line_number in source_files:
+            try:
+                line_num = int(line_number)
+            except ValueError:
+                logger.warning(f"Invalid line number '{line_number}' for file {file_path}")
+                continue
+                
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
                 logger.debug(f"Skipping missing file: {local_file_path}")
                 continue
 
-            source_code = self.get_source_code_by_line_number(local_file_path, int(line_number))
-            if source_code:
-                error_code_sources[file_path].add(source_code)
+            try:
+                source_code = self.get_source_code_by_line_number(local_file_path, line_num)
+                if source_code:
+                    error_code_sources[file_path].add(source_code)
+            except Exception as e:
+                logger.warning(f"Failed to extract source code from {local_file_path}:{line_num}: {e}")
+                continue
 
         return {
             full_file_path: "\n".join(code_sections)
