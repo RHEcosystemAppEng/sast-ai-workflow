@@ -9,12 +9,12 @@ from src.LLMService import LLMService
 from src.dto.Issue import Issue
 from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from src.dto.ResponseStructures import JudgeLLMResponse, RecommendationsResponse, JustificationsSummary, EvaluationResponse
-from common.config import Config
+from src.common.config import Config
 
 
 class TestInvestigateIssue:
 
-    def test_given_valid_issue_when_investigating_then_returns_analysis_response(self):
+    def test__investigate_issue__valid_issue_returns_analysis_response(self):
         # preparation
         mock_config = Mock(spec=Config)
         mock_config.LLM_URL = "http://test-llm"
@@ -83,7 +83,7 @@ class TestInvestigateIssue:
             mock_recommend.assert_called_once()
             mock_summarize.assert_called_once()
 
-    def test_given_exception_in_analysis_when_investigating_then_returns_fallback_response(self):
+    def test__investigate_issue__exception_returns_fallback_response(self):
         # preparation
         mock_config = Mock(spec=Config)
         mock_config.LLM_URL = "http://test-llm"
@@ -127,7 +127,7 @@ class TestInvestigateIssue:
             assert "Failed during analyze process" in analysis_result.short_justifications
             mock_investigate.assert_called_once_with(context="test context", issue=test_issue)
 
-    def test_given_false_positive_classification_when_investigating_then_returns_false_positive_response(self):
+    def test__investigate_issue__false_positive_returns_fp_response(self):
         # preparation
         mock_config = Mock(spec=Config)
         mock_config.LLM_URL = "http://test-llm"

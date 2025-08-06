@@ -12,7 +12,7 @@ from src.dto.SummaryInfo import SummaryInfo
 
 class TestEvaluationSummary:
 
-    def test_given_valid_data_with_ground_truth_when_creating_evaluation_summary_then_calculates_metrics_correctly(self):
+    def test__init__with_ground_truth_calculates_metrics(self):
         # preparation
         mock_config = Mock()
         mock_config.USE_CRITIQUE_AS_FINAL_RESULTS = False
@@ -42,7 +42,7 @@ class TestEvaluationSummary:
         assert eval_summary.accuracy is not None
         assert len(eval_summary.predicted_summary) == 2
 
-    def test_given_no_ground_truth_when_creating_evaluation_summary_then_sets_metrics_to_none(self):
+    def test__init__no_ground_truth_sets_metrics_none(self):
         # preparation
         mock_config = Mock()
         mock_config.USE_CRITIQUE_AS_FINAL_RESULTS = False
@@ -67,7 +67,7 @@ class TestEvaluationSummary:
         assert eval_summary.fp == 0
         assert eval_summary.fn == 0
 
-    def test_given_empty_summary_data_when_creating_evaluation_summary_then_handles_gracefully(self):
+    def test__init__empty_data_handles_gracefully(self):
         # preparation
         mock_config = Mock()
         mock_config.USE_CRITIQUE_AS_FINAL_RESULTS = False

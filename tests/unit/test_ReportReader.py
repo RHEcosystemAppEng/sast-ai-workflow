@@ -10,7 +10,7 @@ from src.ReportReader import read_sast_report_local_html, read_sast_report_googl
 
 class TestReadSastReport:
 
-    def test_given_valid_local_html_file_when_reading_report_then_parses_successfully(self, tmp_path):
+    def test__read_sast_report__local_html_parses_successfully(self, tmp_path):
         # preparation
         html_content = '''
         <!DOCTYPE html>
@@ -48,7 +48,7 @@ class TestReadSastReport:
         assert "freed_arg" in result[0].trace
         assert "path_extend_internal" in result[0].trace
 
-    def test_given_valid_google_sheet_url_when_reading_report_then_authenticates_and_parses_data(self):
+    def test__read_sast_report__google_sheet_authenticates_and_parses(self):
         # preparation
         mock_sheet = Mock()
         mock_sheet.get_all_records.return_value = [
@@ -70,12 +70,12 @@ class TestReadSastReport:
         assert result[1].issue_type == "OVERRUN" 
         assert result[1].issue_cve == "CWE-119"
 
-    def test_given_nonexistent_file_path_when_reading_report_then_raises_file_not_found_error(self):
+    def test__read_sast_report__missing_file_raises_error(self):
         # testing
         with pytest.raises(FileNotFoundError):
             read_sast_report_local_html("/path/that/does/not/exist.html")
 
-    def test_given_empty_html_file_when_reading_report_then_handles_gracefully(self, tmp_path):
+    def test__read_sast_report__empty_html_handles_gracefully(self, tmp_path):
         # preparation
         empty_file = tmp_path / "empty.html"
         empty_file.write_text("")
@@ -86,7 +86,7 @@ class TestReadSastReport:
         # assertion
         assert result == []
 
-    def test_given_html_missing_required_tags_when_reading_report_then_processes_available_data(self, tmp_path):
+    def test__read_sast_report__missing_tags_processes_available(self, tmp_path):
         # preparation
         html_content = '''
         <!DOCTYPE html>
@@ -139,7 +139,7 @@ class TestReadSastReport:
         assert result[2].issue_cve_link == ""
         assert "Just some trace text" in result[2].trace
 
-    def test_given_google_sheets_network_timeout_when_reading_report_then_handles_timeout_error(self):
+    def test__read_sast_report__network_timeout_handles_error(self):
         # testing
         with patch('oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_name') as mock_creds:
             mock_creds.side_effect = requests.exceptions.Timeout("Connection timeout")
@@ -147,7 +147,7 @@ class TestReadSastReport:
             with pytest.raises(requests.exceptions.Timeout):
                 read_sast_report_google_sheet("service_account.json", "https://docs.google.com/spreadsheets/fake")
 
-    def test_given_empty_google_sheet_when_reading_report_then_handles_gracefully(self, caplog):
+    def test__read_sast_report__empty_sheet_handles_gracefully(self, caplog):
         # preparation
         mock_sheet = Mock()
         mock_sheet.get_all_records.return_value = []  # Empty sheet
@@ -164,7 +164,7 @@ class TestReadSastReport:
         assert result == []
         assert "No rows found in Google Sheet: https://docs.google.com/spreadsheets/d/empty_sheet/edit" in caplog.text
 
-    def test_given_corrupted_html_file_when_reading_report_then_handles_parsing_errors(self, tmp_path, caplog):    
+    def test__read_sast_report__corrupted_html_handles_errors(self, tmp_path, caplog):    
         # Test 1: HTML with no <pre> tags (missing required structure)
         # preparation - test #1
         no_pre_html = '''<!DOCTYPE html><html><body><h1>Report</h1><p>No pre tags here</p></body></html>'''
@@ -239,7 +239,7 @@ class TestReadSastReport:
         if len(result) > 0:
             assert result[0].id == "def1"
 
-    def test_given_google_sheet_authentication_failure_when_reading_report_then_raises_exception(self):
+    def test__read_sast_report__auth_failure_raises_exception(self):
         """Handles authentication failures when accessing Google Sheets."""
         # testing
         with patch('oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_name') as mock_creds:
