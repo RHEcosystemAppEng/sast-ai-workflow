@@ -23,17 +23,6 @@ from .vector_store_service import VectorStoreService
 logger = logging.getLogger(__name__)
 
 
-def _format_context_from_response(resp):
-    """Helper function to format context from vector search response"""
-    context_list = []
-    for doc in resp:
-        context_list.append({
-            "false_positive_error_trace": doc.page_content,
-            "reason_marked_false_positive": doc.metadata['reason_of_false_positive']
-        })
-    return context_list
-
-
 class IssueAnalysisService:
     """Service for analyzing issues and determining false positives"""
     
@@ -41,17 +30,6 @@ class IssueAnalysisService:
         self.config = config
         self.vector_service = vector_service
         self.max_retry_limit = 3
-        
-        # Store prompt templates from config
-        self.analysis_system_prompt = config.ANALYSIS_SYSTEM_PROMPT
-        self.analysis_human_prompt = config.ANALYSIS_HUMAN_PROMPT
-        self.filter_system_prompt = config.FILTER_SYSTEM_PROMPT
-        self.filter_human_prompt = config.FILTER_HUMAN_PROMPT
-        self.recommendations_prompt = config.RECOMMENDATIONS_PROMPT
-        self.justification_summary_system_prompt = config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT
-        self.justification_summary_human_prompt = config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT
-        self.evaluation_prompt = config.EVALUATION_PROMPT
-        self.similarity_error_threshold = config.SIMILARITY_ERROR_THRESHOLD
     
     def filter_known_issues_from_context(self, issue: Issue, similar_findings_context: str, main_llm: BaseChatModel) -> FilterResponse:
         """
@@ -81,8 +59,8 @@ class IssueAnalysisService:
 
         # Should not use 'system' for deepseek-r1
         prompt = ChatPromptTemplate.from_messages([
-            ("system", self.filter_system_prompt),
-            ("user", self.filter_human_prompt)
+            ("system", self.config.FILTER_SYSTEM_PROMPT),
+            ("user", self.config.FILTER_HUMAN_PROMPT)
         ])
         
         pattern_matching_prompt_chain = (
@@ -137,7 +115,7 @@ class IssueAnalysisService:
         analysis_prompt = analysis_response = recommendations_response = short_justifications_response = None
 
         try:
-            analysis_prompt, analysis_response = self._investigate_issue_with_retry(
+            analysis_prompt, analysis_response = self._analyze_issue_with_retry(
                 context=context, issue=issue, main_llm=main_llm
             )
             recommendations_response = self._recommend(
@@ -187,14 +165,14 @@ class IssueAnalysisService:
         return llm_analysis_response, critique_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _investigate_issue_with_retry(self, context: str, issue: Issue, main_llm: BaseChatModel):
+    def _analyze_issue_with_retry(self, context: str, issue: Issue, main_llm: BaseChatModel):
         """Analyze an issue to determine if it is a false positive or not."""
         user_input = "Investigate if the following problem needs to be fixed or can be considered false positive. " + issue.trace
         
         # Should not use 'system' for deepseek-r1
         analysis_prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(self.analysis_system_prompt),
-            HumanMessagePromptTemplate.from_template(self.analysis_human_prompt)
+            SystemMessagePromptTemplate.from_template(self.config.ANALYSIS_SYSTEM_PROMPT),
+            HumanMessagePromptTemplate.from_template(self.config.ANALYSIS_HUMAN_PROMPT)
         ])
 
         analysis_prompt_chain = (
@@ -240,8 +218,8 @@ class IssueAnalysisService:
 
         # Should not use 'system' for deepseek-r1
         prompt = ChatPromptTemplate.from_messages([
-            ("system", self.justification_summary_system_prompt),
-            ("user", self.justification_summary_human_prompt)
+            ("system", self.config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT),
+            ("user", self.config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT)
         ])
 
         justification_summary_prompt_chain = (
@@ -277,7 +255,7 @@ class IssueAnalysisService:
                   main_llm: BaseChatModel) -> RecommendationsResponse:
         """Generate recommendations for further investigation, if necessary."""
         recommendations_prompt = ChatPromptTemplate.from_messages([
-            HumanMessagePromptTemplate.from_template(self.recommendations_prompt)
+            HumanMessagePromptTemplate.from_template(self.config.RECOMMENDATIONS_PROMPT)
         ])
 
         try:
@@ -314,7 +292,7 @@ class IssueAnalysisService:
     def _evaluate(self, actual_prompt, response, issue_id, critique_llm: BaseChatModel) -> EvaluationResponse:
         """Evaluate an analysis using critique model."""
         prompt = ChatPromptTemplate.from_messages([
-            ("user", self.evaluation_prompt)
+            ("user", self.config.EVALUATION_PROMPT)
         ])
 
         evaluation_prompt_chain = (

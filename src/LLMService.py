@@ -34,9 +34,7 @@ class LLMService:
         self._embedding_llm = None
         self._critique_llm = None
         
-        # Vector databases
-        self.vector_db = None
-        self.known_issues_vector_db = None
+
 
     @property
     def main_llm(self):
@@ -92,18 +90,4 @@ class LLMService:
             critique_llm=self.critique_llm if self.config.RUN_WITH_CRITIQUE else None
         )
 
-    def create_vdb(self, text_data):
-        """Create a vector database from text data"""
-        self.vector_db = self.vector_service.create_vector_store(text_data, self.embedding_llm)
-        return self.vector_db
 
-    def create_vdb_for_known_issues(self, text_data):
-        """
-        Create a FAISS vector database for known issues.
-        If there are error traces in the text_data, it creates a populated FAISS database.
-        Otherwise, it returns an empty FAISS database.
-        """
-        self.known_issues_vector_db = self.vector_service.create_known_issues_vector_store(
-            text_data, self.embedding_llm
-        )
-        return self.known_issues_vector_db
