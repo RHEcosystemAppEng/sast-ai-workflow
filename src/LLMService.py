@@ -5,7 +5,7 @@ from common.config import Config
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, EvaluationResponse
 from dto.LLMResponse import AnalysisResponse
-from services.llm_client_factory import LLMClientFactory
+from handlers.llm_client_factory import LLMClientFactory
 from services.vector_store_service import VectorStoreService
 from services.issue_analysis_service import IssueAnalysisService
 

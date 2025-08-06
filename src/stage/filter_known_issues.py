@@ -96,7 +96,7 @@ def _create_known_issue_retriever(main_process, config) -> KnownIssueRetriever:
     known_issue_db = main_process.vector_service.create_known_issues_vector_store(
         text_false_positives, main_process.embedding_llm
     )
-    known_issue_retriever = KnownIssueRetriever(known_issue_db, main_process.similarity_error_threshold) 
+    known_issue_retriever = KnownIssueRetriever(known_issue_db, config.SIMILARITY_ERROR_THRESHOLD) 
     return known_issue_retriever
 
 def _is_known_false_positive(issue, similar_known_issues_list, main_process) -> tuple[bool, str]:
