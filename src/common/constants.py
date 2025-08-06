@@ -42,3 +42,5 @@ YES_OPTIONS = ["y", "yes"]
 NO_OPTIONS = ["n", "no"]
 ALL_VALID_OPTIONS = YES_OPTIONS + NO_OPTIONS
 KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR = "\n\n"
+FALSE = "FALSE"
+KNOWN_ISSUES_SHORT_JUSTIFICATION = "The error is similar to one found in the provided known issues (Details in the full Justification)"

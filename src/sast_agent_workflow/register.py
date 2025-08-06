@@ -1,5 +1,6 @@
 import logging
 from pydantic import Field
+import json
 
 from aiq.builder.builder import Builder
 from aiq.builder.framework_enum import LLMFrameworkEnum
@@ -8,6 +9,7 @@ from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
+from common.constants import FALSE, KNOWN_ISSUES_SHORT_JUSTIFICATION
 
 # Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \
@@ -136,15 +138,42 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         return empty_state
     
     def convert_sast_tracker_to_str(tracker: SASTWorkflowTracker) -> str:
-        """Convert SASTWorkflowTracker to string"""
-        logger.debug("Converting SASTWorkflowTracker to str")
+        """Convert SASTWorkflowTracker to summary statistics string"""
+        logger.debug("Converting SASTWorkflowTracker to summary stats")
         try:
-            return tracker.model_dump_json(
-                indent=2,
-                exclude={'config'},  # Exclude config field since it's complex and not relevant to the output
-            )
+            # For debug, print the tracker to the console
+            from pprint import pprint
+            tracker_dict = tracker.model_dump(exclude={'config'})
+            pprint(tracker_dict)
+
+            # Calculate summary statistics
+            total_issues = len(tracker.issues)
+            final_issues = sum(1 for issue in tracker.issues.values() 
+                             if issue.analysis_response and issue.analysis_response.is_final != FALSE)
+            
+            fp_issues = sum(1 for issue in tracker.issues.values() 
+                          if issue.analysis_response and not issue.analysis_response.is_true_positive())
+            not_fp_issues = sum(1 for issue in tracker.issues.values() 
+                              if issue.analysis_response and issue.analysis_response.is_true_positive())
+            
+            known_issues = sum(1 for issue in tracker.issues.values() 
+                             if issue.analysis_response and issue.analysis_response.short_justifications and
+                             KNOWN_ISSUES_SHORT_JUSTIFICATION in issue.analysis_response.short_justifications)
+
+            # Format the summary
+            summary = {
+                "total_issues": total_issues,
+                "final_issues": final_issues,
+                "false_positive_issues": fp_issues,
+                "not_false_positive_issues": not_fp_issues,
+                "known_issues": known_issues,
+                "iteration_count": tracker.iteration_count
+            }
+
+            return json.dumps(summary, indent=2)
+            
         except Exception as e:
-            logger.error("Failed to convert SASTWorkflowTracker to str: %s", e)
+            logger.error("Failed to convert SASTWorkflowTracker to summary stats: %s", e)
             raise e
     
     async def _response_fn(input_message: SASTWorkflowTracker) -> SASTWorkflowTracker:

@@ -227,7 +227,7 @@ class LLMService:
         except Exception as e:
             failed_message = "Failed during analyze process"
             logger.error(f"{failed_message}, set default values for the fields it failed on. Error is: {e}" )
-            llm_analysis_response = AnalysisResponse(investigation_result="NOT A FALSE POSITIVE" if analysis_response is None else analysis_response.investigation_result,
+            llm_analysis_response = AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value if analysis_response is None else analysis_response.investigation_result,
                                                      is_final="TRUE" if recommendations_response is None else recommendations_response.is_final,
                                                      justifications=FALLBACK_JUSTIFICATION_MESSAGE if analysis_response is None else analysis_response.justifications,
                                                      evaluation=[failed_message] if recommendations_response is None else recommendations_response.justifications,
