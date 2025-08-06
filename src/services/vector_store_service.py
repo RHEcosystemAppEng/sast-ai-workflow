@@ -55,14 +55,7 @@ class VectorStoreService:
                 metadatas=metadata_list
             )
     
-    def similarity_search(self, vector_store: FAISS, query: str, k: int, 
-                         filter_criteria: Optional[Dict] = None) -> List[Document]:
-        """Perform similarity search in vector store"""
-        retriever = vector_store.as_retriever(
-            search_kwargs={"k": k, 'filter': filter_criteria} if filter_criteria else {"k": k}
-        )
-        return retriever.invoke(query)
-    
+
     def _extract_metadata_from_known_false_positives(self, known_issues_list: List[str], 
                                                    embedding_llm: Embeddings) -> Tuple[List[Dict], List[str]]:
         """

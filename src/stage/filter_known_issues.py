@@ -93,7 +93,9 @@ def _create_known_issue_retriever(main_process, config) -> KnownIssueRetriever:
         KnownIssueRetriever: A known issue retriever.
     """
     text_false_positives = read_known_errors_file(config.KNOWN_FALSE_POSITIVE_FILE_PATH)
-    known_issue_db = main_process.create_vdb_for_known_issues(text_false_positives)
+    known_issue_db = main_process.vector_service.create_known_issues_vector_store(
+        text_false_positives, main_process.embedding_llm
+    )
     known_issue_retriever = KnownIssueRetriever(known_issue_db, main_process.similarity_error_threshold) 
     return known_issue_retriever
 
