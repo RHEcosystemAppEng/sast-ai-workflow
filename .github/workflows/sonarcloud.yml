@@ -9,6 +9,9 @@ jobs:
   sonarqube:
     name: SonarQube
     runs-on: ubuntu-latest
+    permissions: # Add this block
+      pull-requests: write # Grant write permission to pull requests
+      contents: read # Often needed for checkout, good practice to include
     steps:
       - uses: actions/checkout@v4
         with:
