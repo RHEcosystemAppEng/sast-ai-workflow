@@ -12,7 +12,7 @@ from common.config import Config
 
 class TestGetSourceCodeBlocksFromErrorTrace:
 
-    def test_given_valid_error_trace_when_extracting_code_blocks_then_extracts_complete_c_functions(self):
+    def test__get_source_code_blocks_from_error_trace__valid_trace_extracts_functions(self):
         # preparation
         error_trace = """
         Error: BUFFER_SIZE (CWE-474):
@@ -63,7 +63,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
             assert result["unzip60/envargs.c"] == expected_source_code
             mock_get_source.assert_called_once_with("/tmp/test_repo/unzip60/envargs.c", 121)
 
-    def test_given_missing_source_files_in_trace_when_extracting_code_blocks_then_processes_available_and_logs_warnings(self, caplog):
+    def test__get_source_code_blocks_from_error_trace__missing_files_logs_warnings(self, caplog):
         # preparation
         caplog.set_level(logging.DEBUG)
         error_trace = """
@@ -114,7 +114,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
             assert "Skipping missing file" in caplog.text
             assert "/tmp/test_repo/unzip60/missing.c" in caplog.text
 
-    def test_given_empty_error_trace_when_extracting_code_blocks_then_returns_empty_dict_gracefully(self):
+    def test__get_source_code_blocks_from_error_trace__empty_trace_returns_empty(self):
         # preparation
         empty_traces = ["", "   ", "\n\n"]
         
@@ -140,7 +140,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
                 # assertion
                 assert result == {}
 
-    def test_given_invalid_file_paths_in_trace_when_extracting_code_blocks_then_handles_path_errors(self, caplog):
+    def test__get_source_code_blocks_from_error_trace__invalid_paths_handles_errors(self, caplog):
         # preparation
         caplog.set_level(logging.WARNING, logger="src.handlers.c_repo_handler")
         error_trace = """
@@ -181,7 +181,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
             assert "unzip60/envargs.c" not in result
             assert result["unzip60/valid.c"] == expected_source_code
 
-    def test_given_clang_parsing_failure_when_extracting_code_blocks_then_handles_ast_errors(self, caplog):
+    def test__get_source_code_blocks_from_error_trace__clang_failure_handles_errors(self, caplog):
         # preparation
         caplog.set_level(logging.WARNING)
         error_trace = """
@@ -217,7 +217,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
             assert "Failed to extract source code from /tmp/test_repo/unzip60/envargs.c:121" in caplog.text
             assert "Clang parsing failed" in caplog.text
 
-    def test_given_missing_repository_when_extracting_code_blocks_then_handles_gracefully(self, caplog):
+    def test__get_source_code_blocks_from_error_trace__missing_repo_handles_gracefully(self, caplog):
         # preparation
         caplog.set_level(logging.DEBUG)
         error_trace = """
@@ -251,7 +251,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
             assert "Skipping missing file" in caplog.text
             assert "/nonexistent/repo/unzip60/envargs.c" in caplog.text
 
-    def test_given_permission_denied_files_when_extracting_code_blocks_then_handles_access_errors(self, caplog):
+    def test__get_source_code_blocks_from_error_trace__permission_denied_handles_errors(self, caplog):
         # preparation
         caplog.set_level(logging.WARNING)
         error_trace = """

@@ -9,7 +9,7 @@ from src.handlers.c_repo_handler import CRepoHandler
 
 class TestExtractMissingFunctionsOrMacros:
 
-    def test_given_invalid_function_syntax_when_extracting_missing_code_then_handles_parsing_errors(self):
+    def test__extract_missing_functions_or_macros__invalid_syntax_handles_errors(self):
         """Handles invalid function syntax in LLM requests."""
         # preparation
         with patch.object(CRepoHandler, '__init__', return_value=None):
@@ -28,7 +28,7 @@ class TestExtractMissingFunctionsOrMacros:
                 assert result == ""
                 assert mock_logger.warning.called
 
-    def test_given_empty_instructions_when_extracting_missing_code_then_handles_empty_requests(self):
+    def test__extract_missing_functions_or_macros__empty_instructions_handles_gracefully(self):
         """Handles empty or malformed LLM instructions."""
         # preparation
         with patch.object(CRepoHandler, '__init__', return_value=None):
@@ -43,7 +43,7 @@ class TestExtractMissingFunctionsOrMacros:
             result = repo_handler.extract_missing_functions_or_macros([])
             assert result == ""
 
-    def test_given_valid_instructions_when_extracting_missing_code_then_processes_successfully(self):
+    def test__extract_missing_functions_or_macros__valid_instructions_processes_successfully(self):
         """Successfully processes valid instructions and extracts code."""
         # preparation
         with patch.object(CRepoHandler, '__init__', return_value=None):

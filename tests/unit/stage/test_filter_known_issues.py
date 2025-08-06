@@ -8,7 +8,7 @@ from src.stage.filter_known_issues import capture_known_issues
 
 
 class TestCaptureKnownIssues:
-    def test_given_vector_db_creation_failure_when_capturing_known_issues_with_mock_llm_then_handles_error_properly(self, caplog):
+    def test__capture_known_issues__faiss_failure_logs_error(self, caplog):
         # preparation
         mock_llm_service = Mock()
         mock_config = Mock()
@@ -28,7 +28,7 @@ class TestCaptureKnownIssues:
                 assert "Failed to create vector database: FAISS embedding failed" in caplog.text
                 mock_llm_service.create_vdb_for_known_issues.assert_called_once_with(valid_known_issues)
 
-    def test_given_issue_processing_failure_when_capturing_known_issues_then_handles_gracefully(self, caplog):
+    def test__capture_known_issues__issue_error_continues_processing(self, caplog):
         # preparation
         from src.dto.Issue import Issue
         
@@ -68,7 +68,7 @@ class TestCaptureKnownIssues:
                 assert "Failed to process issue issue2: Processing failed for issue2" in caplog.text
                 assert mock_llm_service.filter_known_error.call_count == 3
 
-    def test_given_valid_data_when_capturing_known_issues_then_detects_known_false_positives(self, caplog):
+    def test__capture_known_issues__valid_data_returns_matches(self, caplog):
         # preparation
         from src.dto.Issue import Issue
         
@@ -121,7 +121,7 @@ class TestCaptureKnownIssues:
                 
                 assert mock_llm_service.filter_known_error.call_count == 3
 
-    def test_given_file_read_error_when_capturing_known_issues_then_handles_gracefully(self, caplog):
+    def test__capture_known_issues__file_error_returns_empty(self, caplog):
         # preparation
         from src.dto.Issue import Issue
         
@@ -143,7 +143,7 @@ class TestCaptureKnownIssues:
                 mock_llm_service.create_vdb_for_known_issues.assert_not_called()
                 mock_llm_service.filter_known_error.assert_not_called()
 
-    def test_given_empty_known_issues_file_when_capturing_known_issues_then_handles_gracefully(self, caplog):
+    def test__capture_known_issues__empty_file_returns_empty(self, caplog):
         # preparation
         mock_llm_service = Mock()
         mock_config = Mock()
