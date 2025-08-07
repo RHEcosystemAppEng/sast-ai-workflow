@@ -21,7 +21,7 @@ spec:
         set -euo pipefail
         FP_URL="$(params.FALSE_POSITIVES_URL)"
         if [ -z "$FP_URL" ]; then
-          echo "No falsePositivesUrl provided; skipping fetch..."
+          echo "No FALSE_POSITIVES_URL provided; skipping fetch..."
           exit 0
         fi
 
