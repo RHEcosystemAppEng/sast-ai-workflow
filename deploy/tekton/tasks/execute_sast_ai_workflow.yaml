@@ -15,6 +15,10 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: ""
+    - name: HUMAN_VERIFIED_FILE_PATH
+      type: string
+      description: "Path to human verified file for validation"
+      default: ""
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: ""
@@ -43,6 +47,7 @@ spec:
     - name: llm-credentials-ws
     - name: google-sa-json-ws
     - name: cache-workspace
+    - name: report-workspace
   steps:
     - name: run-sast-ai-workflow
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
@@ -59,6 +64,8 @@ spec:
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: HUMAN_VERIFIED_FILE_PATH
+          value: "$(params.HUMAN_VERIFIED_FILE_PATH)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: LLM_URL
