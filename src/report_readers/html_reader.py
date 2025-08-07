@@ -83,7 +83,7 @@ class HtmlReportReader(BaseReportReader):
                 )
                 return []
 
-            cur_issue = Issue(-1)
+            cur_issue = None
             tags_processed = 0
             valid_tags_found = 0
 
@@ -92,28 +92,29 @@ class HtmlReportReader(BaseReportReader):
 
                 if tag.name == "a" and tag.has_attr("id"):
                     valid_tags_found += 1
-                    if cur_issue.id != -1:
+                    if cur_issue is not None:
                         # Clean the first line of the trace before adding the issue
                         cur_issue.trace = self._clean_first_line(cur_issue.trace)
                         # Normalize trailing whitespace for consistency
                         cur_issue.trace = cur_issue.trace.rstrip()
                         issue_list.append(cur_issue)
-                    cur_issue = Issue(tag["id"])
-                    cur_issue = Issue(tag["id"])
+                    cur_issue = Issue(id=tag["id"])
                 else:
                     if tag.name == "b" and tag.find("span") and tag.find("a"):
                         valid_tags_found += 1
-                        try:
-                            cur_issue.issue_type = tag.find("span").text
-                            cur_issue.issue_cwe = tag.find("a").text
-                            cur_issue.issue_cwe_link = tag.find("a")["href"]
-                        except AttributeError:
-                            logger.error(f"Exception when parsing tag: {tag}")
+                        if cur_issue is not None:
+                            try:
+                                cur_issue.issue_type = tag.find("span").text
+                                cur_issue.issue_cwe = tag.find("a").text
+                                cur_issue.issue_cwe_link = tag.find("a")["href"]
+                            except AttributeError:
+                                logger.error(f"Exception when parsing tag: {tag}")
                     else:
-                        cur_issue.trace += tag.text
+                        if cur_issue is not None:
+                            cur_issue.trace += tag.text
 
             # Add the last issue if it exists
-            if cur_issue.id != -1:
+            if cur_issue is not None:
                 # Clean the first line of the trace before adding the issue
                 cur_issue.trace = self._clean_first_line(cur_issue.trace)
                 # Normalize trailing whitespace for consistency

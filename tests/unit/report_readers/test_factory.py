@@ -1,14 +1,9 @@
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import Mock
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from common.config import Config
-from dto.Issue import Issue
 from report_readers.base_reader import BaseReportReader
 from report_readers.google_sheets_reader import GoogleSheetsReportReader
 from report_readers.html_reader import HtmlReportReader
@@ -29,7 +24,7 @@ class MockReader(BaseReportReader):
 
     def read_report(self, file_path: str, config: Config) -> list:
         self.read_report_called = True
-        return [Issue("test1")]
+        return [Mock(id="test1")]
 
 
 class TestReportReaderFactory(unittest.TestCase):

@@ -25,15 +25,20 @@ pre-commit run --all-files
 ### 3. Run Tests
 
 ```bash
-# Run all tests
-cd tests
-python3 run_tests.py
+# Run all tests from the project root
+pytest
 
 # Run with verbose output
-python3 run_tests.py --verbose
+pytest -v
 
-# Run specific test module
-python3 run_tests.py --module test_sarif_reader
+# Run tests in a specific file
+pytest tests/unit/report_readers/test_html_reader.py
+
+# Run tests in a specific directory
+pytest tests/unit/
+
+# Run a specific test using keywords
+pytest -k "some_keyword_in_test_name"
 ```
 
 ## Pre-commit Hooks
@@ -46,8 +51,7 @@ The pre-commit configuration (`.pre-commit-config.yaml`) includes:
 - **flake8**: Code linting and style checking
 
 ### Testing
-- **Unit Tests**: Automatic execution of report reader tests
+- **Unit Tests**: Automatic execution of all tests.
   - Runs when Python files in `src/` or `tests/` are modified
-  - Uses the custom test runner with detailed output
   - Fails commit if any tests fail
 `

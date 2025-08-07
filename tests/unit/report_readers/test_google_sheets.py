@@ -1,17 +1,11 @@
-import os
-import sys
 import unittest
 from unittest.mock import Mock, patch
-
-# Add src to path for imports (for direct test run)
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
-
 
 from fixtures import SAMPLE_SHEET_DATA
 
 from common.config import Config
-from dto.Issue import Issue
-from report_readers.google_sheets_reader import GoogleSheetsReportReader
+from src.dto.Issue import Issue
+from src.report_readers.google_sheets_reader import GoogleSheetsReportReader
 
 
 class TestGoogleSheetsReportReader(unittest.TestCase):
@@ -27,7 +21,7 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
         self.mock_sheet = Mock()
         self.mock_sheet.get_all_records.return_value = SAMPLE_SHEET_DATA
 
-    def test_given_valid_google_sheets_url_when_checking_can_handle_then_returns_true(self):
+    def test__can_handle__valid_google_sheets_url_returns_true(self):
         """Test can_handle returns True for valid Google Sheets URLs"""
         valid_urls = [
             "https://docs.google.com/spreadsheets/d/abc123/edit#gid=0",
@@ -40,7 +34,7 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
                 result = self.reader.can_handle(url, self.config)
                 self.assertTrue(result, f"Should handle URL: {url}")
 
-    def test_given_invalid_urls_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__invalid_urls_returns_false(self):
         """Test can_handle returns False for invalid URLs"""
         invalid_urls = [
             "http://docs.google.com/spreadsheets/d/abc123/edit",  # HTTP not HTTPS
@@ -57,7 +51,7 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
                 result = self.reader.can_handle(url, self.config)
                 self.assertFalse(result, f"Should not handle URL: {url}")
 
-    def test_given_malformed_url_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__malformed_url_returns_false(self):
         """Test can_handle handles malformed URLs gracefully"""
         malformed_urls = [
             "https://",
@@ -70,7 +64,7 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
                 result = self.reader.can_handle(url, self.config)
                 self.assertFalse(result)
 
-    @patch("report_readers.google_sheets_reader.get_google_sheet")
+    @patch("src.report_readers.google_sheets_reader.get_google_sheet")
     def test_given_valid_sheets_url_when_reading_report_then_parses_issues_correctly(
         self, mock_get_sheet
     ):
@@ -109,10 +103,8 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
         self.assertEqual(issue3.issue_cwe, "CWE-457")
         self.assertIn("457", issue3.issue_cwe_link)
 
-    @patch("report_readers.google_sheets_reader.get_google_sheet")
-    def test_given_sheet_access_failure_when_reading_report_then_raises_value_error(
-        self, mock_get_sheet
-    ):
+    @patch("src.report_readers.google_sheets_reader.get_google_sheet")
+    def test__read_report__sheet_access_failure_raises_value_error(self, mock_get_sheet):
         """Test handling when sheet access fails"""
         mock_get_sheet.return_value = None
 
@@ -123,8 +115,8 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
 
         self.assertIn("Failed to access Google Sheet", str(context.exception))
 
-    @patch("report_readers.google_sheets_reader.get_google_sheet")
-    def test_given_empty_sheet_when_reading_report_then_returns_empty_list(self, mock_get_sheet):
+    @patch("src.report_readers.google_sheets_reader.get_google_sheet")
+    def test__read_report__empty_sheet_returns_empty_list(self, mock_get_sheet):
         """Test handling of empty Google Sheets"""
         mock_sheet = Mock()
         mock_sheet.get_all_records.return_value = []
@@ -135,10 +127,8 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
 
         self.assertEqual(len(issues), 0)
 
-    @patch("report_readers.google_sheets_reader.get_google_sheet")
-    def test_given_sheet_missing_finding_column_when_reading_report_then_returns_empty_list(
-        self, mock_get_sheet
-    ):
+    @patch("src.report_readers.google_sheets_reader.get_google_sheet")
+    def test__read_report__sheet_missing_finding_column_returns_empty_list(self, mock_get_sheet):
         """Test handling when Finding column is missing"""
         sheet_data_no_finding = [
             {"Status": "Open", "Severity": "High"},
@@ -155,10 +145,8 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
         # Should return empty list when no Finding column
         self.assertEqual(len(issues), 0)
 
-    @patch("report_readers.google_sheets_reader.get_google_sheet")
-    def test_given_malformed_findings_when_reading_report_then_handles_gracefully(
-        self, mock_get_sheet
-    ):
+    @patch("src.report_readers.google_sheets_reader.get_google_sheet")
+    def test__read_report__malformed_findings_handle_gracefully(self, mock_get_sheet):
         """Test handling of malformed finding entries"""
         malformed_data = [
             {"Finding": ""},  # Empty finding
@@ -187,12 +175,10 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
         self.assertEqual(issues[2].issue_type, "ValidType")
         self.assertEqual(issues[2].issue_cwe, "CWE-123")
 
-    def test_given_valid_finding_data_when_parsing_with_error_handling_then_returns_correct_issue(
-        self,
-    ):
+    def test__parse_finding_with_error_handling__valid_data_returns_correct_issue(self):
         """Test _parse_finding_with_error_handling with valid data"""
         row = {"Finding": "Error: TestType CWE-123\nTest trace content"}
-        issue = Issue("def1")
+        issue = Issue(id="def1")
         self.reader._parse_finding_with_error_handling(row["Finding"], issue)
 
         self.assertEqual(issue.id, "def1")
@@ -200,8 +186,8 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
         self.assertEqual(issue.issue_cwe, "CWE-123")
         self.assertIn("Test trace content", issue.trace)
 
-    @patch("report_readers.google_sheets_reader.get_google_sheet")
-    def test_given_network_error_when_reading_report_then_raises_exception(self, mock_get_sheet):
+    @patch("src.report_readers.google_sheets_reader.get_google_sheet")
+    def test__read_report__network_error_raises_exception(self, mock_get_sheet):
         """Test exception handling during sheet processing"""
         mock_get_sheet.side_effect = Exception("Network error")
 
