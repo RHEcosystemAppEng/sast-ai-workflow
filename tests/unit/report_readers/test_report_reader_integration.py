@@ -1,18 +1,14 @@
 import json
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from fixtures import SAMPLE_HTML, SAMPLE_SARIF
 
-from common.config import Config
-from dto.Issue import Issue
-from ReportReader import read_sast_report
+from src.common.config import Config
+from src.dto.Issue import Issue
+from src.ReportReader import read_sast_report
 
 
 class TestReportReaderIntegration(unittest.TestCase):
