@@ -2,6 +2,8 @@ import logging
 import math
 from decimal import Decimal
 
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+
 from common.config import Config
 from common.constants import YES_OPTIONS
 
@@ -39,41 +41,27 @@ def count_actual_values(data, ground_truth):
     return positives, negatives
 
 
-def calculate_confusion_matrix_metrics(
-    actual_true_positives,
-    actual_false_positives,
-    predicted_true_positives,
-    predicted_false_positives,
-):
-    """
-    Note: Since our goal is to detect false alarms,
-        positives refer to cases where issues are identified as NOT real issues.
-
-    Definitions:
-    - Positives: Issues that are NOT real issues (e.g., false alarms).
-    - Negatives: Issues that are real issues.
-    """
-    tp = len(
-        actual_false_positives & predicted_false_positives
-    )  # Both human and AI labeled as not real issue
-    tn = len(
-        actual_true_positives & predicted_true_positives
-    )  # Both human and AI labeled as real issue
-    fp = len(
-        actual_true_positives - predicted_true_positives
-    )  # AI falsely labeled as not real issue
-    fn = len(predicted_true_positives - actual_true_positives)  # AI falsely labeled as real issue
-
+def calculate_confusion_matrix_metrics(actual_tp, actual_fp, predicted_tp, predicted_fp):
+    all_ids = actual_tp | actual_fp | predicted_tp | predicted_fp
+    y_true = [1 if id in actual_fp else 0 for id in all_ids]
+    y_pred = [1 if id in predicted_fp else 0 for id in all_ids]
+    
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    tn, fp, fn, tp = cm.ravel()
     return tp, tn, fp, fn
 
 
 def get_metrics(tp, tn, fp, fn):
-    EPSILON = 1e-11
-    accuracy = (tp + tn) / (tp + tn + fp + fn + EPSILON)
-    recall = tp / (tp + fn + EPSILON)
-    precision = tp / (tp + fp + EPSILON)
-    f1_score = 2 * precision * recall / (precision + recall + EPSILON)
-    return accuracy, recall, precision, f1_score
+    y_true = [0] * tn + [0] * fp + [1] * fn + [1] * tp
+    y_pred = [0] * tn + [1] * fp + [0] * fn + [1] * tp
+    
+    if len(y_true) == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    
+    return (accuracy_score(y_true, y_pred), 
+            recall_score(y_true, y_pred, zero_division=0),
+            precision_score(y_true, y_pred, zero_division=0), 
+            f1_score(y_true, y_pred, zero_division=0))
 
 
 def get_numeric_value(value):

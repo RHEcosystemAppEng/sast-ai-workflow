@@ -3,12 +3,12 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools >= 64", "setuptools-scm>=8"]
 
 [tool.setuptools_scm]
-# Must be present (although empty) to activat   e auto-versioning
+# Must be present (although empty) to activate auto-versioning
 
 [project]
 name = "sast_agent_workflow"
 dynamic = ["version", "dependencies"]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 description = "SAST AI Workflow - NeMo Agent for Static Application Security Testing"
 classifiers = ["Programming Language :: Python"]
 
