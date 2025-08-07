@@ -90,19 +90,34 @@ class CRepoHandler:
     def get_source_code_blocks_from_error_trace(self, error_trace: str) -> dict:
         """Parse an error trace and extracts relevant functions bodies"""
 
-        source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+        try:
+            source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+        except Exception as e:
+            logger.warning(f"Failed to parse error trace: {e}")
+            return {}
+            
         error_code_sources = defaultdict(set)
 
         for file_path, line_number in source_files:
+            try:
+                line_num = int(line_number)
+            except ValueError:
+                logger.warning(f"Invalid line number '{line_number}' for file {file_path}")
+                continue
+                
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
                 logger.debug(f"Skipping missing file: {local_file_path}")
                 continue
 
-            source_code = self.get_source_code_by_line_number(local_file_path, int(line_number))
-            if source_code:
-                error_code_sources[file_path].add(source_code)
+            try:
+                source_code = self.get_source_code_by_line_number(local_file_path, line_num)
+                if source_code:
+                    error_code_sources[file_path].add(source_code)
+            except Exception as e:
+                logger.warning(f"Failed to extract source code from {local_file_path}:{line_num}: {e}")
+                continue
 
         return {
             full_file_path: "\n".join(code_sections)
@@ -171,20 +186,32 @@ class CRepoHandler:
 
     def extract_missing_functions_or_macros(self, instructions) -> str:
         """Get definitions of an expression"""
+        
+        if not instructions:
+            logger.debug("No instructions provided for function/macro extraction")
+            return ""
 
         def get_path(path: str):
-            path = path.removeprefix(self.repo_local_path)
-            path = path.removeprefix(self._report_file_prefix)
-            path = path.split(":")[0]
-            return path
+            try:
+                path = path.removeprefix(self.repo_local_path)
+                path = path.removeprefix(self._report_file_prefix)
+                path = path.split(":")[0]
+                return path
+            except (AttributeError, TypeError) as e:
+                logger.warning(f"Invalid path format: {path}. Error: {e}")
+                return ""
 
         expressions_by_path = defaultdict(set)
         for instruction in instructions:
-            path = get_path(instruction.referring_source_code_path)
-            if instruction.expression_name not in self.all_found_symbols:
-                expressions_by_path[path].add(instruction.expression_name)
-            else:
-                print(f"Skipping {instruction.expression_name} - the context contains the code already.")
+            try:
+                path = get_path(instruction.referring_source_code_path)
+                if path and instruction.expression_name not in self.all_found_symbols:
+                    expressions_by_path[path].add(instruction.expression_name)
+                elif instruction.expression_name in self.all_found_symbols:
+                    logger.debug(f"Skipping {instruction.expression_name} - the context contains the code already.")
+            except AttributeError as e:
+                logger.warning(f"Invalid instruction format: {instruction}. Error: {e}")
+                continue
 
         missing_source_codes = ""
         for source_code_path, expressions_list in expressions_by_path.items():
