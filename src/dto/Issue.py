@@ -1,16 +1,18 @@
 from pydantic import BaseModel
 
+
 class Issue(BaseModel):
     """
     Represents a single issue.
     """
+
     # This field is required for instantiation.
     id: str
-    
+
     issue_type: str = ""
     issue_label: str = ""
-    issue_cve: str = ""
-    issue_cve_link: str = ""
+    issue_cwe: str = ""
+    issue_cwe_link: str = ""
     trace: str = ""
     parsing_errors: bool = False  # Track if parsing failed for this issue
 

@@ -2,7 +2,7 @@ name: "Unit Tests"
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, aiq-workflow-migration ]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -10,7 +10,7 @@ on:
       - 'dev-requirements.txt'
       - '.github/workflows/test.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, aiq-workflow-migration ]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -28,12 +28,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Ensure lsb_release is available
-      run: |
-        apt-get update \
-        && apt-get install -y lsb-release \
-        && apt-get clean all
-
     - name: Set up Python "3.12.0"
       uses: actions/setup-python@v5
       with:
@@ -43,17 +37,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        if [ -f dev-requirements.txt ]; then pip install -r dev-requirements.txt; fi
+        if [ -f test-requirements.txt ]; then pip install -r test-requirements.txt; fi
 
     - name: Run tests with coverage
       run: |
-        cd tests && coverage run --source=../src ../tests/run_tests.py --verbose
-        coverage report --show-missing
-        coverage xml
+        pytest --cov=.
 
-    - name: Upload coverage reports
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage-report
-        path: tests/coverage.xml
-        retention-days: 30

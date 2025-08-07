@@ -236,7 +236,7 @@ class SarifReportReader(BaseReportReader):
         # Generate unique issue ID
         issue_id = f"def{issue_counter}"
 
-        issue = Issue(issue_id)
+        issue = Issue(id=issue_id)
 
         # Get rule information
         rule_id = result.get("ruleId", "")

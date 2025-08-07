@@ -6,7 +6,12 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND, TOKENIZERS_PARALLELISM
+from common.constants import (
+    FALLBACK_JUSTIFICATION_MESSAGE,
+    KNOWN_ISSUES_SHORT_JUSTIFICATION,
+    NO_MATCHING_TRACE_FOUND,
+    TOKENIZERS_PARALLELISM,
+)
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
