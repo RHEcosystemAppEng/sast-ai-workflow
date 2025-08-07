@@ -13,6 +13,10 @@ spec:
     - name: FALSE_POSITIVES_URL
       type: string
       description: "GitLab URL containing known false positive issues"
+    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+      type: string
+      description: "Whether to use known false positive file for filtering (true/false)"
+      default: "true"
   workspaces:
     - name: google-sa-json-ws
       description: "Workspace containing Google service account key file"
@@ -29,6 +33,12 @@ spec:
       image: curlimages/curl:latest
       script: |
         #!/usr/bin/env sh
+        # Check if false positives validation should be skipped
+        if [ "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)" != "true" ]; then
+          echo "USE_KNOWN_FALSE_POSITIVE_FILE is not 'true'; skipping false positives URL validation."
+          exit 0
+        fi
+        
         FP_URL="$(params.FALSE_POSITIVES_URL)"
         echo "Validating false positives URL: $FP_URL"
         # If blank, skip. If not, ensure it's valid
@@ -49,6 +59,12 @@ spec:
 
         # Check if it's a URL (starts with http:// or https://)
         if [[ "$SPREADSHEET_URL" =~ ^https?:// ]]; then
+
+            if [[ "$SPREADSHEET_URL" =~ ^https?://.*\.(json|js)$ ]]; then
+              echo "Detected JSON URL - skipping validation"
+              exit 0
+            fi
+            
             echo "Detected URL format - validating Google Spreadsheet..."
             
             # Extract Sheet ID from URL

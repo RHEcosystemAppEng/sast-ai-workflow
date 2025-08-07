@@ -19,7 +19,6 @@ from common.constants import (
     LLM_API_TYPE,
     LLM_MODEL_NAME,
     LLM_URL,
-    MAX_ANALYSIS_ITERATIONS,
     OUTPUT_FILE_PATH,
     PROJECT_NAME,
     PROJECT_VERSION,
@@ -64,9 +63,9 @@ class Config:
     CRITIQUE_LLM_URL: str
     CRITIQUE_LLM_MODEL_NAME: str
     CRITIQUE_LLM_API_KEY: str | None
+    CRITIQUE_LLM_API_KEY: str
     SERVICE_ACCOUNT_JSON_PATH: str
     SIMILARITY_ERROR_THRESHOLD: int
-    MAX_ANALYSIS_ITERATIONS: int
 
     # Prompt template type hints
     ANALYSIS_SYSTEM_PROMPT: str
@@ -77,6 +76,7 @@ class Config:
     JUSTIFICATION_SUMMARY_SYSTEM_PROMPT: str
     JUSTIFICATION_SUMMARY_HUMAN_PROMPT: str
     EVALUATION_PROMPT: str
+
 
     def __init__(self):
         self.load_config()
@@ -90,17 +90,22 @@ class Config:
             prompts_dir = os.path.join(os.path.dirname(__file__), "../templates/prompts")
             prompt_file = os.path.join(prompts_dir, f"{prompt_name}.yaml")
 
+
             # Check if file exists
             if not os.path.exists(prompt_file):
                 logger.warning(f"Prompt file not found: {prompt_file}")
                 return ""
 
+
             # Load and return template
+            with open(prompt_file, "r", encoding="utf-8") as f:
             with open(prompt_file, "r", encoding="utf-8") as f:
                 prompt_data = yaml.safe_load(f)
                 template = prompt_data.get("template", "")
+                template = prompt_data.get("template", "")
                 logger.info(f"Loaded prompt template from file: {prompt_name}.yaml")
                 return template
+
 
         except Exception as e:
             logger.error(f"Error loading prompt file {prompt_name}.yaml: {e}")
@@ -135,7 +140,33 @@ class Config:
         self.LLM_MODEL_NAME = os.getenv(LLM_MODEL_NAME)
         self.EMBEDDINGS_LLM_MODEL_NAME = os.getenv(EMBEDDINGS_LLM_MODEL_NAME)
 
+
         # Load prompt templates from files with environment variable overrides
+        self.ANALYSIS_SYSTEM_PROMPT = self._load_prompt_template(
+            "ANALYSIS_SYSTEM_PROMPT", "analysis_system_prompt"
+        )
+        self.ANALYSIS_HUMAN_PROMPT = self._load_prompt_template(
+            "ANALYSIS_HUMAN_PROMPT", "analysis_human_prompt"
+        )
+        self.FILTER_SYSTEM_PROMPT = self._load_prompt_template(
+            "FILTER_SYSTEM_PROMPT", "filter_system_prompt"
+        )
+        self.FILTER_HUMAN_PROMPT = self._load_prompt_template(
+            "FILTER_HUMAN_PROMPT", "filter_human_prompt"
+        )
+        self.RECOMMENDATIONS_PROMPT = self._load_prompt_template(
+            "RECOMMENDATIONS_PROMPT", "recommendations_prompt"
+        )
+        self.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = self._load_prompt_template(
+            "JUSTIFICATION_SUMMARY_SYSTEM_PROMPT", "justification_summary_system_prompt"
+        )
+        self.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = self._load_prompt_template(
+            "JUSTIFICATION_SUMMARY_HUMAN_PROMPT", "justification_summary_human_prompt"
+        )
+        self.EVALUATION_PROMPT = self._load_prompt_template(
+            "EVALUATION_PROMPT", "evaluation_prompt"
+        )
+
         self.ANALYSIS_SYSTEM_PROMPT = self._load_prompt_template(
             "ANALYSIS_SYSTEM_PROMPT", "analysis_system_prompt"
         )
@@ -171,15 +202,17 @@ class Config:
             logger.info(f"Loaded prompt template from environment variable: {env_var_name}")
             return template
 
+
         # If not found in environment, load from file
         template = self._load_prompt_from_file(prompt_file_name)
         if template:
             return template
 
+
         # If neither environment nor file works, log error and return empty string
         logger.error(
-            f"Could not load prompt template for {env_var_name} from environment or "
-            f"file {prompt_file_name}.yaml"
+            f"Could not load prompt template for {env_var_name} from environment "
+            f"or file {prompt_file_name}.yaml"
         )
         return ""
 
@@ -196,6 +229,7 @@ class Config:
             if key in masked_vars:
                 value = "******"
             # Don't print full prompt templates in logs (they're too long)
+            elif key.endswith("_PROMPT"):
             elif key.endswith("_PROMPT"):
                 value = f"<prompt template loaded: {len(str(value))} chars>"
             logger.info(f"{key}={value}")
@@ -216,6 +250,7 @@ class Config:
         }
         required_cfg_files = {INPUT_REPORT_FILE_PATH}
 
+
         # Check if DOWNLOAD_REPO is True then validate a REPO URL was provided
         if self.DOWNLOAD_REPO is True:
             required_cfg_vars.add(REPO_REMOTE_URL)
@@ -235,7 +270,8 @@ class Config:
             required_cfg_files.add(CONFIG_H_PATH)
 
         # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
-        if self.HUMAN_VERIFIED_FILE_PATH:
+        if self.HUMAN_VERIFIED_FILE_PATH and not self.HUMAN_VERIFIED_FILE_PATH.startswith("https"):
+            logger.info(f"HUMAN_VERIFIED_FILE_PATH: {self.HUMAN_VERIFIED_FILE_PATH}")
             required_cfg_files.add(HUMAN_VERIFIED_FILE_PATH)
 
         # Ensure service account JSON exists if using Google Sheets as input
@@ -294,6 +330,16 @@ class Config:
             )
 
         # Validate that prompt templates are loaded
+        prompt_vars = [
+            "ANALYSIS_SYSTEM_PROMPT",
+            "ANALYSIS_HUMAN_PROMPT",
+            "FILTER_SYSTEM_PROMPT",
+            "FILTER_HUMAN_PROMPT",
+            "RECOMMENDATIONS_PROMPT",
+            "JUSTIFICATION_SUMMARY_SYSTEM_PROMPT",
+            "JUSTIFICATION_SUMMARY_HUMAN_PROMPT",
+            "EVALUATION_PROMPT",
+        ]
         prompt_vars = [
             "ANALYSIS_SYSTEM_PROMPT",
             "ANALYSIS_HUMAN_PROMPT",
