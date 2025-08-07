@@ -1,18 +1,14 @@
 import json
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from fixtures import SAMPLE_HTML, SAMPLE_SARIF
 
-from common.config import Config
-from dto.Issue import Issue
-from ReportReader import read_sast_report
+from src.common.config import Config
+from src.dto.Issue import Issue
+from src.ReportReader import read_sast_report
 
 
 class TestReportReaderIntegration(unittest.TestCase):
@@ -93,7 +89,7 @@ class TestReportReaderIntegration(unittest.TestCase):
     ):
         """Test complete Google Sheets report reading workflow"""
         # Mock the expected issues that would be returned by the Google Sheets reader
-        mock_issues = [Issue("def1"), Issue("def2")]
+        mock_issues = [Issue(id="def1"), Issue(id="def2")]
 
         # Set up the mock issues with expected data
         mock_issues[0].issue_type = "BUFFER_OVERFLOW"

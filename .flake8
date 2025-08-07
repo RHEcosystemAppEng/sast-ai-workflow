@@ -6,4 +6,4 @@ extend-ignore = E203, W503
 per-file-ignores =
     # Test files can have imports after sys.path modifications
     tests/*.py:E402
-    tests/fixtures.py:E501
+    tests/unit/report_readers/fixtures.py:E501

@@ -19,6 +19,7 @@ from common.constants import (
     LLM_API_TYPE,
     LLM_MODEL_NAME,
     LLM_URL,
+    MAX_ANALYSIS_ITERATIONS,
     OUTPUT_FILE_PATH,
     PROJECT_NAME,
     PROJECT_VERSION,
@@ -77,7 +78,6 @@ class Config:
     JUSTIFICATION_SUMMARY_HUMAN_PROMPT: str
     EVALUATION_PROMPT: str
 
-
     def __init__(self):
         self.load_config()
         self.print_config()
@@ -90,22 +90,18 @@ class Config:
             prompts_dir = os.path.join(os.path.dirname(__file__), "../templates/prompts")
             prompt_file = os.path.join(prompts_dir, f"{prompt_name}.yaml")
 
-
             # Check if file exists
             if not os.path.exists(prompt_file):
                 logger.warning(f"Prompt file not found: {prompt_file}")
                 return ""
 
-
             # Load and return template
-            with open(prompt_file, "r", encoding="utf-8") as f:
             with open(prompt_file, "r", encoding="utf-8") as f:
                 prompt_data = yaml.safe_load(f)
                 template = prompt_data.get("template", "")
                 template = prompt_data.get("template", "")
                 logger.info(f"Loaded prompt template from file: {prompt_name}.yaml")
                 return template
-
 
         except Exception as e:
             logger.error(f"Error loading prompt file {prompt_name}.yaml: {e}")
@@ -139,7 +135,6 @@ class Config:
         self.EMBEDDINGS_LLM_API_KEY = os.getenv(EMBEDDINGS_LLM_API_KEY)
         self.LLM_MODEL_NAME = os.getenv(LLM_MODEL_NAME)
         self.EMBEDDINGS_LLM_MODEL_NAME = os.getenv(EMBEDDINGS_LLM_MODEL_NAME)
-
 
         # Load prompt templates from files with environment variable overrides
         self.ANALYSIS_SYSTEM_PROMPT = self._load_prompt_template(
@@ -202,12 +197,10 @@ class Config:
             logger.info(f"Loaded prompt template from environment variable: {env_var_name}")
             return template
 
-
         # If not found in environment, load from file
         template = self._load_prompt_from_file(prompt_file_name)
         if template:
             return template
-
 
         # If neither environment nor file works, log error and return empty string
         logger.error(
@@ -230,7 +223,6 @@ class Config:
                 value = "******"
             # Don't print full prompt templates in logs (they're too long)
             elif key.endswith("_PROMPT"):
-            elif key.endswith("_PROMPT"):
                 value = f"<prompt template loaded: {len(str(value))} chars>"
             logger.info(f"{key}={value}")
         logger.info("".center(80, "-"))
@@ -249,7 +241,6 @@ class Config:
             SIMILARITY_ERROR_THRESHOLD,
         }
         required_cfg_files = {INPUT_REPORT_FILE_PATH}
-
 
         # Check if DOWNLOAD_REPO is True then validate a REPO URL was provided
         if self.DOWNLOAD_REPO is True:
@@ -315,16 +306,19 @@ class Config:
             )
 
         # Validate that similarity error threshold is a valid value
-        if not is_valid_int_value(self.SIMILARITY_ERROR_THRESHOLD, 
-                                  VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"], 
-                                  VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"]):
+        if not is_valid_int_value(
+            self.SIMILARITY_ERROR_THRESHOLD,
+            VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"],
+            VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"],
+        ):
             raise ValueError(
                 f"Configuration variable '{SIMILARITY_ERROR_THRESHOLD}' is not a valid value."
             )
 
         # Validate that MAX_ANALYSIS_ITERATIONS is a positive integer
-        if not is_valid_int_value(self.MAX_ANALYSIS_ITERATIONS, 
-                                  VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]):
+        if not is_valid_int_value(
+            self.MAX_ANALYSIS_ITERATIONS, VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]
+        ):
             raise ValueError(
                 f"Configuration variable '{MAX_ANALYSIS_ITERATIONS}' is not a valid value."
             )

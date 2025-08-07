@@ -43,7 +43,6 @@ class GoogleSheetsReportReader(BaseReportReader):
 
         try:
             return self._read_sast_report_google_sheet(config.SERVICE_ACCOUNT_JSON_PATH, file_path)
-            return self._read_sast_report_google_sheet(config.SERVICE_ACCOUNT_JSON_PATH, file_path)
         except Exception as e:
             logger.error(f"Error reading Google Sheets report {file_path}: {e}")
             raise
@@ -88,7 +87,7 @@ class GoogleSheetsReportReader(BaseReportReader):
             # Convert finding to string if it's not already
             finding_str = str(finding)
 
-            issue = Issue(f"def{idx}")
+            issue = Issue(id=f"def{idx}")
 
             # Parse with error handling - always create Issue object to preserve indexing
             try:

@@ -1,16 +1,12 @@
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import Mock
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from fixtures import SAMPLE_HTML
 
-from common.config import Config
-from report_readers.html_reader import HtmlReportReader
+from src.common.config import Config
+from src.report_readers.html_reader import HtmlReportReader
 
 
 class TestHtmlReportReader(unittest.TestCase):
@@ -32,7 +28,7 @@ class TestHtmlReportReader(unittest.TestCase):
         </html>
         """
 
-    def test_given_valid_html_file_when_checking_can_handle_then_returns_true(self):
+    def test__can_handle__valid_html_file_returns_true(self):
         """Test can_handle returns True for valid HTML files"""
         with tempfile.NamedTemporaryFile(suffix=".html", mode="w", delete=False) as temp_file:
             temp_file.write(SAMPLE_HTML)
@@ -44,7 +40,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_htm_file_when_checking_can_handle_then_returns_true(self):
+    def test__can_handle__htm_file_returns_true(self):
         """Test can_handle returns True for .htm files"""
         with tempfile.NamedTemporaryFile(suffix=".htm", mode="w", delete=False) as temp_file:
             temp_file.write(SAMPLE_HTML)
@@ -56,7 +52,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_unsupported_file_extension_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__unsupported_file_extension_returns_false(self):
         """Test can_handle returns False for unsupported file extensions"""
         with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False) as temp_file:
             temp_file.write("some text")
@@ -68,7 +64,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_url_instead_of_file_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__url_instead_of_file_returns_false(self):
         """Test can_handle returns False for URLs"""
         result = self.reader.can_handle("https://example.com/report.html", self.config)
         self.assertFalse(result)
@@ -76,12 +72,12 @@ class TestHtmlReportReader(unittest.TestCase):
         result = self.reader.can_handle("http://example.com/report.html", self.config)
         self.assertFalse(result)
 
-    def test_given_nonexistent_file_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__nonexistent_file_returns_false(self):
         """Test can_handle returns False for non-existent files"""
         result = self.reader.can_handle("/nonexistent/file.html", self.config)
         self.assertFalse(result)
 
-    def test_given_case_insensitive_extension_when_checking_can_handle_then_returns_true(self):
+    def test__can_handle__case_insensitive_extension_returns_true(self):
         """Test can_handle works with case-insensitive extensions"""
         with tempfile.NamedTemporaryFile(suffix=".HTML", mode="w", delete=False) as temp_file:
             temp_file.write(SAMPLE_HTML)
@@ -93,7 +89,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_valid_html_file_when_reading_report_then_parses_issues_correctly(self):
+    def test__read_report__valid_html_parses_correctly(self):
         """Test basic HTML report parsing"""
         with tempfile.NamedTemporaryFile(suffix=".html", mode="w", delete=False) as temp_file:
             temp_file.write(SAMPLE_HTML)
@@ -131,7 +127,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_minimal_html_structure_when_reading_report_then_parses_successfully(self):
+    def test__read_report__minimal_html_parses_successfully(self):
         """Test parsing minimal HTML structure"""
         with tempfile.NamedTemporaryFile(suffix=".html", mode="w", delete=False) as temp_file:
             temp_file.write(self.minimal_html_content)
@@ -150,7 +146,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_html_without_pre_tags_when_reading_report_then_returns_empty_list(self):
+    def test__read_report__html_without_pre_tags_returns_empty_list(self):
         """Test handling of HTML without <pre> tags"""
         html_no_pre = "<html><body><p>No pre tags here</p></body></html>"
 
@@ -164,7 +160,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_empty_pre_tag_when_reading_report_then_returns_empty_list(self):
+    def test__read_report__empty_pre_tag_returns_empty_list(self):
         """Test handling of empty <pre> tag"""
         html_empty_pre = "<html><body><pre></pre></body></html>"
 
@@ -178,7 +174,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_issues_with_missing_metadata_when_reading_report_then_handles_gracefully(self):
+    def test__read_report__issues_with_missing_metadata_handles_gracefully(self):
         """Test handling of issues with missing metadata"""
         html_missing_metadata = """
         <html>
@@ -214,7 +210,7 @@ class TestHtmlReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_missing_file_when_reading_report_then_raises_file_not_found_error(self):
+    def test__read_report__missing_file_raises_file_not_found_error(self):
         """Test read_report raises FileNotFoundError for missing files"""
         with self.assertRaises(FileNotFoundError):
             self.reader.read_report("/nonexistent/file.html", self.config)

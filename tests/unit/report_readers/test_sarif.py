@@ -1,17 +1,13 @@
 import json
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import Mock
 
-# Add src and project root to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from fixtures import SAMPLE_SARIF
 
-from common.config import Config
-from report_readers.sarif_reader import SarifReportReader
+from src.common.config import Config
+from src.report_readers.sarif_reader import SarifReportReader
 
 
 class TestSarifReportReader(unittest.TestCase):
@@ -22,7 +18,7 @@ class TestSarifReportReader(unittest.TestCase):
         self.reader = SarifReportReader()
         self.config = Mock(spec=Config)
 
-    def test_given_valid_sarif_file_when_checking_can_handle_then_returns_true(self):
+    def test__can_handle__valid_sarif_file_returns_true(self):
         """Test can_handle returns True for valid SARIF files"""
         with tempfile.NamedTemporaryFile(suffix=".sarif", mode="w", delete=False) as temp_file:
             json.dump(SAMPLE_SARIF, temp_file)
@@ -34,7 +30,7 @@ class TestSarifReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_json_file_with_sarif_content_when_checking_can_handle_then_returns_true(self):
+    def test__can_handle__json_file_with_sarif_content_returns_true(self):
         """Test can_handle returns True for .json files with SARIF content"""
         with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as temp_file:
             json.dump(SAMPLE_SARIF, temp_file)
@@ -46,7 +42,7 @@ class TestSarifReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_unsupported_file_extension_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__unsupported_file_extension_returns_false(self):
         """Test can_handle returns False for unsupported file extensions"""
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp_file:
             temp_file.write(b"some text")
@@ -58,7 +54,7 @@ class TestSarifReportReader(unittest.TestCase):
             finally:
                 os.unlink(temp_file.name)
 
-    def test_given_url_instead_of_file_when_checking_can_handle_then_returns_false(self):
+    def test__can_handle__url_instead_of_file_returns_false(self):
         """Test can_handle returns False for URLs"""
         result = self.reader.can_handle("https://example.com/report.sarif", self.config)
         self.assertFalse(result)
