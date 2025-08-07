@@ -11,8 +11,8 @@ CO := oc  --context $(CONTEXT)
 TK := tkn --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
-REPO_REMOTE_URL                       ?= source/code/url
-FALSE_POSITIVES_URL              ?= false/positives/url
+REPO_REMOTE_URL                  ?= source/code/url
+HUMAN_VERIFIED_FILE_PATH         ?= ""
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
@@ -28,7 +28,13 @@ REPO_LOCAL_PATH					 ?= /path/to/repo
 
 INPUT_REPORT_FILE_PATH			 ?= http://<<please-set-google-spreadsheet-url>>
 
+FALSE_POSITIVES_URL              ?= false/positives/url
+USE_KNOWN_FALSE_POSITIVE_FILE    ?= true
+
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
+
+GDRIVE_FOLDER_ID				 ?= ""
+GDRIVE_SA_FILE_NAME			     ?= service_account.json
 
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
@@ -175,7 +181,11 @@ run:
 		  -p PROJECT_NAME="$(PROJECT_NAME)" \
 		  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
 		  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
+		  -p HUMAN_VERIFIED_FILE_PATH="$(HUMAN_VERIFIED_FILE_PATH)" \
 		  -p AGGREGATE_RESULTS_G_SHEET="$(AGGREGATE_RESULTS_G_SHEET)" \
+		  -p GDRIVE_FOLDER_ID="$(GDRIVE_FOLDER_ID)" \
+		  -p GDRIVE_SA_FILE_NAME="$(GDRIVE_SA_FILE_NAME)" \
+		  -p USE_KNOWN_FALSE_POSITIVE_FILE="$(USE_KNOWN_FALSE_POSITIVE_FILE)" \
 		  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 		  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
 		  --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \
