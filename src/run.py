@@ -19,6 +19,7 @@ from stage.filter_known_issues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
+from Utils.debug_dumper import DebugDumper
 
 # Setup logging
 setup_logging()
@@ -31,10 +32,16 @@ def main():
         "false"  # Turn off parallel processing for tokenization to avoid warnings
     )
 
+    # Initialize debug dumper
+    debug_dumper = DebugDumper()
+    
     llm_service = LLMService(config)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
     repo_handler = repo_handler_factory(config)
     issue_list = read_sast_report(config)
+    
+    # Dump checkpoint: after read_sast_report
+    debug_dumper.dump_issue_list(issue_list)
 
     summary_data = []
 
@@ -102,6 +109,9 @@ def main():
                 issue_list,  # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
                 config,
             )
+        
+        # Dump checkpoint: after capture_known_issues
+        debug_dumper.dump_known_issues(already_seen_issues_dict, similar_known_issues_dict)
 
         for issue in issue_list:
             # if issue.id not in selected_issue_list:
@@ -131,6 +141,10 @@ def main():
                     issue_source_code = repo_handler.get_source_code_blocks_from_error_trace(
                         issue.trace
                     )
+                    
+                    # Dump checkpoint: after get_source_code_blocks_from_error_trace
+                    debug_dumper.dump_source_code_blocks(issue.id, issue_source_code)
+                    
                     source_code_context = "".join(
                         [
                             f"\ncode of {path} file:\n{code}"
@@ -148,6 +162,9 @@ def main():
                         f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
                     )
                     llm_response, critique_response = llm_service.investigate_issue(context, issue)
+                    
+                    # Dump checkpoint: after first llm_service.investigate_issue
+                    debug_dumper.dump_llm_investigation(issue.id, llm_response, critique_response, context, 1)
 
                     retries = 0
                     while llm_response.is_second_analysis_needed() and retries < config.MAX_ANALYSIS_ITERATIONS:
@@ -158,6 +175,10 @@ def main():
                         missing_source_code = repo_handler.extract_missing_functions_or_macros(
                             llm_response.instructions
                         )
+                        
+                        # Dump checkpoint: after extract_missing_functions_or_macros
+                        debug_dumper.dump_missing_functions(issue.id, missing_source_code, llm_response.instructions)
+                        
                         source_code_context += f"\n{missing_source_code}"
                         context = (
                             f"*** Source Code Context ***\n{source_code_context}\n\n"
@@ -166,6 +187,9 @@ def main():
                         llm_response, critique_response = llm_service.investigate_issue(
                             context, issue
                         )
+                        
+                        # Dump checkpoint: after second llm_service.investigate_issue (iteration)
+                        debug_dumper.dump_llm_investigation(issue.id, llm_response, critique_response, context, retries + 2)
 
                         retries += 1
                     repo_handler.reset_found_symbols()
@@ -173,6 +197,9 @@ def main():
                     if config.CALCULATE_METRICS:
                         metric_request = metric_request_from_prompt(llm_response)
                         score = metric_handler.evaluate_datasets(metric_request)
+                        
+                        # Dump checkpoint: after metric_handler.evaluate_datasets
+                        debug_dumper.dump_metrics_evaluation(issue.id, score, metric_request)
 
             except Exception as e:
                 logger.error(
@@ -208,6 +235,9 @@ def main():
     items_for_evaluation, failed_item_ids = filter_items_for_evaluation(summary_data)
     ground_truth = get_human_verified_results(config)
     evaluation_summary = EvaluationSummary(items_for_evaluation, config, ground_truth)
+    
+    # Dump checkpoint: after EvaluationSummary
+    debug_dumper.dump_evaluation_summary(evaluation_summary, items_for_evaluation, failed_item_ids)
 
     try:
         write_to_excel_file(summary_data, evaluation_summary, config)

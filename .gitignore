@@ -167,3 +167,7 @@ deploy/tekton/prompts-config-map.yaml
 
 # Cursor
 .cursorrules
+
+# Mac
+.DS_Store
+src/.DS_Store

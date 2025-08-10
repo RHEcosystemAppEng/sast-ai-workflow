@@ -1,2 +1,64 @@
+# Virtual environments
 sast_env/
+venv/
+.venv/
+ENV/
+env/
+.env/
+
+# Python cache
 **/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Excel and CSV files (adjust if needed for your use case)
+*.xlsx
+*.xls
+*.csv
+
+# Debug dumps (will be created inside container)
+debug_dumps/
+
+# Test files
+test_*
+*_test.py
