@@ -29,6 +29,7 @@ CRITIQUE_LLM_MODEL_NAME = "CRITIQUE_LLM_MODEL_NAME"
 CRITIQUE_LLM_API_KEY = "CRITIQUE_LLM_API_KEY"
 SERVICE_ACCOUNT_JSON_PATH = "SERVICE_ACCOUNT_JSON_PATH"
 MAX_ANALYSIS_ITERATIONS = "MAX_ANALYSIS_ITERATIONS"
+SIMILARITY_ERROR_THRESHOLD = "SIMILARITY_ERROR_THRESHOLD"
 RED_ERROR_FOR_LLM_REQUEST = (
     "WARNING: An error occurred "
     "{max_retry_limit} times in {function_name} process. "
@@ -42,3 +43,28 @@ YES_OPTIONS = ["y", "yes"]
 NO_OPTIONS = ["n", "no"]
 ALL_VALID_OPTIONS = YES_OPTIONS + NO_OPTIONS
 KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR = "\n\n"
+
+# Template and formatting constants
+KNOWN_FALSE_POSITIVE_TEMPLATES = {
+    "EXAMPLE_MULTILINE_TEMPLATE": (
+        "** Example-{number} **\n"
+        "(Example-{number}) Known False Positive:\n"
+        "Error {issue_type} ({issue_cwe}):\n"
+        "{error_trace}\n"
+        "(Example-{number}) Reason Marked as False Positive:\n"
+        "{reason}\n\n"
+    ),
+    "FILTER_CONTEXT_TEMPLATE": (
+        "Known False Positive {index}:\n"
+        "false_positive_error_trace:\n"
+        "{error_trace}\n"
+        "reason_marked_false_positive:\n"
+        "{reason}\n\n"
+    ),
+}
+
+# Pattern matching constants
+REGEX_PATTERNS = {"CWE_PATTERN": r"CWE-\d+", "CODE_BLOCK_LINE_PATTERN": r"#\s*\d+\|"}
+
+# Validation constants
+VALIDATION_LIMITS = {"MIN_SIMILARITY_THRESHOLD": 1, "MAX_SIMILARITY_THRESHOLD": 10}

@@ -7,14 +7,16 @@ This guide covers deployment on a local OpenShift cluster using CodeReady Contai
 ```
 deploy/
 ├── Makefile                    # Main deployment automation
-├── deploy.md                  # This documentation  
-├── scripts/                   # Deployment utility scripts
-│   └── generate_prompts.py    # ConfigMap generation from templates
-└── tekton/                    # Kubernetes/Tekton resources
-    ├── tasks/                 # Individual pipeline tasks
-    ├── scripts/               # ConfigMaps for pipeline scripts  
+├── README.md                   # This documentation  
+├── argocd/                     # GitOps configuration
+│   └── argocd-application.yaml # ArgoCD Application definition
+├── scripts/                    # Deployment utility scripts
+│   └── generate_prompts.py     # ConfigMap generation from templates
+└── tekton/                     # Kubernetes/Tekton resources
+    ├── tasks/                  # Individual pipeline tasks
+    ├── scripts/                # ConfigMaps for pipeline scripts  
     ├── prompts-config-map.yaml # Generated prompt templates
-    └── *.yaml                 # Other pipeline resources
+    └── *.yaml                  # Other pipeline resources
 ```
 
 ### 1. Install CRC (Local Development)
@@ -88,6 +90,12 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 | `run` | Execute pipeline (requires tkn CLI or shows manual command) |
 | `logs` | View pipeline logs |
 | `clean` | **⚠️ Deletes ALL resources in namespace including PVCs** |
+| **GitOps** | |
+| `argocd-deploy` | Deploy ArgoCD Application for automated GitOps |
+| `argocd-status` | Check ArgoCD sync and health status |
+| `argocd-sync` | Trigger manual sync |
+| `argocd-clean` | Remove ArgoCD Application |
+| `gitops-setup` | Complete GitOps setup with overview |
 
 ### 5. Quick Start
 
@@ -125,7 +133,56 @@ make setup          # Infrastructure only
 make tasks pipeline  # Tekton resources
 make run            # Execute pipeline
 ```
-### 7. Customizing Prompts
+
+### 7. GitOps with ArgoCD
+
+For VPN-protected clusters, use GitOps to automatically sync Tekton resources from GitHub.
+
+#### 7.1. Prerequisites
+- ArgoCD installed in your cluster (e.g., in `sast-ai` namespace)
+- Repository access from within the cluster
+
+#### 7.2. Deploy GitOps
+```bash
+# Deploy ArgoCD Application
+make argocd-deploy
+
+# Check sync status
+make argocd-status
+```
+
+#### 7.3. How It Works
+- **Auto-sync**: Changes to `main` branch deploy automatically (~3 min)
+- **Self-healing**: Manual changes are automatically reverted
+- **Pruning**: Deleted files are removed from cluster
+- **Path**: Only syncs `deploy/tekton/` directory
+
+#### 7.4. Configuration
+Set in `.env` file (optional):
+```env
+GITHUB_REPO_URL=https://github.com/your-org/sast-ai-workflow.git
+ARGOCD_NAMESPACE=sast-ai
+```
+
+#### 7.5. Prompt Changes with GitOps
+When modifying prompts in `src/templates/prompts/`, you must regenerate the ConfigMap:
+
+```bash
+# 1. Edit prompt templates in src/templates/prompts/
+# 2. Regenerate ConfigMap
+make generate-prompts
+
+# 3. Commit the updated ConfigMap
+git add deploy/tekton/prompts-config-map.yaml
+git commit -m "Update prompts"
+git push
+
+# 4. ArgoCD will sync the new prompts automatically
+```
+
+**Note**: This is only needed when changing prompts, not for regular commits.
+
+### 8. Customizing Prompts
 
 The SAST AI Workflow uses a template-based prompt system with a single source of truth. Prompts are now managed through individual template files rather than being hardcoded.
 
@@ -192,7 +249,7 @@ make prompts          # Apply to cluster
 oc apply -f tekton/prompts-config-map.yaml
 ```
 
-### 8. Testing Prompt Generation
+### 9. Testing Prompt Generation
 
 Before deploying, you can test prompt generation locally:
 
@@ -210,7 +267,7 @@ grep -c "prompt:" tekton/prompts-config-map.yaml  # Should show 8
 
 This ensures all template files are valid and the ConfigMap generation works correctly.
 
-### 9. Troubleshooting
+### 10. Troubleshooting
 
 #### General Issues
 - **View logs:** `make logs`
