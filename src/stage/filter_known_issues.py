@@ -82,7 +82,7 @@ def capture_known_issues(main_process: LLMService, issue_list: List[Issue], conf
     logger.info(f"Known false positives: {len(already_seen_dict)} / {len(issue_list)} ")
     return already_seen_dict, examples_context_dict
 
-def _create_known_issue_retriever(main_process, config) -> KnownIssueRetriever:
+def _create_known_issue_retriever(main_process: LLMService, config: Config) -> KnownIssueRetriever:
     """
     Creates a retriever for the known false positive findings database.
     The retriever is used to retrieve the most similar known issues from the database for a given issue.
@@ -93,11 +93,13 @@ def _create_known_issue_retriever(main_process, config) -> KnownIssueRetriever:
         KnownIssueRetriever: A known issue retriever.
     """
     text_false_positives = read_known_errors_file(config.KNOWN_FALSE_POSITIVE_FILE_PATH)
-    known_issue_db = main_process.create_vdb_for_known_issues(text_false_positives)
-    known_issue_retriever = KnownIssueRetriever(known_issue_db, main_process.similarity_error_threshold) 
+    known_issue_db = main_process.vector_service.create_known_issues_vector_store(
+        text_false_positives, main_process.embedding_llm
+    )
+    known_issue_retriever = KnownIssueRetriever(known_issue_db, config.SIMILARITY_ERROR_THRESHOLD) 
     return known_issue_retriever
 
-def _is_known_false_positive(issue, similar_known_issues_list, main_process) -> tuple[bool, str]:
+def _is_known_false_positive(issue, similar_known_issues_list, main_process: LLMService) -> tuple[bool, str]:
     def convert_similar_known_issues_to_filter_known_error_context(resp) -> str:
         context_list = ''
         for index, known_issue in enumerate(resp, start=1):
