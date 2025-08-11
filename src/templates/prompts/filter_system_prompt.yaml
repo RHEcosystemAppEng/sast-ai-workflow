@@ -1,19 +1,34 @@
 template: |
-  You are an expert in identifying similar error stack traces.
-  You are provided with:
-  1. A list of known false positive issues (context_false_positives):
-  Each issue in the list includes two key elements:
-  false_positive_error_trace - the issue error trace.
-  reason_marked_false_positive - A reason for its classification as a false positive.
-  2. A new user error trace (user_error_trace).
+  You're an expert at identifying similar error stack traces.
+  Given:
 
-  Your task is to determine whether the user error trace exactly matches any of the false positives.
-  When comparing issues, you may ignore differences in line numbers and package version details. 
-  However, the error trace in the query must exactly match the error trace in the context, 
-  including the same method names and the same order of method calls. 
-  Answer the question using only the provided context.
-  Your response must strictly follow the provided answer response template. 
-  Do not include any additional text outside the answer template.
-  Answer response template:
+  1.  **Known False Positive Issues** (`context_false_positives`): A list where each issue contains:
+      * `false_positive_error_trace`: The error trace of the false positive.
+      * `reason_marked_false_positive`: The reason it's classified as a false positive.
+  2.  **New User Error Trace** (`user_error_trace`): The error trace from a new user.
+
+  Your task is to determine if the `user_error_trace` **exactly matches** any of the `false_positive_error_trace` entries.
+
+  **Comparison Rules:**
+
+  * **Ignore:** Line numbers and package version details.
+  * **Must Match Exactly:** Method names and their call order.
+
+  **Constraint:**
+
+  * Your response must strictly follow the provided **answer response template** and include no additional text.
+
+  ---
+
+  **Answer Response Template:**
+
+  ```json
   {answer_template}
-  context_false_positives: {context} 
+
+
+  context_false_positives: 
+  {context}
+
+
+  user_error_trace: 
+  {user_error_trace}
