@@ -161,10 +161,18 @@ def main():
                         f"*** Source Code Context ***\n{source_code_context}\n\n"
                         f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
                     )
-                    llm_response, critique_response = llm_service.investigate_issue(context, issue)
+                    
+                    # Time and dump first LLM investigation
+                    with debug_dumper.timer("llm_investigate", issue.id):
+                        llm_response, critique_response = llm_service.investigate_issue(context, issue)
+                    
+                    # Get timing for this operation
+                    timing_key = f"llm_investigate_{issue.id}"
+                    last_timing = debug_dumper.timings.get(timing_key, [{}])[-1]
+                    timing_duration = last_timing.get("duration_seconds")
                     
                     # Dump checkpoint: after first llm_service.investigate_issue
-                    debug_dumper.dump_llm_investigation(issue.id, llm_response, critique_response, context, 1)
+                    debug_dumper.dump_llm_investigation(issue.id, llm_response, critique_response, context, timing_duration=timing_duration)
 
                     retries = 0
                     while llm_response.is_second_analysis_needed() and retries < config.MAX_ANALYSIS_ITERATIONS:
@@ -172,24 +180,39 @@ def main():
                             f"{llm_response.is_final=}\n{llm_response.recommendations=}\n\
                                 {llm_response.instructions=}"
                         )
-                        missing_source_code = repo_handler.extract_missing_functions_or_macros(
-                            llm_response.instructions
-                        )
+                        # Time and dump missing functions extraction
+                        with debug_dumper.timer("extract_missing_functions", issue.id):
+                            missing_source_code = repo_handler.extract_missing_functions_or_macros(
+                                llm_response.instructions
+                            )
+                        
+                        # Get timing for missing functions extraction
+                        timing_key = f"extract_missing_functions_{issue.id}"
+                        last_timing = debug_dumper.timings.get(timing_key, [{}])[-1]
+                        timing_duration = last_timing.get("duration_seconds")
                         
                         # Dump checkpoint: after extract_missing_functions_or_macros
-                        debug_dumper.dump_missing_functions(issue.id, missing_source_code, llm_response.instructions)
+                        debug_dumper.dump_missing_functions(issue.id, missing_source_code, llm_response.instructions, retries, timing_duration)
                         
                         source_code_context += f"\n{missing_source_code}"
                         context = (
                             f"*** Source Code Context ***\n{source_code_context}\n\n"
                             f"*** Examples ***\n{similar_known_issues_dict.get(issue.id, '')}"
                         )
-                        llm_response, critique_response = llm_service.investigate_issue(
-                            context, issue
-                        )
                         
-                        # Dump checkpoint: after second llm_service.investigate_issue (iteration)
-                        debug_dumper.dump_llm_investigation(issue.id, llm_response, critique_response, context, retries + 2)
+                        # Time and dump subsequent LLM investigation
+                        with debug_dumper.timer("llm_investigate", issue.id):
+                            llm_response, critique_response = llm_service.investigate_issue(
+                                context, issue
+                            )
+                        
+                        # Get timing for this LLM investigation
+                        timing_key = f"llm_investigate_{issue.id}"
+                        last_timing = debug_dumper.timings.get(timing_key, [{}])[-1]
+                        timing_duration = last_timing.get("duration_seconds")
+                        
+                        # Dump checkpoint: after subsequent llm_service.investigate_issue
+                        debug_dumper.dump_llm_investigation(issue.id, llm_response, critique_response, context, retries, timing_duration)
 
                         retries += 1
                     repo_handler.reset_found_symbols()
