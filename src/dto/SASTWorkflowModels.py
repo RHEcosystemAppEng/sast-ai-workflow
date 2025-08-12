@@ -9,6 +9,7 @@ from typing import Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 from common.config import Config
+from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 
 
@@ -17,7 +18,7 @@ class PerIssueData(BaseModel):
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
-    original_report_data: str = Field(default="", description="The raw data for the issue from the report")
+    issue: Issue = Field(description="The issue object")
     source_code: dict = Field(default_factory=dict, description="Dictionary mapping file paths to relevant code snippets")
     similar_known_issues: str = Field(default="", description="Raw text containing the N most similar known issues from the Vector DB")
     analysis_response: Optional[AnalysisResponse] = Field(default=None, description="AnalysisResponse object containing the core analysis state for a single issue")

@@ -28,9 +28,11 @@ This workflow provides a skeleton for implementing SAST analysis capabilities us
 
 ## Installation
 
+**Note:** Run from the root folder of the project.
+
 1. Create and activate a virtual environment:
    ```bash
-   uv venv --seed -p python3.13 .venv
+   uv venv --seed -p python3.12 .venv
    source .venv/bin/activate
    ```
 
@@ -43,6 +45,8 @@ This workflow provides a skeleton for implementing SAST analysis capabilities us
 
 ## Usage
 
+**Note:** Run from the root folder of the project.
+
 Run the SAST agent workflow:
 ```bash
 aiq run --config_file src/sast_agent_workflow/configs/config.yml --input <some str>
@@ -51,3 +55,22 @@ aiq run --config_file src/sast_agent_workflow/configs/config.yml --input <some s
 **Note:** The string input is only present because NeMo requires some input parameter, but this input is not actually used in the workflow. The real inputs come from:
 1. The `default_config.yaml` file
 2. Environment variables
+
+## Testing
+
+**Note:** Run from the root folder of the project.
+
+Run the test suite:
+```bash
+PYTHONPATH=. pytest tests/aiq_tests/
+```
+
+Run tests with verbose output:
+```bash
+PYTHONPATH=. pytest tests/aiq_tests/ -v
+```
+
+Run a specific test file:
+```bash
+PYTHONPATH=. pytest tests/aiq_tests/test_pre_process.py
+```

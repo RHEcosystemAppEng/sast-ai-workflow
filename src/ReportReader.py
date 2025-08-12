@@ -47,7 +47,7 @@ def read_sast_report_google_sheet(service_account_file_path, google_sheet_url) -
         if not finding:
             continue
 
-        issue = Issue(f"def{idx}")
+        issue = Issue(id=f"def{idx}")
         # TODO - please leave a example string for finding
         lines = finding.split("\n")
         issue.issue_type = lines[0].split("Error:")[1].strip().split()[0]
@@ -93,7 +93,7 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
             logger.warning(f"No <pre> tags found in HTML file - possibly corrupted: {file_path}")
             return []
             
-        cur_issue = Issue(-1)
+        cur_issue = Issue(id="-1")
         tags_processed = 0
         valid_tags_found = 0
         
@@ -102,9 +102,9 @@ def read_sast_report_local_html(file_path) -> List[Issue]:
             
             if tag.name == "a" and tag.has_attr("id"):
                 valid_tags_found += 1
-                if cur_issue.id != -1:
+                if cur_issue.id != "-1":
                     issue_list.append(cur_issue)
-                cur_issue = Issue(tag["id"])
+                cur_issue = Issue(id=tag["id"])
             else:
                 if tag.name == "b" and tag.find("span") and tag.find("a"):
                     valid_tags_found += 1
