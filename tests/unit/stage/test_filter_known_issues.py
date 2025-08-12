@@ -5,6 +5,7 @@ Covers LLM vector search for identifying known false positives.
 import pytest
 from unittest.mock import Mock, patch
 from src.stage.filter_known_issues import capture_known_issues
+from dto.Issue import Issue
 
 
 class TestCaptureKnownIssues:
@@ -13,118 +14,150 @@ class TestCaptureKnownIssues:
         mock_llm_service = Mock()
         mock_config = Mock()
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "valid_file.txt"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         valid_known_issues = ["Error: USE_AFTER_FREE\nSome error trace\nReason: duplicate variable"]
-        mock_llm_service.create_vdb_for_known_issues.side_effect = Exception("FAISS embedding failed")
+        
+        mock_vector_service = Mock()
+        mock_vector_service.create_known_issues_vector_store.side_effect = Exception("FAISS embedding failed")
+        mock_llm_service.vector_service = mock_vector_service
+        mock_llm_service.embedding_llm = Mock()
+        
+        issue1 = Issue("issue1")
+        issue_list = [issue1]
         
         # testing
         with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=valid_known_issues):
             with caplog.at_level('ERROR'):
-                already_seen_dict, context_dict = capture_known_issues(mock_llm_service, [], mock_config)
+                with pytest.raises(Exception, match="FAISS embedding failed"):
+                    capture_known_issues(mock_llm_service, issue_list, mock_config)
                 
                 # assertion
-                assert already_seen_dict == {}
-                assert context_dict == {}
-                assert "Failed to create vector database: FAISS embedding failed" in caplog.text
-                mock_llm_service.create_vdb_for_known_issues.assert_called_once_with(valid_known_issues)
+                mock_vector_service.create_known_issues_vector_store.assert_called_once_with(valid_known_issues, mock_llm_service.embedding_llm)
 
     def test__capture_known_issues__issue_error_continues_processing(self, caplog):
-        # preparation
-        from src.dto.Issue import Issue
-        
+        # preparation        
         mock_llm_service = Mock()
         mock_config = Mock()
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "valid_file.txt"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         valid_known_issues = ["Error: USE_AFTER_FREE\nSome error trace\nReason: duplicate variable"]
+        
+        mock_doc = Mock()
+        mock_doc.page_content = "Some error trace"
+        mock_doc.metadata = {
+            'reason_of_false_positive': 'duplicate variable',
+            'issue_type': 'USE_AFTER_FREE',
+            'issue_cwe': 'CWE-416'
+        }
+        
+        mock_retriever = Mock()
+        mock_retriever.invoke.return_value = [mock_doc]
+        
         mock_vector_db = Mock()
-        mock_llm_service.create_vdb_for_known_issues.return_value = mock_vector_db
+        mock_vector_db.as_retriever.return_value = mock_retriever
+        
+        mock_vector_service = Mock()
+        mock_vector_service.create_known_issues_vector_store.return_value = mock_vector_db
+        mock_llm_service.vector_service = mock_vector_service
+        mock_llm_service.embedding_llm = Mock()
         
         issue1 = Issue("issue1")
         issue2 = Issue("issue2") 
         issue3 = Issue("issue3")
         issue_list = [issue1, issue2, issue3]
         
-        def mock_filter_error(db, issue):
+        def mock_filter_error(issue, context):
             if issue.id == "issue2":
                 raise Exception("Processing failed for issue2")
             
             mock_response = Mock()
             mock_response.result = "no"
-            return mock_response, []
+            mock_response.matched_error_trace = ""
+            return mock_response
         
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
         
         # testing
         with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=valid_known_issues):
             with caplog.at_level('ERROR'):
-                already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
-                
-                # assertion
-                assert len(context_dict) == 2  # issue1 and issue3 processed
-                assert "issue1" in context_dict
-                assert "issue3" in context_dict
-                assert "issue2" not in context_dict
-                assert "Failed to process issue issue2: Processing failed for issue2" in caplog.text
-                assert mock_llm_service.filter_known_error.call_count == 3
+                with pytest.raises(Exception, match="Processing failed for issue2"):
+                    capture_known_issues(mock_llm_service, issue_list, mock_config)
 
-    def test__capture_known_issues__valid_data_returns_matches(self, caplog):
+    def test__capture_known_issues__valid_data_returns_matches(self):
         # preparation
-        from src.dto.Issue import Issue
         
         mock_llm_service = Mock()
         mock_config = Mock()
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "valid_file.txt"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         valid_known_issues = ["Error: USE_AFTER_FREE\nSome error trace\nReason: duplicate variable"]
+        
+        # Mock the vector DB and retriever
+        mock_doc = Mock()
+        mock_doc.page_content = "Some error trace"
+        mock_doc.metadata = {
+            'reason_of_false_positive': 'duplicate variable',
+            'issue_type': 'USE_AFTER_FREE',
+            'issue_cwe': 'CWE-416'
+        }
+        
+        mock_retriever = Mock()
+        mock_retriever.invoke.return_value = [mock_doc]
+        
         mock_vector_db = Mock()
-        mock_llm_service.create_vdb_for_known_issues.return_value = mock_vector_db
+        mock_vector_db.as_retriever.return_value = mock_retriever
+        
+        # Mock the vector service
+        mock_vector_service = Mock()
+        mock_vector_service.create_known_issues_vector_store.return_value = mock_vector_db
+        mock_llm_service.vector_service = mock_vector_service
+        mock_llm_service.embedding_llm = Mock()
         
         issue1 = Issue("issue1")
         issue2 = Issue("issue2") 
         issue3 = Issue("issue3")
         issue_list = [issue1, issue2, issue3]
         
-        def mock_filter_error(db, issue):
+        def mock_filter_error(issue, context):
             mock_response = Mock()
-            mock_context = [{"false_positive_error_trace": "trace data", "reason_marked_false_positive": "reason data"}]
             
             if issue.id in ["issue1", "issue3"]:
                 mock_response.result = "YES"
+                mock_response.matched_error_trace = "matched trace"
             else:
                 mock_response.result = "NO"
+                mock_response.matched_error_trace = ""
                 
-            return mock_response, mock_context
+            return mock_response
         
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
         
         # testing
         with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=valid_known_issues):
-            with caplog.at_level('INFO'):
-                already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
-                
-                # assertion
-                assert len(already_seen_dict) == 2 
-                assert "issue1" in already_seen_dict
-                assert "issue3" in already_seen_dict
-                assert "issue2" not in already_seen_dict
-                
-                assert len(context_dict) == 3
-                assert "issue1" in context_dict
-                assert "issue2" in context_dict
-                assert "issue3" in context_dict
-                
-                # Verify specific log messages
-                assert "LLM found issue1 error trace inside known false positives list" in caplog.text
-                assert "LLM found issue3 error trace inside known false positives list" in caplog.text
-                assert "Known false positives: 2 / 3" in caplog.text
-                
-                assert mock_llm_service.filter_known_error.call_count == 3
+            already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
+            
+            # assertion
+            assert len(already_seen_dict) == 2 
+            assert "issue1" in already_seen_dict
+            assert "issue3" in already_seen_dict
+            assert "issue2" not in already_seen_dict
+            
+            assert len(context_dict) == 3
+            assert "issue1" in context_dict
+            assert "issue2" in context_dict
+            assert "issue3" in context_dict
+            
+            # Verify that filter_known_error was called for each issue
+            assert mock_llm_service.filter_known_error.call_count == 3
+            
+            # Verify the vector service was properly initialized
+            mock_vector_service.create_known_issues_vector_store.assert_called_once_with(valid_known_issues, mock_llm_service.embedding_llm)
 
     def test__capture_known_issues__file_error_returns_empty(self, caplog):
         # preparation
-        from src.dto.Issue import Issue
-        
         mock_llm_service = Mock()
         mock_config = Mock()
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "/nonexistent/path/file.txt"
@@ -134,30 +167,44 @@ class TestCaptureKnownIssues:
         # testing
         with patch('src.stage.filter_known_issues.read_known_errors_file', side_effect=FileNotFoundError("File not found")):
             with caplog.at_level('ERROR'):
-                already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
-                
-                # assertion
-                assert already_seen_dict == {}
-                assert context_dict == {}
-                assert "Failed to read known false positives file: File not found" in caplog.text
-                mock_llm_service.create_vdb_for_known_issues.assert_not_called()
-                mock_llm_service.filter_known_error.assert_not_called()
+                with pytest.raises(FileNotFoundError, match="File not found"):
+                    capture_known_issues(mock_llm_service, issue_list, mock_config)
 
-    def test__capture_known_issues__empty_file_returns_empty(self, caplog):
+    def test__capture_known_issues__empty_file_returns_empty(self):
         # preparation
         mock_llm_service = Mock()
         mock_config = Mock()
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "empty_file.txt"
+        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
-        empty_issue_list = []
+        issue_list = [Issue("issue1")]
+        
+        mock_vector_db = Mock()
+        mock_retriever = Mock()
+        mock_retriever.invoke.return_value = []
+        mock_vector_db.as_retriever.return_value = mock_retriever
+        
+        mock_vector_service = Mock()
+        mock_vector_service.create_known_issues_vector_store.return_value = mock_vector_db
+        mock_llm_service.vector_service = mock_vector_service
+        mock_llm_service.embedding_llm = Mock()
+        
+        mock_response = Mock()
+        mock_response.result = "NO"
+        mock_response.matched_error_trace = ""
+        mock_llm_service.filter_known_error.return_value = mock_response
         
         # testing
         with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=[]):
-            with caplog.at_level('WARNING'):
-                already_seen_dict, context_dict = capture_known_issues(mock_llm_service, empty_issue_list, mock_config)
-                
-                # assertion
-                assert already_seen_dict == {}
-                assert context_dict == {}
-                assert "No known false positives found" in caplog.text
-                mock_llm_service.create_vdb_for_known_issues.assert_not_called()
+            already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
+            
+            # assertion
+            assert already_seen_dict == {}
+            assert len(context_dict) == 1
+            assert "issue1" in context_dict
+            
+            # Verify that filter_known_error was called for the single issue
+            mock_llm_service.filter_known_error.assert_called_once()
+            
+            # Verify the vector service was properly initialized with empty list
+            mock_vector_service.create_known_issues_vector_store.assert_called_once_with([], mock_llm_service.embedding_llm)
