@@ -12,7 +12,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # Required to update release notes via GitHub API
       packages: write
 
     steps:
