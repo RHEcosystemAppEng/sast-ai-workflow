@@ -67,6 +67,34 @@ def validate_issue_list(issues: List[Issue]) -> bool:
     return True
 
 
+def validate_issue_dict(issues: dict[str, Any]) -> bool:
+    """
+    Validate that the issue dict is not empty and contains valid PerIssueData objects.
+    
+    Args:
+        issues: Dict of PerIssueData objects to validate
+        
+    Returns:
+        bool: True if valid
+        
+    Raises:
+        ValidationError: If issue dict is invalid
+    """
+    # Import inside function to avoid circular dependency
+    from dto.SASTWorkflowModels import PerIssueData
+    
+    if not isinstance(issues, dict):
+        raise ValidationError(f"Issues must be a dict, got {type(issues)}")
+    
+    if not issues:
+        raise ValidationError("Issue dict cannot be empty")
+    
+    if not all(isinstance(issue, PerIssueData) for issue in issues.values()):
+        raise ValidationError("All items in the issue dict must be of type PerIssueData")
+
+    return True
+
+
 def safe_validate(validation_func, *args, **kwargs) -> bool:
     """
     Safely execute a validation function with error logging.

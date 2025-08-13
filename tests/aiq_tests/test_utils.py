@@ -124,3 +124,33 @@ class TestUtils:
             iteration_count=iteration_count,
             metrics=metrics or {}
         )
+
+    @staticmethod
+    def create_clean_filter_tracker(issues: Optional[List[Issue]] = None, 
+                                  config: Optional[Mock] = None,
+                                  iteration_count: int = 0) -> SASTWorkflowTracker:
+        """ 
+        Create a clean tracker that represents the state after pre_process but before filter execution.
+        """
+        if issues is None:
+            issues = TestUtils.create_sample_issues(count=2)
+        
+        if config is None:
+            config = Mock(spec=Config)
+            config.USE_KNOWN_FALSE_POSITIVE_FILE = True
+        
+        issues_dict = {}
+        for issue in issues:
+            issues_dict[issue.id] = PerIssueData(
+                issue=issue,
+                similar_known_issues="",
+                source_code={},
+                analysis_response=AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value, is_final=FALSE)
+            )
+        
+        return SASTWorkflowTracker(
+            config=config,
+            iteration_count=iteration_count,
+            issues=issues_dict,
+            metrics={}
+        )
