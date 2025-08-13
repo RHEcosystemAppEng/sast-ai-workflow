@@ -2,6 +2,7 @@ PROJECT_NAME: ""
 PROJECT_VERSION: ""
 
 LLM_URL: "http://<<please-set-llm-url>>"
+LLM_API_TYPE: "nim"
 LLM_MODEL_NAME: "llm-model"
 EMBEDDINGS_LLM_URL: "http://<<please-set-embedding-llm-url>>"
 EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
@@ -24,6 +25,7 @@ CALCULATE_METRICS: true
 
 SHOW_FINAL_JUDGE_CONTEXT: true
 SIMILARITY_ERROR_THRESHOLD: 2
+MAX_ANALYSIS_ITERATIONS: 2
 
 RUN_WITH_CRITIQUE: false
 USE_CRITIQUE_AS_FINAL_RESULTS: false

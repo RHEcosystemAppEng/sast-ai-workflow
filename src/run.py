@@ -6,7 +6,7 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, TOKENIZERS_PARALLELISM
+from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, TOKENIZERS_PARALLELISM
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from dto.SummaryInfo import SummaryInfo
@@ -115,8 +115,14 @@ def main():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
                     )
-                    equal_error_trace = already_seen_issues_dict[issue.id] #equal_error_trace (List[str])
-                    context = "\n".join(equal_error_trace) if equal_error_trace else "No matching trace found"
+                    equal_error_trace = already_seen_issues_dict[
+                        issue.id
+                    ]  # equal_error_trace (List[str])
+                    context = (
+                        "\n".join(equal_error_trace)
+                        if equal_error_trace
+                        else "No matching trace found"
+                    )
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
                         is_final="TRUE",
@@ -124,8 +130,7 @@ def main():
                         justifications=[
                             f"The error is similar to one found in the provided context: {context}"
                         ],
-                        short_justifications="The error is similar to one found in the provided \
-                            known issues (Details in the full Justification)",
+                        short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
                     )
                 else:
                     # get source code context by error trace
@@ -151,7 +156,10 @@ def main():
                     llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                     retries = 0
-                    while llm_response.is_second_analysis_needed() and retries < 2:
+                    while (
+                        llm_response.is_second_analysis_needed()
+                        and retries < config.MAX_ANALYSIS_ITERATIONS
+                    ):
                         logger.info(
                             f"{llm_response.is_final=}\n{llm_response.recommendations=}\n\
                                 {llm_response.instructions=}"
