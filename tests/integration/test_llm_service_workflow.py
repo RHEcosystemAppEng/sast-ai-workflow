@@ -61,7 +61,7 @@ class TestInvestigateIssue:
         mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
         mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
 
-        test_issue = Issue("test-issue-1")
+        test_issue = Issue(id="test-issue-1")
         test_issue.issue_type = "BUFFER_SIZE"
         test_issue.issue_cve = "CWE-474"
         test_issue.trace = "buffer overflow at line 121"
@@ -106,7 +106,7 @@ class TestInvestigateIssue:
         mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
         mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
 
-        test_issue = Issue("test-issue-1")
+        test_issue = Issue(id="test-issue-1")
         test_issue.issue_type = "BUFFER_SIZE"
         test_issue.issue_cve = "CWE-474"
         test_issue.trace = "buffer overflow at line 121"
@@ -146,7 +146,7 @@ class TestInvestigateIssue:
         mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
         mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
 
-        test_issue = Issue("test-issue-2")
+        test_issue = Issue(id="test-issue-2")
         test_issue.issue_type = "BUFFER_SIZE" 
         test_issue.issue_cve = "CWE-474"
         test_issue.trace = "false positive case"
