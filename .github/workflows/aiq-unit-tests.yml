@@ -10,7 +10,7 @@ on:
 
 jobs:
   unit-tests:
-    name: Run Pytest on AIQ Workflow
+    name: pytest tests/aiq_tests/
     runs-on: ubuntu-latest
 
     steps:
