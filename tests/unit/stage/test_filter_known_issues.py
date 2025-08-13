@@ -23,7 +23,7 @@ class TestCaptureKnownIssues:
         mock_llm_service.vector_service = mock_vector_service
         mock_llm_service.embedding_llm = Mock()
         
-        issue1 = Issue("issue1")
+        issue1 = Issue(id="issue1")
         issue_list = [issue1]
         
         # testing
@@ -63,9 +63,9 @@ class TestCaptureKnownIssues:
         mock_llm_service.vector_service = mock_vector_service
         mock_llm_service.embedding_llm = Mock()
         
-        issue1 = Issue("issue1")
-        issue2 = Issue("issue2") 
-        issue3 = Issue("issue3")
+        issue1 = Issue(id="issue1")
+        issue2 = Issue(id="issue2") 
+        issue3 = Issue(id="issue3")
         issue_list = [issue1, issue2, issue3]
         
         def mock_filter_error(issue, context):
@@ -116,9 +116,9 @@ class TestCaptureKnownIssues:
         mock_llm_service.vector_service = mock_vector_service
         mock_llm_service.embedding_llm = Mock()
         
-        issue1 = Issue("issue1")
-        issue2 = Issue("issue2") 
-        issue3 = Issue("issue3")
+        issue1 = Issue(id="issue1")
+        issue2 = Issue(id="issue2") 
+        issue3 = Issue(id="issue3")
         issue_list = [issue1, issue2, issue3]
         
         def mock_filter_error(issue, context):
@@ -162,7 +162,7 @@ class TestCaptureKnownIssues:
         mock_config = Mock()
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "/nonexistent/path/file.txt"
         
-        issue_list = [Issue("issue1")]
+        issue_list = [Issue(id="issue1")]
         
         # testing
         with patch('src.stage.filter_known_issues.read_known_errors_file', side_effect=FileNotFoundError("File not found")):
@@ -177,7 +177,7 @@ class TestCaptureKnownIssues:
         mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "empty_file.txt"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
-        issue_list = [Issue("issue1")]
+        issue_list = [Issue(id="issue1")]
         
         mock_vector_db = Mock()
         mock_retriever = Mock()
