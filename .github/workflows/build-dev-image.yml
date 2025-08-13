@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - closed
 
 env:
   REGISTRY: quay.io
@@ -15,6 +17,8 @@ env:
 jobs:
   build-dev:
     runs-on: ubuntu-latest
+    # Only run on direct pushes to main OR when PRs are merged (not just closed)
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     permissions:
       contents: read
       packages: write
@@ -39,11 +43,9 @@ jobs:
       with:
         images: ${{ env.IMAGE_NAME }}
         tags: |
-          # For main branch pushes
-          type=raw,value=latest-dev,enable={{is_default_branch}}
-          type=raw,value=main-{{sha}},enable={{is_default_branch}}
-          # For PRs
-          type=ref,event=pr,prefix=pr-
+          # For main branch pushes only
+          type=raw,value=latest-dev
+          type=raw,value=main-{{sha}}
         labels: |
           org.opencontainers.image.title=SAST AI Workflow (Development)
           org.opencontainers.image.description=LLM-based tool for SAST vulnerability detection (Development Build)
@@ -54,8 +56,8 @@ jobs:
       with:
         context: .
         file: ./Containerfile
-        platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
+        platforms: linux/amd64
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
@@ -65,17 +67,12 @@ jobs:
       run: |
         echo "## 🔧 Development Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ github.event_name }}" == "pull_request" ]; then
-          echo "**Type:** Pull Request Build (not pushed to registry)" >> $GITHUB_STEP_SUMMARY
-          echo "**PR:** #${{ github.event.number }}" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "**Type:** Development Build" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME }}:latest-dev\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME }}:main-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-        fi
+        echo "**Type:** Development Build" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.IMAGE_NAME }}:latest-dev\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.IMAGE_NAME }}:main-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)" >> $GITHUB_STEP_SUMMARY
