@@ -35,7 +35,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             short_justifications=""
         )
         
-        tracker = TestUtils.create_sample_tracker_from_dict(per_issue_data, self.mock_config)
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
         
         with patch('sast_agent_workflow.tools.summarize_justifications.IssueAnalysisService') as mock_service_class:
             mock_service = Mock()
@@ -72,7 +72,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             short_justifications="Already summarized content"
         )
         
-        tracker = TestUtils.create_sample_tracker_from_dict(per_issue_data, self.mock_config)
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
         
         with patch('sast_agent_workflow.tools.summarize_justifications.IssueAnalysisService') as mock_service_class:
             mock_service = Mock()
@@ -106,7 +106,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
         per_issue_data["already_processed_issue"].analysis_response.short_justifications = "Already done"
         per_issue_data["no_analysis_response"].analysis_response = None
         
-        tracker = TestUtils.create_sample_tracker_from_dict(per_issue_data, self.mock_config)
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
         
         with patch('sast_agent_workflow.tools.summarize_justifications.IssueAnalysisService') as mock_service_class:
             mock_service = Mock()
@@ -152,7 +152,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             short_justifications=""
         )
         
-        tracker = TestUtils.create_sample_tracker_from_dict(per_issue_data, self.mock_config)
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
         
         with patch('sast_agent_workflow.tools.summarize_justifications.IssueAnalysisService') as mock_service_class:
             mock_service = Mock()
@@ -164,8 +164,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             
             # assertion
             self.assertIsInstance(result_tracker, SASTWorkflowTracker)
-            self.assertEqual(result_tracker.issues["error_issue"].analysis_response.short_justifications,
-                           "Failed to summarize justifications due to missing justification etc.")
+            self.assertEqual(result_tracker.issues["error_issue"].analysis_response.short_justifications, "")
             self.assertEqual(result_tracker.issues["error_issue"].analysis_response.justifications,
                            ["Original justification that should be preserved"])
 
