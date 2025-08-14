@@ -22,6 +22,51 @@ from stage.filter_known_issues import (
 logger = logging.getLogger(__name__)
 
 
+def _create_false_positive_response(equal_error_trace: list) -> AnalysisResponse:
+    """Create analysis response for known false positives."""
+    context = (
+        "\n".join(equal_error_trace)
+        if equal_error_trace
+        else "No matching trace found"
+    )
+    
+    return AnalysisResponse(
+        investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
+        is_final="TRUE",
+        recommendations=["No fix required."],
+        justifications=[
+            f"The error is similar to one found in the provided context: {context}"
+        ],
+        short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
+    )
+
+
+def _process_single_issue(issue_id: str, issue_data, known_issue_retriever, llm_service: LLMService) -> None:
+    """Process a single issue for known false positive detection."""
+    try:
+        # Get similar known issues from vector store
+        similar_known_issues_list = known_issue_retriever.get_relevant_known_issues(
+            issue_data.issue.trace, 
+            issue_data.issue.issue_type
+        )
+        
+        # Convert similar issues to context string for other tools
+        issue_data.similar_known_issues = convert_similar_issues_to_examples_context_string(
+            similar_known_issues_list
+        )
+        
+        # Check if issue is a known false positive
+        is_finding_known_false_positive, equal_error_trace = is_known_false_positive(
+            issue_data.issue, similar_known_issues_list, llm_service
+        )
+        
+        if is_finding_known_false_positive:
+            logger.info(f"Issue {issue_id} identified as known false positive")
+            issue_data.analysis_response = _create_false_positive_response(equal_error_trace)
+                            
+    except Exception as e:
+        logger.error(f"Error processing issue {issue_id} in filter: {e}")
+
 
 class FilterConfig(FunctionBaseConfig, name="filter"):
     """
@@ -73,46 +118,7 @@ async def filter(
         
         # Process each issue
         for issue_id, issue_data in tracker.issues.items():
-            try:
-                # Get similar known issues from vector store
-                similar_known_issues_list = known_issue_retriever.get_relevant_known_issues(
-                    issue_data.issue.trace, 
-                    issue_data.issue.issue_type
-                )
-                
-                # Convert similar issues to context string for other tools
-                issue_data.similar_known_issues = convert_similar_issues_to_examples_context_string(
-                    similar_known_issues_list
-                )
-                
-                # Check if issue is a known false positive
-                is_finding_known_false_positive, equal_error_trace = is_known_false_positive(
-                    issue_data.issue, similar_known_issues_list, llm_service
-                )
-                
-                if is_finding_known_false_positive:
-                    logger.info(f"Issue {issue_id} identified as known false positive")
-                    
-                    # Create final analysis response for known false positives
-                    context = (
-                        "\n".join(equal_error_trace)
-                        if equal_error_trace
-                        else "No matching trace found"
-                    )
-                    
-                    issue_data.analysis_response = AnalysisResponse(
-                        investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-                        is_final="TRUE",
-                        recommendations=["No fix required."],
-                        justifications=[
-                            f"The error is similar to one found in the provided context: {context}"
-                        ],
-                        short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
-                    )
-                                    
-            except Exception as e:
-                logger.error(f"Error processing issue {issue_id} in filter: {e}")
-                continue
+            _process_single_issue(issue_id, issue_data, known_issue_retriever, llm_service)
         
         known_fps = count_known_false_positives(tracker.issues)
         
