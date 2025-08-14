@@ -17,8 +17,8 @@ class TestEvaluationSummary:
         mock_config = Mock()
         mock_config.USE_CRITIQUE_AS_FINAL_RESULTS = False
         
-        issue1 = Issue("issue1")
-        issue2 = Issue("issue2")
+        issue1 = Issue(id="issue1")
+        issue2 = Issue(id="issue2")
         
         response1 = AnalysisResponse("TRUE POSITIVE", "TRUE", "", [], "", [], [], [])
         response2 = AnalysisResponse(" FALSE POSITIVE", "TRUE", "", [], "", [], [], [])
@@ -47,7 +47,7 @@ class TestEvaluationSummary:
         mock_config = Mock()
         mock_config.USE_CRITIQUE_AS_FINAL_RESULTS = False
         
-        issue1 = Issue("issue1")
+        issue1 = Issue(id="issue1")
         response1 = AnalysisResponse("TRUE POSITIVE", "TRUE", "", [], "", [], [], [])
         summary1 = SummaryInfo(response1, {}, "", "")
         
