@@ -9,7 +9,8 @@ from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
-from common.constants import FALSE, KNOWN_ISSUES_SHORT_JUSTIFICATION
+from common.constants import FALSE
+from Utils.metrics_utils import count_known_false_positives
 
 # Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \
@@ -156,9 +157,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
             not_fp_issues = sum(1 for issue in tracker.issues.values() 
                               if issue.analysis_response and issue.analysis_response.is_true_positive())
             
-            known_issues = sum(1 for issue in tracker.issues.values() 
-                             if issue.analysis_response and issue.analysis_response.short_justifications and
-                             KNOWN_ISSUES_SHORT_JUSTIFICATION in issue.analysis_response.short_justifications)
+            known_issues = count_known_false_positives(tracker.issues)
 
             # Format the summary
             summary = {
