@@ -106,31 +106,21 @@ class TestUtils:
         )
 
     @staticmethod
-    def create_sample_tracker_from_dict(issues_dict: Dict[str, PerIssueData], config: Optional[Config] = None, 
-                                      iteration_count: int = 0, metrics: Optional[Dict] = None) -> SASTWorkflowTracker:
-        """Create a SASTWorkflowTracker from a pre-existing issues dictionary."""
-        return SASTWorkflowTracker(
-            issues=issues_dict,
-            config=config or Mock(spec=Config),
-            iteration_count=iteration_count,
-            metrics=metrics or {}
-        )
-
-    @staticmethod
     def create_sample_tracker(issues: Optional[List[Issue]] = None, 
+                            issues_dict: Optional[Dict[str, PerIssueData]] = None,
+                            config: Optional[Config] = None,
                             iteration_count: int = 0,
                             metrics: Optional[Dict] = None) -> SASTWorkflowTracker:
-        """Create a sample SASTWorkflowTracker for testing filled with default values, 
-            can be overridden with custom values."""
-        if issues is None:
-            issues = TestUtils.create_sample_issues()
-        
-        issues_dict = TestUtils.create_sample_per_issue_data_dict(issues)
-        mock_config = Mock(spec=Config)
+        if issues_dict is not None:
+            final_issues_dict = issues_dict
+        else:
+            if issues is None:
+                issues = TestUtils.create_sample_issues()
+            final_issues_dict = TestUtils.create_sample_per_issue_data_dict(issues)
         
         return SASTWorkflowTracker(
-            issues=issues_dict,
-            config=mock_config,
+            issues=final_issues_dict,
+            config=config or Mock(spec=Config),
             iteration_count=iteration_count,
             metrics=metrics or {}
         )

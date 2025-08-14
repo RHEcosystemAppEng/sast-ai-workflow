@@ -53,7 +53,7 @@ async def summarize_justifications(
                 per_issue_data.analysis_response.is_final == "TRUE" and
                 not per_issue_data.analysis_response.short_justifications):
                 
-                logger.info(f"Summarizing justifications for final issue {issue_id}")
+                logger.debug(f"Summarizing justifications for final issue {issue_id}")
                 try:
                     summary_response = issue_analysis_service.summarize_justification(
                         actual_prompt=per_issue_data.analysis_response.prompt,
@@ -65,7 +65,6 @@ async def summarize_justifications(
                     logger.debug(f"Successfully summarized justifications for issue {issue_id}")
                 except Exception as e:
                     logger.error(f"Failed to summarize justifications for issue {issue_id}: {e}")
-                    per_issue_data.analysis_response.short_justifications = f"Failed to summarize justifications due to missing justification etc."
         
         logger.info("Summarize_Justifications node completed")
         return tracker
