@@ -62,7 +62,7 @@ async def summarize_justifications(
                         main_llm=llm
                     )
                     per_issue_data.analysis_response.short_justifications = summary_response.short_justifications
-                    logger.info(f"Successfully summarized justifications for issue {issue_id}")
+                    logger.debug(f"Successfully summarized justifications for issue {issue_id}")
                 except Exception as e:
                     logger.error(f"Failed to summarize justifications for issue {issue_id}: {e}")
                     per_issue_data.analysis_response.short_justifications = f"Failed to summarize justifications due to missing justification etc."
