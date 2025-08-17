@@ -9,8 +9,8 @@ from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.EvaluationSummary import EvaluationSummary
-from dto.SummaryInfo import SummaryInfo
 from Utils.file_utils import get_human_verified_results
+from Utils.workflow_utils import convert_tracker_to_summary_data
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ async def calculate_metrics(
             return tracker
         
         try:
-            summary_data = _convert_tracker_to_summary_data(tracker)
+            summary_data = convert_tracker_to_summary_data(tracker, include_non_final=False)
             
             if not summary_data:
                 logger.warning("No completed issues found for metrics calculation")
@@ -75,27 +75,13 @@ async def calculate_metrics(
         logger.info("Cleaning up Calculate_Metrics function.")
 
 
-def _convert_tracker_to_summary_data(tracker: SASTWorkflowTracker) -> list:
-    summary_data = []
-    
-    for issue_id, per_issue_data in tracker.issues.items():
-        if (per_issue_data.analysis_response and 
-            per_issue_data.analysis_response.is_final == "TRUE"):
-            
-            summary_info = SummaryInfo(
-                response=per_issue_data.analysis_response,
-                metrics={},
-                critique_response=per_issue_data.analysis_response,
-                context=""
-            )
-            
-            summary_data.append((per_issue_data.issue, summary_info))
-    
-    return summary_data
-
-
 def _extract_metrics_from_evaluation_summary(evaluation_summary: EvaluationSummary) -> dict:
-    excluded_attrs = {'summary_data', 'config', 'ground_truth', 'predicted_summary', 'predicted_true_positives', 'predicted_false_positives', 'actual_true_positives', 'actual_false_positives', 'tp', 'tn', 'fp', 'fn'}
+    excluded_attrs = {
+        'summary_data', 'config', 'ground_truth', 'predicted_summary', 
+        'predicted_true_positives', 'predicted_false_positives', 
+        'actual_true_positives', 'actual_false_positives', 
+        'tp', 'tn', 'fp', 'fn'
+    }
     
     metrics = {
         "total_issues": len(evaluation_summary.predicted_summary),
