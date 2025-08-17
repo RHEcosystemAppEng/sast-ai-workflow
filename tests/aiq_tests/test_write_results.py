@@ -3,7 +3,7 @@ Unit tests for the write_results tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from sast_agent_workflow.tools.write_results import write_results, WriteResultsConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
@@ -15,62 +15,239 @@ from tests.aiq_tests.test_utils import TestUtils
 
 
 class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
-    """Test cases for the write_results core function (_write_results_fn)."""
 
     def setUp(self):
-        """Set up test fixtures."""
-        self.sample_issues = TestUtils.create_sample_issues()
         self.mock_config = Mock(spec=Config)
+        self.mock_config.WRITE_RESULTS = True
         self.write_results_config = WriteResultsConfig()
         self.builder = Mock(spec=Builder)
-        
-        # Create a sample tracker with issues
-        self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    async def test_given_sample_tracker_when_write_results_executed_then_preserves_all_data_unchanged_and_calls_external_services(self):
-        """Given a sample tracker, when write_results is executed, then it preserves all data unchanged,
-           and calls external services as configured for output.
-           
-           Expected state changes for Write_Results tool:
-           - This is a terminal node that produces final output files
-           - Should write results to destinations specified in config (Google Sheet, CSV, etc.)
-           - All tracker fields should remain unchanged (read-only operation)
-           - Iteration count should remain unchanged
-           - Function focuses on output generation rather than state modification
-           
-           TODO: Add comprehensive tests after tool implementation including:
-           - Output file generation tests (CSV, Excel, Google Sheets)
-           - Config-based destination handling tests
-           - Error handling tests (file write failures, network issues)
-        """
+    async def test__aiq_tests__final_issues_writes_to_excel_successfully(self):
         # preparation
-        # TODO: Mock the actual output writing dependencies when implemented
+        issues = [
+            TestUtils.create_sample_issue(issue_id="final_issue_1", issue_type="BUFFER_OVERFLOW"),
+            TestUtils.create_sample_issue(issue_id="final_issue_2", issue_type="USE_AFTER_FREE")
+        ]
         
-        # testing
-        result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, self.sample_tracker)
+        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final="TRUE",
+            justifications=["Issue is a true positive", "Buffer overflow confirmed"],
+            short_justifications="True positive"
+        )
         
-        # assertion
-        self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
+        tracker.metrics = {"total_issues": 2, "confusion_matrix": {"true_positives": 1, "true_negatives": 1, "false_positives": 0, "false_negatives": 0}}
         
-        self.assertEqual(len(result_tracker.issues), 2)
-        self.assertEqual(result_tracker.iteration_count, 0)
-        self.assertEqual(result_tracker.config, self.sample_tracker.config)
-        self.assertEqual(result_tracker.metrics, self.sample_tracker.metrics)
-        
-        for issue_id, per_issue_data in result_tracker.issues.items():
-            self.assertIsNotNone(per_issue_data.issue)
-            self.assertIsInstance(per_issue_data.issue, Issue)
-            self.assertIsNotNone(per_issue_data.analysis_response)
-            self.assertIsInstance(per_issue_data.analysis_response, AnalysisResponse)
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer, \
+             patch('sast_agent_workflow.tools.write_results.EvaluationSummary') as mock_eval_summary:
             
-            original_data = self.sample_tracker.issues[issue_id]
-            self.assertEqual(per_issue_data.issue.id, original_data.issue.id)
-            self.assertEqual(per_issue_data.source_code, original_data.source_code)
-            self.assertEqual(per_issue_data.similar_known_issues, original_data.similar_known_issues)
+            mock_summary_data = [
+                (issues[0], Mock()), 
+                (issues[1], Mock())
+            ]
+            mock_convert.return_value = mock_summary_data
+            mock_eval_summary_instance = Mock()
+            mock_eval_summary.return_value = mock_eval_summary_instance
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
+            
+            # assertion
+            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+            
+            # Verify conversion called with include_non_final=False by default
+            mock_convert.assert_called_once_with(tracker, include_non_final=False)
+            
+            # Verify Excel writer called with correct parameters - using metrics-based evaluation summary
+            mock_excel_writer.assert_called_once()
+            call_args = mock_excel_writer.call_args[0]
+            self.assertEqual(call_args[0], mock_summary_data)  # summary_data
+            self.assertEqual(call_args[2], self.mock_config)  # config
+            # Verify evaluation_summary was created from metrics (not the mock)
+            eval_summary = call_args[1]
+            self.assertEqual(eval_summary.tp, 1)
+            self.assertEqual(eval_summary.tn, 1)
+            self.assertEqual(eval_summary.fp, 0)
+            self.assertEqual(eval_summary.fn, 0)
+
+    async def test__aiq_tests__preserves_all_tracker_data_unchanged(self):
+        # preparation
+        issues = [
+            TestUtils.create_sample_issue(issue_id="test_issue", issue_type="BUFFER_OVERFLOW")
+        ]
         
-        # TODO: Add specific assertions for write_results tool functionality when implemented:
-        # - Verify relevant functions called with correct parameters to write to the results
-        # - Verify no state modifications occur (read-only terminal operation)
+        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final="TRUE",
+            justifications=["Test justification"],
+            short_justifications="Test summary"
+        )
+        
+        original_tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
+        original_tracker.metrics = {"test_metric": "test_value"}
+        original_tracker.iteration_count = 5
+        
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data'), \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file'), \
+             patch('sast_agent_workflow.tools.write_results.EvaluationSummary'):
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, original_tracker)
+            
+            # assertion - verify terminal node behavior (no state changes)
+            self.assertEqual(result_tracker.issues, original_tracker.issues)
+            self.assertEqual(result_tracker.config, original_tracker.config)
+            self.assertEqual(result_tracker.metrics, original_tracker.metrics)
+            self.assertEqual(result_tracker.iteration_count, original_tracker.iteration_count)
+
+    async def test__aiq_tests__write_results_disabled_skips_writing(self):
+        # preparation
+        self.mock_config.WRITE_RESULTS = False
+        
+        issues = [
+            TestUtils.create_sample_issue(issue_id="test_issue", issue_type="BUFFER_OVERFLOW")
+        ]
+        
+        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final="TRUE",
+            justifications=["Test justification"],
+            short_justifications="Test summary"
+        )
+        
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
+        
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer:
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
+            
+            # assertion
+            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+            
+            # Verify no writing operations were called
+            mock_convert.assert_not_called()
+            mock_excel_writer.assert_not_called()
+
+    async def test__aiq_tests__no_config_skips_writing_gracefully(self):
+        # preparation
+        issues = [
+            TestUtils.create_sample_issue(issue_id="test_issue", issue_type="BUFFER_OVERFLOW")
+        ]
+        
+        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final="TRUE",
+            justifications=["Test justification"],
+            short_justifications="Test summary"
+        )
+        
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
+        tracker.config = None  # Explicitly set to None after creation
+        
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer:
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
+            
+            # assertion
+            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+            
+            # Verify no writing operations were called
+            mock_convert.assert_not_called()
+            mock_excel_writer.assert_not_called()
+
+    async def test__aiq_tests__empty_tracker_handles_gracefully(self):
+        # preparation
+        empty_tracker = SASTWorkflowTracker(config=self.mock_config, issues={})
+        
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer:
+            
+            mock_convert.return_value = []  # Empty summary data
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, empty_tracker)
+            
+            # assertion
+            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+            self.assertEqual(len(result_tracker.issues), 0)
+            self.assertEqual(result_tracker.config, self.mock_config)
+            
+            # Verify conversion was called but no issues to write
+            mock_convert.assert_called_once_with(empty_tracker, include_non_final=False)
+            
+            # Excel writer should still be called but with empty data
+            mock_excel_writer.assert_called_once()
+
+    async def test__aiq_tests__no_completed_issues_handles_appropriately(self):
+        # preparation
+        issues = [
+            TestUtils.create_sample_issue(issue_id="non_final_issue_1", issue_type="BUFFER_OVERFLOW"),
+            TestUtils.create_sample_issue(issue_id="non_final_issue_2", issue_type="USE_AFTER_FREE")
+        ]
+        
+        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final="FALSE",  # All issues are non-final
+            justifications=["Under investigation"],
+            short_justifications="Pending"
+        )
+        
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
+        
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer:
+            
+            mock_convert.return_value = []  # No final issues to convert
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
+            
+            # assertion
+            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+            
+            # Verify conversion was called with include_non_final=False
+            mock_convert.assert_called_once_with(tracker, include_non_final=False)
+            
+            # Excel writer should still be called with empty data
+            mock_excel_writer.assert_called_once()
+
+    async def test__aiq_tests__excel_writer_failure_handles_gracefully(self):
+        # preparation
+        issues = [
+            TestUtils.create_sample_issue(issue_id="test_issue", issue_type="BUFFER_OVERFLOW")
+        ]
+        
+        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final="TRUE",
+            justifications=["Test justification"],
+            short_justifications="Test summary"
+        )
+        
+        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
+        
+        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
+             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer, \
+             patch('sast_agent_workflow.tools.write_results.EvaluationSummary'):
+            
+            mock_convert.return_value = [(issues[0], Mock())]
+            mock_excel_writer.side_effect = Exception("Excel writing failed")
+            
+            # testing
+            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
+            
+            # assertion
+            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
+            
+            # Verify tracker returned unchanged despite error
+            self.assertEqual(result_tracker.issues, tracker.issues)
+            self.assertEqual(result_tracker.config, tracker.config)
 
 
 if __name__ == '__main__':
