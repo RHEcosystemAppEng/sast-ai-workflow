@@ -12,6 +12,9 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 from common.constants import FALSE
 from Utils.metrics_utils import count_known_false_positives
 
+# Import extended embedder for automatic registration
+from sast_agent_workflow.embedders import extended_openai_embedder
+
 # Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \
         filter, data_fetcher, judge_llm_analysis, \

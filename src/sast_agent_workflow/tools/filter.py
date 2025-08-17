@@ -2,9 +2,11 @@ import logging
 
 from Utils.metrics_utils import count_known_false_positives
 from Utils.validation_utils import ValidationError, validate_issue_dict
+from langchain_core.language_models import BaseChatModel
+from langchain_openai import OpenAIEmbeddings
 from pydantic import Field
 
-from aiq.builder.builder import Builder
+from aiq.builder.builder import Builder, LLMFrameworkEnum
 from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
@@ -76,9 +78,17 @@ class FilterConfig(FunctionBaseConfig, name="filter"):
         default="Filter function that queries Vector DB to find similar issues and identify known false positives",
         description="Function description"
     )
+    llm_name: str = Field(
+        default="main_llm",
+        description="LLM name to use for filtering"
+    )
+    embedder_llm_name: str = Field(
+        default="filter_embedding",
+        description="Embedder LLM name to use for filtering"
+    )
 
 
-@register_function(config_type=FilterConfig)
+@register_function(config_type=FilterConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
 async def filter(
     config: FilterConfig, builder: Builder
 ):
@@ -105,16 +115,19 @@ async def filter(
         if not tracker.config.USE_KNOWN_FALSE_POSITIVE_FILE:
             logger.info("Known false positive file filtering disabled in config, skipping filter")
             return tracker
-                
-        # Create LLM service instance from config
-        llm_service = LLMService(tracker.config)
+        
+        # Create LLMService instance with existing LLM and embedder
+        llm: BaseChatModel = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+        embedder: OpenAIEmbeddings = await builder.get_embedder(config.embedder_llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+        llm_service = LLMService(tracker.config, llm, embedder)
         
         # Create known issue retriever
         try:
             known_issue_retriever = create_known_issue_retriever(llm_service, tracker.config)
         except Exception as e:
             logger.error(f"Failed to create known issue retriever: {e}")
-            return tracker
+            raise e
+            # return tracker
         
         # Process each issue
         for issue_id, issue_data in tracker.issues.items():
