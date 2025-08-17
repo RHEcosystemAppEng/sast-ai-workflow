@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from sast_agent_workflow.tools.summarize_justifications import summarize_justifications, SummarizeJustificationsConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.config import Config
 from aiq.builder.builder import Builder
 from tests.aiq_tests.test_utils import TestUtils
@@ -30,7 +30,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
         
         per_issue_data = TestUtils.create_sample_per_issue_data_dict(
             issues, 
-            is_final="TRUE",
+            is_final=FinalStatus.TRUE.value,
             justifications=["Detailed justification 1", "Detailed justification 2"],
             short_justifications=""
         )
@@ -67,7 +67,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
         
         per_issue_data = TestUtils.create_sample_per_issue_data_dict(
             issues,
-            is_final="TRUE", 
+            is_final=FinalStatus.TRUE.value, 
             justifications=["Detailed justification"],
             short_justifications="Already summarized content"
         )
@@ -97,12 +97,12 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
         
         per_issue_data = TestUtils.create_sample_per_issue_data_dict(
             issues,
-            is_final="TRUE",
+            is_final=FinalStatus.TRUE.value,
             justifications=["Test justification"],
             short_justifications=""
         )
         
-        per_issue_data["non_final_issue"].analysis_response.is_final = "FALSE"
+        per_issue_data["non_final_issue"].analysis_response.is_final = FinalStatus.FALSE.value
         per_issue_data["already_processed_issue"].analysis_response.short_justifications = "Already done"
         per_issue_data["no_analysis_response"].analysis_response = None
         
@@ -148,7 +148,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
         
         per_issue_data = TestUtils.create_sample_per_issue_data_dict(
             issues,
-            is_final="TRUE",
+            is_final=FinalStatus.TRUE.value,
             justifications=["Original justification that should be preserved"],
             short_justifications=""
         )

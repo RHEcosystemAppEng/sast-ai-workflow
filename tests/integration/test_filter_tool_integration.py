@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from dto.Issue import Issue
-from dto.LLMResponse import CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import KnownFalsePositive
 from common.config import Config
 from aiq.builder.builder import Builder
@@ -178,7 +178,7 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
         filter_known_fps = set()
         for issue_id, issue_data in filter_result.issues.items():
             if (issue_data.analysis_response and 
-                issue_data.analysis_response.is_final == "TRUE" and 
+                issue_data.analysis_response.is_final == FinalStatus.TRUE.value and 
                 issue_data.analysis_response.investigation_result == CVEValidationStatus.FALSE_POSITIVE.value):
                 filter_known_fps.add(issue_id)
         

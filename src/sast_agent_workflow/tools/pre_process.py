@@ -4,7 +4,6 @@ import logging
 
 from ReportReader import read_sast_report
 from common.config import Config
-from common.constants import FALSE
 from pydantic import Field
 
 from aiq.builder.builder import Builder
@@ -12,7 +11,7 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
 from handlers.repo_handler_factory import repo_handler_factory
 
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 def _create_default_analysis_response() -> AnalysisResponse:
     default_field_value = "This is a default value, if it's not replaced, something went wrong"
     return AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value, 
-                            is_final=FALSE, justifications=[default_field_value], 
+                            is_final=FinalStatus.FALSE.value, justifications=[default_field_value], 
                             short_justifications=default_field_value, recommendations=[default_field_value], 
                             instructions=[], evaluation=[default_field_value], prompt=default_field_value)
 
