@@ -208,7 +208,7 @@ class IssueAnalysisService:
         return actual_prompt, analysis_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def summarize_justification(self, actual_prompt, response: Union[JudgeLLMResponse, AnalysisResponse], 
+    def summarize_justification(self, actual_prompt, response: JudgeLLMResponse, 
                                issue_id: str, main_llm: BaseChatModel) -> JustificationsSummary:
         """Summarize the justifications into a concise, engineer-style comment."""
         examples_str = ('[{"short_justifications": "t is reassigned so previously freed value is replaced by malloced string"}, '

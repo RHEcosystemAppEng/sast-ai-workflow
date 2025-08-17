@@ -22,6 +22,7 @@ functions:
   summarize_justifications:
     _type: summarize_justifications
     description: "Summarize justifications function that summarizes analysis justifications"
+    llm_name: main_llm
   
   calculate_metrics:
     _type: calculate_metrics
