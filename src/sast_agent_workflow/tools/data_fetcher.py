@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Dict
+from typing import Dict, List
 
 from pydantic import Field
 
@@ -14,6 +14,29 @@ from handlers.repo_handler_factory import repo_handler_factory
 from common.constants import TRUE
 
 logger = logging.getLogger(__name__)
+
+
+def format_source_code_for_analysis(source_code: Dict[str, List[str]]) -> str:
+    """
+    Convert the structured source_code dict to formatted string for LLM analysis.
+    
+    Args:
+        source_code: Dict mapping file paths to lists of code snippets
+        
+    Returns:
+        Formatted string with proper separators and headers
+    """
+    if not source_code:
+        return ""
+    
+    formatted_sections = []
+    for path, code_snippets in source_code.items():
+        if code_snippets:  # Only include if there are actual snippets
+            # Join multiple snippets with double newlines for clear separation
+            combined_code = "\n\n".join(code_snippets)
+            formatted_sections.append(f"\ncode of {path} file:\n{combined_code}")
+    
+    return "".join(formatted_sections)
 
 
 class DataFetcherConfig(FunctionBaseConfig, name="data_fetcher"):
@@ -79,20 +102,14 @@ async def data_fetcher(
                 try:
                     if repo_handler is not None:
                         fetched = repo_handler.get_source_code_blocks_from_error_trace(per_issue.issue.trace)
-                        # Straight reflect run.py: the handler already returns {path: code}
+                        # The handler already returns {path: code} with aggregation done internally
+                        # Convert to list structure for better organization
                         for path, code in (fetched or {}).items():
-                            if path in per_issue.source_code and per_issue.source_code[path]:
-                                per_issue.source_code[path] = f"{per_issue.source_code[path]}\n{code}"
-                            else:
-                                per_issue.source_code[path] = code
+                            if path not in per_issue.source_code:
+                                per_issue.source_code[path] = []
+                            per_issue.source_code[path].append(code)
                 except Exception as e:
                     logger.error(f"Failed to fetch source code for issue {issue_id} from error trace: {e}")
-                # Reset any accumulated symbols between issues
-                try:
-                    if repo_handler is not None:
-                        repo_handler.reset_found_symbols()
-                except Exception:
-                    pass
                 continue
 
             # Subsequent iterations: use instructions if second analysis is needed
@@ -104,7 +121,9 @@ async def data_fetcher(
                     if repo_handler is None:
                         continue
                     # Fetch missing code per instructions
-                    missing_source_codes = repo_handler.extract_missing_functions_or_macros(analysis_response.instructions)
+                    missing_source_codes, per_issue.found_symbols = repo_handler.extract_missing_functions_or_macros(
+                        analysis_response.instructions, per_issue.found_symbols
+                    )
                     # In run.py, this was appended into the prompt. Here we store by path by parsing the same format.
                     # Expected segments: "code of <path> file:\n<code>"
                     additions: Dict[str, str] = {}
@@ -119,22 +138,14 @@ async def data_fetcher(
                                 additions[path] = snippet
                     if additions:
                         for path, code in additions.items():
-                            if path in per_issue.source_code and per_issue.source_code[path]:
-                                per_issue.source_code[path] = f"{per_issue.source_code[path]}\n{code}"
-                            else:
-                                per_issue.source_code[path] = code
+                            if path not in per_issue.source_code:
+                                per_issue.source_code[path] = []
+                            per_issue.source_code[path].append(code)
                     else:
                         # Verification step: no new data fetched though instructions exist
                         analysis_response.is_final = TRUE
             except Exception as e:
                 logger.error(f"Failed processing instructions for issue {issue_id}: {e}")
-            finally:
-                # Reset any accumulated symbols between issues
-                try:
-                    if repo_handler is not None:
-                        repo_handler.reset_found_symbols()
-                except Exception:
-                    pass
 
         logger.info("Data_Fetcher node completed")
         return tracker

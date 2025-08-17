@@ -5,14 +5,14 @@ Unit tests for the data_fetcher tool's core function.
 import unittest
 from unittest.mock import Mock, patch
 
-from sast_agent_workflow.tools.data_fetcher import data_fetcher, DataFetcherConfig
-from dto.SASTWorkflowModels import SASTWorkflowTracker
-from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
-from dto.ResponseStructures import InstructionResponse
-from common.constants import FALSE
-from common.config import Config
+from src.sast_agent_workflow.tools.data_fetcher import data_fetcher, DataFetcherConfig
+from src.dto.SASTWorkflowModels import SASTWorkflowTracker
+from src.dto.Issue import Issue
+from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from src.dto.ResponseStructures import InstructionResponse
+from src.common.config import Config
 from aiq.builder.builder import Builder
+from src.common.constants import TRUE, FALSE
 from tests.aiq_tests.test_utils import TestUtils
 
 
@@ -92,7 +92,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=0)
         # Mark first issue as final
         first_issue = next(iter(tracker.issues.values()))
-        first_issue.analysis_response.is_final = "TRUE"
+        first_issue.analysis_response.is_final = TRUE
         first_issue_source_before = dict(first_issue.source_code)
 
         mock_repo_handler = Mock()
@@ -161,7 +161,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
                 is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final="TRUE",
+                is_final=TRUE,
                 instructions=[]
             )
         mock_repo_handler = Mock()
@@ -193,7 +193,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
 
         # assertion
         for per_issue_data in result_tracker.issues.values():
-            self.assertEqual(per_issue_data.analysis_response.is_final, "TRUE")
+            self.assertEqual(per_issue_data.analysis_response.is_final, TRUE)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_malformed_missing_source_codes_yield_no_additions_and_set_is_final(self, mock_repo_handler_factory):
@@ -217,7 +217,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             result_tracker = await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)
             for per_issue_data in result_tracker.issues.values():
                 self.assertEqual(per_issue_data.source_code, {})
-                self.assertEqual(per_issue_data.analysis_response.is_final, "TRUE")
+                self.assertEqual(per_issue_data.analysis_response.is_final, TRUE)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_handles_non_per_issue_data_entry(self, mock_repo_handler_factory):
