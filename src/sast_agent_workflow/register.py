@@ -9,7 +9,7 @@ from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
-from common.constants import FALSE
+from dto.LLMResponse import FinalStatus
 from Utils.metrics_utils import count_known_false_positives
 
 # Import extended embedder for automatic registration
@@ -153,7 +153,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
             # Calculate summary statistics
             total_issues = len(tracker.issues)
             final_issues = sum(1 for issue in tracker.issues.values() 
-                             if issue.analysis_response and issue.analysis_response.is_final != FALSE)
+                             if issue.analysis_response and issue.analysis_response.is_final != FinalStatus.FALSE.value)
             
             fp_issues = sum(1 for issue in tracker.issues.values() 
                           if issue.analysis_response and not issue.analysis_response.is_true_positive())

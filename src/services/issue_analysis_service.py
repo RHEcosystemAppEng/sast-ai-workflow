@@ -15,7 +15,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_t
 from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, RED_ERROR_FOR_LLM_REQUEST
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JustificationsSummary, RecommendationsResponse, EvaluationResponse
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from Utils.file_utils import read_answer_template_file
 from Utils.llm_utils import robust_structured_output
 from .vector_store_service import VectorStoreService
@@ -140,7 +140,7 @@ class IssueAnalysisService:
             logger.error(f"{failed_message}, set default values for the fields it failed on. Error is: {e}")
             llm_analysis_response = AnalysisResponse(
                 investigation_result=CVEValidationStatus.TRUE_POSITIVE.value if analysis_response is None else analysis_response.investigation_result,
-                is_final="TRUE" if recommendations_response is None else recommendations_response.is_final,
+                is_final=FinalStatus.TRUE.value if recommendations_response is None else recommendations_response.is_final,
                 justifications=FALLBACK_JUSTIFICATION_MESSAGE if analysis_response is None else analysis_response.justifications,
                 evaluation=[failed_message] if recommendations_response is None else recommendations_response.justifications,
                 recommendations=[failed_message] if recommendations_response is None else recommendations_response.recommendations,

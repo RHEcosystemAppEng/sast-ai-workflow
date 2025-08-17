@@ -6,9 +6,9 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, TOKENIZERS_PARALLELISM
+from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND, TOKENIZERS_PARALLELISM
 from dto.EvaluationSummary import EvaluationSummary
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
 from ExcelWriter import write_to_excel_file
 from handlers.repo_handler_factory import repo_handler_factory
@@ -121,11 +121,11 @@ def main():
                     context = (
                         "\n".join(equal_error_trace)
                         if equal_error_trace
-                        else "No matching trace found"
+                        else NO_MATCHING_TRACE_FOUND
                     )
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-                        is_final="TRUE",
+                        is_final=FinalStatus.TRUE.value,
                         recommendations=["No fix required."],
                         justifications=[
                             f"The error is similar to one found in the provided context: {context}"
@@ -191,7 +191,7 @@ def main():
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                        is_final="TRUE",
+                        is_final=FinalStatus.TRUE.value,
                         justifications=FALLBACK_JUSTIFICATION_MESSAGE,
                         evaluation=[],
                         recommendations=[],

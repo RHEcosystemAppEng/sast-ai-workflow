@@ -2,6 +2,7 @@ import logging
 
 from Utils.metrics_utils import count_known_false_positives
 from Utils.validation_utils import ValidationError, validate_issue_dict
+from dto.Issue import Issue
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import OpenAIEmbeddings
 from pydantic import Field
@@ -11,9 +12,9 @@ from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
-from dto.SASTWorkflowModels import SASTWorkflowTracker
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
-from common.constants import KNOWN_ISSUES_SHORT_JUSTIFICATION
+from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
+from common.constants import KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND
 from LLMService import LLMService
 from stage.filter_known_issues import (
     create_known_issue_retriever,
@@ -29,12 +30,12 @@ def _create_false_positive_response(equal_error_trace: list) -> AnalysisResponse
     context = (
         "\n".join(equal_error_trace)
         if equal_error_trace
-        else "No matching trace found"
+        else NO_MATCHING_TRACE_FOUND
     )
     
     return AnalysisResponse(
         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-        is_final="TRUE",
+        is_final=FinalStatus.TRUE.value,
         recommendations=["No fix required."],
         justifications=[
             f"The error is similar to one found in the provided context: {context}"
@@ -45,6 +46,19 @@ def _create_false_positive_response(equal_error_trace: list) -> AnalysisResponse
 
 def _process_single_issue(issue_id: str, issue_data, known_issue_retriever, llm_service: LLMService) -> None:
     """Process a single issue for known false positive detection."""
+    if not issue_id or not isinstance(issue_id, str):
+        logger.error("Invalid issue_id: must be a non-empty string")
+        return
+    if not isinstance(issue_data, PerIssueData):
+        logger.error(f"{issue_id}: Invalid issue data: must be a PerIssueData object, got {type(issue_data)}")
+        return
+    if not isinstance(issue_data.issue, Issue):
+        logger.error(f"{issue_id}: Invalid issue: must be an Issue object, got {type(issue_data.issue)}")
+        return
+    if not known_issue_retriever or not llm_service:
+        logger.error(f"{issue_id}: Invalid known issue retriever or LLM service")
+        return
+    
     try:
         # Get similar known issues from vector store
         similar_known_issues_list = known_issue_retriever.get_relevant_known_issues(
@@ -65,9 +79,11 @@ def _process_single_issue(issue_id: str, issue_data, known_issue_retriever, llm_
         if is_finding_known_false_positive:
             logger.info(f"Issue {issue_id} identified as known false positive")
             issue_data.analysis_response = _create_false_positive_response(equal_error_trace)
+        else:
+            logger.debug(f"Issue {issue_id} not identified as known false positive")
                             
     except Exception as e:
-        logger.error(f"Error processing issue {issue_id} in filter: {e}")
+        logger.error(f"Unexpected error processing issue {issue_id} as part of filter: {e}", exc_info=True)
 
 
 class FilterConfig(FunctionBaseConfig, name="filter"):
@@ -126,8 +142,7 @@ async def filter(
             known_issue_retriever = create_known_issue_retriever(llm_service, tracker.config)
         except Exception as e:
             logger.error(f"Failed to create known issue retriever: {e}")
-            raise e
-            # return tracker
+            return tracker
         
         # Process each issue
         for issue_id, issue_data in tracker.issues.items():

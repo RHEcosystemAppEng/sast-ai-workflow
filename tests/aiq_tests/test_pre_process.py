@@ -5,7 +5,7 @@ Unit tests for the pre_process tool's core function.
 import unittest
 from unittest.mock import Mock, patch
 
-from common.constants import FALSE
+from dto.LLMResponse import FinalStatus
 from sast_agent_workflow.tools.pre_process import pre_process, PreProcessConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.Issue import Issue
@@ -55,7 +55,7 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
             
             analysis_resp = per_issue_data.analysis_response
             self.assertEqual(analysis_resp.investigation_result, CVEValidationStatus.TRUE_POSITIVE.value)
-            self.assertEqual(analysis_resp.is_final, FALSE)
+            self.assertEqual(analysis_resp.is_final, FinalStatus.FALSE.value)
         
         mock_config_class.assert_called_once()
         mock_read_sast_report.assert_called_once_with(self.mock_config)
