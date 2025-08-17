@@ -57,7 +57,19 @@ class TestUtils:
         return issues
 
     @staticmethod
-    def create_sample_per_issue_data_dict(issues: List[Issue], is_false_positive: str = CVEValidationStatus.TRUE_POSITIVE.value, is_final: str = FALSE, instructions: list = []) -> Dict[str, PerIssueData]:
+    def create_sample_issue(issue_id: str, issue_type: str = "BUFFER_OVERFLOW") -> Issue:
+        """Create a single sample issue for testing."""
+        return Issue(
+            id=issue_id,
+            issue_type=issue_type,
+            issue_label="",
+            issue_cve="CWE-119",
+            issue_cve_link="https://cwe.mitre.org/data/definitions/CWE-119.html",
+            trace=f"sample trace for {issue_id}"
+        )
+
+    @staticmethod
+    def create_sample_per_issue_data_dict(issues: List[Issue], is_false_positive: str = CVEValidationStatus.TRUE_POSITIVE.value, is_final: str = FALSE, instructions: list = [], justifications: list = None, short_justifications: str = None) -> Dict[str, PerIssueData]:
         """Create a dictionary of PerIssueData from issues."""
         issues_dict = {}
         for i, issue in enumerate(issues):
@@ -65,7 +77,13 @@ class TestUtils:
                 issue=issue,
                 source_code={f"file{i+1}.c": f"int vulnerable_function_{i+1}():\n    //vulnerable code"},
                 similar_known_issues="Example-1: Known False Positive: \nExample Trace\nExample Reason Marked as False Positive\n\nExample-2: Known False Positive: \nExample Trace\nExample Reason Marked as False Positive\n",
-                analysis_response=TestUtils.create_sample_analysis_response(is_false_positive=is_false_positive, is_final=is_final, instructions=instructions)
+                analysis_response=TestUtils.create_sample_analysis_response(
+                    is_false_positive=is_false_positive, 
+                    is_final=is_final, 
+                    instructions=instructions,
+                    justifications=justifications or ["Test justification"],
+                    short_justifications=short_justifications if short_justifications is not None else "Short justification"
+                )
             )
             issues_dict[issue.id] = per_issue_data
         return issues_dict
@@ -89,19 +107,20 @@ class TestUtils:
 
     @staticmethod
     def create_sample_tracker(issues: Optional[List[Issue]] = None, 
+                            issues_dict: Optional[Dict[str, PerIssueData]] = None,
+                            config: Optional[Config] = None,
                             iteration_count: int = 0,
                             metrics: Optional[Dict] = None) -> SASTWorkflowTracker:
-        """Create a sample SASTWorkflowTracker for testing filled with default values, 
-            can be overridden with custom values."""
-        if issues is None:
-            issues = TestUtils.create_sample_issues()
-        
-        issues_dict = TestUtils.create_sample_per_issue_data_dict(issues)
-        mock_config = Mock(spec=Config)
+        if issues_dict is not None:
+            final_issues_dict = issues_dict
+        else:
+            if issues is None:
+                issues = TestUtils.create_sample_issues()
+            final_issues_dict = TestUtils.create_sample_per_issue_data_dict(issues)
         
         return SASTWorkflowTracker(
-            issues=issues_dict,
-            config=mock_config,
+            issues=final_issues_dict,
+            config=config or Mock(spec=Config),
             iteration_count=iteration_count,
             metrics=metrics or {}
         )
