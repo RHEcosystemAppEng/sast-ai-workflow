@@ -8,6 +8,7 @@ from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
+from dto.ResponseStructures import JudgeLLMResponse
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
 
@@ -50,14 +51,17 @@ async def summarize_justifications(
         
         for issue_id, per_issue_data in tracker.issues.items():
             if (per_issue_data.analysis_response and 
-                per_issue_data.analysis_response.is_final == "TRUE" and
                 not per_issue_data.analysis_response.short_justifications):
                 
-                logger.debug(f"Summarizing justifications for final issue {issue_id}")
+                logger.debug(f"Summarizing justifications for issue {issue_id}")
                 try:
+                    response_to_summarize = JudgeLLMResponse(
+                        investigation_result=per_issue_data.analysis_response.investigation_result,
+                        justifications=per_issue_data.analysis_response.justifications
+                    )
                     summary_response = issue_analysis_service.summarize_justification(
                         actual_prompt=per_issue_data.analysis_response.prompt,
-                        response=per_issue_data.analysis_response,
+                        response=response_to_summarize,
                         issue_id=issue_id,
                         main_llm=llm
                     )

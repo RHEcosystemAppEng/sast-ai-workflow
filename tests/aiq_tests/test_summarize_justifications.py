@@ -122,10 +122,11 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             # assertion
             self.assertEqual(result_tracker.issues["eligible_issue"].analysis_response.short_justifications,
                            "New summary for eligible issue")
-            self.assertEqual(result_tracker.issues["non_final_issue"].analysis_response.short_justifications, "")
+            self.assertEqual(result_tracker.issues["non_final_issue"].analysis_response.short_justifications,
+                           "New summary for eligible issue")
             self.assertEqual(result_tracker.issues["already_processed_issue"].analysis_response.short_justifications, "Already done")
             self.assertIsNone(result_tracker.issues["no_analysis_response"].analysis_response)
-            mock_service.summarize_justification.assert_called_once()
+            self.assertEqual(mock_service.summarize_justification.call_count, 2)
 
     async def test__summarize_justifications__empty_tracker_handles_gracefully(self):
         # preparation
