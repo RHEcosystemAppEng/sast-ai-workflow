@@ -5,7 +5,7 @@ Handles filtering known issues, analyzing issues, and generating recommendations
 
 import os
 import logging
-from typing import Tuple
+from typing import Tuple, Union
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -121,7 +121,7 @@ class IssueAnalysisService:
             recommendations_response = self._recommend(
                 issue=issue, context=context, analysis_response=analysis_response, main_llm=main_llm
             )
-            short_justifications_response = self._summarize_justification(
+            short_justifications_response = self.summarize_justification(
                 analysis_prompt.to_string(), analysis_response, issue.id, main_llm
             )
 
@@ -208,8 +208,8 @@ class IssueAnalysisService:
         return actual_prompt, analysis_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse, 
-                                issue_id: str, main_llm: BaseChatModel) -> JustificationsSummary:
+    def summarize_justification(self, actual_prompt, response: JudgeLLMResponse, 
+                               issue_id: str, main_llm: BaseChatModel) -> JustificationsSummary:
         """Summarize the justifications into a concise, engineer-style comment."""
         examples_str = ('[{"short_justifications": "t is reassigned so previously freed value is replaced by malloced string"}, '
                        '{"short_justifications": "There is a check for k<0"}, '
@@ -242,7 +242,7 @@ class IssueAnalysisService:
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
                 max_retry_limit=self.max_retry_limit, 
-                function_name="_summarize_justification", 
+                function_name="summarize_justification", 
                 issue_id=issue_id, 
                 error=e
             ))
