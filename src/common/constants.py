@@ -80,7 +80,7 @@ METRICS_ERROR_UNEXPECTED = "Unexpected error"
 # Write results constants
 WRITE_RESULTS_CONFIG_MISSING = "No config found in tracker - skipping results writing"
 WRITE_RESULTS_DISABLED = "WRITE_RESULTS is disabled in config - skipping results writing"
-WRITE_RESULTS_NO_VALID_METRICS = "No valid metrics available - creating EvaluationSummary from scratch"
+WRITE_RESULTS_NO_VALID_METRICS = "Calculate_Metrics node failed or was skipped - creating EvaluationSummary from scratch for Excel generation"
 WRITE_RESULTS_SUCCESS = "Successfully wrote results to configured destinations"
 WRITE_RESULTS_FAILURE = "Failed to write results: {}"
 WRITE_RESULTS_SUMMARY_SUCCESS = "Successfully created EvaluationSummary from existing metrics"
