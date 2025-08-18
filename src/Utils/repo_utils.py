@@ -21,28 +21,23 @@ def download_repo(repo_url: str) -> str:
         # Set the destination path to the current directory
         destination_path = os.path.join(os.getcwd(), repo_name)
 
-        # Check if the repository already exists at the destination path
         if os.path.exists(destination_path):
             try:
-                # Check if it's a valid git repository
                 repo = git.Repo(destination_path)
                 logger.info(f"Repository already exists at {destination_path}, skipping download.")
                 
             except git.exc.InvalidGitRepositoryError:
-                # Path exists but is not a valid git repository
                 logger.warning(f"Directory {destination_path} exists but is not a valid git repository. Removing and cloning fresh.")
                 shutil.rmtree(destination_path)
                 repo = None
         else:
             repo = None
 
-        # Clone the repo if it doesn't exist or was invalid
         if repo is None:
             logger.info(f"Cloning {repo_url} into {destination_path}...")
             repo = git.Repo.clone_from(repo_url, destination_path)
             logger.info("Repository cloned successfully!")
 
-        # Checkout the specified branch or tag if provided (single point of checkout logic)
         if branch_or_tag:
             logger.info(f"Checking out {branch_or_tag}...")
             repo.git.checkout(branch_or_tag)

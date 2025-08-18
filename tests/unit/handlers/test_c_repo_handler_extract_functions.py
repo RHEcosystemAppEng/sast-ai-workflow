@@ -22,7 +22,7 @@ class TestExtractMissingFunctionsOrMacros:
             
             # testing
             with patch('src.handlers.c_repo_handler.logger') as mock_logger:
-                result = repo_handler.extract_missing_functions_or_macros([instruction])
+                result, updated_symbols = repo_handler.extract_missing_functions_or_macros([instruction], set())
                 
                 # assertion
                 assert result == ""
@@ -35,12 +35,12 @@ class TestExtractMissingFunctionsOrMacros:
             repo_handler = CRepoHandler(Mock())
             
             # testing
-            result = repo_handler.extract_missing_functions_or_macros(None)
+            result, updated_symbols = repo_handler.extract_missing_functions_or_macros(None, set())
             
             # assertion
             assert result == ""
             
-            result = repo_handler.extract_missing_functions_or_macros([])
+            result, updated_symbols = repo_handler.extract_missing_functions_or_macros([], set())
             assert result == ""
 
     def test__extract_missing_functions_or_macros__valid_instructions_processes_successfully(self):
@@ -48,7 +48,6 @@ class TestExtractMissingFunctionsOrMacros:
         # preparation
         with patch.object(CRepoHandler, '__init__', return_value=None):
             repo_handler = CRepoHandler(Mock())
-            repo_handler.all_found_symbols = set()
             repo_handler.repo_local_path = "/test/repo"
             repo_handler._report_file_prefix = "test-1.0/"
             
@@ -63,7 +62,7 @@ class TestExtractMissingFunctionsOrMacros:
                     {"src/main.c": {"missing_function": "int missing_function() { return 0; }"}}
                 )
                 
-                result = repo_handler.extract_missing_functions_or_macros([instruction])
+                result, updated_symbols = repo_handler.extract_missing_functions_or_macros([instruction], set())
                 
                 # assertion
                 assert "int missing_function() { return 0; }" in result

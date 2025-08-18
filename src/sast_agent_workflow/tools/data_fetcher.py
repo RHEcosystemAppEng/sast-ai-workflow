@@ -16,28 +16,6 @@ from common.constants import TRUE
 logger = logging.getLogger(__name__)
 
 
-def format_source_code_for_analysis(source_code: Dict[str, List[str]]) -> str:
-    """
-    Convert the structured source_code dict to formatted string for LLM analysis.
-    
-    Args:
-        source_code: Dict mapping file paths to lists of code snippets
-        
-    Returns:
-        Formatted string with proper separators and headers
-    """
-    if not source_code:
-        return ""
-    
-    formatted_sections = []
-    for path, code_snippets in source_code.items():
-        if code_snippets:  # Only include if there are actual snippets
-            # Join multiple snippets with double newlines for clear separation
-            combined_code = "\n\n".join(code_snippets)
-            formatted_sections.append(f"\ncode of {path} file:\n{combined_code}")
-    
-    return "".join(formatted_sections)
-
 
 class DataFetcherConfig(FunctionBaseConfig, name="data_fetcher"):
     """
@@ -102,8 +80,7 @@ async def data_fetcher(
                 try:
                     if repo_handler is not None:
                         fetched = repo_handler.get_source_code_blocks_from_error_trace(per_issue.issue.trace)
-                        # The handler already returns {path: code} with aggregation done internally
-                        # Convert to list structure for better organization
+                        # Convert to list structure for multiple snippets per file
                         for path, code in (fetched or {}).items():
                             if path not in per_issue.source_code:
                                 per_issue.source_code[path] = []
@@ -120,12 +97,10 @@ async def data_fetcher(
                 if analysis_response.is_second_analysis_needed():
                     if repo_handler is None:
                         continue
-                    # Fetch missing code per instructions
                     missing_source_codes, per_issue.found_symbols = repo_handler.extract_missing_functions_or_macros(
                         analysis_response.instructions, per_issue.found_symbols
                     )
-                    # In run.py, this was appended into the prompt. Here we store by path by parsing the same format.
-                    # Expected segments: "code of <path> file:\n<code>"
+                    # Parse response format: "code of <path> file:\n<code>"
                     additions: Dict[str, str] = {}
                     if missing_source_codes:
                         pattern = re.compile(r"code of\s+(?P<path>.+?)\s+file:\n", re.MULTILINE)

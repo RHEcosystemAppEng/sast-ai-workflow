@@ -5,14 +5,14 @@ Unit tests for the data_fetcher tool's core function.
 import unittest
 from unittest.mock import Mock, patch
 
-from src.sast_agent_workflow.tools.data_fetcher import data_fetcher, DataFetcherConfig
-from src.dto.SASTWorkflowModels import SASTWorkflowTracker
-from src.dto.Issue import Issue
-from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus
-from src.dto.ResponseStructures import InstructionResponse
-from src.common.config import Config
+from sast_agent_workflow.tools.data_fetcher import data_fetcher, DataFetcherConfig
+from dto.SASTWorkflowModels import SASTWorkflowTracker
+from dto.Issue import Issue
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.ResponseStructures import InstructionResponse
+from common.config import Config
 from aiq.builder.builder import Builder
-from src.common.constants import TRUE, FALSE
+from common.constants import TRUE, FALSE
 from tests.aiq_tests.test_utils import TestUtils
 
 
@@ -83,7 +83,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         for per_issue_data in result_tracker.issues.values():
             self.assertTrue(per_issue_data.source_code)
             self.assertIn("file.c", per_issue_data.source_code)
-            self.assertIn("int main()", per_issue_data.source_code["file.c"])
+            self.assertTrue(any("int main()" in snippet for snippet in per_issue_data.source_code["file.c"]))
         self.assertEqual(mock_repo_handler.get_source_code_blocks_from_error_trace.call_count, len(tracker.issues))
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
@@ -130,7 +130,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
                     InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")
                 ]
             )
-            per_issue_data.source_code = {"existing.c": "void existing(){}"}
+            per_issue_data.source_code = {"existing.c": ["void existing(){}"]}
 
         mock_repo_handler = Mock()
         # Build a missing source string consistent with repo handler format
@@ -138,7 +138,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             "code of src/foo.c file:\nint foo(){return 1;}\n"
             "code of include/bar.h file:\n#define BAR 1\n"
         )
-        mock_repo_handler.extract_missing_functions_or_macros.return_value = missing
+        mock_repo_handler.extract_missing_functions_or_macros.return_value = (missing, set())
         mock_repo_handler_factory.return_value = mock_repo_handler
 
         # testing
@@ -149,8 +149,8 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             self.assertIn("existing.c", per_issue_data.source_code)
             self.assertIn("src/foo.c", per_issue_data.source_code)
             self.assertIn("include/bar.h", per_issue_data.source_code)
-            self.assertIn("int foo()", per_issue_data.source_code["src/foo.c"])
-            self.assertIn("#define BAR", per_issue_data.source_code["include/bar.h"])
+            self.assertTrue(any("int foo()" in snippet for snippet in per_issue_data.source_code["src/foo.c"]))
+            self.assertTrue(any("#define BAR" in snippet for snippet in per_issue_data.source_code["include/bar.h"]))
             self.assertEqual(per_issue_data.analysis_response.is_final, FALSE)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
@@ -185,7 +185,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             per_issue_data.source_code = {}
 
         mock_repo_handler = Mock()
-        mock_repo_handler.extract_missing_functions_or_macros.return_value = ""  # No data fetched
+        mock_repo_handler.extract_missing_functions_or_macros.return_value = ("", set())  # No data fetched
         mock_repo_handler_factory.return_value = mock_repo_handler
 
         # testing
@@ -211,7 +211,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
                 )
                 per_issue_data.source_code = {}
             mock_repo_handler = Mock()
-            mock_repo_handler.extract_missing_functions_or_macros.return_value = s
+            mock_repo_handler.extract_missing_functions_or_macros.return_value = (s, set())
             mock_repo_handler_factory.return_value = mock_repo_handler
 
             result_tracker = await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)
@@ -246,7 +246,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
     async def test_initial_fetch_merges_same_path_content(self, mock_repo_handler_factory):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=0)
         first_issue = next(iter(tracker.issues.values()))
-        first_issue.source_code = {"file.c": "old"}
+        first_issue.source_code = {"file.c": ["old"]}
         mock_repo_handler = Mock()
         mock_repo_handler.get_source_code_blocks_from_error_trace.return_value = {"file.c": "new"}
         mock_repo_handler_factory.return_value = mock_repo_handler
@@ -298,10 +298,11 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             )
         mock_repo_handler = Mock()
         mock_repo_handler.extract_missing_functions_or_macros.side_effect = Exception("oops")
-        mock_repo_handler.reset_found_symbols.return_value = None
         mock_repo_handler_factory.return_value = mock_repo_handler
-        await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)
-        self.assertGreaterEqual(mock_repo_handler.reset_found_symbols.call_count, 1)
+        # Test should complete without raising exception despite the side_effect
+        result_tracker = await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)
+        # Verify the tracker is returned and errors were handled gracefully
+        self.assertIsNotNone(result_tracker)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_subsequent_iteration_merge_appends_to_existing_path(self, mock_repo_handler_factory):
@@ -311,18 +312,18 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
                 is_final=FALSE,
                 instructions=[InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")]
             )
-            per_issue.source_code = {"src/foo.c": "old"}
+            per_issue.source_code = {"src/foo.c": ["old"]}
         missing = (
             "code of src/foo.c file:\nint foo(){return 1;}\n"
         )
         mock_repo_handler = Mock()
-        mock_repo_handler.extract_missing_functions_or_macros.return_value = missing
+        mock_repo_handler.extract_missing_functions_or_macros.return_value = (missing, set())
         mock_repo_handler_factory.return_value = mock_repo_handler
         result_tracker = await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)
         for per_issue in result_tracker.issues.values():
             merged = per_issue.source_code["src/foo.c"]
             self.assertIn("old", merged)
-            self.assertIn("int foo()", merged)
+            self.assertTrue(any("int foo()" in snippet for snippet in merged))
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_tracker_none_raises_value_error(self, mock_repo_handler_factory):

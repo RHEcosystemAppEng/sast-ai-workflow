@@ -402,10 +402,7 @@ class CRepoHandler:
     def reset_found_symbols(self):
         """Reset the accumulated found symbols for a new analysis session.
         
-        Note: This method is deprecated. Symbol tracking is now handled per-issue
-        in the new workflow implementation. This method is kept for backward 
-        compatibility with run.py but does nothing in the new design.
+        Note: Deprecated - symbol tracking is now per-issue in the new workflow.
         """
-        # No-op: Symbol tracking is now per-issue, not global
         pass
     
