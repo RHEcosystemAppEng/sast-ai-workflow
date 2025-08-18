@@ -110,10 +110,10 @@ async def write_results(
 
 def _create_evaluation_summary_from_metrics(summary_data, config, metrics):
     """
-    Create EvaluationSummary from already calculated metrics to avoid duplication.
+    Create EvaluationSummary for ExcelWriter using pre-calculated metrics.
     
-    This reuses the metrics calculated by Calculate_Metrics node instead of
-    recreating the EvaluationSummary from scratch.
+    Uses existing metrics from Calculate_Metrics node when available,
+    otherwise creates fresh EvaluationSummary from raw data.
     """
     if not metrics or isinstance(metrics, dict) and METRICS_FIELD_ERROR in metrics:
         logger.warning(WRITE_RESULTS_NO_VALID_METRICS)
@@ -125,8 +125,7 @@ def _create_evaluation_summary_from_metrics(summary_data, config, metrics):
             return None
     
     try:
-        # Create a mock EvaluationSummary object with the pre-calculated metrics
-        # This avoids recalculating the same data that was already computed
+        # Build EvaluationSummary-like object from existing metrics
         evaluation_summary = _create_mock_evaluation_summary(summary_data, config, metrics)
         logger.info(WRITE_RESULTS_SUMMARY_SUCCESS)
         return evaluation_summary
