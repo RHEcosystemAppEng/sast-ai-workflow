@@ -109,7 +109,9 @@ def _extract_metrics_from_evaluation_summary(evaluation_summary: EvaluationSumma
     
     metrics = {
         "total_issues": len(evaluation_summary.predicted_summary),
+        "predicted_true_positives": evaluation_summary.predicted_true_positives,
         "predicted_true_positives_count": len(evaluation_summary.predicted_true_positives),
+        "predicted_false_positives": evaluation_summary.predicted_false_positives,
         "predicted_false_positives_count": len(evaluation_summary.predicted_false_positives),
         "has_ground_truth": evaluation_summary.ground_truth is not None
     }
@@ -121,7 +123,9 @@ def _extract_metrics_from_evaluation_summary(evaluation_summary: EvaluationSumma
     else:
         logger.info("Ground truth available - calculating full performance metrics")
         metrics.update({
+            "actual_true_positives": evaluation_summary.actual_true_positives,
             "actual_true_positives_count": len(evaluation_summary.actual_true_positives),
+            "actual_false_positives": evaluation_summary.actual_false_positives,
             "actual_false_positives_count": len(evaluation_summary.actual_false_positives),
             "confusion_matrix": {
                 "true_positives": evaluation_summary.tp,
