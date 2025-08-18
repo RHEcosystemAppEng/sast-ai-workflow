@@ -2,10 +2,11 @@ import logging
 import math
 from decimal import Decimal
 
+from dto.SASTWorkflowModels import PerIssueData
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 
 from common.config import Config
-from common.constants import YES_OPTIONS
+from common.constants import KNOWN_ISSUES_SHORT_JUSTIFICATION, YES_OPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -88,3 +89,9 @@ def get_predicted_summary(data, config: Config):
         )
         summary.append((issue.id, llm_response, ar))
     return summary
+
+
+def count_known_false_positives(issues: dict[str, PerIssueData]):
+    return sum(1 for issue in issues.values() 
+                 if issue.analysis_response and
+                 KNOWN_ISSUES_SHORT_JUSTIFICATION in issue.analysis_response.short_justifications)

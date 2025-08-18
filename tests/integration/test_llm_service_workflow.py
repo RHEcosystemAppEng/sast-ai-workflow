@@ -8,14 +8,14 @@ from unittest.mock import Mock, patch
 from src.LLMService import LLMService
 from src.services.issue_analysis_service import IssueAnalysisService
 from src.dto.Issue import Issue
-from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from src.common.config import Config
 
 
 # Constants for test responses
 EXPECTED_TRUE_POSITIVE_RESULT = AnalysisResponse(
     investigation_result="TRUE POSITIVE",
-    is_final="TRUE",
+    is_final=FinalStatus.TRUE.value,
     justifications=["Buffer overflow vulnerability detected"],
     evaluation=["Analysis complete"],
     recommendations=["Fix buffer bounds"],
@@ -26,7 +26,7 @@ EXPECTED_TRUE_POSITIVE_RESULT = AnalysisResponse(
 
 EXPECTED_FALSE_POSITIVE_RESULT = AnalysisResponse(
     investigation_result=" FALSE POSITIVE",
-    is_final="TRUE", 
+    is_final=FinalStatus.TRUE.value, 
     justifications=["Input validation prevents overflow"],
     evaluation=["No action needed"],
     recommendations=["No fix required"],
@@ -77,7 +77,7 @@ class TestInvestigateIssue:
             # assertion
             assert type(analysis_result).__name__ == "AnalysisResponse"
             assert analysis_result.investigation_result == "TRUE POSITIVE"
-            assert analysis_result.is_final == "TRUE"
+            assert analysis_result.is_final == FinalStatus.TRUE.value
             assert "Buffer overflow vulnerability detected" in analysis_result.justifications
             assert "Fix buffer bounds" in analysis_result.recommendations
             assert analysis_result.short_justifications == "Buffer overflow found"
@@ -162,7 +162,7 @@ class TestInvestigateIssue:
             # assertion
             assert type(analysis_result).__name__ == "AnalysisResponse"
             assert analysis_result.investigation_result == " FALSE POSITIVE"
-            assert analysis_result.is_final == "TRUE"
+            assert analysis_result.is_final == FinalStatus.TRUE.value
             assert "Input validation prevents overflow" in analysis_result.justifications
             assert "No fix required" in analysis_result.recommendations
             assert analysis_result.short_justifications == "Safe input validation"

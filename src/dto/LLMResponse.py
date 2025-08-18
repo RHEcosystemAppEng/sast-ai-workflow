@@ -2,11 +2,15 @@ import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
-from common.constants import FALSE
 
 class CVEValidationStatus(Enum):
     TRUE_POSITIVE = "TRUE POSITIVE"
     FALSE_POSITIVE = " FALSE POSITIVE"
+
+
+class FinalStatus(Enum):
+    TRUE = "TRUE"
+    FALSE = "FALSE"
 
 
 @dataclass
@@ -24,7 +28,7 @@ class AnalysisResponse:
         return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
 
     def is_second_analysis_needed(self):
-        return self.is_final == FALSE and self.instructions and self.is_true_positive()
+        return self.is_final == FinalStatus.FALSE.value and self.instructions and self.is_true_positive()
 
     def to_dict(self):
         return asdict(self)

@@ -6,6 +6,8 @@ functions:
   filter:
     _type: filter
     description: "Filter function that filters known false positives and retrieve similar issues"
+    llm_name: main_llm
+    embedder_llm_name: filter_embedding
   
   data_fetcher:
     _type: data_fetcher
@@ -38,6 +40,18 @@ llms:
     api_key: ${LLM_API_KEY}
     base_url: ${LLM_URL}
     model_name: ${LLM_MODEL_NAME}
+  
+embedders:
+  filter_embedding:
+    _type: extended_openai
+    api_key: ${EMBEDDINGS_LLM_API_KEY}
+    base_url: ${EMBEDDINGS_LLM_URL}
+    model_name: ${EMBEDDINGS_LLM_MODEL_NAME}
+    tiktoken_enabled: false
+    show_progress_bar: true
+    http_client:
+      verify: false
+
 
 workflow:
   _type: sast_agent
