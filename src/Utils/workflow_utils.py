@@ -1,15 +1,12 @@
 """
-Common utilities for SAST workflow tracker operations.
-
-This module provides reusable functions for converting tracker data
-to different formats for use across multiple workflow nodes.
-Used by both Calculate_Metrics and Write_Results nodes.
+Common utilities for AIQ workflow.
 """
 
+from enum import Enum
 import logging
 from typing import List, Tuple
 
-from dto.SASTWorkflowModels import SASTWorkflowTracker
+from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
 from dto.SummaryInfo import SummaryInfo
 from dto.Issue import Issue
 from Utils.output_utils import filter_items_for_evaluation
@@ -53,3 +50,45 @@ def convert_tracker_to_summary_data(tracker: SASTWorkflowTracker, include_non_fi
             logger.warning(f"Filtered out {len(failed_item_ids)} failed items: {failed_item_ids}")
     
     return summary_data
+
+def get_linear_edges() -> List[Tuple[str, str]]:
+        """
+        Get all linear (non-conditional) edges in the workflow.
+        
+        Returns:
+            List of (source, target) tuples representing direct edges
+        """
+        from langgraph.graph import START, END
+        
+        return [
+            (START, WorkflowNode.PRE_PROCESS.value),
+            (WorkflowNode.PRE_PROCESS.value, WorkflowNode.FILTER.value),
+            (WorkflowNode.FILTER.value, WorkflowNode.DATA_FETCHER.value),
+            (WorkflowNode.DATA_FETCHER.value, WorkflowNode.JUDGE_LLM_ANALYSIS.value),
+            (WorkflowNode.JUDGE_LLM_ANALYSIS.value, WorkflowNode.EVALUATE_ANALYSIS.value),
+            (WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value, WorkflowNode.CALCULATE_METRICS.value),
+            (WorkflowNode.CALCULATE_METRICS.value, WorkflowNode.WRITE_RESULTS.value),
+            (WorkflowNode.WRITE_RESULTS.value, END)
+        ]
+
+def count_issues_needing_second_analysis(issues: dict[str, PerIssueData]):
+    """
+    Count the number of issues that need a second analysis.
+    """
+    return sum(1 for per_issue_data in issues.values() 
+                 if per_issue_data.analysis_response and per_issue_data.analysis_response.is_second_analysis_needed())
+
+class WorkflowNode(Enum):
+    """
+    Enumeration of all workflow nodes in the SAST analysis pipeline.
+    
+    The value corresponds to the string identifier used in LangGraph.
+    """
+    PRE_PROCESS = "pre_process"
+    FILTER = "filter"
+    DATA_FETCHER = "data_fetcher"
+    JUDGE_LLM_ANALYSIS = "judge_llm_analysis"
+    EVALUATE_ANALYSIS = "evaluate_analysis"
+    SUMMARIZE_JUSTIFICATIONS = "summarize_justifications"
+    CALCULATE_METRICS = "calculate_metrics"
+    WRITE_RESULTS = "write_results"

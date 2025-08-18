@@ -9,8 +9,8 @@ from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
-from dto.LLMResponse import FinalStatus
-from Utils.metrics_utils import count_known_false_positives
+from Utils.metrics_utils import count_known_false_positives, count_non_final_issues
+from sast_agent_workflow.graph_builder import build_sast_workflow_graph
 
 # Import extended embedder for automatic registration
 from sast_agent_workflow.embedders import extended_openai_embedder
@@ -48,10 +48,6 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     This defines how the sast_agent workflow type works using LangGraph.
     """
     logger.info("Initializing SAST Agent workflow...")
-    
-    from langgraph.graph import END
-    from langgraph.graph import START
-    from langgraph.graph import StateGraph
     
     # Access all the placeholder functions
     pre_process_fn = builder.get_function(name=config.pre_process_function_name)
@@ -104,29 +100,17 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         logger.info("Running Write_Results node")
         return await write_results_fn.ainvoke(tracker)
     
-    # Build the LangGraph workflow
-    graph_builder = StateGraph(SASTWorkflowTracker)
-    graph_builder.add_node("pre_process", pre_process_node)
-    graph_builder.add_node("filter", filter_node)
-    graph_builder.add_node("data_fetcher", data_fetcher_node)
-    graph_builder.add_node("judge_llm_analysis", judge_llm_analysis_node)
-    graph_builder.add_node("evaluate_analysis", evaluate_analysis_node)
-    graph_builder.add_node("summarize_justifications", summarize_justifications_node)
-    graph_builder.add_node("calculate_metrics", calculate_metrics_node)
-    graph_builder.add_node("write_results", write_results_node)
-    
-    # Connect nodes in sequence
-    graph_builder.add_edge(START, "pre_process")
-    graph_builder.add_edge("pre_process", "filter")
-    graph_builder.add_edge("filter", "data_fetcher")
-    graph_builder.add_edge("data_fetcher", "judge_llm_analysis")
-    graph_builder.add_edge("judge_llm_analysis", "evaluate_analysis")
-    graph_builder.add_edge("evaluate_analysis", "summarize_justifications")
-    graph_builder.add_edge("summarize_justifications", "calculate_metrics")
-    graph_builder.add_edge("calculate_metrics", "write_results")
-    graph_builder.add_edge("write_results", END)
-    
-    graph = graph_builder.compile()
+    # Build the LangGraph workflow using the graph builder
+    graph = build_sast_workflow_graph(
+        pre_process_node=pre_process_node,
+        filter_node=filter_node,
+        data_fetcher_node=data_fetcher_node,
+        judge_llm_analysis_node=judge_llm_analysis_node,
+        evaluate_analysis_node=evaluate_analysis_node,
+        summarize_justifications_node=summarize_justifications_node,
+        calculate_metrics_node=calculate_metrics_node,
+        write_results_node=write_results_node
+    )
     
     # Converter functions for different input types
     def convert_str_to_sast_tracker(input_str: str) -> SASTWorkflowTracker:
@@ -152,8 +136,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
 
             # Calculate summary statistics
             total_issues = len(tracker.issues)
-            final_issues = sum(1 for issue in tracker.issues.values() 
-                             if issue.analysis_response and issue.analysis_response.is_final != FinalStatus.FALSE.value)
+            final_issues = count_non_final_issues(tracker.issues)
             
             fp_issues = sum(1 for issue in tracker.issues.values() 
                           if issue.analysis_response and not issue.analysis_response.is_true_positive())

@@ -2,6 +2,7 @@ import logging
 import math
 from decimal import Decimal
 
+from dto.LLMResponse import FinalStatus
 from dto.SASTWorkflowModels import PerIssueData
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 
@@ -95,3 +96,8 @@ def count_known_false_positives(issues: dict[str, PerIssueData]):
     return sum(1 for issue in issues.values() 
                  if issue.analysis_response and
                  KNOWN_ISSUES_SHORT_JUSTIFICATION in issue.analysis_response.short_justifications)
+
+
+def count_non_final_issues(issues: dict[str, PerIssueData]):
+    return sum(1 for per_issue_data in issues.values() 
+                 if per_issue_data.analysis_response and per_issue_data.analysis_response.is_final == FinalStatus.FALSE.value)
