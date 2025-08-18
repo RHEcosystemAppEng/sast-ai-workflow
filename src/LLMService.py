@@ -18,7 +18,7 @@ class LLMService:
     Maintains the same public interface while using focused services internally.
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, main_llm = None, embedding_llm = None, critique_llm = None):
         self.config = config
         
         # Initialize focused services
@@ -30,9 +30,9 @@ class LLMService:
         )
         
         # Lazy-loaded LLM clients
-        self._main_llm = None
-        self._embedding_llm = None
-        self._critique_llm = None
+        self._main_llm = main_llm
+        self._embedding_llm = embedding_llm
+        self._critique_llm = critique_llm
         
 
 

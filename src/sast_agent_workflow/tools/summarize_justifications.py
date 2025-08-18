@@ -2,7 +2,7 @@ import logging
 
 from pydantic import Field
 
-from aiq.builder.builder import Builder
+from aiq.builder.builder import Builder, LLMFrameworkEnum
 from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
@@ -26,7 +26,7 @@ class SummarizeJustificationsConfig(FunctionBaseConfig, name="summarize_justific
     llm_name: str = Field(description="LLM name to use for summarization")
 
 
-@register_function(config_type=SummarizeJustificationsConfig)
+@register_function(config_type=SummarizeJustificationsConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
 async def summarize_justifications(
     config: SummarizeJustificationsConfig, builder: Builder
 ):
@@ -45,7 +45,7 @@ async def summarize_justifications(
             logger.error("No config found in tracker - cannot proceed with summarization")
             return tracker
             
-        llm = builder.get_llm(config.llm_name)
+        llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
         vector_service = VectorStoreService()
         issue_analysis_service = IssueAnalysisService(tracker.config, vector_service)
         

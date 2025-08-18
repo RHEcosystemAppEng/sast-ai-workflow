@@ -13,7 +13,7 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.SummaryInfo import SummaryInfo
 from dto.Issue import Issue
 from Utils.output_utils import filter_items_for_evaluation
-from common.constants import TRUE
+from dto.LLMResponse import FinalStatus
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def convert_tracker_to_summary_data(tracker: SASTWorkflowTracker, include_non_fi
     for issue_id, per_issue_data in tracker.issues.items():
         if per_issue_data.analysis_response:
             # Include based on is_final flag
-            if include_non_final or per_issue_data.analysis_response.is_final == TRUE:
+            if include_non_final or per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value:
                 
                 summary_info = SummaryInfo(
                     response=per_issue_data.analysis_response,
