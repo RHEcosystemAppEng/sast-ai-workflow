@@ -203,7 +203,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         # assertion
         self.assertIn("error", result_tracker.metrics)
         self.assertIn("Ground truth loading failed", result_tracker.metrics["error"])
-        self.assertIn("Metrics calculation failed", result_tracker.metrics["error"])
+        self.assertIn("Unexpected error", result_tracker.metrics["error"])
         self.assertEqual(len(result_tracker.issues), 2)
         self.assertEqual(tracker.iteration_count, result_tracker.iteration_count)
 
