@@ -22,7 +22,7 @@ from Utils.workflow_utils import WorkflowNode
 class TestShouldContinueAnalysis:
     """Test the conditional edge logic for workflow routing."""
     
-    def test_given_issues_needing_second_analysis_and_under_iteration_limit__when_checking_continue_condition__then_returns_data_fetcher(self):
+    def test__should_continue_analysis__issues_needing_second_analysis_under_limit_returns_data_fetcher(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -44,7 +44,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.DATA_FETCHER.value
     
-    def test_given_no_issues_needing_second_analysis__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__no_issues_needing_second_analysis_returns_summarize_justifications(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -65,7 +65,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_issues_needing_second_analysis_and_at_iteration_limit__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__issues_needing_second_analysis_at_limit_returns_summarize_justifications(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -87,7 +87,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_issues_needing_second_analysis_and_over_iteration_limit__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__issues_needing_second_analysis_over_limit_returns_summarize_justifications(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -109,7 +109,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_issues_needing_second_analysis_and_config_missing_max_iterations__when_checking_continue_condition__then_uses_default_and_returns_data_fetcher(self):
+    def test__should_continue_analysis__config_missing_max_iterations_uses_default_returns_data_fetcher(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=1)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -131,7 +131,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.DATA_FETCHER.value
     
-    def test_given_issues_needing_second_analysis_and_config_missing_max_iterations_at_limit__when_checking_continue_condition__then_uses_default_and_returns_summarize_justifications(self):
+    def test__should_continue_analysis__config_missing_max_iterations_at_default_limit_returns_summarize_justifications(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=1)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -152,8 +152,52 @@ class TestShouldContinueAnalysis:
         
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
+
+    def test__should_continue_analysis__iteration_count_missing_sets_to_1_and_returns_data_fetcher(self):
+        # Preparation
+        issues = TestUtils.create_sample_issues(count=1)
+        issues_dict = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final=FinalStatus.FALSE.value,
+            instructions=[{"action": "analyze_deeper"}]  # Issues need second analysis
+        )
+        config = Mock(spec=Config)
+        config.MAX_ANALYSIS_ITERATIONS = 2
+        tracker = SASTWorkflowTracker(
+            issues=issues_dict,
+            config=config
+            )
+        tracker.iteration_count = None
+        
+        # Testing
+        result = should_continue_analysis(tracker)
+        
+        # Assertion
+        assert result == WorkflowNode.DATA_FETCHER.value
+
+    def test__should_continue_analysis__iteration_count_missing_sets_to_1_and_returns_summarize_justifications(self):
+        # Preparation
+        issues = TestUtils.create_sample_issues(count=1)
+        issues_dict = TestUtils.create_sample_per_issue_data_dict(
+            issues, 
+            is_final=FinalStatus.FALSE.value,
+            instructions=[{"action": "analyze_deeper"}]  # Issues need second analysis
+        )
+        config = Mock(spec=Config)
+        config.MAX_ANALYSIS_ITERATIONS = 1
+        tracker = SASTWorkflowTracker(
+            issues=issues_dict,
+            config=config
+            )
+        tracker.iteration_count = None
+        
+        # Testing
+        result = should_continue_analysis(tracker)
+        
+        # Assertion
+        assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_non_final_issues_without_instructions__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__non_final_issues_without_instructions_returns_summarize_justifications(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -175,7 +219,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_mixed_issues_some_needing_second_analysis__when_checking_continue_condition__then_returns_data_fetcher(self):
+    def test__should_continue_analysis__mixed_issues_some_needing_second_analysis_returns_data_fetcher(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=3)
         # Create mixed issues: some final, some non-final, some needing second analysis
@@ -216,7 +260,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.DATA_FETCHER.value
     
-    def test_given_empty_issues_dict__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__empty_issues_dict_returns_summarize_justifications(self):
         # Preparation
         config = Mock(spec=Config)
         config.MAX_ANALYSIS_ITERATIONS = 3
@@ -232,7 +276,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_issues_without_analysis_response__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__issues_without_analysis_response_returns_summarize_justifications(self):
         # Preparation
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = {}
@@ -255,7 +299,7 @@ class TestShouldContinueAnalysis:
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    def test_given_non_final_false_positive_issues__when_checking_continue_condition__then_returns_summarize_justifications(self):
+    def test__should_continue_analysis__non_final_false_positive_issues_returns_summarize_justifications(self):
         # Preparation - false positive issues don't need second analysis even if non-final
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
@@ -296,7 +340,7 @@ class TestBuildSastWorkflowGraph:
             'write_results_node': AsyncMock()
         }
     
-    def test_given_mock_node_functions__when_building_graph__then_compiles_successfully(self, mock_nodes):
+    def test__build_sast_workflow_graph__mock_node_functions_compiles_successfully(self, mock_nodes):
         # Preparation
         # mock_nodes fixture provides all required node functions
         

@@ -29,7 +29,7 @@ def should_continue_analysis(tracker: SASTWorkflowTracker) -> str:
         or WorkflowNode.SUMMARIZE_JUSTIFICATIONS to proceed to final steps
     """
     try:
-        if not hasattr(tracker, 'iteration_count'):
+        if not hasattr(tracker, 'iteration_count') or not isinstance(tracker.iteration_count, int):
             logger.warning("iteration_count not found in tracker, setting to 1")
             tracker.iteration_count = 1
         
