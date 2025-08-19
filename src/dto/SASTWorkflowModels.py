@@ -5,7 +5,7 @@ Contains all data structures used by the SAST agent workflow including
 the central tracker object and per-issue data models.
 """
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Set
 from pydantic import BaseModel, Field, ConfigDict
 
 from common.config import Config
@@ -19,9 +19,10 @@ class PerIssueData(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
     issue: Issue = Field(description="The issue object")
-    source_code: dict = Field(default_factory=dict, description="Dictionary mapping file paths to relevant code snippets")
+    source_code: Dict[str, List[str]] = Field(default_factory=dict, description="Dictionary mapping file paths to lists of relevant code snippets")
     similar_known_issues: str = Field(default="", description="Raw text containing the N most similar known issues from the Vector DB")
     analysis_response: Optional[AnalysisResponse] = Field(default=None, description="AnalysisResponse object containing the core analysis state for a single issue")
+    found_symbols: Set[str] = Field(default_factory=set, description="Set of symbols already found for this issue to avoid re-fetching")
 
 
 class SASTWorkflowTracker(BaseModel):

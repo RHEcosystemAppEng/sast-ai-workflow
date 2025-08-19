@@ -68,6 +68,9 @@ REGEX_PATTERNS = {"CWE_PATTERN": r"CWE-\d+", "CODE_BLOCK_LINE_PATTERN": r"#\s*\d
 
 # Validation constants
 VALIDATION_LIMITS = {"MIN_SIMILARITY_THRESHOLD": 1, "MAX_SIMILARITY_THRESHOLD": 10}
+
+FALSE = "FALSE"
+TRUE = "TRUE"
 KNOWN_ISSUES_SHORT_JUSTIFICATION = "The error is similar to one found in the provided known issues (Details in the full Justification)"
 NO_MATCHING_TRACE_FOUND = "No matching trace found"
 

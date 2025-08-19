@@ -65,7 +65,8 @@ async def pre_process(
           issues_dict[issue.id] = PerIssueData(issue=issue,
                                                source_code={}, 
                                                similar_known_issues="", 
-                                               analysis_response=_create_default_analysis_response()
+                                               analysis_response=_create_default_analysis_response(),
+                                               found_symbols=set()
                                                ) 
         tracker = SASTWorkflowTracker(
             issues=issues_dict, 

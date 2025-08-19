@@ -76,7 +76,7 @@ class TestUtils:
         for i, issue in enumerate(issues):
             per_issue_data = PerIssueData(
                 issue=issue,
-                source_code={f"file{i+1}.c": f"int vulnerable_function_{i+1}():\n    //vulnerable code"},
+                source_code={f"file{i+1}.c": [f"int vulnerable_function_{i+1}():\n    //vulnerable code"]},
                 similar_known_issues="Example-1: Known False Positive: \nExample Trace\nExample Reason Marked as False Positive\n\nExample-2: Known False Positive: \nExample Trace\nExample Reason Marked as False Positive\n",
                 analysis_response=TestUtils.create_sample_analysis_response(
                     is_false_positive=is_false_positive, 
@@ -84,7 +84,8 @@ class TestUtils:
                     instructions=instructions,
                     justifications=justifications or ["Test justification"],
                     short_justifications=short_justifications if short_justifications is not None else "Short justification"
-                )
+                ),
+                found_symbols=set()
             )
             issues_dict[issue.id] = per_issue_data
         return issues_dict

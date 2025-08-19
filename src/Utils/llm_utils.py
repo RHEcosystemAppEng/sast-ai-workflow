@@ -1,5 +1,5 @@
 import logging
-from typing import Type
+from typing import Dict, List, Type
 
 from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
 from langchain.output_parsers.prompts import NAIVE_FIX
@@ -112,3 +112,26 @@ def _handle_chat_nvidia(
     raise LangChainException(
         ERROR_MESSAGE.format(max_retries=max_retries, exception=last_exception, input=input)
     )
+
+
+def format_source_code_for_analysis(source_code: Dict[str, List[str]]) -> str:
+    """
+    Convert the structured source_code dict to formatted string for LLM analysis.
+    
+    Args:
+        source_code: Dict mapping file paths to lists of code snippets
+        
+    Returns:
+        Formatted string with proper separators and headers
+    """
+    if not source_code:
+        return ""
+    
+    formatted_sections = []
+    for path, code_snippets in source_code.items():
+        if code_snippets:
+            # Join with double newlines to separate different code snippets
+            combined_code = "\n\n".join(code_snippets)
+            formatted_sections.append(f"\ncode of {path} file:\n{combined_code}")
+    
+    return "".join(formatted_sections)

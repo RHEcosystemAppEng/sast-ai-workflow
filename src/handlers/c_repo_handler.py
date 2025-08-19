@@ -61,9 +61,6 @@ class CRepoHandler:
 
         clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
         self.index = clang.cindex.Index.create()
-        
-        # Track all found symbols across method calls
-        self.all_found_symbols = set()
 
     @property
     def compile_commands_json(self):
@@ -184,12 +181,12 @@ class CRepoHandler:
         
         return source_code
 
-    def extract_missing_functions_or_macros(self, instructions) -> str:
+    def extract_missing_functions_or_macros(self, instructions, found_symbols: set) -> tuple[str, set]:
         """Get definitions of an expression"""
         
         if not instructions:
             logger.debug("No instructions provided for function/macro extraction")
-            return ""
+            return "", found_symbols
 
         def get_path(path: str):
             try:
@@ -205,9 +202,9 @@ class CRepoHandler:
         for instruction in instructions:
             try:
                 path = get_path(instruction.referring_source_code_path)
-                if path and instruction.expression_name not in self.all_found_symbols:
+                if path and instruction.expression_name not in found_symbols:
                     expressions_by_path[path].add(instruction.expression_name)
-                elif instruction.expression_name in self.all_found_symbols:
+                elif instruction.expression_name in found_symbols:
                     logger.debug(f"Skipping {instruction.expression_name} - the context contains the code already.")
             except AttributeError as e:
                 logger.warning(f"Invalid instruction format: {instruction}. Error: {e}")
@@ -217,10 +214,10 @@ class CRepoHandler:
         for source_code_path, expressions_list in expressions_by_path.items():
             source_code = ""
             try:
-                found_symbols, source_code = self.extract_definition_from_source_code(
+                new_found_symbols, source_code = self.extract_definition_from_source_code(
                     expressions_list, source_code_path
                 )
-                self.all_found_symbols.update(found_symbols)
+                found_symbols.update(new_found_symbols)
             except Exception as e:
                 logger.error(
                     f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}"
@@ -229,7 +226,7 @@ class CRepoHandler:
                 for file_path, exps_dict in source_code.items():
                     joined_exps = "\n\n".join([exp for exp in exps_dict.values()])
                     missing_source_codes += f"code of {file_path} file:\n{joined_exps}"
-        return missing_source_codes
+        return missing_source_codes, found_symbols
 
     def extract_definition_from_source_code(
         self, function_names: set[str], source_code_file_path: str
@@ -403,6 +400,9 @@ class CRepoHandler:
         return file_path, code_line_number
     
     def reset_found_symbols(self):
-        """Reset the accumulated found symbols for a new analysis session."""
-        self.all_found_symbols.clear()
+        """Reset the accumulated found symbols for a new analysis session.
+        
+        Note: Deprecated - symbol tracking is now per-issue in the new workflow.
+        """
+        pass
     
