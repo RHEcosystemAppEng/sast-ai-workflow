@@ -102,3 +102,13 @@ METRICS_FIELD_ACTUAL_FALSE_POSITIVES = "actual_false_positives"
 METRICS_FIELD_PREDICTED_TRUE_POSITIVES = "predicted_true_positives"
 METRICS_FIELD_PREDICTED_FALSE_POSITIVES = "predicted_false_positives"
 METRICS_FIELD_COUNT_SUFFIX = "_count"
+
+# Constants for issue categorization counter keys
+TOTAL_ISSUES = 'total_issues'
+NON_FINAL_ISSUES = 'non_final_issues'
+FINAL_ISSUES = 'final_issues'
+KNOWN_FALSE_POSITIVES = 'known_false_positives'
+TRUE_POSITIVES = 'true_positives'
+FALSE_POSITIVES = 'false_positives'
+NEEDS_SECOND_ANALYSIS = 'needs_second_analysis'
+NO_ANALYSIS_RESPONSE = 'no_analysis_response'

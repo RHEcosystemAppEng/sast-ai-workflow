@@ -9,7 +9,7 @@ from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
-from Utils.metrics_utils import count_known_false_positives, count_non_final_issues
+from Utils.metrics_utils import categorize_issues_by_status
 from sast_agent_workflow.graph_builder import build_sast_workflow_graph, verify_graph_structure
 
 # Import extended embedder for automatic registration
@@ -138,27 +138,9 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
             pprint(tracker_dict)
 
             # Calculate summary statistics
-            total_issues = len(tracker.issues)
-            final_issues = count_non_final_issues(tracker.issues)
-            
-            fp_issues = sum(1 for issue in tracker.issues.values() 
-                          if issue.analysis_response and not issue.analysis_response.is_true_positive())
-            not_fp_issues = sum(1 for issue in tracker.issues.values() 
-                              if issue.analysis_response and issue.analysis_response.is_true_positive())
-            
-            known_issues = count_known_false_positives(tracker.issues)
+            counter = categorize_issues_by_status(tracker.issues)
 
-            # Format the summary
-            summary = {
-                "total_issues": total_issues,
-                "final_issues": final_issues,
-                "false_positive_issues": fp_issues,
-                "not_false_positive_issues": not_fp_issues,
-                "known_issues": known_issues,
-                "iteration_count": tracker.iteration_count
-            }
-
-            return json.dumps(summary, indent=2)
+            return json.dumps(counter, indent=2)
             
         except Exception as e:
             logger.error("Failed to convert SASTWorkflowTracker to summary stats: %s", e)
