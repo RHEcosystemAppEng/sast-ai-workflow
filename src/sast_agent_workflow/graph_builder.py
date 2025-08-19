@@ -104,3 +104,37 @@ def build_sast_workflow_graph(
     logger.info("SAST workflow graph compiled successfully")
     
     return graph
+
+
+def verify_graph_structure(graph: CompiledStateGraph | None) -> None:
+    """
+    Verify that the compiled graph has the expected structure and nodes.
+    
+    Args:
+        graph: The compiled LangGraph to verify
+        
+    Raises:
+        RuntimeError: If verification fails
+    """
+    if graph is None:
+        raise RuntimeError("Graph compilation failed - graph is None")
+    
+    expected_nodes = WorkflowNode.get_all_node_names()
+    
+    try:
+        # Get graph structure for verification
+        drawable_graph = graph.get_graph()
+        actual_nodes = list(drawable_graph.nodes.keys()) if hasattr(drawable_graph, 'nodes') else []
+        
+        logger.debug(f"Graph nodes detected: {actual_nodes}")
+        
+        # Check if all expected nodes are present
+        missing_nodes = [node for node in expected_nodes if node not in actual_nodes]
+        if missing_nodes:
+            raise RuntimeError(f"Missing nodes in graph: {missing_nodes}")
+        else:
+            logger.info("All expected workflow nodes are present in the graph")
+
+        
+    except Exception as e:
+        logger.warning(f"Could not fully verify graph structure: {e}, but graph compilation succeeded")

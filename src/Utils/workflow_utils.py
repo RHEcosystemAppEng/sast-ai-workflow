@@ -92,3 +92,7 @@ class WorkflowNode(Enum):
     SUMMARIZE_JUSTIFICATIONS = "summarize_justifications"
     CALCULATE_METRICS = "calculate_metrics"
     WRITE_RESULTS = "write_results"
+
+    @classmethod
+    def get_all_node_names(cls):
+        return [member.value for member in cls]

@@ -10,7 +10,7 @@ from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from Utils.metrics_utils import count_known_false_positives, count_non_final_issues
-from sast_agent_workflow.graph_builder import build_sast_workflow_graph
+from sast_agent_workflow.graph_builder import build_sast_workflow_graph, verify_graph_structure
 
 # Import extended embedder for automatic registration
 from sast_agent_workflow.embedders import extended_openai_embedder
@@ -111,6 +111,9 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         calculate_metrics_node=calculate_metrics_node,
         write_results_node=write_results_node
     )
+    
+    # Verify graph was built successfully
+    verify_graph_structure(graph)
     
     # Converter functions for different input types
     def convert_str_to_sast_tracker(input_str: str) -> SASTWorkflowTracker:
