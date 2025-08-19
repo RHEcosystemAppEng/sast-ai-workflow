@@ -39,9 +39,7 @@ def should_continue_analysis(tracker: SASTWorkflowTracker) -> str:
             logger.warning("Config not found in tracker, using default MAX_ANALYSIS_ITERATIONS of 2")
             max_iterations = 2
         else:
-            if not hasattr(tracker.config, 'MAX_ANALYSIS_ITERATIONS'):
-                logger.warning("MAX_ANALYSIS_ITERATIONS not found in config, using default value of 2")
-            max_iterations = getattr(tracker.config, 'MAX_ANALYSIS_ITERATIONS', 2)
+            max_iterations = tracker.config.MAX_ANALYSIS_ITERATIONS
         
         if issues_needing_second_analysis_count > 0 and tracker.iteration_count < max_iterations:
             logger.info(f"Conditional edge: Continuing analysis loop. {issues_needing_second_analysis_count=} issues need second analysis and iteration {tracker.iteration_count} < {max_iterations}")
