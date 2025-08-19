@@ -296,7 +296,15 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
             call_args = mock_excel_writer.call_args[0]
             self.assertEqual(call_args[1], mock_eval_summary_instance)  # evaluation_summary
 
-    async def test__write_results__complete_evaluation_summary_failure_handles_gracefully(self):
+    async def test__write_results__missing_ml_performance_metrics_triggers_fallback_gracefully(self):
+        """
+        Test that write_results handles missing ML performance metrics gracefully.
+        
+        tracker.metrics contains ML performance metrics like accuracy, precision, recall, 
+        f1_score, and confusion_matrix (NOT ragas metrics like answer_relevancy).
+        When these ML metrics are None, the function should attempt fallback 
+        EvaluationSummary creation and handle failures gracefully.
+        """
         # preparation
         issues = [
             TestUtils.create_sample_issue(issue_id="test_issue", issue_type="BUFFER_OVERFLOW")
@@ -310,7 +318,7 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
         )
         
         tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
-        # Set invalid metrics to trigger fallback
+        # Set ML performance metrics to None to trigger fallback evaluation summary creation
         tracker.metrics = None
         
         with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
