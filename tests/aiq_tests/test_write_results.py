@@ -348,7 +348,7 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
         )
         
         tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
-        # Set None metrics to trigger initial fallback path (line 101)
+        # Set None metrics to trigger initial fallback path
         tracker.metrics = None
         
         with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
@@ -361,7 +361,7 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
             mock_eval_summary_instance = Mock()
             mock_eval_summary.return_value = mock_eval_summary_instance
             
-            # testing - this should trigger the line 101 path (direct EvaluationSummary creation)
+            # testing - this should trigger the direct EvaluationSummary creation path
             result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
             
             # assertion
