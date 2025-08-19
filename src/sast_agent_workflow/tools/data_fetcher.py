@@ -16,6 +16,65 @@ from dto.LLMResponse import FinalStatus
 logger = logging.getLogger(__name__)
 
 
+def _parse_missing_source_codes(missing_source_codes: str) -> Dict[str, str]:
+    """Parse response format: 'code of <path> file:\n<code>'"""
+    additions: Dict[str, str] = {}
+    if not missing_source_codes:
+        return additions
+        
+    pattern = re.compile(r"code of\s+(?P<path>.+?)\s+file:\n", re.MULTILINE)
+    positions = [(m.start(), m.end(), m.group("path")) for m in pattern.finditer(missing_source_codes)]
+    
+    for idx, (_, end, path) in enumerate(positions):
+        code_start = end
+        code_end = positions[idx + 1][0] if idx + 1 < len(positions) else len(missing_source_codes)
+        snippet = missing_source_codes[code_start:code_end].rstrip("\n")
+        if snippet.strip():
+            additions[path] = snippet
+            
+    return additions
+
+
+def _fetch_initial_source_code(repo_handler, per_issue: PerIssueData, issue_id: str):
+    """Fetch initial source code from error trace."""
+    try:
+        if repo_handler is not None:
+            fetched = repo_handler.get_source_code_blocks_from_error_trace(per_issue.issue.trace)
+            for path, code in (fetched or {}).items():
+                if path not in per_issue.source_code:
+                    per_issue.source_code[path] = []
+                per_issue.source_code[path].append(code)
+    except Exception as e:
+        logger.error(f"Failed to fetch source code for issue {issue_id} from error trace: {e}")
+
+
+def _fetch_additional_source_code(repo_handler, per_issue: PerIssueData, issue_id: str, analysis_response):
+    """Fetch additional source code based on analysis instructions."""
+    if not analysis_response.is_second_analysis_needed():
+        return
+        
+    if repo_handler is None:
+        return
+        
+    try:
+        missing_source_codes, per_issue.found_symbols = repo_handler.extract_missing_functions_or_macros(
+            analysis_response.instructions, per_issue.found_symbols
+        )
+        
+        additions = _parse_missing_source_codes(missing_source_codes)
+        
+        if additions:
+            for path, code in additions.items():
+                if path not in per_issue.source_code:
+                    per_issue.source_code[path] = []
+                per_issue.source_code[path].append(code)
+        else:
+            logger.debug(f"Issue {issue_id}: Setting is_final=TRUE - no new data fetched despite instructions")
+            analysis_response.is_final = FinalStatus.TRUE.value
+            
+    except Exception as e:
+        logger.error(f"Failed processing instructions for issue {issue_id}: {e}")
+
 
 class DataFetcherConfig(FunctionBaseConfig, name="data_fetcher"):
     """
@@ -75,53 +134,12 @@ async def data_fetcher(
                 logger.info(f"Skipping issue {issue_id}: already final")
                 continue
 
-            # Initial analysis: fetch by error trace
+            # Fetch data based on iteration
             if tracker.iteration_count == 0:
-                try:
-                    if repo_handler is not None:
-                        fetched = repo_handler.get_source_code_blocks_from_error_trace(per_issue.issue.trace)
-                        # Convert to list structure for multiple snippets per file
-                        for path, code in (fetched or {}).items():
-                            if path not in per_issue.source_code:
-                                per_issue.source_code[path] = []
-                            per_issue.source_code[path].append(code)
-                except Exception as e:
-                    logger.error(f"Failed to fetch source code for issue {issue_id} from error trace: {e}")
-                continue
-
-            # Subsequent iterations: use instructions if second analysis is needed
-            if not analysis_response:
-                continue
-
-            try:
-                if analysis_response.is_second_analysis_needed():
-                    if repo_handler is None:
-                        continue
-                    missing_source_codes, per_issue.found_symbols = repo_handler.extract_missing_functions_or_macros(
-                        analysis_response.instructions, per_issue.found_symbols
-                    )
-                    # Parse response format: "code of <path> file:\n<code>"
-                    additions: Dict[str, str] = {}
-                    if missing_source_codes:
-                        pattern = re.compile(r"code of\s+(?P<path>.+?)\s+file:\n", re.MULTILINE)
-                        positions = [(m.start(), m.end(), m.group("path")) for m in pattern.finditer(missing_source_codes)]
-                        for idx, (_, end, path) in enumerate(positions):
-                            code_start = end
-                            code_end = positions[idx + 1][0] if idx + 1 < len(positions) else len(missing_source_codes)
-                            snippet = missing_source_codes[code_start:code_end].rstrip("\n")
-                            if snippet.strip():
-                                additions[path] = snippet
-                    if additions:
-                        for path, code in additions.items():
-                            if path not in per_issue.source_code:
-                                per_issue.source_code[path] = []
-                            per_issue.source_code[path].append(code)
-                    else:
-                        # Verification step: no new data fetched though instructions exist
-                        logger.debug(f"Issue {issue_id}: Setting is_final=TRUE manually - no new data fetched despite instructions present")
-                        analysis_response.is_final = FinalStatus.TRUE.value
-            except Exception as e:
-                logger.error(f"Failed processing instructions for issue {issue_id}: {e}")
+                _fetch_initial_source_code(repo_handler, per_issue, issue_id)
+            else:
+                if analysis_response:
+                    _fetch_additional_source_code(repo_handler, per_issue, issue_id, analysis_response)
 
         logger.info("Data_Fetcher node completed")
         return tracker
