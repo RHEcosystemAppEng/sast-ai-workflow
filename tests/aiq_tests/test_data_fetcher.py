@@ -8,11 +8,10 @@ from unittest.mock import Mock, patch
 from sast_agent_workflow.tools.data_fetcher import data_fetcher, DataFetcherConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import InstructionResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from common.constants import TRUE, FALSE
 from tests.aiq_tests.test_utils import TestUtils
 
 
@@ -92,7 +91,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=0)
         # Mark first issue as final
         first_issue = next(iter(tracker.issues.values()))
-        first_issue.analysis_response.is_final = TRUE
+        first_issue.analysis_response.is_final = FinalStatus.TRUE.value
         first_issue_source_before = dict(first_issue.source_code)
 
         mock_repo_handler = Mock()
@@ -125,7 +124,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
                 is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=FALSE,
+                is_final=FinalStatus.FALSE.value,
                 instructions=[
                     InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")
                 ]
@@ -151,7 +150,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             self.assertIn("include/bar.h", per_issue_data.source_code)
             self.assertTrue(any("int foo()" in snippet for snippet in per_issue_data.source_code["src/foo.c"]))
             self.assertTrue(any("#define BAR" in snippet for snippet in per_issue_data.source_code["include/bar.h"]))
-            self.assertEqual(per_issue_data.analysis_response.is_final, FALSE)
+            self.assertEqual(per_issue_data.analysis_response.is_final, FinalStatus.FALSE.value)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_subsequent_iteration_when_second_analysis_not_needed_then_no_fetch(self, mock_repo_handler_factory):
@@ -161,7 +160,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
                 is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=TRUE,
+                is_final=FinalStatus.TRUE.value,
                 instructions=[]
             )
         mock_repo_handler = Mock()
@@ -177,7 +176,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
                 is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=FALSE,
+                is_final=FinalStatus.FALSE.value,
                 instructions=[
                     InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")
                 ]
@@ -193,7 +192,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
 
         # assertion
         for per_issue_data in result_tracker.issues.values():
-            self.assertEqual(per_issue_data.analysis_response.is_final, TRUE)
+            self.assertEqual(per_issue_data.analysis_response.is_final, FinalStatus.TRUE.value)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_malformed_missing_source_codes_yield_no_additions_and_set_is_final(self, mock_repo_handler_factory):
@@ -204,7 +203,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             for per_issue_data in tracker.issues.values():
                 per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
                     is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
-                    is_final=FALSE,
+                    is_final=FinalStatus.FALSE.value,
                     instructions=[
                         InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")
                     ]
@@ -217,7 +216,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             result_tracker = await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)
             for per_issue_data in result_tracker.issues.values():
                 self.assertEqual(per_issue_data.source_code, {})
-                self.assertEqual(per_issue_data.analysis_response.is_final, TRUE)
+                self.assertEqual(per_issue_data.analysis_response.is_final, FinalStatus.TRUE.value)
 
     @patch('sast_agent_workflow.tools.data_fetcher.repo_handler_factory')
     async def test_handles_non_per_issue_data_entry(self, mock_repo_handler_factory):
@@ -282,7 +281,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         tracker.config = None
         for per_issue in tracker.issues.values():
             per_issue.analysis_response = TestUtils.create_sample_analysis_response(
-                is_final=FALSE,
+                is_final=FinalStatus.FALSE.value,
                 instructions=[InstructionResponse(expression_name="foo", referring_source_code_path="a.c", recommendation="inspect")]
             )
         mock_repo_handler_factory.return_value = None
@@ -293,7 +292,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=1)
         for per_issue in tracker.issues.values():
             per_issue.analysis_response = TestUtils.create_sample_analysis_response(
-                is_final=FALSE,
+                is_final=FinalStatus.FALSE.value,
                 instructions=[InstructionResponse(expression_name="foo", referring_source_code_path="a.c", recommendation="inspect")]
             )
         mock_repo_handler = Mock()
@@ -309,7 +308,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=1)
         for per_issue in tracker.issues.values():
             per_issue.analysis_response = TestUtils.create_sample_analysis_response(
-                is_final=FALSE,
+                is_final=FinalStatus.FALSE.value,
                 instructions=[InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")]
             )
             per_issue.source_code = {"src/foo.c": ["old"]}

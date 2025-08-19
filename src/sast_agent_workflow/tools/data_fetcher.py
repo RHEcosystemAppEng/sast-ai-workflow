@@ -11,7 +11,7 @@ from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from handlers.repo_handler_factory import repo_handler_factory
-from common.constants import TRUE
+from dto.LLMResponse import FinalStatus
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ async def data_fetcher(
 
             # If an earlier node (e.g., filter) already marked this issue final, skip fetching
             analysis_response = per_issue.analysis_response
-            if analysis_response and analysis_response.is_final == TRUE:
+            if analysis_response and analysis_response.is_final == FinalStatus.TRUE.value:
                 logger.info(f"Skipping issue {issue_id}: already final")
                 continue
 
@@ -118,7 +118,7 @@ async def data_fetcher(
                             per_issue.source_code[path].append(code)
                     else:
                         # Verification step: no new data fetched though instructions exist
-                        analysis_response.is_final = TRUE
+                        analysis_response.is_final = FinalStatus.TRUE.value
             except Exception as e:
                 logger.error(f"Failed processing instructions for issue {issue_id}: {e}")
 
