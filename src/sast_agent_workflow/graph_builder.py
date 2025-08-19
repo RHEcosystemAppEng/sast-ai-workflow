@@ -28,17 +28,30 @@ def should_continue_analysis(tracker: SASTWorkflowTracker) -> str:
         WorkflowNode.DATA_FETCHER to loop back for re-analysis, 
         or WorkflowNode.SUMMARIZE_JUSTIFICATIONS to proceed to final steps
     """
-    issues_needing_second_analysis_count = count_issues_needing_second_analysis(tracker.issues)
+    try:
+        if not hasattr(tracker, 'iteration_count'):
+            logger.warning("iteration_count not found in tracker, setting to 1")
+            tracker.iteration_count = 1
+        
+        issues_needing_second_analysis_count = count_issues_needing_second_analysis(tracker.issues)
+        
+        if not hasattr(tracker, 'config') or tracker.config is None:
+            logger.warning("Config not found in tracker, using default MAX_ANALYSIS_ITERATIONS of 2")
+            max_iterations = 2
+        else:
+            if not hasattr(tracker.config, 'MAX_ANALYSIS_ITERATIONS'):
+                logger.warning("MAX_ANALYSIS_ITERATIONS not found in config, using default value of 2")
+            max_iterations = getattr(tracker.config, 'MAX_ANALYSIS_ITERATIONS', 2)
+        
+        if issues_needing_second_analysis_count > 0 and tracker.iteration_count < max_iterations:
+            logger.info(f"Conditional edge: Continuing analysis loop. {issues_needing_second_analysis_count=} issues need second analysis and iteration {tracker.iteration_count} < {max_iterations}")
+            return WorkflowNode.DATA_FETCHER.value
+        else:
+            logger.info(f"Conditional edge: Proceeding to final steps. {issues_needing_second_analysis_count=} issues need second analysis, {tracker.iteration_count=}, {max_iterations=}")
+            return WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
-    if not hasattr(tracker.config, 'MAX_ANALYSIS_ITERATIONS'):
-        logger.warning("MAX_ANALYSIS_ITERATIONS not found in config, using default value of 2")
-    max_iterations = getattr(tracker.config, 'MAX_ANALYSIS_ITERATIONS', 2)
-    
-    if issues_needing_second_analysis_count > 0 and tracker.iteration_count < max_iterations:
-        logger.info(f"Conditional edge: Continuing analysis loop. {issues_needing_second_analysis_count=} issues need second analysis and iteration {tracker.iteration_count} < {max_iterations}")
-        return WorkflowNode.DATA_FETCHER.value
-    else:
-        logger.info(f"Conditional edge: Proceeding to final steps. {issues_needing_second_analysis_count=} issues need second analysis, {tracker.iteration_count=}, {max_iterations=}")
+    except Exception as e:
+        logger.error(f"Error in should_continue_analysis: {e}. Proceeding to final steps as fallback.")
         return WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
 
 
