@@ -118,6 +118,7 @@ async def data_fetcher(
                             per_issue.source_code[path].append(code)
                     else:
                         # Verification step: no new data fetched though instructions exist
+                        logger.debug(f"Issue {issue_id}: Setting is_final=TRUE manually - no new data fetched despite instructions present")
                         analysis_response.is_final = FinalStatus.TRUE.value
             except Exception as e:
                 logger.error(f"Failed processing instructions for issue {issue_id}: {e}")
