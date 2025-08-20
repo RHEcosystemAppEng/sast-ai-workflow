@@ -8,7 +8,7 @@ import logging
 from typing import Callable
 
 from common.config import Config
-from common.constants import CONDITIONAL_EDGE_LOG, GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG
+from common.constants import CONDITIONAL_EDGE_LOG, GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG, GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG
 from Utils.workflow_utils import get_linear_edges
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -145,4 +145,4 @@ def verify_graph_structure(graph: CompiledStateGraph | None) -> None:
 
         
     except Exception as e:
-        logger.warning(f"Could not fully verify graph structure: {e}, but graph compilation succeeded")
+        logger.warning(GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG.format(e=e))

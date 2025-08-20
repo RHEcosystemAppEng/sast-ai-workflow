@@ -117,3 +117,4 @@ NO_ANALYSIS_RESPONSE = 'no_analysis_response'
 GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG = "Config not found in config, reloading config and using default value of MAX_ANALYSIS_ITERATIONS"
 CONDITIONAL_EDGE_LOG = "Conditional edge: {action}. {issues_needing_second_analysis_count} issues need second analysis, " \
     "iteration_count={iteration_count}, max_analysis_iterations={max_analysis_iterations}"
+GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG = "Could not fully verify graph structure: {e}, but graph compilation succeeded"

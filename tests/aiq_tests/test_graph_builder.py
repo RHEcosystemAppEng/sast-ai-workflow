@@ -6,12 +6,14 @@ and overall workflow compilation using BDD-style given__when__then naming.
 """
 
 from unittest import mock
+from common.constants import GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG
 import pytest
 from unittest.mock import Mock, AsyncMock
 
 from sast_agent_workflow.graph_builder import (
     should_continue_analysis,
     build_sast_workflow_graph,
+    verify_graph_structure,
 )
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.LLMResponse import FinalStatus, CVEValidationStatus, AnalysisResponse
@@ -126,7 +128,8 @@ class TestShouldContinueAnalysis:
         )
         
         # Testing
-        result = should_continue_analysis(tracker)
+        with mock.patch('common.config.Config.validate_configurations'):
+            result = should_continue_analysis(tracker)
         
         # Assertion
         assert result == WorkflowNode.DATA_FETCHER.value
@@ -147,7 +150,8 @@ class TestShouldContinueAnalysis:
         )
         
         # Testing
-        result = should_continue_analysis(tracker)
+        with mock.patch('common.config.Config.validate_configurations'):
+            result = should_continue_analysis(tracker)
         
         # Assertion
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
@@ -322,8 +326,8 @@ class TestShouldContinueAnalysis:
         assert result == WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
 
 
-class TestBuildSastWorkflowGraph:
-    """Test the graph building functionality."""
+class TestGraphBuilder:
+    """Test all graph building functionality including compilation and verification."""
     
     @pytest.fixture
     def mock_nodes(self):
@@ -349,3 +353,151 @@ class TestBuildSastWorkflowGraph:
         # Assertion
         assert graph is not None
         assert hasattr(graph, 'invoke') or hasattr(graph, 'ainvoke')
+    
+    def test__build_sast_workflow_graph__contains_all_expected_nodes(self, mock_nodes):
+        # Preparation
+        expected_nodes = [
+            WorkflowNode.PRE_PROCESS.value,
+            WorkflowNode.FILTER.value,
+            WorkflowNode.DATA_FETCHER.value,
+            WorkflowNode.JUDGE_LLM_ANALYSIS.value,
+            WorkflowNode.EVALUATE_ANALYSIS.value,
+            WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value,
+            WorkflowNode.CALCULATE_METRICS.value,
+            WorkflowNode.WRITE_RESULTS.value
+        ]
+        
+        # Testing
+        graph = build_sast_workflow_graph(**mock_nodes)
+        
+        # Assertion
+        graph_structure = graph.get_graph()
+        actual_nodes = list(graph_structure.nodes.keys()) if hasattr(graph_structure, 'nodes') else []
+        
+        for expected_node in expected_nodes:
+            assert expected_node in actual_nodes, f"Expected node '{expected_node}' not found in graph"
+    
+    def test__build_sast_workflow_graph__has_conditional_edge_from_evaluate_analysis(self, mock_nodes):
+        # Preparation
+        # mock_nodes fixture provides all required node functions
+        
+        # Testing
+        graph = build_sast_workflow_graph(**mock_nodes)
+        
+        # Assertion
+        graph_structure = graph.get_graph()
+
+
+        # Check that conditional edges exist from evaluate_analysis node
+        graph_edges = graph_structure.edges
+        assert any(edge for edge in graph_edges if edge.source == WorkflowNode.EVALUATE_ANALYSIS.value and edge.conditional == True)
+
+    def test__build_sast_workflow_graph__has_linear_edges_between_sequential_nodes(self, mock_nodes):
+        # Preparation
+        from Utils.workflow_utils import get_linear_edges
+        expected_linear_edges = set(get_linear_edges())
+        
+        # Testing
+        graph = build_sast_workflow_graph(**mock_nodes)
+        
+        # Assertion
+        graph_structure = graph.get_graph()
+        
+        # Verify linear edges exist
+        actual_edges = graph_structure.edges
+        assert len(actual_edges) > 0, "Graph should have edges between nodes"
+        
+        # Verify that expected linear edges exist
+        actual_edges_tuples = set((edge.source, edge.target) for edge in actual_edges if not edge.conditional)
+        assert expected_linear_edges == actual_edges_tuples, f"Expected edges {expected_linear_edges} and actual edges {actual_edges_tuples} are not the same"
+
+    def test__build_sast_workflow_graph__missing_node_function_raises_error(self):
+        # Preparation
+        incomplete_nodes = {
+            'pre_process_node': AsyncMock(),
+            'filter_node': AsyncMock(),
+            # Missing other required nodes
+        }
+
+        # Testing & Assertion
+        with pytest.raises(TypeError):
+            build_sast_workflow_graph(**incomplete_nodes)
+    
+    def test__build_sast_workflow_graph__none_node_function_raises_error(self):
+        # Preparation
+        nodes_with_none = {
+            'pre_process_node': AsyncMock(),
+            'filter_node': None,  # None node function
+            'data_fetcher_node': AsyncMock(),
+            'judge_llm_analysis_node': AsyncMock(),
+            'evaluate_analysis_node': AsyncMock(),
+            'summarize_justifications_node': AsyncMock(),
+            'calculate_metrics_node': AsyncMock(),
+            'write_results_node': AsyncMock()
+        }
+        
+        # Testing & Assertion
+        with pytest.raises(RuntimeError):
+            build_sast_workflow_graph(**nodes_with_none)
+    
+    def test__verify_graph_structure__valid_graph_passes_verification(self, mock_nodes, caplog):
+        # Preparation
+        import logging
+        graph = build_sast_workflow_graph(**mock_nodes)
+        
+        # Testing
+        with caplog.at_level(logging.WARNING):
+            verify_graph_structure(graph)
+
+        # Assertion
+        # Should not log any warnings for a valid graph
+        warning_message = GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG.split("{e}")
+        assert warning_message[0] not in caplog.text
+        assert warning_message[1] not in caplog.text
+    
+    def test__verify_graph_structure__none_graph_raises_runtime_error(self):
+        # Preparation
+        graph = None
+        
+        # Testing & Assertion
+        with pytest.raises(RuntimeError, match="Graph compilation failed - graph is None"):
+            verify_graph_structure(graph)
+    
+    def test__verify_graph_structure__graph_with_missing_nodes_logs_warning(self, mock_nodes, caplog):
+        # Preparation
+        import logging
+        # Create a graph and then mock it to appear missing nodes
+        graph = build_sast_workflow_graph(**mock_nodes)
+        
+        # Mock the graph structure to simulate missing nodes
+        mock_graph_structure = Mock()
+        mock_graph_structure.nodes = Mock()
+        mock_graph_structure.nodes.keys.return_value = [
+            WorkflowNode.PRE_PROCESS.value,
+            # Missing other expected nodes
+        ]
+        
+        with mock.patch.object(graph, 'get_graph', return_value=mock_graph_structure):
+            # Testing
+            with caplog.at_level(logging.WARNING):
+                verify_graph_structure(graph)
+
+            # Assertion
+            warning_message = GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG.split("{e}")
+            assert warning_message[0] in caplog.text
+            assert warning_message[1] in caplog.text
+    
+    def test__verify_graph_structure__graph_structure_access_error_logs_warning_but_succeeds(self, mock_nodes, caplog):
+        # Preparation
+        import logging
+        graph = build_sast_workflow_graph(**mock_nodes)
+        
+        # Mock get_graph to raise an exception
+        with mock.patch.object(graph, 'get_graph', side_effect=Exception("Graph access error")):
+            with caplog.at_level(logging.WARNING):
+                verify_graph_structure(graph)
+
+            # Assertion
+            warning_message = GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG.split("{e}")
+            assert warning_message[0] in caplog.text
+            assert warning_message[1] in caplog.text
