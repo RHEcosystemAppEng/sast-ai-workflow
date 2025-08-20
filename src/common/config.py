@@ -19,6 +19,7 @@ from common.constants import (
     LLM_API_TYPE,
     LLM_MODEL_NAME,
     LLM_URL,
+    MAX_ANALYSIS_ITERATIONS,
     OUTPUT_FILE_PATH,
     PROJECT_NAME,
     PROJECT_VERSION,
@@ -27,8 +28,9 @@ from common.constants import (
     RUN_WITH_CRITIQUE,
     SERVICE_ACCOUNT_JSON_PATH,
     SIMILARITY_ERROR_THRESHOLD,
+    VALIDATION_LIMITS,
 )
-from Utils.validation_utils import validate_similarity_threshold
+from Utils.validation_utils import is_valid_int_value
 
 logger = logging.getLogger(__name__)
 
@@ -278,9 +280,18 @@ class Config:
             )
 
         # Validate that similarity error threshold is a valid value
-        if not validate_similarity_threshold(self.SIMILARITY_ERROR_THRESHOLD):
+        if not is_valid_int_value(self.SIMILARITY_ERROR_THRESHOLD, 
+                                  VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"], 
+                                  VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"]):
             raise ValueError(
                 f"Configuration variable '{SIMILARITY_ERROR_THRESHOLD}' is not a valid value."
+            )
+
+        # Validate that MAX_ANALYSIS_ITERATIONS is a positive integer
+        if not is_valid_int_value(self.MAX_ANALYSIS_ITERATIONS, 
+                                  VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]):
+            raise ValueError(
+                f"Configuration variable '{MAX_ANALYSIS_ITERATIONS}' is not a valid value."
             )
 
         # Validate that prompt templates are loaded
