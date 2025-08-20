@@ -7,6 +7,8 @@ This module contains the logic for building the LangGraph workflow structure,
 import logging
 from typing import Callable
 
+from common.config import Config
+from common.constants import CONDITIONAL_EDGE_LOG, GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG
 from Utils.workflow_utils import get_linear_edges
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -36,16 +38,24 @@ def should_continue_analysis(tracker: SASTWorkflowTracker) -> str:
         issues_needing_second_analysis_count = count_issues_needing_second_analysis(tracker.issues)
         
         if not hasattr(tracker, 'config') or tracker.config is None:
-            logger.warning("Config not found in tracker, using default MAX_ANALYSIS_ITERATIONS of 2")
-            max_iterations = 2
-        else:
-            max_iterations = tracker.config.MAX_ANALYSIS_ITERATIONS
+            logger.warning(GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG)
+            tracker.config = Config()
         
-        if issues_needing_second_analysis_count > 0 and tracker.iteration_count < max_iterations:
-            logger.info(f"Conditional edge: Continuing analysis loop. {issues_needing_second_analysis_count=} issues need second analysis and iteration {tracker.iteration_count} < {max_iterations}")
+        if issues_needing_second_analysis_count > 0 and tracker.iteration_count < tracker.config.MAX_ANALYSIS_ITERATIONS:
+            logger.info(CONDITIONAL_EDGE_LOG.format(
+                action="Continuing analysis loop",
+                issues_needing_second_analysis_count=issues_needing_second_analysis_count,
+                iteration_count=tracker.iteration_count,
+                max_analysis_iterations=tracker.config.MAX_ANALYSIS_ITERATIONS
+            ))
             return WorkflowNode.DATA_FETCHER.value
         else:
-            logger.info(f"Conditional edge: Proceeding to final steps. {issues_needing_second_analysis_count=} issues need second analysis, {tracker.iteration_count=}, {max_iterations=}")
+            logger.info(CONDITIONAL_EDGE_LOG.format(
+                action="Proceeding to final steps",
+                issues_needing_second_analysis_count=issues_needing_second_analysis_count,
+                iteration_count=tracker.iteration_count,
+                max_analysis_iterations=tracker.config.MAX_ANALYSIS_ITERATIONS
+            ))
             return WorkflowNode.SUMMARIZE_JUSTIFICATIONS.value
     
     except Exception as e:

@@ -112,3 +112,8 @@ TRUE_POSITIVES = 'true_positives'
 FALSE_POSITIVES = 'false_positives'
 NEEDS_SECOND_ANALYSIS = 'needs_second_analysis'
 NO_ANALYSIS_RESPONSE = 'no_analysis_response'
+
+# Graph builder log messages
+GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG = "Config not found in config, reloading config and using default value of MAX_ANALYSIS_ITERATIONS"
+CONDITIONAL_EDGE_LOG = "Conditional edge: {action}. {issues_needing_second_analysis_count} issues need second analysis, " \
+    "iteration_count={iteration_count}, max_analysis_iterations={max_analysis_iterations}"
