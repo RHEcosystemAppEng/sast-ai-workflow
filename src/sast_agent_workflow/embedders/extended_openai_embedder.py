@@ -28,10 +28,7 @@ class ExtendedOpenAIEmbedderConfig(OpenAIEmbedderModelConfig, name="extended_ope
 @register_embedder_provider(config_type=ExtendedOpenAIEmbedderConfig)
 async def extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder: Builder):
     """Register the extended OpenAI embedder with extra parameters support."""
-    # Create custom http client based on config    
-    if config.http_client:
-        config.http_client = httpx.Client(**config.http_client)
-    
+    # Don't modify the config object directly - the client creation will be handled in the client registration
     yield EmbedderProviderInfo(config=config, description="An OpenAI model for use with an Embedder client.")
 
 
@@ -43,4 +40,11 @@ async def extended_openai_langchain(embedder_config: ExtendedOpenAIEmbedderConfi
     """
     from langchain_openai import OpenAIEmbeddings
 
-    yield OpenAIEmbeddings(**embedder_config.model_dump(exclude={"type"}, by_alias=True))
+    # Create config dict and handle http_client properly
+    config_dict = embedder_config.model_dump(exclude={"type"}, by_alias=True)
+    
+    # If http_client parameters are provided, create the actual client
+    if config_dict.get("http_client"):
+        config_dict["http_client"] = httpx.Client(**config_dict["http_client"])
+
+    yield OpenAIEmbeddings(**config_dict)

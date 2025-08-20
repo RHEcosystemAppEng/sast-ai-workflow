@@ -4,7 +4,6 @@ Validation utilities for input validation and data integrity checks.
 
 import logging
 from typing import Any, List
-from common.constants import VALIDATION_LIMITS
 from dto.Issue import Issue
 
 logger = logging.getLogger(__name__)
@@ -15,29 +14,26 @@ class ValidationError(Exception):
     pass
 
 
-def validate_similarity_threshold(threshold: int) -> bool:
+def is_valid_int_value(value: Any, min_val: int | None = None, max_val: int | None = None) -> bool:
     """
-    Validate that the similarity threshold is within acceptable range.
+    Validate that a value is an integer within optional min/max range.
     
     Args:
-        threshold: The similarity threshold to validate
+        value: The value to validate
+        min_val: Minimum allowed value (optional)
+        max_val: Maximum allowed value (optional)
         
     Returns:
-        bool: True if valid
-        
-    Raises:
-        ValidationError: If threshold is out of range
+        bool: True if valid, False otherwise
     """
-    if not isinstance(threshold, int):
-        raise ValidationError(f"Similarity threshold must be an integer, got {type(threshold)}")
+    if not isinstance(value, int):
+        return False
     
-    min_threshold = VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"]
-    max_threshold = VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"]
+    if min_val is not None and value < min_val:
+        return False
     
-    if threshold < min_threshold or threshold > max_threshold:
-        raise ValidationError(
-            f"Similarity threshold {threshold} must be between {min_threshold} and {max_threshold}"
-        )
+    if max_val is not None and value > max_val:
+        return False
     
     return True
 
