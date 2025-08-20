@@ -5,6 +5,7 @@ This module tests the graph structure, conditional routing logic,
 and overall workflow compilation using BDD-style given__when__then naming.
 """
 
+from unittest import mock
 import pytest
 from unittest.mock import Mock, AsyncMock
 
@@ -117,11 +118,10 @@ class TestShouldContinueAnalysis:
             is_final=FinalStatus.FALSE.value,
             instructions=[{"action": "analyze_deeper"}]  # Issues need second analysis
         )
-        config = Mock(spec=Config)
-        # Don't set MAX_ANALYSIS_ITERATIONS attribute
+
         tracker = SASTWorkflowTracker(
             issues=issues_dict,
-            config=config,
+            config=None,
             iteration_count=1  # Under default limit of 2
         )
         
@@ -139,11 +139,10 @@ class TestShouldContinueAnalysis:
             is_final=FinalStatus.FALSE.value,
             instructions=[{"action": "analyze_deeper"}]  # Issues need second analysis
         )
-        config = Mock(spec=Config)
-        # Don't set MAX_ANALYSIS_ITERATIONS attribute
+        
         tracker = SASTWorkflowTracker(
             issues=issues_dict,
-            config=config,
+            config=None,
             iteration_count=2  # At limit of default (2)
         )
         
