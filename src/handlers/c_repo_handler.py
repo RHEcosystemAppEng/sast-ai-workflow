@@ -13,6 +13,8 @@ from Utils.repo_utils import download_repo, get_repo_and_branch_from_url
 
 logger = logging.getLogger(__name__)
 
+# Global flag to track if libclang has been initialized
+_libclang_initialized = False
 
 class CRepoHandler:
     """
@@ -59,8 +61,16 @@ class CRepoHandler:
         self._compile_commands_json = {}
         self._compile_commands_json_path = config.COMPILE_COMMANDS_JSON_PATH
 
-        clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
-        self.index = clang.cindex.Index.create()
+        # Initialize libclang only once per process (global state limitation)
+        global _libclang_initialized
+        
+        if not _libclang_initialized:
+            clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
+            _libclang_initialized = True
+            self.index = clang.cindex.Index.create()
+        else:
+            # Reuse existing libclang initialization, just create new index
+            self.index = clang.cindex.Index.create()
 
     @property
     def compile_commands_json(self):
