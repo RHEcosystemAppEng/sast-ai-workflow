@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 # Global flag to track if libclang has been initialized
 _libclang_initialized = False
-_libclang_path = None
 
 class CRepoHandler:
     """
@@ -63,11 +62,10 @@ class CRepoHandler:
         self._compile_commands_json_path = config.COMPILE_COMMANDS_JSON_PATH
 
         # Initialize libclang only once per process (global state limitation)
-        global _libclang_initialized, _libclang_path
+        global _libclang_initialized
         
         if not _libclang_initialized:
             clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
-            _libclang_path = config.LIBCLANG_PATH
             _libclang_initialized = True
             self.index = clang.cindex.Index.create()
         else:
