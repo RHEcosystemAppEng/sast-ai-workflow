@@ -3,6 +3,7 @@ import json
 import logging
 
 from ReportReader import read_sast_report
+from common.constants import DEFAULT_FIELD_VALUE
 from common.config import Config
 from pydantic import Field
 
@@ -20,11 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 def _create_default_analysis_response() -> AnalysisResponse:
-    default_field_value = "This is a default value, if it's not replaced, something went wrong"
     return AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value, 
-                            is_final=FinalStatus.FALSE.value, justifications=[default_field_value], 
-                            short_justifications=default_field_value, recommendations=[default_field_value], 
-                            instructions=[], evaluation=[default_field_value], prompt=default_field_value)
+                            is_final=FinalStatus.FALSE.value, justifications=[DEFAULT_FIELD_VALUE], 
+                            short_justifications=DEFAULT_FIELD_VALUE, recommendations=[DEFAULT_FIELD_VALUE], 
+                            instructions=[], evaluation=[DEFAULT_FIELD_VALUE], prompt=DEFAULT_FIELD_VALUE)
 
 class PreProcessConfig(FunctionBaseConfig, name="pre_process"):
     """
