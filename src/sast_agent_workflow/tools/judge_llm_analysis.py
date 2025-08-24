@@ -12,6 +12,7 @@ from common.constants import FALSE
 from src.Utils.validation_utils import ValidationError
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
+from src.dto.LLMResponse import FinalStatus
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ async def judge_llm_analysis(
                 continue
                 
             # Skip if analysis is already final
-            if per_issue.analysis_response and per_issue.analysis_response.is_final != FALSE:
+            if per_issue.analysis_response and per_issue.analysis_response.is_final == FinalStatus.TRUE.value:
                 logger.info(f"Skipping issue {issue_id}: analysis already final")
                 continue
                 
