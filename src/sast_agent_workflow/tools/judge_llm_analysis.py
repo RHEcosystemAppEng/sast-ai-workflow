@@ -10,6 +10,7 @@ from aiq.data_models.function import FunctionBaseConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from LLMService import LLMService
 from common.constants import FALSE
+from src.Utils.validation_utils import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,11 @@ async def judge_llm_analysis(
         if tracker is None:
             raise ValueError("Tracker must not be None")
             
+        if not tracker.config:
+            error_msg = "No config found in tracker, cannot initialize LLM service"
+            logger.error(error_msg)
+            raise ValidationError(error_msg)
+
         logger.info("Running Judge_LLM_Analysis node - performing LLM analysis")
         logger.info(f"Judge_LLM_Analysis node processing tracker with {len(tracker.issues)} issues")
         
