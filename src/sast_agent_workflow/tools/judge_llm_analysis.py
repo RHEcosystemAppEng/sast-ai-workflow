@@ -2,15 +2,16 @@ import logging
 
 from pydantic import Field
 
-from aiq.builder.builder import Builder
+from aiq.builder.builder import Builder, LLMFrameworkEnum
 from aiq.builder.function_info import FunctionInfo
 from aiq.cli.register_workflow import register_function
 from aiq.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
-from LLMService import LLMService
 from common.constants import FALSE
 from src.Utils.validation_utils import ValidationError
+from services.issue_analysis_service import IssueAnalysisService
+from services.vector_store_service import VectorStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,10 @@ class JudgeLLMAnalysisConfig(FunctionBaseConfig, name="judge_llm_analysis"):
         default="Judge LLM analysis function that performs LLM-based analysis of SAST issues",
         description="Function description"
     )
+    llm_name: str = Field(description="LLM name to use for issue analysis")
 
 
-@register_function(config_type=JudgeLLMAnalysisConfig)
+@register_function(config_type=JudgeLLMAnalysisConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
 async def judge_llm_analysis(
     config: JudgeLLMAnalysisConfig, builder: Builder
 ):
@@ -70,14 +72,9 @@ async def judge_llm_analysis(
         logger.info("Running Judge_LLM_Analysis node - performing LLM analysis")
         logger.info(f"Judge_LLM_Analysis node processing tracker with {len(tracker.issues)} issues")
         
-        # Initialize LLM service if config is available
-        llm_service = None
-        if tracker.config is not None:
-            try:
-                llm_service = LLMService(tracker.config)
-            except Exception as e:
-                logger.error(f"Failed to initialize LLM service: {e}")
-                raise RuntimeError(f"LLM service initialization failed: {e}") from e
+        llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+        vector_service = VectorStoreService()
+        issue_analysis_service = IssueAnalysisService(tracker.config, vector_service)
         
         for issue_id, per_issue in tracker.issues.items():
             if not isinstance(per_issue, PerIssueData):
@@ -92,13 +89,13 @@ async def judge_llm_analysis(
             # Build full analysis context
             context = _build_analysis_context(per_issue)
             
-            if llm_service is None:
-                logger.warning(f"Skipping analysis for issue {issue_id}: LLM service not available")
-                continue
-                
             try:
-                # Call primary analysis LLM
-                analysis_response, _ = llm_service.investigate_issue(context, per_issue.issue)
+                # Call issue analysis service
+                analysis_response, _ = issue_analysis_service.analyze_issue(
+                    issue=per_issue.issue,
+                    context=context,
+                    main_llm=llm
+                )
                 
                 # Update the per-issue analysis response
                 per_issue.analysis_response = analysis_response
