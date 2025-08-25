@@ -17,61 +17,6 @@ from services.vector_store_service import VectorStoreService
 logger = logging.getLogger(__name__)
 
 
-def _process_single_issue_evaluation(issue_id: str, issue_data: PerIssueData, 
-                                    issue_analysis_service: IssueAnalysisService, llm) -> None:
-    """
-    Process evaluation for a single issue using IssueAnalysisService.recommend.
-    
-    Args:
-        issue_id: The issue identifier
-        issue_data: The PerIssueData object
-        issue_analysis_service: The IssueAnalysisService instance
-        llm: The LLM to use for recommendations
-    """
-    if not issue_id or not isinstance(issue_id, str):
-        logger.error("Invalid issue_id: must be a non-empty string")
-        return
-    
-    if not isinstance(issue_data, PerIssueData):
-        logger.error(f"{issue_id}: Invalid issue data: must be a PerIssueData object, got {type(issue_data)}")
-        return
-    
-    if not issue_data.analysis_response:
-        logger.debug(f"{issue_id}: No analysis response found, skipping evaluation")
-        return
-    
-    if issue_data.analysis_response.is_final == FinalStatus.TRUE.value:
-        logger.debug(f"{issue_id}: Analysis already marked as final, skipping evaluation")
-        return
-    
-    try:
-        # Create JudgeLLMResponse from existing analysis_response
-        judge_response = JudgeLLMResponse(
-            investigation_result=issue_data.analysis_response.investigation_result,
-            justifications=issue_data.analysis_response.justifications
-        )
-        
-        # Call recommend to get recommendations and final status
-        recommendations_response = issue_analysis_service.recommend(
-            issue=issue_data.issue,
-            context=issue_data.similar_known_issues,
-            analysis_response=judge_response,
-            main_llm=llm
-        )
-        
-        # Update the analysis response with recommendation results
-        issue_data.analysis_response.is_final = recommendations_response.is_final
-        issue_data.analysis_response.recommendations = recommendations_response.recommendations
-        issue_data.analysis_response.instructions = recommendations_response.instructions
-        issue_data.analysis_response.evaluation = recommendations_response.justifications
-        
-        logger.info(f"{issue_id}: Evaluation completed. is_final: {recommendations_response.is_final}")
-            
-    except Exception as e:
-        logger.error(f"Unexpected error evaluating issue {issue_id}: {e}", exc_info=True)
-        # Default values already set in pre_process_node
-
-
 class EvaluateAnalysisConfig(FunctionBaseConfig, name="evaluate_analysis"):
     """
     Evaluate analysis function for SAST workflow.
@@ -156,3 +101,58 @@ async def evaluate_analysis(
         logger.info("Evaluate_Analysis function exited early!")
     finally:
         logger.info("Cleaning up Evaluate_Analysis function.")
+
+
+def _process_single_issue_evaluation(issue_id: str, issue_data: PerIssueData, 
+                                    issue_analysis_service: IssueAnalysisService, llm) -> None:
+    """
+    Process evaluation for a single issue using IssueAnalysisService.recommend.
+    
+    Args:
+        issue_id: The issue identifier
+        issue_data: The PerIssueData object
+        issue_analysis_service: The IssueAnalysisService instance
+        llm: The LLM to use for recommendations
+    """
+    if not issue_id or not isinstance(issue_id, str):
+        logger.error("Invalid issue_id: must be a non-empty string")
+        return
+    
+    if not isinstance(issue_data, PerIssueData):
+        logger.error(f"{issue_id}: Invalid issue data: must be a PerIssueData object, got {type(issue_data)}")
+        return
+    
+    if not issue_data.analysis_response:
+        logger.debug(f"{issue_id}: No analysis response found, skipping evaluation")
+        return
+    
+    if issue_data.analysis_response.is_final == FinalStatus.TRUE.value:
+        logger.debug(f"{issue_id}: Analysis already marked as final, skipping evaluation")
+        return
+    
+    try:
+        # Create JudgeLLMResponse from existing analysis_response
+        judge_response = JudgeLLMResponse(
+            investigation_result=issue_data.analysis_response.investigation_result,
+            justifications=issue_data.analysis_response.justifications
+        )
+        
+        # Call recommend to get recommendations and final status
+        recommendations_response = issue_analysis_service.recommend(
+            issue=issue_data.issue,
+            context=issue_data.similar_known_issues,
+            analysis_response=judge_response,
+            main_llm=llm
+        )
+        
+        # Update the analysis response with recommendation results
+        issue_data.analysis_response.is_final = recommendations_response.is_final
+        issue_data.analysis_response.recommendations = recommendations_response.recommendations
+        issue_data.analysis_response.instructions = recommendations_response.instructions
+        issue_data.analysis_response.evaluation = recommendations_response.justifications
+        
+        logger.info(f"{issue_id}: Evaluation completed. is_final: {recommendations_response.is_final}")
+            
+    except Exception as e:
+        logger.error(f"Unexpected error evaluating issue {issue_id}: {e}", exc_info=True)
+        # Default values already set in pre_process_node
