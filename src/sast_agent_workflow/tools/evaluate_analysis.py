@@ -9,8 +9,8 @@ from aiq.data_models.function import FunctionBaseConfig
 
 from Utils.validation_utils import ValidationError, validate_issue_dict
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
-from dto.LLMResponse import AnalysisResponse, FinalStatus
-from dto.ResponseStructures import JudgeLLMResponse, RecommendationsResponse
+from dto.LLMResponse import FinalStatus
+from dto.ResponseStructures import JudgeLLMResponse
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
 
