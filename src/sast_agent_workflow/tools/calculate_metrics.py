@@ -12,7 +12,6 @@ from dto.EvaluationSummary import EvaluationSummary
 from Utils.file_utils import get_human_verified_results
 from Utils.workflow_utils import convert_tracker_to_summary_data
 from common.constants import (
-    CALCULATE_METRICS, 
     METRICS_ERROR_NO_ISSUES,
     METRICS_ERROR_CALCULATION_FAILED,
     METRICS_ERROR_IMPORT,
@@ -49,10 +48,6 @@ async def calculate_metrics(
         
         if not tracker.config:
             logger.warning("No config found in tracker - skipping metrics calculation")
-            return tracker
-            
-        if not getattr(tracker.config, CALCULATE_METRICS, True):
-            logger.info("CALCULATE_METRICS is disabled in config - skipping metrics calculation")
             return tracker
         
         try:
