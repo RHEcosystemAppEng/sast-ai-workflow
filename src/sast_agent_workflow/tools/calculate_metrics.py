@@ -51,7 +51,8 @@ async def calculate_metrics(
             return tracker
         
         try:
-            summary_data = convert_tracker_to_summary_data(tracker, include_non_final=False)
+            include_non_final = getattr(tracker.config, 'WRITE_RESULTS_INCLUDE_NON_FINAL', True)
+            summary_data = convert_tracker_to_summary_data(tracker, include_non_final=include_non_final)
             
             if not summary_data:
                 logger.warning("No completed issues found for metrics calculation")
