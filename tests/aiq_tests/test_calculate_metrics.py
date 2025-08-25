@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from sast_agent_workflow.tools.calculate_metrics import calculate_metrics, CalculateMetricsConfig
-from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
+from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.config import Config

@@ -225,6 +225,10 @@ class Config:
         else:
             required_cfg_files.add(REPO_LOCAL_PATH)
 
+        if not self.WRITE_RESULTS:
+            required_cfg_vars.remove(OUTPUT_FILE_PATH)
+            logger.warning("WRITE_RESULTS is disabled in config - skipping results writing!")
+
         # Validate that required configuration variables are set
         for var in required_cfg_vars:
             value = self.__dict__[var]
