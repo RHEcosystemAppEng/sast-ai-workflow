@@ -3,15 +3,15 @@ Unit tests for the judge_llm_analysis tool's core function.
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, ANY
 
 from sast_agent_workflow.tools.judge_llm_analysis import judge_llm_analysis, JudgeLLMAnalysisConfig
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import EvaluationResponse
 from common.config import Config
 from aiq.builder.builder import Builder
-from common.constants import TRUE, FALSE
 from tests.aiq_tests.test_utils import TestUtils
+from src.Utils.validation_utils import ValidationError
 
 
 class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
@@ -21,21 +21,29 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         """Set up test fixtures."""
         self.sample_issues = TestUtils.create_sample_issues()
         self.mock_config = Mock(spec=Config)
-        self.judge_llm_analysis_config = JudgeLLMAnalysisConfig()
+        self.judge_llm_analysis_config = JudgeLLMAnalysisConfig(llm_name="test_llm")
         self.builder = Mock(spec=Builder)
+        
+        # Mock the LLM from builder
+        self.mock_llm = Mock()
+        self.builder.get_llm.return_value = self.mock_llm
         
         # Create a sample tracker with issues
         self.sample_tracker = TestUtils.create_sample_tracker(self.sample_issues)
 
-    @patch('sast_agent_workflow.tools.judge_llm_analysis.LLMService')
-    async def test_given_sample_tracker_when_judge_llm_analysis_executed_then_processes_non_final_issues(self, mock_llm_service_class):
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
+    async def test_given_sample_tracker_when_judge_llm_analysis_executed_then_processes_non_final_issues(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that only non-final issues are processed by LLM analysis."""
         
-        # Preparation: mock LLM service and its response
-        mock_llm_service = Mock()
+        # Preparation: mock services and their responses
+        mock_vector_service = Mock()
+        mock_vector_service_class.return_value = mock_vector_service
+        
+        mock_issue_analysis_service = Mock()
         mock_analysis_response = AnalysisResponse(
             investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-            is_final=TRUE,
+            is_final=FinalStatus.TRUE.value,
             prompt="test prompt",
             justifications=["test justification"]
         )
@@ -43,8 +51,8 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
             critique_result=CVEValidationStatus.FALSE_POSITIVE.value,
             justifications=["test evaluation"]
         )
-        mock_llm_service.investigate_issue.return_value = (mock_analysis_response, mock_evaluation_response)
-        mock_llm_service_class.return_value = mock_llm_service
+        mock_issue_analysis_service.analyze_issue.return_value = (mock_analysis_response, mock_evaluation_response)
+        mock_issue_analysis_service_class.return_value = mock_issue_analysis_service
         
         # Set up tracker with mixed final/non-final issues
         self.sample_tracker.config = self.mock_config
@@ -53,11 +61,11 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         # Make first issue final, second non-final
         self.sample_tracker.issues[issue_ids[0]].analysis_response = AnalysisResponse(
             investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-            is_final=TRUE
+            is_final=FinalStatus.TRUE.value
         )
         self.sample_tracker.issues[issue_ids[1]].analysis_response = AnalysisResponse(
             investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-            is_final=FALSE
+            is_final=FinalStatus.FALSE.value
         )
         
         # Add source code and similar issues to test context building
@@ -70,15 +78,23 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         result_tracker = await TestUtils.run_single_fn(judge_llm_analysis, self.judge_llm_analysis_config, self.builder, self.sample_tracker)
         
         # Verification
-        # LLM service should be initialized
-        mock_llm_service_class.assert_called_once_with(self.mock_config)
+        # Services should be initialized correctly
+        mock_vector_service_class.assert_called_once()
+        mock_issue_analysis_service_class.assert_called_once_with(self.mock_config, mock_vector_service)
+        
+        # Builder should get the LLM
+        self.builder.get_llm.assert_called_once_with("test_llm", wrapper_type=ANY)
         
         # Only one issue should be analyzed (the non-final one)
-        mock_llm_service.investigate_issue.assert_called_once()
+        mock_issue_analysis_service.analyze_issue.assert_called_once()
+        
+        # Verify analyze_issue was called with correct parameters
+        call_args = mock_issue_analysis_service.analyze_issue.call_args
+        self.assertEqual(call_args[1]['issue'], self.sample_tracker.issues[issue_ids[1]].issue)
+        self.assertEqual(call_args[1]['main_llm'], self.mock_llm)
         
         # Verify context structure and content
-        call_args = mock_llm_service.investigate_issue.call_args
-        context = call_args[0][0]  # First argument
+        context = call_args[1]['context']  # context argument
         self.assertIn("*** Examples ***", context)
         self.assertIn("Similar issue context", context)
         self.assertIn("*** Source Code Context ***", context)
@@ -90,7 +106,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
             result_tracker.issues[issue_ids[1]].analysis_response.investigation_result,
             CVEValidationStatus.FALSE_POSITIVE.value
         )
-        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.is_final, TRUE)
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.is_final, FinalStatus.TRUE.value)
         
         # Final issue should remain unchanged
         self.assertEqual(
@@ -102,16 +118,16 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result_tracker.iteration_count, 1)
 
     async def test_given_tracker_without_config_when_judge_llm_analysis_executed_then_raises_error(self):
-        """Test that tracker without config completes without LLM analysis."""
+        """Test that tracker without config raises ValidationError."""
         
         # Preparation: tracker without config
         self.sample_tracker.config = None
         
         # Execution and verification
-        result_tracker = await TestUtils.run_single_fn(judge_llm_analysis, self.judge_llm_analysis_config, self.builder, self.sample_tracker)
+        with self.assertRaises(ValidationError) as context:
+            await TestUtils.run_single_fn(judge_llm_analysis, self.judge_llm_analysis_config, self.builder, self.sample_tracker)
         
-        # Iteration count should still be incremented
-        self.assertEqual(result_tracker.iteration_count, 1)
+        self.assertIn("No config found in tracker", str(context.exception))
 
     async def test_given_none_tracker_when_judge_llm_analysis_executed_then_raises_value_error(self):
         """Test that None tracker raises ValueError."""
@@ -122,31 +138,37 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         
         self.assertEqual(str(context.exception), "Tracker must not be None")
 
-    @patch('sast_agent_workflow.tools.judge_llm_analysis.LLMService')
-    async def test_given_llm_service_init_failure_when_judge_llm_analysis_executed_then_raises_runtime_error(self, mock_llm_service_class):
-        """Test that LLM service initialization failure raises RuntimeError."""
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
+    async def test_given_llm_service_init_failure_when_judge_llm_analysis_executed_then_raises_runtime_error(self, mock_vector_service_class, mock_issue_analysis_service_class):
+        """Test that Issue Analysis service initialization failure raises exception."""
         
-        # Preparation: mock LLM service to raise exception
-        mock_llm_service_class.side_effect = Exception("LLM init failed")
+        # Preparation: mock IssueAnalysisService to raise exception
+        mock_vector_service_class.return_value = Mock()
+        mock_issue_analysis_service_class.side_effect = Exception("Service init failed")
         self.sample_tracker.config = self.mock_config
         
         # Execution and verification
-        with self.assertRaises(RuntimeError) as context:
+        with self.assertRaises(Exception) as context:
             await TestUtils.run_single_fn(judge_llm_analysis, self.judge_llm_analysis_config, self.builder, self.sample_tracker)
         
-        self.assertIn("LLM service initialization failed", str(context.exception))
+        self.assertIn("Service init failed", str(context.exception))
 
-    @patch('sast_agent_workflow.tools.judge_llm_analysis.LLMService')
-    async def test_given_llm_analysis_failure_when_judge_llm_analysis_executed_then_continues_processing(self, mock_llm_service_class):
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
+    async def test_given_llm_analysis_failure_when_judge_llm_analysis_executed_then_continues_processing(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that LLM analysis failure for one issue does not stop processing of remaining issues."""
         
-        # Preparation: mock LLM service to fail on first call, succeed on second
-        mock_llm_service = Mock()
-        mock_llm_service.investigate_issue.side_effect = [
+        # Preparation: mock services
+        mock_vector_service = Mock()
+        mock_vector_service_class.return_value = mock_vector_service
+        
+        mock_issue_analysis_service = Mock()
+        mock_issue_analysis_service.analyze_issue.side_effect = [
             Exception("Analysis failed"),
-            (AnalysisResponse(investigation_result=CVEValidationStatus.FALSE_POSITIVE.value, is_final=TRUE), None)
+            (AnalysisResponse(investigation_result=CVEValidationStatus.FALSE_POSITIVE.value, is_final=FinalStatus.TRUE.value), None)
         ]
-        mock_llm_service_class.return_value = mock_llm_service
+        mock_issue_analysis_service_class.return_value = mock_issue_analysis_service
         
         self.sample_tracker.config = self.mock_config
         issue_ids = list(self.sample_tracker.issues.keys())
@@ -155,7 +177,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         for issue_id in issue_ids[:2]:
             self.sample_tracker.issues[issue_id].analysis_response = AnalysisResponse(
                 investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=FALSE
+                is_final=FinalStatus.FALSE.value
             )
         
         # Execution
@@ -163,7 +185,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         
         # Verification
         # Both issues should have been attempted
-        self.assertEqual(mock_llm_service.investigate_issue.call_count, 2)
+        self.assertEqual(mock_issue_analysis_service.analyze_issue.call_count, 2)
         
         # Second issue should have been updated despite first failure
         self.assertEqual(
@@ -174,10 +196,16 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         # Iteration count should still be incremented
         self.assertEqual(result_tracker.iteration_count, 1)
 
-    async def test_given_tracker_with_invalid_issue_data_when_judge_llm_analysis_executed_then_skips_invalid_issues(self):
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
+    @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
+    async def test_given_tracker_with_invalid_issue_data_when_judge_llm_analysis_executed_then_skips_invalid_issues(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that invalid issue data is skipped gracefully."""
         
         # Preparation: add invalid issue data
+        mock_vector_service = Mock()
+        mock_vector_service_class.return_value = mock_vector_service
+        mock_issue_analysis_service_class.return_value = Mock()
+        
         self.sample_tracker.config = self.mock_config
         self.sample_tracker.issues["invalid_issue"] = "not_a_per_issue_data_object"
         
