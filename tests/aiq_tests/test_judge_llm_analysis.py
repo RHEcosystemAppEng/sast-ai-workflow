@@ -11,7 +11,7 @@ from dto.ResponseStructures import EvaluationResponse
 from common.config import Config
 from aiq.builder.builder import Builder
 from tests.aiq_tests.test_utils import TestUtils
-from src.Utils.validation_utils import ValidationError
+from Utils.validation_utils import ValidationError
 
 
 class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
@@ -33,7 +33,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
 
     @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
     @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
-    async def test_given_sample_tracker_when_judge_llm_analysis_executed_then_processes_non_final_issues(self, mock_vector_service_class, mock_issue_analysis_service_class):
+    async def test_processes_non_final_issues(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that only non-final issues are processed by LLM analysis."""
         
         # Preparation: mock services and their responses
@@ -117,7 +117,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         # Iteration count should be incremented
         self.assertEqual(result_tracker.iteration_count, 1)
 
-    async def test_given_tracker_without_config_when_judge_llm_analysis_executed_then_raises_error(self):
+    async def test_raises_error_when_no_config(self):
         """Test that tracker without config raises ValidationError."""
         
         # Preparation: tracker without config
@@ -129,7 +129,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         
         self.assertIn("No config found in tracker", str(context.exception))
 
-    async def test_given_none_tracker_when_judge_llm_analysis_executed_then_raises_value_error(self):
+    async def test_raises_error_when_tracker_none(self):
         """Test that None tracker raises ValueError."""
         
         # Execution and verification
@@ -140,7 +140,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
 
     @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
     @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
-    async def test_given_llm_service_init_failure_when_judge_llm_analysis_executed_then_raises_runtime_error(self, mock_vector_service_class, mock_issue_analysis_service_class):
+    async def test_raises_error_when_service_init_fails(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that Issue Analysis service initialization failure raises exception."""
         
         # Preparation: mock IssueAnalysisService to raise exception
@@ -156,7 +156,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
 
     @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
     @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
-    async def test_given_llm_analysis_failure_when_judge_llm_analysis_executed_then_continues_processing(self, mock_vector_service_class, mock_issue_analysis_service_class):
+    async def test_continues_processing_on_analysis_failure(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that LLM analysis failure for one issue does not stop processing of remaining issues."""
         
         # Preparation: mock services
@@ -198,7 +198,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
 
     @patch('sast_agent_workflow.tools.judge_llm_analysis.IssueAnalysisService')
     @patch('sast_agent_workflow.tools.judge_llm_analysis.VectorStoreService')
-    async def test_given_tracker_with_invalid_issue_data_when_judge_llm_analysis_executed_then_skips_invalid_issues(self, mock_vector_service_class, mock_issue_analysis_service_class):
+    async def test_skips_invalid_issue_data(self, mock_vector_service_class, mock_issue_analysis_service_class):
         """Test that invalid issue data is skipped gracefully."""
         
         # Preparation: add invalid issue data
