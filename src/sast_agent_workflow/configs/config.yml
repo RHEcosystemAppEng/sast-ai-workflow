@@ -5,7 +5,7 @@ functions:
   
   filter:
     _type: filter
-    description: "Filter function that filters known false positives and retrieve similar issues"
+    description: "Filter function that filters known non-issues and retrieve similar issues"
     llm_name: main_llm
     embedder_llm_name: filter_embedding
   

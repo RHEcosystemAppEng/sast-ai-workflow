@@ -8,7 +8,7 @@ EMBEDDINGS_LLM_URL: "http://<<please-set-embedding-llm-url>>"
 EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 
 INPUT_REPORT_FILE_PATH: "/path/to/report.html"
-KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
+KNOWN_NON_ISSUES_FILE_PATH: "/path/to/known_non_issues_file"
 OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"
 AGGREGATE_RESULTS_G_SHEET: ""
 HUMAN_VERIFIED_FILE_PATH: ""

@@ -179,7 +179,7 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
         for issue_id, issue_data in filter_result.issues.items():
             if (issue_data.analysis_response and 
                 issue_data.analysis_response.is_final == FinalStatus.TRUE.value and 
-                issue_data.analysis_response.investigation_result == CVEValidationStatus.FALSE_POSITIVE.value):
+                issue_data.analysis_response.investigation_result == CVEValidationStatus.NON_ISSUE.value):
                 filter_known_fps.add(issue_id)
         
         # Extract known FPs from run_script method

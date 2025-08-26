@@ -4,10 +4,12 @@ from enum import Enum
 
 from dto.ResponseStructures import InstructionResponse
 
+from common.constants import ISSUE, NON_ISSUE
+
 
 class CVEValidationStatus(Enum):
-    TRUE_POSITIVE = "TRUE POSITIVE"
-    FALSE_POSITIVE = " FALSE POSITIVE"
+    ISSUE = ISSUE
+    NON_ISSUE = NON_ISSUE
 
 
 class FinalStatus(Enum):
@@ -26,11 +28,11 @@ class AnalysisResponse:
     instructions: list[InstructionResponse] = field(default_factory=list)
     evaluation: list = field(default_factory=list)
 
-    def is_true_positive(self) -> bool:
-        return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
+    def is_issue(self) -> bool:
+        return self.investigation_result == CVEValidationStatus.ISSUE.value
 
     def is_second_analysis_needed(self):
-        return self.is_final == FinalStatus.FALSE.value and self.instructions and self.is_true_positive()
+        return self.is_final == FinalStatus.FALSE.value and self.instructions and self.is_issue()
 
     def to_dict(self):
         return asdict(self)

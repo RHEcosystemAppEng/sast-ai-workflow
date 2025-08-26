@@ -5,7 +5,7 @@ Unit tests for the filter tool's core function.
 import unittest
 from unittest.mock import Mock, patch
 
-from common.constants import KNOWN_ISSUES_SHORT_JUSTIFICATION
+from common.constants import KNOWN_NON_ISSUES_SHORT_JUSTIFICATION
 from dto.LLMResponse import FinalStatus
 from sast_agent_workflow.tools.filter import filter, FilterConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
@@ -79,14 +79,14 @@ class TestFilterCore(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(first_issue_data.analysis_response)
         self.assertEqual(first_issue_data.analysis_response.is_final, FinalStatus.TRUE.value)
         self.assertEqual(first_issue_data.analysis_response.investigation_result, 
-                        CVEValidationStatus.FALSE_POSITIVE.value)
-        self.assertIn(KNOWN_ISSUES_SHORT_JUSTIFICATION, first_issue_data.analysis_response.short_justifications)
+                        CVEValidationStatus.NON_ISSUE.value)
+        self.assertIn(KNOWN_NON_ISSUES_SHORT_JUSTIFICATION, first_issue_data.analysis_response.short_justifications)
         
         second_issue_data = result_tracker.issues[self.sample_issues[1].id]
         self.assertIsNotNone(second_issue_data.analysis_response)
         self.assertEqual(second_issue_data.analysis_response.is_final, FinalStatus.FALSE.value)
         self.assertEqual(second_issue_data.analysis_response.investigation_result, 
-                        CVEValidationStatus.TRUE_POSITIVE.value)
+                        CVEValidationStatus.ISSUE.value)
 
     async def test_given_tracker_with_disabled_filter_config_when_filter_executed_then_no_changes_made(self):
         """Given a tracker with filter disabled in config, when filter is executed, then no changes are made."""
@@ -110,7 +110,7 @@ class TestFilterCore(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(issue_data.similar_known_issues, "")
             self.assertIsNotNone(issue_data.analysis_response)
             self.assertEqual(issue_data.analysis_response.is_final, FinalStatus.FALSE.value)
-            self.assertEqual(issue_data.analysis_response.investigation_result, CVEValidationStatus.TRUE_POSITIVE.value)
+            self.assertEqual(issue_data.analysis_response.investigation_result, CVEValidationStatus.ISSUE.value)
 
     async def test_given_tracker_with_no_config_when_filter_executed_then_validation_error_raised(self):
         """Given a tracker with no config, when filter is executed, then ValidationError is raised."""

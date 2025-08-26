@@ -123,7 +123,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         # Ensure each issue has instructions and a non-final analysis_response
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
-                is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
+                is_false_positive=CVEValidationStatus.ISSUE.value,
                 is_final=FinalStatus.FALSE.value,
                 instructions=[
                     InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")
@@ -159,7 +159,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         # analysis_response with is_final TRUE will short-circuit is_second_analysis_needed
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
-                is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
+                is_false_positive=CVEValidationStatus.ISSUE.value,
                 is_final=FinalStatus.TRUE.value,
                 instructions=[]
             )
@@ -175,7 +175,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=1)
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
-                is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
+                is_false_positive=CVEValidationStatus.ISSUE.value,
                 is_final=FinalStatus.FALSE.value,
                 instructions=[
                     InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")
@@ -202,7 +202,7 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
             tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=1)
             for per_issue_data in tracker.issues.values():
                 per_issue_data.analysis_response = TestUtils.create_sample_analysis_response(
-                    is_false_positive=CVEValidationStatus.TRUE_POSITIVE.value,
+                    is_false_positive=CVEValidationStatus.ISSUE.value,
                     is_final=FinalStatus.FALSE.value,
                     instructions=[
                         InstructionResponse(expression_name="foo", referring_source_code_path="src/foo.c", recommendation="inspect")

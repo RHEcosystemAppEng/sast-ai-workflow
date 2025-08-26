@@ -54,7 +54,7 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(per_issue_data.analysis_response, AnalysisResponse)
             
             analysis_resp = per_issue_data.analysis_response
-            self.assertEqual(analysis_resp.investigation_result, CVEValidationStatus.TRUE_POSITIVE.value)
+            self.assertEqual(analysis_resp.investigation_result, CVEValidationStatus.ISSUE.value)
             self.assertEqual(analysis_resp.is_final, FinalStatus.FALSE.value)
         
         mock_config_class.assert_called_once()

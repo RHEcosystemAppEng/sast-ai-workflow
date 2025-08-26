@@ -10,9 +10,9 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       description: "Google Spreadsheet URL or OSH report .html file path"
-    - name: FALSE_POSITIVES_URL
+    - name: NON_ISSUES_URL
       type: string
-      description: "GitLab URL containing known false positive issues"
+      description: "GitLab URL containing known non-issue cases"
   workspaces:
     - name: google-sa-json-ws
       description: "Workspace containing Google service account key file"
@@ -29,14 +29,14 @@ spec:
       image: curlimages/curl:latest
       script: |
         #!/usr/bin/env sh
-        FP_URL="$(params.FALSE_POSITIVES_URL)"
-        echo "Validating false positives URL: $FP_URL"
+        FP_URL="$(params.NON_ISSUES_URL)"
+        echo "Validating non-issues URL: $FP_URL"
         # If blank, skip. If not, ensure it's valid
         if [ -z "$FP_URL" ]; then
-          echo "No false positives URL provided; skipping validation."
+          echo "No non-issues URL provided; skipping validation."
           exit 0
         fi
-        curl -ksSfL "$FP_URL" || (echo "Error: False positives URL is invalid" && exit 1)
+        curl -ksSfL "$FP_URL" || (echo "Error: Non-issues URL is invalid" && exit 1)
 
     - name: validate-report-file
       image: 'python:3.11-slim'

@@ -9,6 +9,7 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
+from common.constants import ISSUES_TITLE, NON_ISSUES_TITLE
 from dto.EvaluationSummary import EvaluationSummary
 from Utils.file_utils import get_google_sheet
 from Utils.log_utils import log_attempt_number
@@ -260,21 +261,21 @@ def write_ai_report_worksheet(data, workbook, config: Config):
 
 def write_results_table(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A1:B1", "Human Results", cell_formatting(workbook, "#4f8df1"))
-    worksheet.write(1, 0, "Verified True Positives", cell_formatting(workbook, "#bfbfbf"))
+    worksheet.write(1, 0, f"Verified {ISSUES_TITLE}", cell_formatting(workbook, "#bfbfbf"))
     worksheet.write(
         1, 1, len(evaluation_summary.actual_true_positives), cell_formatting(workbook, "#ffffff")
     )
-    worksheet.write(2, 0, "Verified False Positives", cell_formatting(workbook, "#bfbfbf"))
+    worksheet.write(2, 0, f"Verified {NON_ISSUES_TITLE}", cell_formatting(workbook, "#bfbfbf"))
     worksheet.write(
         2, 1, len(evaluation_summary.actual_false_positives), cell_formatting(workbook, "#ffffff")
     )
 
     worksheet.merge_range("C1:D1", "AI Results", cell_formatting(workbook, "#4f8df1"))
-    worksheet.write(1, 2, "Predicted True Positives", cell_formatting(workbook, "#bfbfbf"))
+    worksheet.write(1, 2, f"Predicted {ISSUES_TITLE}", cell_formatting(workbook, "#bfbfbf"))
     worksheet.write(
         1, 3, len(evaluation_summary.predicted_true_positives), cell_formatting(workbook, "#ffffff")
     )
-    worksheet.write(2, 2, "Predicted False Positives", cell_formatting(workbook, "#bfbfbf"))
+    worksheet.write(2, 2, f"Predicted {NON_ISSUES_TITLE}", cell_formatting(workbook, "#bfbfbf"))
     worksheet.write(
         2,
         3,
@@ -285,9 +286,9 @@ def write_results_table(workbook, worksheet, evaluation_summary):
 
 def write_confusion_matrix(workbook, worksheet, evaluation_summary):
     worksheet.merge_range("A8:A9", "Human Results", cell_formatting(workbook, "#00b903"))
-    worksheet.write(7, 1, "Verified False Positives", cell_formatting(workbook, "#bfbfbf"))
+    worksheet.write(7, 1, "Actual False Positives", cell_formatting(workbook, "#bfbfbf"))
     worksheet.write(7, 2, evaluation_summary.tp, cell_formatting(workbook, "#28A745"))
-    worksheet.write(8, 1, "Verified True Positives", cell_formatting(workbook, "#bfbfbf"))
+    worksheet.write(8, 1, "Actual True Positives", cell_formatting(workbook, "#bfbfbf"))
     worksheet.write(8, 2, evaluation_summary.fp, cell_formatting(workbook, "#FF0000"))
 
     worksheet.merge_range("C6:D6", "AI Results", cell_formatting(workbook, "#4f8df1"))
