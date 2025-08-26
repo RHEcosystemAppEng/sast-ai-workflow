@@ -36,7 +36,7 @@ functions:
 
 llms:
   main_llm:
-    _type: ${LLM_API_TYPE}
+    _type: ${LLM_API_TYPE:-openai}
     api_key: ${LLM_API_KEY}
     base_url: ${LLM_URL}
     model_name: ${LLM_MODEL_NAME}
