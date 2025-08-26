@@ -16,6 +16,7 @@ functions:
   judge_llm_analysis:
     _type: judge_llm_analysis
     description: "Judge LLM analysis function that performs LLM-based analysis of SAST issues"
+    llm_name: main_llm
   
   evaluate_analysis:
     _type: evaluate_analysis
