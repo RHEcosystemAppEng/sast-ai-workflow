@@ -98,6 +98,23 @@ class IssueAnalysisService:
         
         return response
     
+    def analyze_issue_core_only(self, issue: Issue, context: str, main_llm: BaseChatModel) -> Tuple[str, JudgeLLMResponse]:
+        """
+        Analyze an issue to determine if it is a false positive - core analysis only.
+        
+        Args:
+            issue: The issue object with details
+            context: The context to assist in the analysis
+            main_llm: The main LLM for analysis
+            
+        Returns:
+            tuple: (actual_prompt_string, llm_response)
+        """
+        actual_prompt, analysis_response = self._analyze_issue_with_retry(
+            context=context, issue=issue, main_llm=main_llm
+        )
+        return actual_prompt.to_string(), analysis_response
+
     def analyze_issue(self, issue: Issue, context: str, main_llm: BaseChatModel, 
                      critique_llm: BaseChatModel = None) -> Tuple[AnalysisResponse, EvaluationResponse]:
         """

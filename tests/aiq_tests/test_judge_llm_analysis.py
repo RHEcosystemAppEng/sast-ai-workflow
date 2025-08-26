@@ -7,11 +7,12 @@ from unittest.mock import Mock, patch, ANY
 
 from sast_agent_workflow.tools.judge_llm_analysis import judge_llm_analysis, JudgeLLMAnalysisConfig
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
-from dto.ResponseStructures import EvaluationResponse
+from dto.ResponseStructures import EvaluationResponse, JudgeLLMResponse
 from common.config import Config
 from aiq.builder.builder import Builder
 from tests.aiq_tests.test_utils import TestUtils
 from Utils.validation_utils import ValidationError
+from langchain_core.prompts import ChatPromptTemplate
 
 
 class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
@@ -41,17 +42,11 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         mock_vector_service_class.return_value = mock_vector_service
         
         mock_issue_analysis_service = Mock()
-        mock_analysis_response = AnalysisResponse(
+        mock_llm_response = JudgeLLMResponse(
             investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-            is_final=FinalStatus.TRUE.value,
-            prompt="test prompt",
             justifications=["test justification"]
         )
-        mock_evaluation_response = EvaluationResponse(
-            critique_result=CVEValidationStatus.FALSE_POSITIVE.value,
-            justifications=["test evaluation"]
-        )
-        mock_issue_analysis_service.analyze_issue.return_value = (mock_analysis_response, mock_evaluation_response)
+        mock_issue_analysis_service.analyze_issue_core_only.return_value = ("test prompt", mock_llm_response)
         mock_issue_analysis_service_class.return_value = mock_issue_analysis_service
         
         # Set up tracker with mixed final/non-final issues
@@ -86,10 +81,10 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         self.builder.get_llm.assert_called_once_with("test_llm", wrapper_type=ANY)
         
         # Only one issue should be analyzed (the non-final one)
-        mock_issue_analysis_service.analyze_issue.assert_called_once()
+        mock_issue_analysis_service.analyze_issue_core_only.assert_called_once()
         
-        # Verify analyze_issue was called with correct parameters
-        call_args = mock_issue_analysis_service.analyze_issue.call_args
+        # Verify analyze_issue_core_only was called with correct parameters
+        call_args = mock_issue_analysis_service.analyze_issue_core_only.call_args
         self.assertEqual(call_args[1]['issue'], self.sample_tracker.issues[issue_ids[1]].issue)
         self.assertEqual(call_args[1]['main_llm'], self.mock_llm)
         
@@ -106,7 +101,15 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
             result_tracker.issues[issue_ids[1]].analysis_response.investigation_result,
             CVEValidationStatus.FALSE_POSITIVE.value
         )
-        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.is_final, FinalStatus.TRUE.value)
+        # Should be FALSE since no recommendations/full workflow done
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.is_final, FinalStatus.FALSE.value)
+        # Check that basic fields are populated
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.prompt, "test prompt")
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.justifications, ["test justification"])
+        # Check that workflow fields are empty
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.recommendations, [])
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.instructions, [])
+        self.assertEqual(result_tracker.issues[issue_ids[1]].analysis_response.short_justifications, "")
         
         # Final issue should remain unchanged
         self.assertEqual(
@@ -164,9 +167,14 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         mock_vector_service_class.return_value = mock_vector_service
         
         mock_issue_analysis_service = Mock()
-        mock_issue_analysis_service.analyze_issue.side_effect = [
+        # Mock analyze_issue_core_only to fail first, succeed second
+        mock_llm_response = JudgeLLMResponse(
+            investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
+            justifications=["test justification"]
+        )
+        mock_issue_analysis_service.analyze_issue_core_only.side_effect = [
             Exception("Analysis failed"),
-            (AnalysisResponse(investigation_result=CVEValidationStatus.FALSE_POSITIVE.value, is_final=FinalStatus.TRUE.value), None)
+            ("test prompt", mock_llm_response)
         ]
         mock_issue_analysis_service_class.return_value = mock_issue_analysis_service
         
@@ -185,7 +193,7 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
         
         # Verification
         # Both issues should have been attempted
-        self.assertEqual(mock_issue_analysis_service.analyze_issue.call_count, 2)
+        self.assertEqual(mock_issue_analysis_service.analyze_issue_core_only.call_count, 2)
         
         # Second issue should have been updated despite first failure
         self.assertEqual(

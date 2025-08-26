@@ -11,7 +11,7 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from Utils.validation_utils import ValidationError
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
-from dto.LLMResponse import FinalStatus
+from dto.LLMResponse import FinalStatus, AnalysisResponse
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +90,22 @@ async def judge_llm_analysis(
             context = _build_analysis_context(per_issue)
             
             try:
-                # Call issue analysis service
-                analysis_response, _ = issue_analysis_service.analyze_issue(
+                # Call the core analysis method
+                prompt_string, llm_response = issue_analysis_service.analyze_issue_core_only(
                     issue=per_issue.issue,
                     context=context,
                     main_llm=llm
+                )
+                
+                analysis_response = AnalysisResponse(
+                    investigation_result=llm_response.investigation_result,
+                    is_final=FinalStatus.FALSE.value,
+                    prompt=prompt_string,
+                    justifications=llm_response.justifications,
+                    short_justifications="",
+                    recommendations=[],
+                    instructions=[],
+                    evaluation=[]
                 )
                 
                 # Update the per-issue analysis response
