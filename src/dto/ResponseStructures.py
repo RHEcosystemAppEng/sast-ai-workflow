@@ -52,7 +52,7 @@ class InstructionResponse(BaseModel):
         "The file path of the source code file where the 'expression_name' is called or used."
     )
     recommendation: str = Field(
-        "TA clear, concise, and actionable instruction \
+        "A clear, concise, and actionable instruction \
         specifying the exact aspect of the 'expression_name's implementation needs to be \
         examined and the specific reason for this examination in the context of the reported CVE"
     )

@@ -118,7 +118,7 @@ class IssueAnalysisService:
             analysis_prompt, analysis_response = self._analyze_issue_with_retry(
                 context=context, issue=issue, main_llm=main_llm
             )
-            recommendations_response = self._recommend(
+            recommendations_response = self.recommend(
                 issue=issue, context=context, analysis_response=analysis_response, main_llm=main_llm
             )
             short_justifications_response = self.summarize_justification(
@@ -251,7 +251,7 @@ class IssueAnalysisService:
         return short_justification
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _recommend(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse, 
+    def recommend(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse, 
                   main_llm: BaseChatModel) -> RecommendationsResponse:
         """Generate recommendations for further investigation, if necessary."""
         recommendations_prompt = ChatPromptTemplate.from_messages([
@@ -280,7 +280,7 @@ class IssueAnalysisService:
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
                 max_retry_limit=self.max_retry_limit, 
-                function_name="_recommend", 
+                function_name="recommend", 
                 issue_id=issue.id, 
                 error=e
             ))

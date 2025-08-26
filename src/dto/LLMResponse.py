@@ -2,6 +2,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
+from dto.ResponseStructures import InstructionResponse
+
 
 class CVEValidationStatus(Enum):
     TRUE_POSITIVE = "TRUE POSITIVE"
@@ -21,7 +23,7 @@ class AnalysisResponse:
     justifications: list[str] = field(default_factory=list)
     short_justifications: str = ""
     recommendations: list[str] = field(default_factory=list)
-    instructions: list[dict] = field(default_factory=list)
+    instructions: list[InstructionResponse] = field(default_factory=list)
     evaluation: list = field(default_factory=list)
 
     def is_true_positive(self) -> bool:
