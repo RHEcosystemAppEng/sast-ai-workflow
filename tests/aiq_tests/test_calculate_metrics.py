@@ -81,9 +81,9 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         
         issue_ids = list(tracker.issues.keys())
         tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
-        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
+        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.ISSUE.value
         tracker.issues[issue_ids[1]].analysis_response.is_final = FinalStatus.FALSE.value
-        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
+        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.ISSUE.value
         
         # testing
         with patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results') as mock_get_ground_truth:
@@ -108,9 +108,9 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         issue_ids = list(tracker.issues.keys())
-        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
+        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.ISSUE.value
         tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
-        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
+        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.NON_ISSUE.value
         tracker.issues[issue_ids[1]].analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
@@ -148,9 +148,9 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         issue_ids = list(tracker.issues.keys())
-        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
+        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.NON_ISSUE.value
         tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
-        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
+        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.NON_ISSUE.value
         tracker.issues[issue_ids[1]].analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
@@ -191,7 +191,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         for per_issue_data in tracker.issues.values():
-            per_issue_data.analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
+            per_issue_data.analysis_response.investigation_result = CVEValidationStatus.ISSUE.value
             per_issue_data.analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
@@ -275,7 +275,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         
         issue_ids = list(tracker.issues.keys())
         per_issue = tracker.issues[issue_ids[0]]
-        per_issue.analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
+        per_issue.analysis_response.investigation_result = CVEValidationStatus.ISSUE.value
         per_issue.analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
