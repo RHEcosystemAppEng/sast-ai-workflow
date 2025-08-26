@@ -21,7 +21,7 @@ INPUT_REPORT_FILE_PATH = "INPUT_REPORT_FILE_PATH"
 KNOWN_FALSE_POSITIVE_FILE_PATH = "KNOWN_FALSE_POSITIVE_FILE_PATH"
 HUMAN_VERIFIED_FILE_PATH = "HUMAN_VERIFIED_FILE_PATH"
 USE_KNOWN_FALSE_POSITIVE_FILE = "USE_KNOWN_FALSE_POSITIVE_FILE"
-CALCULATE_METRICS = "CALCULATE_METRICS"
+CALCULATE_RAGAS_METRICS = "CALCULATE_RAGAS_METRICS"
 TOKENIZERS_PARALLELISM = "TOKENIZERS_PARALLELISM"
 RUN_WITH_CRITIQUE = "RUN_WITH_CRITIQUE"
 CRITIQUE_LLM_URL = "CRITIQUE_LLM_URL"
@@ -67,8 +67,6 @@ KNOWN_FALSE_POSITIVE_TEMPLATES = {
 REGEX_PATTERNS = {"CWE_PATTERN": r"CWE-\d+", "CODE_BLOCK_LINE_PATTERN": r"#\s*\d+\|"}
 
 # Validation constants
-FALSE = "FALSE"
-TRUE = "TRUE"
 VALIDATION_LIMITS = {"MIN_SIMILARITY_THRESHOLD": 1, "MAX_SIMILARITY_THRESHOLD": 10, 
                      "MIN_ANALYSIS_ITERATIONS": 1}
 KNOWN_ISSUES_SHORT_JUSTIFICATION = "The error is similar to one found in the provided known issues (Details in the full Justification)"
@@ -85,7 +83,6 @@ METRICS_ERROR_UNEXPECTED = "Unexpected error"
 
 # Write results constants
 WRITE_RESULTS_CONFIG_MISSING = "No config found in tracker - skipping results writing"
-WRITE_RESULTS_DISABLED = "WRITE_RESULTS is disabled in config - skipping results writing"
 WRITE_RESULTS_NO_VALID_METRICS = "Calculate_Metrics node failed or was skipped - creating EvaluationSummary from scratch for Excel generation"
 WRITE_RESULTS_SUCCESS = "Successfully wrote results to configured destinations"
 WRITE_RESULTS_FAILURE = "Failed to write results: {}"

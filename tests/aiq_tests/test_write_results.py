@@ -18,7 +18,6 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         self.mock_config = Mock(spec=Config)
-        self.mock_config.WRITE_RESULTS = True
         self.mock_config.HUMAN_VERIFIED_FILE_PATH = None  # Add missing attribute
         self.write_results_config = WriteResultsConfig()
         self.builder = Mock(spec=Builder)
@@ -102,36 +101,6 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result_tracker.config, original_tracker.config)
             self.assertEqual(result_tracker.metrics, original_tracker.metrics)
             self.assertEqual(result_tracker.iteration_count, original_tracker.iteration_count)
-
-    async def test__write_results__write_results_disabled_skips_writing(self):
-        # preparation
-        self.mock_config.WRITE_RESULTS = False
-        
-        issues = [
-            TestUtils.create_sample_issue(issue_id="test_issue", issue_type="BUFFER_OVERFLOW")
-        ]
-        
-        per_issue_data = TestUtils.create_sample_per_issue_data_dict(
-            issues, 
-            is_final="TRUE",
-            justifications=["Test justification"],
-            short_justifications="Test summary"
-        )
-        
-        tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
-        
-        with patch('sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data') as mock_convert, \
-             patch('sast_agent_workflow.tools.write_results.write_to_excel_file') as mock_excel_writer:
-            
-            # testing
-            result_tracker = await TestUtils.run_single_fn(write_results, self.write_results_config, self.builder, tracker)
-            
-            # assertion
-            self.assertIsInstance(result_tracker, SASTWorkflowTracker)
-            
-            # Verify no writing operations were called
-            mock_convert.assert_not_called()
-            mock_excel_writer.assert_not_called()
 
     async def test__write_results__no_config_skips_writing_gracefully(self):
         # preparation

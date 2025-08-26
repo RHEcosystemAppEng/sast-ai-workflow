@@ -2,9 +2,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 from sast_agent_workflow.tools.calculate_metrics import calculate_metrics, CalculateMetricsConfig
-from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
+from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.config import Config
 from aiq.builder.builder import Builder
 from tests.aiq_tests.test_utils import TestUtils
@@ -17,25 +17,34 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.calculate_metrics_config = CalculateMetricsConfig()
         self.builder = Mock(spec=Builder)
 
-    def _create_mock_config(self, calculate_metrics=True, use_critique_as_final=False):
+    def _create_mock_config(self, calculate_ragas_metrics=True, use_critique_as_final=False, write_results_include_non_final=True):
         mock_config = Mock(spec=Config)
-        mock_config.CALCULATE_METRICS = calculate_metrics
+        mock_config.CALCULATE_RAGAS_METRICS = calculate_ragas_metrics
         mock_config.USE_CRITIQUE_AS_FINAL_RESULTS = use_critique_as_final
+        mock_config.WRITE_RESULTS_INCLUDE_NON_FINAL = write_results_include_non_final
         return mock_config
 
-    async def test__aiq_tests__calculate_metrics_disabled_preserves_empty_metrics(self):
+    async def test__aiq_tests__ragas_metrics_disabled_still_calculates(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=False)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=False)
+        
+        # Make at least one issue final so metrics can be calculated
+        issue_ids = list(tracker.issues.keys())
+        tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
+        tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
         
         # testing
-        with self.assertLogs('sast_agent_workflow.tools.calculate_metrics', level='INFO') as log:
+        with patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results') as mock_get_ground_truth:
+            mock_get_ground_truth.return_value = None
             result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
         
-        # assertion
-        self.assertEqual(result_tracker.metrics, {})
-        self.assertEqual(len(result_tracker.issues), 2)
-        self.assertTrue(any("CALCULATE_METRICS is disabled" in record.message for record in log.records))
+        # assertion - metrics should still be calculated even when CALCULATE_RAGAS_METRICS is False
+        metrics = result_tracker.metrics
+        self.assertEqual(metrics["total_issues"], 2)
+        self.assertEqual(metrics["predicted_false_positives_count"], 1)
+        self.assertEqual(metrics["has_ground_truth"], False)
+        self.assertIsNone(metrics["confusion_matrix"])
 
     async def test__aiq_tests__no_config_preserves_empty_metrics(self):
         # preparation
@@ -50,12 +59,12 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result_tracker.metrics, {})
         self.assertTrue(any("No config found" in record.message for record in log.records))
 
-    async def test__aiq_tests__no_completed_issues_returns_error(self):
+    async def test__aiq_tests__no_completed_issues_when_include_non_final_is_false_returns_error(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True, write_results_include_non_final=False)
         for per_issue_data in tracker.issues.values():
-            per_issue_data.analysis_response.is_final = "FALSE"
+            per_issue_data.analysis_response.is_final = FinalStatus.FALSE.value
         
         # testing
         result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
@@ -65,15 +74,16 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result_tracker.metrics["error"], "No completed issues found")
         self.assertEqual(len(result_tracker.metrics), 1)
 
-    async def test__aiq_tests__mixed_issues_processes_only_final(self):
+    async def test__aiq_tests__mixed_issues_when_include_non_final_is_false_processes_only_final(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True, write_results_include_non_final=False)
         
         issue_ids = list(tracker.issues.keys())
-        tracker.issues[issue_ids[0]].analysis_response.is_final = "TRUE"
+        tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
         tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
-        tracker.issues[issue_ids[1]].analysis_response.is_final = "FALSE"
+        tracker.issues[issue_ids[1]].analysis_response.is_final = FinalStatus.FALSE.value
+        tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
         
         # testing
         with patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results') as mock_get_ground_truth:
@@ -93,15 +103,15 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
     async def test__aiq_tests__no_ground_truth_calculates_basic_metrics(self, mock_get_ground_truth):
         # preparation
         mock_get_ground_truth.return_value = None
-        
+
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         issue_ids = list(tracker.issues.keys())
         tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
-        tracker.issues[issue_ids[0]].analysis_response.is_final = "TRUE"
+        tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
         tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
-        tracker.issues[issue_ids[1]].analysis_response.is_final = "TRUE"
+        tracker.issues[issue_ids[1]].analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
         result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
@@ -135,13 +145,13 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         mock_get_ground_truth.return_value = mock_ground_truth
         
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         issue_ids = list(tracker.issues.keys())
         tracker.issues[issue_ids[0]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
-        tracker.issues[issue_ids[0]].analysis_response.is_final = "TRUE"
+        tracker.issues[issue_ids[0]].analysis_response.is_final = FinalStatus.TRUE.value
         tracker.issues[issue_ids[1]].analysis_response.investigation_result = CVEValidationStatus.FALSE_POSITIVE.value
-        tracker.issues[issue_ids[1]].analysis_response.is_final = "TRUE"
+        tracker.issues[issue_ids[1]].analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
         result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
@@ -178,11 +188,11 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         mock_get_ground_truth.return_value = mock_ground_truth
         
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         for per_issue_data in tracker.issues.values():
             per_issue_data.analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
-            per_issue_data.analysis_response.is_final = "TRUE"
+            per_issue_data.analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
         result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
@@ -204,10 +214,10 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         mock_get_ground_truth.side_effect = Exception("Ground truth loading failed")
         
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         for per_issue_data in tracker.issues.values():
-            per_issue_data.analysis_response.is_final = "TRUE"
+            per_issue_data.analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
         result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
@@ -222,7 +232,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
     async def test__aiq_tests__empty_tracker_returns_error(self):
         # preparation
         tracker = SASTWorkflowTracker(issues={})
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         # testing
         result_tracker = await TestUtils.run_single_fn(calculate_metrics, self.calculate_metrics_config, self.builder, tracker)
@@ -233,14 +243,14 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
     async def test__aiq_tests__preserves_all_other_data_unchanged(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
         
         import copy
         original_iteration_count = tracker.iteration_count
         original_issues = copy.deepcopy(tracker.issues)
         original_config = tracker.config
         
-        list(tracker.issues.values())[0].analysis_response.is_final = "TRUE"
+        list(tracker.issues.values())[0].analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
         with patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results') as mock_get_ground_truth:
@@ -261,12 +271,12 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
     async def test__aiq_tests__critique_enabled_uses_correct_config(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
-        tracker.config = self._create_mock_config(calculate_metrics=True, use_critique_as_final=True)
+        tracker.config = self._create_mock_config(calculate_ragas_metrics=True, use_critique_as_final=True)
         
         issue_ids = list(tracker.issues.keys())
         per_issue = tracker.issues[issue_ids[0]]
         per_issue.analysis_response.investigation_result = CVEValidationStatus.TRUE_POSITIVE.value
-        per_issue.analysis_response.is_final = "TRUE"
+        per_issue.analysis_response.is_final = FinalStatus.TRUE.value
         
         # testing
         with patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results') as mock_get_ground_truth:
