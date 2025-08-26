@@ -14,7 +14,6 @@ from Utils.workflow_utils import convert_tracker_to_summary_data
 from ExcelWriter import write_to_excel_file
 from common.constants import (
     WRITE_RESULTS_CONFIG_MISSING,
-    WRITE_RESULTS_DISABLED,
     WRITE_RESULTS_NO_VALID_METRICS,
     WRITE_RESULTS_SUCCESS,
     WRITE_RESULTS_FAILURE,
@@ -70,10 +69,6 @@ async def write_results(
             logger.warning(WRITE_RESULTS_CONFIG_MISSING)
             return tracker
             
-        if not getattr(tracker.config, 'WRITE_RESULTS', True):
-            logger.info(WRITE_RESULTS_DISABLED)
-            return tracker
-        
         try:
             # Convert tracker to summary_data format expected by ExcelWriter
             include_non_final = getattr(tracker.config, 'WRITE_RESULTS_INCLUDE_NON_FINAL', True)
