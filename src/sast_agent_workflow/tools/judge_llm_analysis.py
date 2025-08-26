@@ -97,19 +97,11 @@ async def judge_llm_analysis(
                     main_llm=llm
                 )
                 
-                analysis_response = AnalysisResponse(
-                    investigation_result=llm_response.investigation_result,
-                    is_final=FinalStatus.FALSE.value,
-                    prompt=prompt_string,
-                    justifications=llm_response.justifications,
-                    short_justifications="",
-                    recommendations=[],
-                    instructions=[],
-                    evaluation=[]
-                )
-                
                 # Update the per-issue analysis response
-                per_issue.analysis_response = analysis_response
+                per_issue.analysis_response.investigation_result = llm_response.investigation_result
+                per_issue.analysis_response.is_final = FinalStatus.FALSE.value
+                per_issue.analysis_response.prompt = prompt_string
+                per_issue.analysis_response.justifications = llm_response.justifications
                 
                 logger.info(f"Completed analysis for issue {issue_id}")
                 
