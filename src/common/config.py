@@ -59,7 +59,6 @@ class Config:
     USE_KNOWN_FALSE_POSITIVE_FILE: bool
     CALCULATE_RAGAS_METRICS: bool
     RUN_WITH_CRITIQUE: bool
-    WRITE_RESULTS: bool
     WRITE_RESULTS_INCLUDE_NON_FINAL: bool
     SHOW_FINAL_JUDGE_CONTEXT: bool
     CRITIQUE_LLM_URL: str
@@ -224,10 +223,6 @@ class Config:
         # make sure REPO_LOCAL_PATH exists, in the case DOWNLOAD_REPO is set to False
         else:
             required_cfg_files.add(REPO_LOCAL_PATH)
-
-        if not self.WRITE_RESULTS:
-            required_cfg_vars.remove(OUTPUT_FILE_PATH)
-            logger.warning("WRITE_RESULTS is disabled in config - skipping results writing!")
 
         # Validate that required configuration variables are set
         for var in required_cfg_vars:
