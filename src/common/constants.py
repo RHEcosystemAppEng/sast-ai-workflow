@@ -74,6 +74,9 @@ VALIDATION_LIMITS = {"MIN_SIMILARITY_THRESHOLD": 1, "MAX_SIMILARITY_THRESHOLD": 
 KNOWN_ISSUES_SHORT_JUSTIFICATION = "The error is similar to one found in the provided known issues (Details in the full Justification)"
 NO_MATCHING_TRACE_FOUND = "No matching trace found"
 
+# Pre-process constants
+DEFAULT_FIELD_VALUE = "This is a default value, if it's not replaced, something went wrong"
+
 # Metrics calculation constants
 METRICS_ERROR_NO_ISSUES = "No completed issues found"
 METRICS_ERROR_CALCULATION_FAILED = "Metrics calculation failed"
