@@ -24,6 +24,9 @@ spec:
     - name: LLM_MODEL_NAME
       type: string
       default: ""
+    - name: LLM_API_TYPE
+      type: string
+      default: "nim"
     - name: EMBEDDINGS_LLM_URL
       type: string
       default: ""
@@ -66,6 +69,8 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
+        - name: LLM_API_TYPE
+          value: "$(params.LLM_API_TYPE)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -159,8 +164,7 @@ spec:
         du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
         echo "--- END: Storage Redirection Setup ---"
 
-        echo "Running SAST-AI-Workflow..."
-        python /app/src/run.py
-
+        echo "Running SAST-AI-Workflow with aiq..."
+        aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
         
        
