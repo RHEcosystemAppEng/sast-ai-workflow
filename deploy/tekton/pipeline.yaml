@@ -26,6 +26,10 @@ spec:
     - name: LLM_MODEL_NAME
       type: string
       default: "llm-model"
+    - name: LLM_API_TYPE
+      type: string
+      description: "LLM API type"
+      default: "nim"
     - name: EMBEDDINGS_LLM_URL
       type: string
       default: "http://<<please-set-embedding-llm-url>>"
@@ -34,7 +38,7 @@ spec:
       default: "embedding-llm-model"
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
-      default: ""
+      default: "" 
     - name: GDRIVE_FOLDER_ID
       type: string
       description: "Google Drive folder ID for uploading SAST results (optional)"
@@ -43,10 +47,6 @@ spec:
       type: string
       description: "Optional GDrive SA file name"
       default: "service_account.json"
-    - name: USE_KNOWN_FALSE_POSITIVE_FILE
-      type: string
-      description: "Whether to use known false positive file for filtering (true/false)"
-      default: "true"
   workspaces:
     - name: shared-workspace
     - name: gitlab-token-ws
@@ -113,15 +113,14 @@ spec:
           value: "$(params.LLM_URL)"
         - name: LLM_MODEL_NAME
           value: "$(params.LLM_MODEL_NAME)"
+        - name: LLM_API_TYPE
+          value: "$(params.LLM_API_TYPE)"
         - name: EMBEDDINGS_LLM_URL
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
-        - name: USE_KNOWN_FALSE_POSITIVE_FILE
-          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
-          
       workspaces:
         - name: source-workspace
           workspace: shared-workspace

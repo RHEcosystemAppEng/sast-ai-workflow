@@ -2,10 +2,17 @@ import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
+from dto.ResponseStructures import InstructionResponse
+
 
 class CVEValidationStatus(Enum):
     TRUE_POSITIVE = "TRUE POSITIVE"
     FALSE_POSITIVE = " FALSE POSITIVE"
+
+
+class FinalStatus(Enum):
+    TRUE = "TRUE"
+    FALSE = "FALSE"
 
 
 @dataclass
@@ -16,14 +23,14 @@ class AnalysisResponse:
     justifications: list[str] = field(default_factory=list)
     short_justifications: str = ""
     recommendations: list[str] = field(default_factory=list)
-    instructions: list[dict] = field(default_factory=list)
+    instructions: list[InstructionResponse] = field(default_factory=list)
     evaluation: list = field(default_factory=list)
 
     def is_true_positive(self) -> bool:
         return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
 
     def is_second_analysis_needed(self):
-        return self.is_final == "FALSE" and self.instructions and self.is_true_positive()
+        return self.is_final == FinalStatus.FALSE.value and self.instructions and self.is_true_positive()
 
     def to_dict(self):
         return asdict(self)

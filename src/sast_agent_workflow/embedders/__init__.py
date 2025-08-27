@@ -1,0 +1,1 @@
+# Extended embedder configurations for SAST agent workflow 
