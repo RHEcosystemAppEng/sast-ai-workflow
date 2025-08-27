@@ -1,0 +1,119 @@
+name: Build Release Image
+
+on:
+  release:
+    types: [published]
+
+env:
+  REGISTRY: quay.io
+  IMAGE_NAME: quay.io/ecosystem-appeng/sast-ai-workflow
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to update release notes via GitHub API
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Quay.io
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.QUAY_USERNAME }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        # Remove 'v' prefix if present (e.g., v1.2.3 -> 1.2.3)
+        VERSION=${GITHUB_REF#refs/tags/}
+        VERSION=${VERSION#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Generate container metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.IMAGE_NAME }}
+        tags: |
+          # Exact release version only (e.g., 1.2.3)
+          type=semver,pattern={{version}}
+          # Latest tag for releases
+          type=raw,value=latest
+        labels: |
+          org.opencontainers.image.title=SAST AI Workflow
+          org.opencontainers.image.description=LLM-based tool for SAST vulnerability detection
+          org.opencontainers.image.vendor=Red Hat Ecosystem AppEng
+          org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+    - name: Build and push release container
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Containerfile
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Generate release artifact summary
+      run: |
+        echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update release with container info
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const release = await github.rest.repos.getReleaseByTag({
+            owner,
+            repo,
+            tag: context.ref.replace('refs/tags/', '')
+          });
+          
+          const containerInfo = `
+
+          ## 📦 Container Images
+
+          This release includes the following container images published to Quay.io:
+
+          - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`
+          - \`${{ env.IMAGE_NAME }}:latest\`
+
+          ### 🐳 Usage
+
+          \`\`\`bash
+          # Pull specific version
+          podman pull ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          
+          # Pull latest
+          podman pull ${{ env.IMAGE_NAME }}:latest
+          \`\`\`
+
+          ### 🔗 Registry
+          View all versions: [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
+          `;
+          
+          await github.rest.repos.updateRelease({
+            owner,
+            repo,
+            release_id: release.data.id,
+            body: release.data.body + containerInfo
+          });

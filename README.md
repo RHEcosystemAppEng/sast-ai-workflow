@@ -1,4 +1,11 @@
-# SAST-AI-Workflow [![Publish container to Quay.io](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/publish-container-image.yml/badge.svg)](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/publish-container-image.yml) [![Quay.io](https://img.shields.io/badge/Quay.io-sast--ai--workflow-blue)](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
+# SAST-AI-Workflow 
+[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-highlight.svg)](https://sonarcloud.io/summary/new_code?id=RHEcosystemAppEng_sast-ai-workflow)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=RHEcosystemAppEng_sast-ai-workflow&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=RHEcosystemAppEng_sast-ai-workflow)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=RHEcosystemAppEng_sast-ai-workflow&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=RHEcosystemAppEng_sast-ai-workflow)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=RHEcosystemAppEng_sast-ai-workflow&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=RHEcosystemAppEng_sast-ai-workflow)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=RHEcosystemAppEng_sast-ai-workflow&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=RHEcosystemAppEng_sast-ai-workflow)
+
+[![main branch Image](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/build-dev-image.yml/badge.svg)](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/build-dev-image.yml) [![Build Release Image](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/build-release-image.yml/badge.svg)](https://github.com/RHEcosystemAppEng/sast-ai-workflow/actions/workflows/build-release-image.yml) [![Quay.io](https://img.shields.io/badge/Quay.io-sast--ai--workflow-blue)](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
 
 
 SAST-AI-Workflow is a LLM-based tool designed to detect and flag suspected vulnerabilities through 
@@ -49,6 +56,6 @@ Please refer to [how to run](./docs/setup.md) guideline.
 
 ## 🚀 CI/CD Pipeline
 We provide a Tekton pipeline and helper scripts for deploying the SAST‑AI‑Workflow on an OpenShift cluster. 
-Please refer to [how to execute](./deploy/deploy.md) the pipeline.
+Please refer to [how to execute](./deploy/README.md) the pipeline.
 
 
