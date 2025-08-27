@@ -20,7 +20,7 @@ def cell_formatting(workbook, color):
     )
 
 
-def print_conclusion(evaluation_summary, failed_item_ids):
+def print_conclusion(evaluation_summary, failed_item_ids=[]):
     if failed_item_ids:
         logger.error(
             f"\nNOTE: The following failed items \
@@ -37,8 +37,7 @@ def print_conclusion(evaluation_summary, failed_item_ids):
     cm_table.add_row(["TN (Both human and AI labeled as real issue)", f"{evaluation_summary.tn}"])
     cm_table.add_row(["FN (AI falsely labeled as real issue)", f"{evaluation_summary.fn}"])
 
-    logger.info("\n--- Confusion Matrix Data ---")
-    logger.info(cm_table)
+    logger.info(f"\n--- Confusion Matrix Data ---\n{cm_table}")
 
     accuracy, recall, precision, f1_score = get_metrics(
         evaluation_summary.tp, evaluation_summary.tn, evaluation_summary.fp, evaluation_summary.fn
@@ -52,8 +51,7 @@ def print_conclusion(evaluation_summary, failed_item_ids):
     perf_table.add_row(["Precision", precision])
     perf_table.add_row(["F1 Score", f1_score])
 
-    logger.info("\n--- Model Performance Metrics ---")
-    logger.info(perf_table)
+    logger.info(f"\n--- Model Performance Metrics ---\n{perf_table}")
 
 
 def filter_items_for_evaluation(summary_data):
