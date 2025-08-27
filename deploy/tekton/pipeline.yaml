@@ -26,6 +26,10 @@ spec:
     - name: LLM_MODEL_NAME
       type: string
       default: "llm-model"
+    - name: LLM_API_TYPE
+      type: string
+      description: "LLM API type"
+      default: "nim"
     - name: EMBEDDINGS_LLM_URL
       type: string
       default: "http://<<please-set-embedding-llm-url>>"
@@ -109,6 +113,8 @@ spec:
           value: "$(params.LLM_URL)"
         - name: LLM_MODEL_NAME
           value: "$(params.LLM_MODEL_NAME)"
+        - name: LLM_API_TYPE
+          value: "$(params.LLM_API_TYPE)"
         - name: EMBEDDINGS_LLM_URL
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
