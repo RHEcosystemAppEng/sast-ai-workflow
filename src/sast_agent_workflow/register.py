@@ -133,9 +133,9 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         logger.debug("Converting SASTWorkflowTracker to summary stats")
         try:
             # For debug, print the tracker to the console
-            from pprint import pprint
+            from pprint import pformat
             tracker_dict = tracker.model_dump(exclude={'config'})
-            pprint(tracker_dict)
+            logger.debug("SASTWorkflowTracker contents:\n%s", pformat(tracker_dict))
 
             # Calculate summary statistics
             counter = categorize_issues_by_status(tracker.issues)

@@ -10,6 +10,7 @@ from aiq.data_models.function import FunctionBaseConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.EvaluationSummary import EvaluationSummary
 from Utils.file_utils import get_human_verified_results
+from Utils.output_utils import print_conclusion
 from Utils.workflow_utils import convert_tracker_to_summary_data
 from ExcelWriter import write_to_excel_file
 from common.constants import (
@@ -87,6 +88,12 @@ async def write_results(
         except Exception as e:
             logger.error(WRITE_RESULTS_FAILURE.format(e))
             # Continue execution - don't fail the workflow for output writing issues
+            
+        try:
+            # Write conclusion to logger
+            print_conclusion(evaluation_summary)
+        except Exception as e:
+            logger.error(f"Failed to print conclusion: {e}")
         
         logger.info("Write_Results node completed")
         return tracker
