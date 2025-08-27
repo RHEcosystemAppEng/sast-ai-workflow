@@ -6,9 +6,9 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, TOKENIZERS_PARALLELISM
+from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND, TOKENIZERS_PARALLELISM
 from dto.EvaluationSummary import EvaluationSummary
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
 from ExcelWriter import write_to_excel_file
 from handlers.repo_handler_factory import repo_handler_factory
@@ -115,17 +115,22 @@ def main():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
                     )
-                    equal_error_trace = already_seen_issues_dict[issue.id] #equal_error_trace (List[str])
-                    context = "\n".join(equal_error_trace) if equal_error_trace else "No matching trace found"
+                    equal_error_trace = already_seen_issues_dict[
+                        issue.id
+                    ]  # equal_error_trace (List[str])
+                    context = (
+                        "\n".join(equal_error_trace)
+                        if equal_error_trace
+                        else NO_MATCHING_TRACE_FOUND
+                    )
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-                        is_final="TRUE",
+                        is_final=FinalStatus.TRUE.value,
                         recommendations=["No fix required."],
                         justifications=[
                             f"The error is similar to one found in the provided context: {context}"
                         ],
-                        short_justifications="The error is similar to one found in the provided \
-                            known issues (Details in the full Justification)",
+                        short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
                     )
                 else:
                     # get source code context by error trace
@@ -151,7 +156,10 @@ def main():
                     llm_response, critique_response = llm_service.investigate_issue(context, issue)
 
                     retries = 0
-                    while llm_response.is_second_analysis_needed() and retries < 2:
+                    while (
+                        llm_response.is_second_analysis_needed()
+                        and retries < config.MAX_ANALYSIS_ITERATIONS
+                    ):
                         logger.info(
                             f"{llm_response.is_final=}\n{llm_response.recommendations=}\n\
                                 {llm_response.instructions=}"
@@ -171,7 +179,7 @@ def main():
                         retries += 1
                     repo_handler.reset_found_symbols()
                     # let's calculate numbers for quality of the response we received here!
-                    if config.CALCULATE_METRICS:
+                    if config.CALCULATE_RAGAS_METRICS:
                         metric_request = metric_request_from_prompt(llm_response)
                         score = metric_handler.evaluate_datasets(metric_request)
 
@@ -183,7 +191,7 @@ def main():
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(
                         investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                        is_final="TRUE",
+                        is_final=FinalStatus.TRUE.value,
                         justifications=FALLBACK_JUSTIFICATION_MESSAGE,
                         evaluation=[],
                         recommendations=[],

@@ -5,7 +5,7 @@ Handles filtering known issues, analyzing issues, and generating recommendations
 
 import os
 import logging
-from typing import Tuple
+from typing import Tuple, Union
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -15,7 +15,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_t
 from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, RED_ERROR_FOR_LLM_REQUEST
 from dto.Issue import Issue
 from dto.ResponseStructures import FilterResponse, JudgeLLMResponse, JustificationsSummary, RecommendationsResponse, EvaluationResponse
-from dto.LLMResponse import AnalysisResponse
+from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from Utils.file_utils import read_answer_template_file
 from Utils.llm_utils import robust_structured_output
 from .vector_store_service import VectorStoreService
@@ -98,6 +98,23 @@ class IssueAnalysisService:
         
         return response
     
+    def analyze_issue_core_only(self, issue: Issue, context: str, main_llm: BaseChatModel) -> Tuple[str, JudgeLLMResponse]:
+        """
+        Analyze an issue to determine if it is a false positive - core analysis only.
+        
+        Args:
+            issue: The issue object with details
+            context: The context to assist in the analysis
+            main_llm: The main LLM for analysis
+            
+        Returns:
+            tuple: (actual_prompt_string, llm_response)
+        """
+        actual_prompt, analysis_response = self._analyze_issue_with_retry(
+            context=context, issue=issue, main_llm=main_llm
+        )
+        return actual_prompt.to_string(), analysis_response
+
     def analyze_issue(self, issue: Issue, context: str, main_llm: BaseChatModel, 
                      critique_llm: BaseChatModel = None) -> Tuple[AnalysisResponse, EvaluationResponse]:
         """
@@ -118,10 +135,10 @@ class IssueAnalysisService:
             analysis_prompt, analysis_response = self._analyze_issue_with_retry(
                 context=context, issue=issue, main_llm=main_llm
             )
-            recommendations_response = self._recommend(
+            recommendations_response = self.recommend(
                 issue=issue, context=context, analysis_response=analysis_response, main_llm=main_llm
             )
-            short_justifications_response = self._summarize_justification(
+            short_justifications_response = self.summarize_justification(
                 analysis_prompt.to_string(), analysis_response, issue.id, main_llm
             )
 
@@ -139,8 +156,8 @@ class IssueAnalysisService:
             failed_message = "Failed during analyze process"
             logger.error(f"{failed_message}, set default values for the fields it failed on. Error is: {e}")
             llm_analysis_response = AnalysisResponse(
-                investigation_result="NOT A FALSE POSITIVE" if analysis_response is None else analysis_response.investigation_result,
-                is_final="TRUE" if recommendations_response is None else recommendations_response.is_final,
+                investigation_result=CVEValidationStatus.TRUE_POSITIVE.value if analysis_response is None else analysis_response.investigation_result,
+                is_final=FinalStatus.TRUE.value if recommendations_response is None else recommendations_response.is_final,
                 justifications=FALLBACK_JUSTIFICATION_MESSAGE if analysis_response is None else analysis_response.justifications,
                 evaluation=[failed_message] if recommendations_response is None else recommendations_response.justifications,
                 recommendations=[failed_message] if recommendations_response is None else recommendations_response.recommendations,
@@ -208,8 +225,8 @@ class IssueAnalysisService:
         return actual_prompt, analysis_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _summarize_justification(self, actual_prompt, response: JudgeLLMResponse, 
-                                issue_id: str, main_llm: BaseChatModel) -> JustificationsSummary:
+    def summarize_justification(self, actual_prompt, response: JudgeLLMResponse, 
+                               issue_id: str, main_llm: BaseChatModel) -> JustificationsSummary:
         """Summarize the justifications into a concise, engineer-style comment."""
         examples_str = ('[{"short_justifications": "t is reassigned so previously freed value is replaced by malloced string"}, '
                        '{"short_justifications": "There is a check for k<0"}, '
@@ -242,7 +259,7 @@ class IssueAnalysisService:
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
                 max_retry_limit=self.max_retry_limit, 
-                function_name="_summarize_justification", 
+                function_name="summarize_justification", 
                 issue_id=issue_id, 
                 error=e
             ))
@@ -251,7 +268,7 @@ class IssueAnalysisService:
         return short_justification
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))
-    def _recommend(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse, 
+    def recommend(self, issue: Issue, context: str, analysis_response: JudgeLLMResponse, 
                   main_llm: BaseChatModel) -> RecommendationsResponse:
         """Generate recommendations for further investigation, if necessary."""
         recommendations_prompt = ChatPromptTemplate.from_messages([
@@ -280,7 +297,7 @@ class IssueAnalysisService:
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
                 max_retry_limit=self.max_retry_limit, 
-                function_name="_recommend", 
+                function_name="recommend", 
                 issue_id=issue.id, 
                 error=e
             ))

@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 from typing import Tuple
 
 import git
@@ -20,16 +21,26 @@ def download_repo(repo_url: str) -> str:
         # Set the destination path to the current directory
         destination_path = os.path.join(os.getcwd(), repo_name)
 
-        # Clone the repo
-        logger.info(f"Cloning {repo_url} into {destination_path}...")
-        repo = git.Repo.clone_from(repo_url, destination_path)
+        if os.path.exists(destination_path):
+            try:
+                repo = git.Repo(destination_path)
+                logger.info(f"Repository already exists at {destination_path}, skipping download.")
+                
+            except git.exc.InvalidGitRepositoryError:
+                logger.warning(f"Directory {destination_path} exists but is not a valid git repository. Removing and cloning fresh.")
+                shutil.rmtree(destination_path)
+                repo = None
+        else:
+            repo = None
 
-        # Checkout the specified branch or tag if provided
+        if repo is None:
+            logger.info(f"Cloning {repo_url} into {destination_path}...")
+            repo = git.Repo.clone_from(repo_url, destination_path)
+            logger.info("Repository cloned successfully!")
+
         if branch_or_tag:
             logger.info(f"Checking out {branch_or_tag}...")
             repo.git.checkout(branch_or_tag)
-
-        logger.info("Repository cloned successfully!")
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")

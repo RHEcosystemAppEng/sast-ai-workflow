@@ -1,9 +1,16 @@
 import logging
 import math
+from collections import Counter
 from decimal import Decimal
 
+from dto.LLMResponse import FinalStatus
+from dto.SASTWorkflowModels import PerIssueData
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+
 from common.config import Config
-from common.constants import YES_OPTIONS
+from common.constants import KNOWN_ISSUES_SHORT_JUSTIFICATION, NEEDS_SECOND_ANALYSIS, YES_OPTIONS, \
+    TOTAL_ISSUES, NON_FINAL_ISSUES, FINAL_ISSUES, KNOWN_FALSE_POSITIVES, \
+    TRUE_POSITIVES, FALSE_POSITIVES, NO_ANALYSIS_RESPONSE
 
 logger = logging.getLogger(__name__)
 
@@ -39,41 +46,27 @@ def count_actual_values(data, ground_truth):
     return positives, negatives
 
 
-def calculate_confusion_matrix_metrics(
-    actual_true_positives,
-    actual_false_positives,
-    predicted_true_positives,
-    predicted_false_positives,
-):
-    """
-    Note: Since our goal is to detect false alarms,
-        positives refer to cases where issues are identified as NOT real issues.
-
-    Definitions:
-    - Positives: Issues that are NOT real issues (e.g., false alarms).
-    - Negatives: Issues that are real issues.
-    """
-    tp = len(
-        actual_false_positives & predicted_false_positives
-    )  # Both human and AI labeled as not real issue
-    tn = len(
-        actual_true_positives & predicted_true_positives
-    )  # Both human and AI labeled as real issue
-    fp = len(
-        actual_true_positives - predicted_true_positives
-    )  # AI falsely labeled as not real issue
-    fn = len(predicted_true_positives - actual_true_positives)  # AI falsely labeled as real issue
-
+def calculate_confusion_matrix_metrics(actual_tp, actual_fp, predicted_tp, predicted_fp):
+    all_ids = actual_tp | actual_fp | predicted_tp | predicted_fp
+    y_true = [1 if id in actual_fp else 0 for id in all_ids]
+    y_pred = [1 if id in predicted_fp else 0 for id in all_ids]
+    
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    tn, fp, fn, tp = cm.ravel()
     return tp, tn, fp, fn
 
 
 def get_metrics(tp, tn, fp, fn):
-    EPSILON = 1e-11
-    accuracy = (tp + tn) / (tp + tn + fp + fn + EPSILON)
-    recall = tp / (tp + fn + EPSILON)
-    precision = tp / (tp + fp + EPSILON)
-    f1_score = 2 * precision * recall / (precision + recall + EPSILON)
-    return accuracy, recall, precision, f1_score
+    y_true = [0] * tn + [0] * fp + [1] * fn + [1] * tp
+    y_pred = [0] * tn + [1] * fp + [0] * fn + [1] * tp
+    
+    if len(y_true) == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    
+    return (accuracy_score(y_true, y_pred), 
+            recall_score(y_true, y_pred, zero_division=0),
+            precision_score(y_true, y_pred, zero_division=0), 
+            f1_score(y_true, y_pred, zero_division=0))
 
 
 def get_numeric_value(value):
@@ -100,3 +93,60 @@ def get_predicted_summary(data, config: Config):
         )
         summary.append((issue.id, llm_response, ar))
     return summary
+
+
+def categorize_issues_by_status(issues: dict[str, PerIssueData]) -> Counter:
+    """
+    Categorize all issues by their various statuses using Counter for efficient batch processing.
+    
+    Args:
+        issues: Dictionary of issue IDs to PerIssueData objects
+        
+    Returns:
+        Counter with the following keys:
+        - 'total_issues': Total number of issues
+        - 'non_final_issues': Issues with is_final=FALSE
+        - 'final_issues': Issues with is_final=TRUE  
+        - 'known_false_positives': Issues containing known issue justification
+        - 'true_positives': Issues marked as true positives
+        - 'false_positives': Issues marked as false positives
+        - 'needs_second_analysis': Issues that need second analysis
+        - 'no_analysis_response': Issues without analysis response
+    """
+    counter = Counter()
+    
+    counter[TOTAL_ISSUES] = len(issues)
+    
+    if counter[TOTAL_ISSUES] == 0:
+        counter[NO_ANALYSIS_RESPONSE], counter[NON_FINAL_ISSUES], counter[FINAL_ISSUES], \
+        counter[KNOWN_FALSE_POSITIVES], counter[TRUE_POSITIVES], counter[FALSE_POSITIVES], \
+        counter[NEEDS_SECOND_ANALYSIS] = 0, 0, 0, 0, 0, 0, 0
+        return counter  
+    
+    for issue_data in issues.values():
+        if not issue_data.analysis_response:
+            counter[NO_ANALYSIS_RESPONSE] += 1
+            continue
+            
+        # Count by final status
+        if issue_data.analysis_response.is_final == FinalStatus.FALSE.value:
+            counter[NON_FINAL_ISSUES] += 1
+        else:
+            counter[FINAL_ISSUES] += 1
+            
+        # Count known false positives
+        if KNOWN_ISSUES_SHORT_JUSTIFICATION in issue_data.analysis_response.short_justifications:
+            counter[KNOWN_FALSE_POSITIVES] += 1
+            
+        # Count true/false positives
+        if issue_data.analysis_response.is_true_positive():
+            counter[TRUE_POSITIVES] += 1
+        else:
+            counter[FALSE_POSITIVES] += 1
+        
+        # Count needs second analysis
+        if issue_data.analysis_response.is_second_analysis_needed():
+            counter[NEEDS_SECOND_ANALYSIS] += 1
+            
+    return counter
+

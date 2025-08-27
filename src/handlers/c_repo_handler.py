@@ -13,6 +13,8 @@ from Utils.repo_utils import download_repo, get_repo_and_branch_from_url
 
 logger = logging.getLogger(__name__)
 
+# Global flag to track if libclang has been initialized
+_libclang_initialized = False
 
 class CRepoHandler:
     """
@@ -59,11 +61,16 @@ class CRepoHandler:
         self._compile_commands_json = {}
         self._compile_commands_json_path = config.COMPILE_COMMANDS_JSON_PATH
 
-        clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
-        self.index = clang.cindex.Index.create()
+        # Initialize libclang only once per process (global state limitation)
+        global _libclang_initialized
         
-        # Track all found symbols across method calls
-        self.all_found_symbols = set()
+        if not _libclang_initialized:
+            clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
+            _libclang_initialized = True
+            self.index = clang.cindex.Index.create()
+        else:
+            # Reuse existing libclang initialization, just create new index
+            self.index = clang.cindex.Index.create()
 
     @property
     def compile_commands_json(self):
@@ -90,19 +97,34 @@ class CRepoHandler:
     def get_source_code_blocks_from_error_trace(self, error_trace: str) -> dict:
         """Parse an error trace and extracts relevant functions bodies"""
 
-        source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+        try:
+            source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+        except Exception as e:
+            logger.warning(f"Failed to parse error trace: {e}")
+            return {}
+            
         error_code_sources = defaultdict(set)
 
         for file_path, line_number in source_files:
+            try:
+                line_num = int(line_number)
+            except ValueError:
+                logger.warning(f"Invalid line number '{line_number}' for file {file_path}")
+                continue
+                
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
                 logger.debug(f"Skipping missing file: {local_file_path}")
                 continue
 
-            source_code = self.get_source_code_by_line_number(local_file_path, int(line_number))
-            if source_code:
-                error_code_sources[file_path].add(source_code)
+            try:
+                source_code = self.get_source_code_by_line_number(local_file_path, line_num)
+                if source_code:
+                    error_code_sources[file_path].add(source_code)
+            except Exception as e:
+                logger.warning(f"Failed to extract source code from {local_file_path}:{line_num}: {e}")
+                continue
 
         return {
             full_file_path: "\n".join(code_sections)
@@ -169,31 +191,43 @@ class CRepoHandler:
         
         return source_code
 
-    def extract_missing_functions_or_macros(self, instructions) -> str:
+    def extract_missing_functions_or_macros(self, instructions, found_symbols: set) -> tuple[str, set]:
         """Get definitions of an expression"""
+        
+        if not instructions:
+            logger.debug("No instructions provided for function/macro extraction")
+            return "", found_symbols
 
         def get_path(path: str):
-            path = path.removeprefix(self.repo_local_path)
-            path = path.removeprefix(self._report_file_prefix)
-            path = path.split(":")[0]
-            return path
+            try:
+                path = path.removeprefix(self.repo_local_path)
+                path = path.removeprefix(self._report_file_prefix)
+                path = path.split(":")[0]
+                return path
+            except (AttributeError, TypeError) as e:
+                logger.warning(f"Invalid path format: {path}. Error: {e}")
+                return ""
 
         expressions_by_path = defaultdict(set)
         for instruction in instructions:
-            path = get_path(instruction.referring_source_code_path)
-            if instruction.expression_name not in self.all_found_symbols:
-                expressions_by_path[path].add(instruction.expression_name)
-            else:
-                print(f"Skipping {instruction.expression_name} - the context contains the code already.")
+            try:
+                path = get_path(instruction.referring_source_code_path)
+                if path and instruction.expression_name not in found_symbols:
+                    expressions_by_path[path].add(instruction.expression_name)
+                elif instruction.expression_name in found_symbols:
+                    logger.debug(f"Skipping {instruction.expression_name} - the context contains the code already.")
+            except AttributeError as e:
+                logger.warning(f"Invalid instruction format: {instruction}. Error: {e}")
+                continue
 
         missing_source_codes = ""
         for source_code_path, expressions_list in expressions_by_path.items():
             source_code = ""
             try:
-                found_symbols, source_code = self.extract_definition_from_source_code(
+                new_found_symbols, source_code = self.extract_definition_from_source_code(
                     expressions_list, source_code_path
                 )
-                self.all_found_symbols.update(found_symbols)
+                found_symbols.update(new_found_symbols)
             except Exception as e:
                 logger.error(
                     f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}"
@@ -202,7 +236,7 @@ class CRepoHandler:
                 for file_path, exps_dict in source_code.items():
                     joined_exps = "\n\n".join([exp for exp in exps_dict.values()])
                     missing_source_codes += f"code of {file_path} file:\n{joined_exps}"
-        return missing_source_codes
+        return missing_source_codes, found_symbols
 
     def extract_definition_from_source_code(
         self, function_names: set[str], source_code_file_path: str
@@ -376,6 +410,9 @@ class CRepoHandler:
         return file_path, code_line_number
     
     def reset_found_symbols(self):
-        """Reset the accumulated found symbols for a new analysis session."""
-        self.all_found_symbols.clear()
+        """Reset the accumulated found symbols for a new analysis session.
+        
+        Note: Deprecated - symbol tracking is now per-issue in the new workflow.
+        """
+        pass
     

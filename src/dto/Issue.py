@@ -1,11 +1,17 @@
-class Issue:
-    def __init__(self, issue_id):
-        self.id = issue_id
-        self.issue_type = ""
-        self.issue_label = ""
-        self.issue_cve = ""
-        self.issue_cve_link = ""
-        self.trace = ""
+from pydantic import BaseModel
+
+class Issue(BaseModel):
+    """
+    Represents a single issue.
+    """
+    # This field is required for instantiation.
+    id: str
+    
+    issue_type: str = ""
+    issue_label: str = ""
+    issue_cve: str = ""
+    issue_cve_link: str = ""
+    trace: str = ""
 
     def __repr__(self):
         return (
