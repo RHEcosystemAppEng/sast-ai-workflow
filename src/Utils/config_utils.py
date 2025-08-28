@@ -41,10 +41,14 @@ def validate_configurations(config):
         "LLM_MODEL_NAME",
         "EMBEDDINGS_LLM_MODEL_NAME",
         "REPORT_FILE_PATH",
-        "KNOWN_FALSE_POSITIVE_FILE_PATH",
         "OUTPUT_FILE_PATH",
     ]
-    required_cfg_files = ["REPORT_FILE_PATH", "KNOWN_FALSE_POSITIVE_FILE_PATH"]
+    required_cfg_files = ["REPORT_FILE_PATH"]
+
+    # Only require KNOWN_FALSE_POSITIVE_FILE_PATH if USE_KNOWN_FALSE_POSITIVE_FILE is True
+    if config.get("USE_KNOWN_FALSE_POSITIVE_FILE", True):
+        required_cfg_vars.append("KNOWN_FALSE_POSITIVE_FILE_PATH")
+        required_cfg_files.append("KNOWN_FALSE_POSITIVE_FILE_PATH")
 
     for var in required_cfg_vars:
         value = config[var]
