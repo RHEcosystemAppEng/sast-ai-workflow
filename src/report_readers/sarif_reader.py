@@ -283,7 +283,7 @@ class SarifReportReader(BaseReportReader):
         # Last resort - check message
         message = result.get("message", {})
         if isinstance(message, dict) and "text" in message:
-            return message["text"][:50] + "..." if len(message["text"]) > 50 else message["text"]
+            return message["text"]
 
         return "SARIF Issue"
 
