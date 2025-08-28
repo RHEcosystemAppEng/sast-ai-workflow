@@ -137,7 +137,7 @@ class SarifReportReader(BaseReportReader):
 
             return True
 
-        except (json.JSONDecodeError, FileNotFoundError, Exception):
+        except Exception:
             return False
 
     def _parse_sarif_data(self, sarif_data: Dict[str, Any]) -> List[Issue]:
