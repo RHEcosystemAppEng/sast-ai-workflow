@@ -1,0 +1,77 @@
+{
+  "summary": {
+    "total_evaluations": 5,
+    "valid_evaluations": 5,
+    "failed_evaluations": 0,
+    "faithfulness_pass_rate": 0.6,
+    "relevancy_pass_rate": 1.0
+  },
+  "metrics": {
+    "average_faithfulness": 0.7,
+    "average_relevancy": 1.0,
+    "faithfulness_threshold": 0.8,
+    "relevancy_threshold": 0.75
+  },
+  "detailed_results": [
+    {
+      "issue_id": "glibc_def3",
+      "faithfulness_score": 1.0,
+      "relevancy_score": 1.0,
+      "faithfulness_passed": true,
+      "relevancy_passed": true,
+      "summary_length": 173,
+      "original_length": 1054,
+      "compression_ratio": 0.8358633776091081,
+      "error_message": null
+    },
+    {
+      "issue_id": "glibc_def6",
+      "faithfulness_score": 0.5,
+      "relevancy_score": 1.0,
+      "faithfulness_passed": false,
+      "relevancy_passed": true,
+      "summary_length": 160,
+      "original_length": 214,
+      "compression_ratio": 0.2523364485981308,
+      "error_message": null
+    },
+    {
+      "issue_id": "glibc_def8",
+      "faithfulness_score": 1.0,
+      "relevancy_score": 1.0,
+      "faithfulness_passed": true,
+      "relevancy_passed": true,
+      "summary_length": 135,
+      "original_length": 103,
+      "compression_ratio": -0.3106796116504854,
+      "error_message": null
+    },
+    {
+      "issue_id": "glibc_def11",
+      "faithfulness_score": 1.0,
+      "relevancy_score": 1.0,
+      "faithfulness_passed": true,
+      "relevancy_passed": true,
+      "summary_length": 197,
+      "original_length": 1435,
+      "compression_ratio": 0.8627177700348432,
+      "error_message": null
+    },
+    {
+      "issue_id": "glibc_def20",
+      "faithfulness_score": 0.0,
+      "relevancy_score": 1.0,
+      "faithfulness_passed": false,
+      "relevancy_passed": true,
+      "summary_length": 143,
+      "original_length": 266,
+      "compression_ratio": 0.462406015037594,
+      "error_message": null
+    }
+  ],
+  "metadata": {
+    "timestamp": "2025-08-28 10:55:45",
+    "model_name": "nvidia/llama-3.1-nemotron-70b-instruct",
+    "evaluation_version": "1.0"
+  }
+}
