@@ -2,15 +2,15 @@
 Tests for investigate_issue function in LLMService.py
 Covers core LLM analysis for vulnerability classification.
 """
-import pytest
-import logging
-from unittest.mock import Mock, patch
-from src.LLMService import LLMService
-from src.services.issue_analysis_service import IssueAnalysisService
-from src.dto.Issue import Issue
-from src.dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
-from src.common.config import Config
 
+from unittest.mock import Mock, patch
+
+import pytest
+
+from src.common.config import Config
+from src.dto.Issue import Issue
+from src.dto.LLMResponse import AnalysisResponse, FinalStatus
+from src.LLMService import LLMService
 
 # Constants for test responses
 EXPECTED_TRUE_POSITIVE_RESULT = AnalysisResponse(
@@ -21,18 +21,18 @@ EXPECTED_TRUE_POSITIVE_RESULT = AnalysisResponse(
     recommendations=["Fix buffer bounds"],
     instructions=[],
     prompt="test prompt",
-    short_justifications="Buffer overflow found"
+    short_justifications="Buffer overflow found",
 )
 
 EXPECTED_FALSE_POSITIVE_RESULT = AnalysisResponse(
     investigation_result=" FALSE POSITIVE",
-    is_final=FinalStatus.TRUE.value, 
+    is_final=FinalStatus.TRUE.value,
     justifications=["Input validation prevents overflow"],
     evaluation=["No action needed"],
     recommendations=["No fix required"],
     instructions=[],
     prompt="test prompt",
-    short_justifications="Safe input validation"
+    short_justifications="Safe input validation",
 )
 
 
@@ -63,13 +63,13 @@ class TestInvestigateIssue:
 
         test_issue = Issue(id="test-issue-1")
         test_issue.issue_type = "BUFFER_SIZE"
-        test_issue.issue_cve = "CWE-474"
+        test_issue.issue_cwe = "CWE-474"
         test_issue.trace = "buffer overflow at line 121"
 
-        # testing        
+        # testing
         llm_service = LLMService(mock_config)
-        
-        with patch.object(llm_service.issue_analysis_service, 'analyze_issue') as mock_analyze:
+
+        with patch.object(llm_service.issue_analysis_service, "analyze_issue") as mock_analyze:
             mock_analyze.return_value = (EXPECTED_TRUE_POSITIVE_RESULT, "")
 
             analysis_result, _ = llm_service.investigate_issue("test context", test_issue)
@@ -81,7 +81,12 @@ class TestInvestigateIssue:
             assert "Buffer overflow vulnerability detected" in analysis_result.justifications
             assert "Fix buffer bounds" in analysis_result.recommendations
             assert analysis_result.short_justifications == "Buffer overflow found"
-            mock_analyze.assert_called_once_with(issue=test_issue, context="test context", main_llm=llm_service.main_llm, critique_llm=None)
+            mock_analyze.assert_called_once_with(
+                issue=test_issue,
+                context="test context",
+                main_llm=llm_service.main_llm,
+                critique_llm=None,
+            )
 
     def test__investigate_issue__exception_returns_fallback_response(self):
         # preparation
@@ -108,20 +113,25 @@ class TestInvestigateIssue:
 
         test_issue = Issue(id="test-issue-1")
         test_issue.issue_type = "BUFFER_SIZE"
-        test_issue.issue_cve = "CWE-474"
+        test_issue.issue_cwe = "CWE-474"
         test_issue.trace = "buffer overflow at line 121"
 
         # testing
         llm_service = LLMService(mock_config)
-        
-        with patch.object(llm_service.issue_analysis_service, 'analyze_issue') as mock_analyze:
+
+        with patch.object(llm_service.issue_analysis_service, "analyze_issue") as mock_analyze:
             mock_analyze.side_effect = Exception("LLM service unavailable")
-            
+
             # Exception should propagate since LLMService doesn't handle exceptions
             with pytest.raises(Exception, match="LLM service unavailable"):
                 llm_service.investigate_issue("test context", test_issue)
 
-            mock_analyze.assert_called_once_with(issue=test_issue, context="test context", main_llm=llm_service.main_llm, critique_llm=None)
+            mock_analyze.assert_called_once_with(
+                issue=test_issue,
+                context="test context",
+                main_llm=llm_service.main_llm,
+                critique_llm=None,
+            )
 
     def test__investigate_issue__false_positive_returns_fp_response(self):
         # preparation
@@ -147,14 +157,14 @@ class TestInvestigateIssue:
         mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
 
         test_issue = Issue(id="test-issue-2")
-        test_issue.issue_type = "BUFFER_SIZE" 
-        test_issue.issue_cve = "CWE-474"
+        test_issue.issue_type = "BUFFER_SIZE"
+        test_issue.issue_cwe = "CWE-474"
         test_issue.trace = "false positive case"
 
-        # testing        
+        # testing
         llm_service = LLMService(mock_config)
-        
-        with patch.object(llm_service.issue_analysis_service, 'analyze_issue') as mock_analyze:
+
+        with patch.object(llm_service.issue_analysis_service, "analyze_issue") as mock_analyze:
             mock_analyze.return_value = (EXPECTED_FALSE_POSITIVE_RESULT, "")
 
             analysis_result, _ = llm_service.investigate_issue("test context", test_issue)
@@ -166,4 +176,9 @@ class TestInvestigateIssue:
             assert "Input validation prevents overflow" in analysis_result.justifications
             assert "No fix required" in analysis_result.recommendations
             assert analysis_result.short_justifications == "Safe input validation"
-            mock_analyze.assert_called_once_with(issue=test_issue, context="test context", main_llm=llm_service.main_llm, critique_llm=None)
+            mock_analyze.assert_called_once_with(
+                issue=test_issue,
+                context="test context",
+                main_llm=llm_service.main_llm,
+                critique_llm=None,
+            )
