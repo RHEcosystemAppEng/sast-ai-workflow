@@ -67,14 +67,14 @@ def write_summary_results_to_aggregate_google_sheet(
     row_data = [
         date,
         nvr,  # Package NVR (Name Version Release)
-        evaluation_summary.tp,
-        evaluation_summary.fp,
-        evaluation_summary.tn,
-        evaluation_summary.fn,
-        evaluation_summary.accuracy,
-        evaluation_summary.recall,
-        evaluation_summary.precision,
-        evaluation_summary.f1_score,
+        int(evaluation_summary.tp),
+        int(evaluation_summary.fp),
+        int(evaluation_summary.tn),
+        int(evaluation_summary.fn),
+        float(evaluation_summary.accuracy) if evaluation_summary.accuracy is not None else None,
+        float(evaluation_summary.recall) if evaluation_summary.recall is not None else None,
+        float(evaluation_summary.precision) if evaluation_summary.precision is not None else None,
+        float(evaluation_summary.f1_score) if evaluation_summary.f1_score is not None else None,
     ]
 
     sheet = get_google_sheet(config.AGGREGATE_RESULTS_G_SHEET, config.SERVICE_ACCOUNT_JSON_PATH)
