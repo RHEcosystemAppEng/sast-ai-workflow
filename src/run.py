@@ -15,7 +15,7 @@ from handlers.repo_handler_factory import repo_handler_factory
 from LLMService import LLMService
 from MetricHandler import MetricHandler, metric_request_from_prompt
 from ReportReader import read_sast_report
-from stage.filter_known_issues import capture_known_issues
+from FilterKnownIssues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
