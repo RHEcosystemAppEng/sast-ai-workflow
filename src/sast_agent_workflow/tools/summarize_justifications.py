@@ -11,6 +11,7 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.ResponseStructures import JudgeLLMResponse
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
+from common.constants import DEFAULT_FIELD_VALUE
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ async def summarize_justifications(
         
         for issue_id, per_issue_data in tracker.issues.items():
             if (per_issue_data.analysis_response and 
-                not per_issue_data.analysis_response.short_justifications):
+                per_issue_data.analysis_response.short_justifications == DEFAULT_FIELD_VALUE):
                 
                 logger.debug(f"Summarizing justifications for issue {issue_id}")
                 try:
