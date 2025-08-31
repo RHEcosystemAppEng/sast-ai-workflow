@@ -3,10 +3,10 @@ name: Run AIQ Workflow Unit Tests
 on:
   push:
     branches:
-      - aiq-workflow-migration
+      - main
   pull_request:
     branches:
-      - aiq-workflow-migration
+      - main
 
 jobs:
   unit-tests:
@@ -29,3 +29,54 @@ jobs:
 
       - name: Run tests
         run: PYTHONPATH=. pytest tests/aiq_tests/
+
+      - name: Verify All Tools Loaded
+        run: |
+          echo "Running aiq validate..."
+          echo "Python path: $PYTHONPATH"
+          echo "Current directory: $(pwd)"
+          echo "Config file exists: $(test -f src/sast_agent_workflow/configs/config.yml && echo 'YES' || echo 'NO')"
+          
+          # Check if aiq command is available
+          if command -v aiq >/dev/null 2>&1; then
+            echo "✓ aiq command found: $(which aiq)"
+          else
+            echo "✗ aiq command not found"
+            echo "Available commands:"
+            ls -la /opt/hostedtoolcache/Python/3.12.11/x64/bin/ | grep -i aiq || echo "No aiq commands found"
+            exit 1
+          fi
+          
+          # Run validation with more verbose output
+          echo "Running validation command..."
+          set +e  # Don't exit on error
+          output=$(timeout 120 bash -c 'yes q | aiq validate --config_file src/sast_agent_workflow/configs/config.yml' 2>&1)
+          exit_code=$?
+          set -e
+          
+          echo "=== COMMAND OUTPUT START ==="
+          echo "$output"
+          echo "=== COMMAND OUTPUT END ==="
+          echo "Exit code: $exit_code"
+          
+          # Check for specific error patterns
+          if echo "$output" | grep -q "command not found"; then
+            echo "❌ aiq command not found"
+            exit 1
+          elif echo "$output" | grep -q "No such file"; then
+            echo "❌ Config file not found"
+            exit 1
+          elif [ $exit_code -eq 124 ]; then
+            echo "❌ Command timed out"
+            exit 1
+          fi
+          
+          # Check for success message
+          if echo "$output" | grep -q "Configuration file is valid"; then
+            echo "✅ Configuration validation passed"
+            exit 0
+          else
+            echo "❌ Configuration validation failed - success message not found"
+            echo "Looking for: 'Configuration file is valid'"
+            exit 1
+          fi
