@@ -21,6 +21,8 @@ from sast_agent_workflow.tools import pre_process, \
         evaluate_analysis, summarize_justifications, \
         calculate_metrics, write_results
 
+# Custom evaluator import no longer needed since we use NVIDIA's built-in evaluator
+
 logger = logging.getLogger(__name__)
 
 

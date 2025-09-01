@@ -1,0 +1,84 @@
+general:
+  use_uvloop: true
+  telemetry:
+    tracing:
+      phoenix:
+        _type: phoenix
+        endpoint: http://localhost:6007/v1/traces
+        project: sast_evaluation
+
+functions:
+  summarize_justifications:
+    _type: summarize_justifications
+    llm_name: eval_llm
+    enable_evaluation: false
+
+llms:
+  eval_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+  judge_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    temperature: 0.0
+    max_tokens: 512
+    api_key: ${LLM_API_KEY}
+
+
+workflow:
+  _type: summarize_justifications
+  llm_name: eval_llm
+  enable_evaluation: false
+
+eval:
+  general:
+    output_dir: /Users/gziv/Dev/sast-ai-workflow/evaluation/nvidia_eval/results
+    dataset:
+      _type: json
+      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/nvidia_eval/summarize_eval_dataset.json
+      structure:
+        question_key: "question"
+        answer_key: "expected_output_obj"
+        generated_answer_key: "generated_answer"
+        trajectory_key: "intermediate_steps"
+        expected_trajectory_key: "expected_intermediate_steps"
+    profiler:
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+      bottleneck_analysis:
+        enable_nested_stack: false
+  evaluators:
+    security_analysis_eval:
+      _type: tunable_rag_evaluator
+      llm_name: judge_llm
+      default_scoring: true
+      default_score_weights:
+        coverage: 0.5      # Critical - includes all key vulnerability details
+        correctness: 0.4   # High importance - technical accuracy is crucial
+        relevance: 0.1     # Lower weight - less critical for summary tasks
+      judge_llm_prompt: >
+        You are a security engineering expert evaluating vulnerability analysis summaries.
+        
+        CRITICAL: Compare the generated summary ONLY against the provided expected answer description. Do NOT evaluate based on your own security knowledge.
+        
+        If the expected answer is nonsense/invalid (like "blah blah blah"), the generated summary should receive very low scores regardless of technical quality.
+        
+        If the expected answer contains valid security information, evaluate how well the generated summary matches it:
+        
+        COVERAGE (50%): Does the generated summary include the same security elements as the expected answer?
+        - Same vulnerability type and location mentioned in expected answer
+        - Same technical details and mechanisms from expected answer  
+        - Same assessment conclusions from expected answer
+        
+        CORRECTNESS (40%): Does the generated summary match the technical details in the expected answer?
+        - Same file paths, line numbers, function names as expected
+        - Same vulnerability classification as expected
+        - Same technical concepts and terminology as expected
+        
+        RELEVANCE (10%): Does the generated summary have similar style/focus as expected answer?
+        - Similar level of detail as expected
+        - Similar professional tone as expected
+        
+        Score 0.0-1.0 for each dimension. Focus on SIMILARITY to expected answer, not absolute technical quality.
