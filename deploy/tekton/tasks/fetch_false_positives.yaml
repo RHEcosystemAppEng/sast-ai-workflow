@@ -4,9 +4,9 @@ metadata:
   name: fetch-false-positives
 spec:
   params:
-    - name: FALSE_POSITIVES_URL
+    - name: NON_ISSUES_URL
       type: string
-      description: "Optional GitLab URL containing known false positives"
+      description: "Optional GitLab URL containing known non-issues"
   workspaces:
     - name: false-positives-workspace
       description: "Workspace to store the downloaded ignore.err"
@@ -19,7 +19,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -euo pipefail
-        FP_URL="$(params.FALSE_POSITIVES_URL)"
+        FP_URL="$(params.NON_ISSUES_URL)"
         if [ -z "$FP_URL" ]; then
           echo "No falsePositivesUrl provided; skipping fetch..."
           exit 0
@@ -31,11 +31,11 @@ spec:
             GITLAB_TOKEN=$(cat "$TOKEN_FILE")
             echo "GitLab token found. Fetching file with authentication..."
             curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
-              || (echo "Error: Could not fetch false positives file with token." && exit 1)
+              || (echo "Error: Could not fetch non-issues file with token." && exit 1)
         else
             echo "No GitLab token file found; attempting unauthenticated fetch..."
             curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "$(workspaces.false-positives-workspace.path)/ignore.err" \
-              || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+              || (echo "Error: Could not fetch non-issues file unauthenticated." && exit 1)
         fi
         if [ -f "$(workspaces.false-positives-workspace.path)/ignore.err" ]; then
           echo "Success"

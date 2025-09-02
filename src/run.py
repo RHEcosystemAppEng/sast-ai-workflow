@@ -6,7 +6,12 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND, TOKENIZERS_PARALLELISM
+from common.constants import (
+    FALLBACK_JUSTIFICATION_MESSAGE,
+    KNOWN_NON_ISSUES_SHORT_JUSTIFICATION,
+    NO_MATCHING_TRACE_FOUND,
+    TOKENIZERS_PARALLELISM,
+)
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
@@ -72,7 +77,7 @@ def main():
         # "def28",
         # "def29",
         # "def30",
-        # "def31",  # This one is known false positive
+        # "def31",  # This one is known non-issue
         # "def32",
         # "def33",
         # "def34",
@@ -89,12 +94,12 @@ def main():
         # "def45",
         # "def46",
         # "def47",
-        # "def48",  # This one is known false positive
-        # "def49",  # This one is known false positive
-        # "def50",  # This one is known false positive
+        # "def48",  # This one is known non-issue
+        # "def49",  # This one is known non-issue
+        # "def50",  # This one is known non-issue
         # }
         already_seen_issues_dict, similar_known_issues_dict = {}, {}
-        if config.USE_KNOWN_FALSE_POSITIVE_FILE:
+        if config.USE_KNOWN_NON_ISSUES_FILE:
             already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(
                 llm_service,
                 # [e for e in issue_list if e.id in selected_issue_list],
@@ -113,7 +118,7 @@ def main():
             try:
                 if issue.id in already_seen_issues_dict.keys():
                     logger.info(
-                        f"{issue.id} already marked as a false positive since it's a known issue"
+                        f"{issue.id} already marked as a non-issue since it's a known issue"
                     )
                     equal_error_trace = already_seen_issues_dict[
                         issue.id
@@ -124,13 +129,13 @@ def main():
                         else NO_MATCHING_TRACE_FOUND
                     )
                     llm_response = AnalysisResponse(
-                        investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
+                        investigation_result=CVEValidationStatus.NON_ISSUE.value,
                         is_final=FinalStatus.TRUE.value,
                         recommendations=["No fix required."],
                         justifications=[
                             f"The error is similar to one found in the provided context: {context}"
                         ],
-                        short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
+                        short_justifications=KNOWN_NON_ISSUES_SHORT_JUSTIFICATION,
                     )
                 else:
                     # get source code context by error trace
@@ -190,7 +195,7 @@ def main():
                 if not llm_response:
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(
-                        investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
+                        investigation_result=CVEValidationStatus.ISSUE.value,
                         is_final=FinalStatus.TRUE.value,
                         justifications=FALLBACK_JUSTIFICATION_MESSAGE,
                         evaluation=[],

@@ -48,7 +48,7 @@ HuggingFace model ([all-mpnet-base-v2](https://huggingface.co/sentence-transform
 
 #### Evaluation
 - Applies metrics (from Ragas library) to assess the quality of model outputs.
-- **Note:** SAST-AI-Workflow is primarily focused on identifying false alarms (False Positives).
+- **Note:** SAST-AI-Workflow is primarily focused on identifying false alarms (Non-Issues).
 
   
 ## 🔌 Installation & Setup 

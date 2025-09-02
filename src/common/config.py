@@ -14,7 +14,7 @@ from common.constants import (
     EMBEDDINGS_LLM_URL,
     HUMAN_VERIFIED_FILE_PATH,
     INPUT_REPORT_FILE_PATH,
-    KNOWN_FALSE_POSITIVE_FILE_PATH,
+    KNOWN_NON_ISSUES_FILE_PATH,
     LLM_API_KEY,
     LLM_API_TYPE,
     LLM_MODEL_NAME,
@@ -52,11 +52,11 @@ class Config:
     EMBEDDINGS_LLM_MODEL_NAME: str | None
     EMBEDDINGS_LLM_API_KEY: str | None
     INPUT_REPORT_FILE_PATH: str
-    KNOWN_FALSE_POSITIVE_FILE_PATH: str
+    KNOWN_NON_ISSUES_FILE_PATH: str
     OUTPUT_FILE_PATH: str
     AGGREGATE_RESULTS_G_SHEET: str
     HUMAN_VERIFIED_FILE_PATH: str
-    USE_KNOWN_FALSE_POSITIVE_FILE: bool
+    USE_KNOWN_NON_ISSUES_FILE: bool
     CALCULATE_RAGAS_METRICS: bool
     RUN_WITH_CRITIQUE: bool
     WRITE_RESULTS_INCLUDE_NON_FINAL: bool
@@ -247,8 +247,8 @@ class Config:
         if self.AGGREGATE_RESULTS_G_SHEET:
             required_cfg_files.add(SERVICE_ACCOUNT_JSON_PATH)
 
-        if self.USE_KNOWN_FALSE_POSITIVE_FILE:
-            required_cfg_files.add(KNOWN_FALSE_POSITIVE_FILE_PATH)
+        if self.USE_KNOWN_NON_ISSUES_FILE:
+            required_cfg_files.add(KNOWN_NON_ISSUES_FILE_PATH)
 
         # Validate that input files exist and are accessible
         for var in required_cfg_files:
@@ -279,16 +279,19 @@ class Config:
             )
 
         # Validate that similarity error threshold is a valid value
-        if not is_valid_int_value(self.SIMILARITY_ERROR_THRESHOLD, 
-                                  VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"], 
-                                  VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"]):
+        if not is_valid_int_value(
+            self.SIMILARITY_ERROR_THRESHOLD,
+            VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"],
+            VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"],
+        ):
             raise ValueError(
                 f"Configuration variable '{SIMILARITY_ERROR_THRESHOLD}' is not a valid value."
             )
 
         # Validate that MAX_ANALYSIS_ITERATIONS is a positive integer
-        if not is_valid_int_value(self.MAX_ANALYSIS_ITERATIONS, 
-                                  VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]):
+        if not is_valid_int_value(
+            self.MAX_ANALYSIS_ITERATIONS, VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]
+        ):
             raise ValueError(
                 f"Configuration variable '{MAX_ANALYSIS_ITERATIONS}' is not a valid value."
             )

@@ -68,7 +68,7 @@ class TestUtils:
         )
 
     @staticmethod
-    def create_sample_per_issue_data_dict(issues: List[Issue], is_false_positive: str = CVEValidationStatus.TRUE_POSITIVE.value, 
+    def create_sample_per_issue_data_dict(issues: List[Issue], is_false_positive: str = CVEValidationStatus.ISSUE.value, 
                                           is_final: str = FinalStatus.FALSE.value, instructions: list = [], 
                                           justifications: list = None, short_justifications: str = None) -> Dict[str, PerIssueData]:
         """Create a dictionary of PerIssueData from issues."""
@@ -91,7 +91,7 @@ class TestUtils:
         return issues_dict
     
     @staticmethod
-    def create_sample_analysis_response(is_false_positive: str = CVEValidationStatus.TRUE_POSITIVE.value, is_final: str = FinalStatus.FALSE.value, 
+    def create_sample_analysis_response(is_false_positive: str = CVEValidationStatus.ISSUE.value, is_final: str = FinalStatus.FALSE.value, 
                                         instructions: list = [], justifications: list = ["Test justification"], 
                                         short_justifications: str = "Short justification", 
                                         recommendations: list = ["Test recommendation"], evaluation: list = ["Test evaluation"], prompt: str = "Test prompt") -> AnalysisResponse:
@@ -147,7 +147,7 @@ class TestUtils:
                 issue=issue,
                 similar_known_issues="",
                 source_code={},
-                analysis_response=AnalysisResponse(investigation_result=CVEValidationStatus.TRUE_POSITIVE.value, is_final=FinalStatus.FALSE.value)
+                analysis_response=AnalysisResponse(investigation_result=CVEValidationStatus.ISSUE.value, is_final=FinalStatus.FALSE.value)
             )
         
         return SASTWorkflowTracker(
