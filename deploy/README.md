@@ -267,7 +267,18 @@ grep -c "prompt:" tekton/prompts-config-map.yaml  # Should show 8
 
 This ensures all template files are valid and the ConfigMap generation works correctly.
 
-### 10. Troubleshooting
+### 10. Pod Cleanup Configuration
+
+The pipeline is configured with automatic pod cleanup to prevent accumulation of completed Tekton task pods:
+
+- **TTL Setting**: `ttlSecondsAfterFinished: 3600` (1 hour)
+- **Location**: `deploy/tekton/pipeline.yaml` 
+- **Effect**: Completed task pods are automatically deleted after 1 hour
+- **Benefits**: Prevents cluster performance degradation and etcd bloat
+
+To modify the cleanup interval, edit the `podTemplate.ttlSecondsAfterFinished` value in the pipeline definition.
+
+### 11. Troubleshooting
 
 #### General Issues
 - **View logs:** `make logs`

@@ -3,6 +3,8 @@ kind: Pipeline
 metadata:
   name: sast-ai-workflow-pipeline
 spec:
+  podTemplate:
+    ttlSecondsAfterFinished: 3600
   params:
     - name: PROJECT_NAME
       type: string
