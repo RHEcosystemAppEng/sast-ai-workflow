@@ -64,9 +64,9 @@ class Config:
     CRITIQUE_LLM_URL: str
     CRITIQUE_LLM_MODEL_NAME: str
     CRITIQUE_LLM_API_KEY: str | None
+    CRITIQUE_LLM_API_KEY: str
     SERVICE_ACCOUNT_JSON_PATH: str
     SIMILARITY_ERROR_THRESHOLD: int
-    MAX_ANALYSIS_ITERATIONS: int
 
     # Prompt template type hints
     ANALYSIS_SYSTEM_PROMPT: str
@@ -98,6 +98,7 @@ class Config:
             # Load and return template
             with open(prompt_file, "r", encoding="utf-8") as f:
                 prompt_data = yaml.safe_load(f)
+                template = prompt_data.get("template", "")
                 template = prompt_data.get("template", "")
                 logger.info(f"Loaded prompt template from file: {prompt_name}.yaml")
                 return template
@@ -161,6 +162,31 @@ class Config:
             "EVALUATION_PROMPT", "evaluation_prompt"
         )
 
+        self.ANALYSIS_SYSTEM_PROMPT = self._load_prompt_template(
+            "ANALYSIS_SYSTEM_PROMPT", "analysis_system_prompt"
+        )
+        self.ANALYSIS_HUMAN_PROMPT = self._load_prompt_template(
+            "ANALYSIS_HUMAN_PROMPT", "analysis_human_prompt"
+        )
+        self.FILTER_SYSTEM_PROMPT = self._load_prompt_template(
+            "FILTER_SYSTEM_PROMPT", "filter_system_prompt"
+        )
+        self.FILTER_HUMAN_PROMPT = self._load_prompt_template(
+            "FILTER_HUMAN_PROMPT", "filter_human_prompt"
+        )
+        self.RECOMMENDATIONS_PROMPT = self._load_prompt_template(
+            "RECOMMENDATIONS_PROMPT", "recommendations_prompt"
+        )
+        self.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = self._load_prompt_template(
+            "JUSTIFICATION_SUMMARY_SYSTEM_PROMPT", "justification_summary_system_prompt"
+        )
+        self.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = self._load_prompt_template(
+            "JUSTIFICATION_SUMMARY_HUMAN_PROMPT", "justification_summary_human_prompt"
+        )
+        self.EVALUATION_PROMPT = self._load_prompt_template(
+            "EVALUATION_PROMPT", "evaluation_prompt"
+        )
+
         self._convert_str_to_bool()
 
     def _load_prompt_template(self, env_var_name: str, prompt_file_name: str) -> str:
@@ -178,8 +204,8 @@ class Config:
 
         # If neither environment nor file works, log error and return empty string
         logger.error(
-            f"Could not load prompt template for {env_var_name} from environment or "
-            f"file {prompt_file_name}.yaml"
+            f"Could not load prompt template for {env_var_name} from environment "
+            f"or file {prompt_file_name}.yaml"
         )
         return ""
 
@@ -235,7 +261,8 @@ class Config:
             required_cfg_files.add(CONFIG_H_PATH)
 
         # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
-        if self.HUMAN_VERIFIED_FILE_PATH:
+        if self.HUMAN_VERIFIED_FILE_PATH and not self.HUMAN_VERIFIED_FILE_PATH.startswith("https"):
+            logger.info(f"HUMAN_VERIFIED_FILE_PATH: {self.HUMAN_VERIFIED_FILE_PATH}")
             required_cfg_files.add(HUMAN_VERIFIED_FILE_PATH)
 
         # Ensure service account JSON exists if using Google Sheets as input
@@ -279,21 +306,34 @@ class Config:
             )
 
         # Validate that similarity error threshold is a valid value
-        if not is_valid_int_value(self.SIMILARITY_ERROR_THRESHOLD, 
-                                  VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"], 
-                                  VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"]):
+        if not is_valid_int_value(
+            self.SIMILARITY_ERROR_THRESHOLD,
+            VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"],
+            VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"],
+        ):
             raise ValueError(
                 f"Configuration variable '{SIMILARITY_ERROR_THRESHOLD}' is not a valid value."
             )
 
         # Validate that MAX_ANALYSIS_ITERATIONS is a positive integer
-        if not is_valid_int_value(self.MAX_ANALYSIS_ITERATIONS, 
-                                  VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]):
+        if not is_valid_int_value(
+            self.MAX_ANALYSIS_ITERATIONS, VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]
+        ):
             raise ValueError(
                 f"Configuration variable '{MAX_ANALYSIS_ITERATIONS}' is not a valid value."
             )
 
         # Validate that prompt templates are loaded
+        prompt_vars = [
+            "ANALYSIS_SYSTEM_PROMPT",
+            "ANALYSIS_HUMAN_PROMPT",
+            "FILTER_SYSTEM_PROMPT",
+            "FILTER_HUMAN_PROMPT",
+            "RECOMMENDATIONS_PROMPT",
+            "JUSTIFICATION_SUMMARY_SYSTEM_PROMPT",
+            "JUSTIFICATION_SUMMARY_HUMAN_PROMPT",
+            "EVALUATION_PROMPT",
+        ]
         prompt_vars = [
             "ANALYSIS_SYSTEM_PROMPT",
             "ANALYSIS_HUMAN_PROMPT",
