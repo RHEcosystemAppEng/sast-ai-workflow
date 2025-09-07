@@ -68,6 +68,58 @@ workflow:
 
 general:
   use_uvloop: true
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: WARN
+      file:
+        _type: file
+        path: ./.tmp/sast_agent_workflow.log
+        level: DEBUG
+    tracing:
+      phoenix:
+        _type: custom_phoenix
+        endpoint: http://localhost:6006/v1/traces
+        project: sast_agent_workflow
+        
+        # Custom attributes for all spans
+        custom_attributes:
+          environment: "development"
+          team: "security"
+          workflow_type: "sast_analysis"
+        
+        # Workflow metrics configuration - SINGLE SOURCE OF TRUTH
+        workflow_metrics:
+          workflow_span_indicators:
+            - "workflow"
+          
+          # Define which metrics to extract and how
+          metrics:
+            - key: "accuracy"
+              metric_type: "numeric"
+              evaluation_name: "Accuracy"
+              enabled: true
+              description: "Overall accuracy"
+              
+            - key: "precision"
+              metric_type: "numeric"
+              evaluation_name: "Precision"
+              enabled: true
+              description: "Precision score"
+              
+            - key: "recall"
+              metric_type: "numeric"
+              evaluation_name: "Recall"
+              enabled: true
+              description: "Recall score"
+              
+            - key: "f1_score"
+              metric_type: "numeric"
+              evaluation_name: "F1 Score"
+              enabled: true
+              description: "F1 score"
+              
   logging:
     console:
       _type: console
