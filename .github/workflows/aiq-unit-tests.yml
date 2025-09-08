@@ -54,9 +54,9 @@ jobs:
           
           # Check if output contains the success message
           if echo "$output" | grep -q "Configuration file is valid"; then
-            echo "✅ Configuration validation passed - found success message"
+            echo "✅ Nvidia NeMo Agent Toolkit configuration YAML validation passed!"
             exit 0
           fi
-          echo "❌ Configuration validation failed - success message not found"
+          echo "❌ Nvidia NeMo Agent Toolkit configuration YAML validation failed - success message not found"
           echo "Expected to find: 'Configuration file is valid'"
           exit 1
