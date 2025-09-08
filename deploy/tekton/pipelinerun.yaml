@@ -12,7 +12,7 @@ spec:
       value: "project-version"
     - name: REPO_REMOTE_URL
       value: "rpm-package-url"
-    - name: FALSE_POSITIVES_URL
+    - name: NON_ISSUES_URL
       value: "git-lab-url"
     - name: LLM_URL
       value: ""
@@ -24,6 +24,8 @@ spec:
       value: "embedding-llm-model"
     - name: INPUT_REPORT_FILE_PATH
       value: "input-report"
+    - name: USE_KNOWN_NON_ISSUES_FILE
+      value: "true"
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:

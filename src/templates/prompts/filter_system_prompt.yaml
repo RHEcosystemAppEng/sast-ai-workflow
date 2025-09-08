@@ -2,12 +2,12 @@ template: |
   You're an expert at identifying similar error stack traces.
   Given:
 
-  1.  **Known False Positive Issues** (`context_false_positives`): A list where each issue contains:
-      * `false_positive_error_trace`: The error trace of the false positive.
-      * `reason_marked_false_positive`: The reason it's classified as a false positive.
+  1.  **Known Non-Issue Cases** (`context_non_issues`): A list where each issue contains:
+      * `non_issue_error_trace`: The error trace of the non-issue.
+      * `reason_marked_non_issue`: The reason it's classified as a non-issue.
   2.  **New User Error Trace** (`user_error_trace`): The error trace from a new user.
 
-  Your task is to determine if the `user_error_trace` **exactly matches** any of the `false_positive_error_trace` entries.
+  Your task is to determine if the `user_error_trace` **exactly matches** any of the `non_issue_error_trace` entries.
 
   **Comparison Rules:**
 
@@ -26,7 +26,7 @@ template: |
   {answer_template}
 
 
-  context_false_positives: 
+  context_non_issues: 
   {context}
 
 

@@ -12,7 +12,7 @@ TK := tkn --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
 REPO_REMOTE_URL                       ?= source/code/url
-FALSE_POSITIVES_URL              ?= false/positives/url
+NON_ISSUES_URL              ?= false/positives/url
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
@@ -163,7 +163,7 @@ run:
 		$(TK) pipeline start sast-ai-workflow-pipeline \
 		  -n $(NAMESPACE) \
 		  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
-		  -p FALSE_POSITIVES_URL="$(FALSE_POSITIVES_URL)" \
+		  -p NON_ISSUES_URL="$(NON_ISSUES_URL)" \
 		  -p LLM_URL="$(LLM_URL)" \
 		  -p LLM_MODEL_NAME="$(LLM_MODEL_NAME)" \
 		  -p EMBEDDINGS_LLM_URL="$(EMBEDDINGS_LLM_URL)" \
@@ -172,6 +172,7 @@ run:
 		  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
 		  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
 		  -p AGGREGATE_RESULTS_G_SHEET="$(AGGREGATE_RESULTS_G_SHEET)" \
+		  -p USE_KNOWN_NON_ISSUES_FILE="true" \
 		  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 		  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
 		  --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \
@@ -187,7 +188,7 @@ run:
 		echo "   tkn --context $(CONTEXT) pipeline start sast-ai-workflow-pipeline \\"; \
 		echo "     -n $(NAMESPACE) \\"; \
 		echo "     -p REPO_REMOTE_URL=\"$(REPO_REMOTE_URL)\" \\"; \
-		echo "     -p FALSE_POSITIVES_URL=\"$(FALSE_POSITIVES_URL)\" \\"; \
+		echo "     -p NON_ISSUES_URL=\"$(NON_ISSUES_URL)\" \\"; \
 		echo "     -p LLM_URL=\"$(LLM_URL)\" \\"; \
 		echo "     -p LLM_MODEL_NAME=\"$(LLM_MODEL_NAME)\" \\"; \
 		echo "     -p EMBEDDINGS_LLM_URL=\"$(EMBEDDINGS_LLM_URL)\" \\"; \
@@ -196,6 +197,7 @@ run:
 		echo "     -p PROJECT_VERSION=\"$(PROJECT_VERSION)\" \\"; \
 		echo "     -p INPUT_REPORT_FILE_PATH=\"$(INPUT_REPORT_FILE_PATH)\" \\"; \
 		echo "     -p AGGREGATE_RESULTS_G_SHEET=\"$(AGGREGATE_RESULTS_G_SHEET)\" \\"; \
+		echo "     -p USE_KNOWN_NON_ISSUES_FILE=\"true\" \\"; \
 		echo "     --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \\"; \
 		echo "     --workspace name=gitlab-token-ws,secret=gitlab-token-secret \\"; \
 		echo "     --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \\"; \
