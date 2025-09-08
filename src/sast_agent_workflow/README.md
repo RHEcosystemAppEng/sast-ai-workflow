@@ -1,6 +1,6 @@
 # SAST Agent Workflow
 
-This directory contains the AIQ framework implementation of the SAST AI Workflow using NeMo's agent architecture.
+This directory contains the AIQ framework implementation of the SAST AI Workflow using [Nvidia NeMo's agent architecture](https://docs.nvidia.com/aiqtoolkit/latest/index.html).
 
 ## Overview
 
