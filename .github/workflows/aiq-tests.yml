@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Verify All Tools Loaded
+      - name: Validate configuration YAML and ensure all tools are loadable
         env:
           # LLM Configuration
           LLM_API_TYPE: "openai"
