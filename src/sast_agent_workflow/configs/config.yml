@@ -5,7 +5,7 @@ functions:
   
   filter:
     _type: filter
-    description: "Filter function that filters known non-issues and retrieve similar issues"
+    description: "Filters out known non-issues and retrieves similar non-issues to provide additional context for the issues under analysis."
     llm_name: main_llm
     embedder_llm_name: filter_embedding
   
