@@ -7,6 +7,10 @@ LLM_MODEL_NAME: "llm-model"
 EMBEDDINGS_LLM_URL: "http://<<please-set-embedding-llm-url>>"
 EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 
+EMBEDDING_HTTP_POOL_ENABLED: true
+EMBEDDING_HTTP_POOL_SIZE: 5
+EMBEDDING_HTTP_POOL_TTL: 300
+
 INPUT_REPORT_FILE_PATH: "/path/to/report.html"
 KNOWN_FALSE_POSITIVE_FILE_PATH: "/path/to/known_false_positives_file"
 OUTPUT_FILE_PATH: "/path/to/output_excel.xlsx"

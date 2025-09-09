@@ -11,6 +11,7 @@ from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
 from ExcelWriter import write_to_excel_file
+from handlers.embedding_connection_pool import close_embedding_pool
 from handlers.repo_handler_factory import repo_handler_factory
 from LLMService import LLMService
 from MetricHandler import MetricHandler, metric_request_from_prompt
@@ -224,6 +225,7 @@ def main():
         logger.error("Error occurred while generating excel file:", e)
     finally:
         print_conclusion(evaluation_summary, failed_item_ids)
+        close_embedding_pool()
 
 
 if __name__ == "__main__":
