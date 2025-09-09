@@ -64,10 +64,11 @@ class EmbeddingConnectionPool:
         self._pool_enabled = getattr(config, 'EMBEDDING_HTTP_POOL_ENABLED', True)
         self._pool_size = getattr(config, 'EMBEDDING_HTTP_POOL_SIZE', 5)
         self._pool_ttl = getattr(config, 'EMBEDDING_HTTP_POOL_TTL', 300)
+        self._verify_ssl = getattr(config, 'EMBEDDING_HTTP_VERIFY_SSL', False)
         
         logging.info(
             f"EmbeddingConnectionPool configured: enabled={self._pool_enabled}, "
-            f"size={self._pool_size}, ttl={self._pool_ttl}s"
+            f"size={self._pool_size}, ttl={self._pool_ttl}s, verify_ssl={self._verify_ssl}"
         )
     
     def get_client(self) -> httpx.Client:
@@ -127,7 +128,7 @@ class EmbeddingConnectionPool:
             )
             
             self._client = httpx.Client(
-                verify=False,  # Match existing behavior
+                verify=self._verify_ssl,  # Configurable SSL verification
                 limits=limits,
                 timeout=httpx.Timeout(60.0)  # 60 second timeout
             )
@@ -146,7 +147,8 @@ class EmbeddingConnectionPool:
     
     def _create_fresh_client(self) -> httpx.Client:
         """Create a fresh HTTP client without pooling (fallback behavior)."""
-        return httpx.Client(verify=False)
+        verify_ssl = getattr(self, '_verify_ssl', False)  # Default to False for backward compatibility
+        return httpx.Client(verify=verify_ssl)
     
     def close(self) -> None:
         """Close the connection pool and cleanup resources."""
