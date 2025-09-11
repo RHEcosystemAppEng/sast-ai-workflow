@@ -1,0 +1,62 @@
+name: Run AIQ Workflow Unit Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  unit-tests:
+    name: pytest tests/aiq_tests/
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Validate configuration YAML and ensure all tools are loadable
+        env:
+          # LLM Configuration
+          LLM_API_TYPE: "openai"
+          LLM_API_KEY: "test-api-key-12345"
+          LLM_URL: "https://api.openai.com/v1"
+          LLM_MODEL_NAME: "gpt-3.5-turbo"
+          
+          # Embeddings Configuration
+          EMBEDDINGS_LLM_API_KEY: "test-embedding-key-12345"
+          EMBEDDINGS_LLM_URL: "https://api.openai.com/v1"
+          EMBEDDINGS_LLM_MODEL_NAME: "text-embedding-ada-002"
+        run: |          
+          # Run validation and capture output
+          echo "Running aiq validate..."
+          output=$(timeout 120 bash -c 'yes q 2>/dev/null  | aiq validate --config_file src/sast_agent_workflow/configs/config.yml' 2>&1)
+          exit_code=$?
+          
+          echo "Command output:"
+          echo "$output"
+          echo "Exit code: $exit_code"
+          
+          # Check if output contains the success message
+          if echo "$output" | grep -q "Configuration file is valid"; then
+            echo "✅ Nvidia NeMo Agent Toolkit configuration YAML validation passed!"
+            exit 0
+          fi
+          echo "❌ Nvidia NeMo Agent Toolkit configuration YAML validation failed - success message not found"
+          echo "Expected to find: 'Configuration file is valid'"
+          exit 1
+
+      - name: Run tests
+        run: PYTHONPATH=. pytest tests/aiq_tests/

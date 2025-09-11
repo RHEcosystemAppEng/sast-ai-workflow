@@ -12,6 +12,7 @@ from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.config import Config
 from aiq.builder.builder import Builder
 from tests.aiq_tests.test_utils import TestUtils
+from common.constants import DEFAULT_FIELD_VALUE
 
 
 class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
@@ -32,7 +33,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             issues, 
             is_final=FinalStatus.TRUE.value,
             justifications=["Detailed justification 1", "Detailed justification 2"],
-            short_justifications=""
+            short_justifications=DEFAULT_FIELD_VALUE
         )
         
         tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
@@ -99,7 +100,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             issues,
             is_final=FinalStatus.TRUE.value,
             justifications=["Test justification"],
-            short_justifications=""
+            short_justifications=DEFAULT_FIELD_VALUE
         )
         
         per_issue_data["non_final_issue"].analysis_response.is_final = FinalStatus.FALSE.value
@@ -150,7 +151,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             issues,
             is_final=FinalStatus.TRUE.value,
             justifications=["Original justification that should be preserved"],
-            short_justifications=""
+            short_justifications=DEFAULT_FIELD_VALUE
         )
         
         tracker = TestUtils.create_sample_tracker(issues_dict=per_issue_data, config=self.mock_config)
@@ -165,7 +166,7 @@ class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):
             
             # assertion
             self.assertIsInstance(result_tracker, SASTWorkflowTracker)
-            self.assertEqual(result_tracker.issues["error_issue"].analysis_response.short_justifications, "")
+            self.assertEqual(result_tracker.issues["error_issue"].analysis_response.short_justifications, DEFAULT_FIELD_VALUE)
             self.assertEqual(result_tracker.issues["error_issue"].analysis_response.justifications,
                            ["Original justification that should be preserved"])
 
