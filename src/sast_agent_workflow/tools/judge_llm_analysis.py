@@ -12,30 +12,9 @@ from Utils.validation_utils import ValidationError
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
 from dto.LLMResponse import FinalStatus, AnalysisResponse
+from Utils.workflow_utils import build_analysis_context
 
 logger = logging.getLogger(__name__)
-
-
-def _build_analysis_context(per_issue: PerIssueData) -> str:
-    """
-    Build full analysis context by combining source_code, similar_known_issues, and other relevant data.
-    """
-    # Build source code context
-    source_code_context = ""
-    if per_issue.source_code:
-        source_code_parts = []
-        for file_path, code_snippets in per_issue.source_code.items():
-            for snippet in code_snippets:
-                source_code_parts.append(f"\ncode of {file_path} file:\n{snippet}")
-        source_code_context = "".join(source_code_parts)
-    
-    # Combine source code and examples in structured format
-    context = (
-        f"*** Source Code Context ***\n{source_code_context}\n\n"
-        f"*** Examples ***\n{per_issue.similar_known_issues}"
-    )
-    
-    return context
 
 
 class JudgeLLMAnalysisConfig(FunctionBaseConfig, name="judge_llm_analysis"):
@@ -87,7 +66,7 @@ async def judge_llm_analysis(
                 continue
                 
             # Build full analysis context
-            context = _build_analysis_context(per_issue)
+            context = build_analysis_context(per_issue)
             
             try:
                 # Call the core analysis method

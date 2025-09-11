@@ -10,6 +10,10 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai.chat_models.base import ChatOpenAI
 from pydantic import BaseModel
 
+# from langchain.globals import set_debug
+
+# set_debug(True)  # Enables LangChain debug mode globally
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,8 +106,8 @@ def _handle_chat_nvidia(
             else:
                 last_exception = (
                     "No exception was raised, but the response is None."
-                    "\nThis indicates that the response data was either \
-                        insufficient for object construction or was invalid."
+                    "\nThis indicates that the response data was either "
+                    "insufficient for object construction or was invalid."
                 )
         except Exception as e:
             last_exception = e
