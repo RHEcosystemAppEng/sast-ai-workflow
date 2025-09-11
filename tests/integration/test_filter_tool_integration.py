@@ -3,7 +3,7 @@ Integration tests comparing the filter tool and capture_known_issues function.
 
 This module tests that the tool filter from sast_agent_workflow.tools.filter
 produces the same filtering results as the existing capture_known_issues function
-from stage.filter_known_issues that is used in the run_script.
+from FilterKnownIssues that is used in the run_script.
 
 The goal is to verify that both approaches:
 1. Mark the same issues as known false positives
@@ -20,7 +20,7 @@ from common.config import Config
 from aiq.builder.builder import Builder
 
 from sast_agent_workflow.tools.filter import filter, FilterConfig
-from stage.filter_known_issues import capture_known_issues
+from FilterKnownIssues import capture_known_issues
 from tests.aiq_tests.test_utils import TestUtils
 
 
@@ -99,8 +99,8 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
 
     @patch('sast_agent_workflow.tools.filter.LLMService')
     @patch('sast_agent_workflow.tools.filter.create_known_issue_retriever') 
-    @patch('stage.filter_known_issues.create_known_issue_retriever')
-    @patch('stage.filter_known_issues.read_known_errors_file')
+    @patch('FilterKnownIssues.create_known_issue_retriever')
+    @patch('FilterKnownIssues.read_known_errors_file')
     async def test_given_same_issues_when_both_methods_applied_then_same_known_false_positives_identified(
         self, mock_read_file, mock_create_retriever_run_script, mock_create_retriever_tool, mock_llm_service_tool
     ):
@@ -160,7 +160,7 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
         # testing
         with patch('sast_agent_workflow.tools.filter.is_known_false_positive', side_effect=mock_is_fp), \
              patch('sast_agent_workflow.tools.filter.convert_similar_issues_to_examples_context_string', side_effect=mock_convert_context), \
-             patch('stage.filter_known_issues.convert_similar_issues_to_examples_context_string', side_effect=mock_convert_context):
+             patch('FilterKnownIssues.convert_similar_issues_to_examples_context_string', side_effect=mock_convert_context):
             
             # Run filter tool
             filter_result = await TestUtils.run_single_fn(

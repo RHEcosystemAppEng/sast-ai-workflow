@@ -16,7 +16,7 @@ from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.constants import KNOWN_FALSE_POSITIVES, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND
 from LLMService import LLMService
-from stage.filter_known_issues import (
+from FilterKnownIssues import (
     create_known_issue_retriever,
     is_known_false_positive,
     convert_similar_issues_to_examples_context_string
