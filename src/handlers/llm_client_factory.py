@@ -13,6 +13,7 @@ from langchain_core.embeddings import Embeddings
 from pydantic.types import SecretStr
 
 from common.config import Config
+from handlers.embedding_connection_pool import get_embedding_client
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,14 @@ class LLMClientFactory:
             )
     
     def create_embedding_llm(self, config: Config) -> Embeddings:
-        """Create the embedding LLM client for vector operations"""
-        custom_http_client = httpx.Client(verify=False)
+        """Create the embedding LLM client for vector operations with connection pooling"""
+        try:
+            pooled_http_client = get_embedding_client(config)
+            logger.debug("Using pooled HTTP client for embedding requests")
+        except Exception as e:
+            logger.warning(f"Failed to get pooled embedding client: {e}")
+            logger.debug("Falling back to fresh HTTP client for embedding requests")
+            pooled_http_client = httpx.Client(verify=False)
         
         return OpenAIEmbeddings(
             openai_api_base=config.EMBEDDINGS_LLM_URL,
@@ -50,7 +57,7 @@ class LLMClientFactory:
             model=config.EMBEDDINGS_LLM_MODEL_NAME,
             tiktoken_enabled=False,
             show_progress_bar=True,
-            http_client=custom_http_client
+            http_client=pooled_http_client
         )
     
     def create_critique_llm(self, config: Config) -> BaseChatModel:
