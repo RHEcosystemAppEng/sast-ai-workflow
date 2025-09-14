@@ -74,13 +74,35 @@ async def summarize_justifications(
         logger.info("Summarize_Justifications node completed")
         return tracker
 
+    # Import evaluation converters for NAT integration
+    try:
+        import sys
+        import os
+        # Add project root to path for evaluation imports
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        from evaluation.tools.summarize_converters import (
+            convert_str_to_sast_tracker,
+            convert_sast_tracker_to_str
+        )
+        converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+        logger.info("NAT evaluation converters loaded successfully")
+    except ImportError as e:
+        logger.info(f"NAT evaluation converters not available: {e}")
+        converters = None
+
     try:
         yield FunctionInfo.create(
             single_fn=_summarize_justifications_fn,
             description=config.description,
-            input_schema=SASTWorkflowTracker
+            input_schema=SASTWorkflowTracker,
+            converters=converters
         )
     except GeneratorExit:
         logger.info("Summarize_Justifications function exited early!")
     finally:
         logger.info("Cleaning up Summarize_Justifications function.")
+
+
