@@ -427,34 +427,23 @@ spec:
         # Load the repo path from step 4
         if [ -f "/shared-data/env.txt" ]; then
           source /shared-data/env.txt
-          echo ">> Using REPO_LOCAL_PATH: $REPO_LOCAL_PATH"
           export REPO_LOCAL_PATH
         else
-          echo "!! No environment file found from prepare-source step" >&2
+          echo "Error: No environment file found from prepare-source step" >&2
           exit 1
         fi
         
         # Create directories
-        mkdir -p "/cache-data/tmp"
-        mkdir -p "/shared-data/output"
-        
-        echo "--- Storage Setup ---"
-        echo ">> Ensuring custom TMPDIR exists: /cache-data/tmp"
-        mkdir -p "/cache-data/tmp"
-        
-        echo ">> Overall disk usage (df -h):"
-        df -h
-        echo ">> Usage of PVC-backed TMPDIR (/cache-data/tmp):"
-        du -sh "/cache-data/tmp" || echo "PVC TMPDIR not found or inaccessible"
+        mkdir -p "/cache-data/tmp" "/shared-data/output"
         
         echo "Running SAST-AI-Workflow with aiq..."
         aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
         
-        echo ">> Analysis completed. Checking output file..."
+        # Verify output file was created
         if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
-          echo "Output file created successfully: $(du -h /shared-data/output/sast_ai_output.xlsx | cut -f1)"
+          echo "Analysis completed successfully"
         else
-          echo "!! Output file not found!" >&2
+          echo "Error: Output file not found!" >&2
           exit 1
         fi
 
