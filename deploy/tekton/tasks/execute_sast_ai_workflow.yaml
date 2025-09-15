@@ -519,14 +519,15 @@ spec:
         
         # Install required packages
         echo "Installing required packages..."
-        apt-get update -qq && apt-get install -y -qq curl jq python3-pip python3-venv
+        apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq curl jq python3-pip python3-venv >/dev/null 2>&1
         
         # Create virtual environment
-        python3 -m venv /tmp/venv
+        python3 -m venv /tmp/venv >/dev/null 2>&1
         source /tmp/venv/bin/activate
         
         # Install Python packages
-        pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib
+        pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
+        echo "✓ Dependencies installed successfully"
         
         # Set filename
         EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
