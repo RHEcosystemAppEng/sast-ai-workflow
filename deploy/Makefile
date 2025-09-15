@@ -37,7 +37,7 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline scripts run clean generate-prompts prompts argocd-deploy argocd-clean
+.PHONY: all setup tasks secrets pipeline scripts run logs clean generate-prompts prompts argocd-deploy argocd-clean
 
 all: setup scripts tasks pipeline prompts argocd-deploy
 
@@ -48,19 +48,12 @@ setup:
 	@echo "   Context: $(CONTEXT)"
 	@echo "   Namespace: $(NAMESPACE)"
 	@echo ""
-	@$(MAKE) --no-print-directory pvc secrets
+	@$(MAKE) --no-print-directory secrets
 
 tasks:
-	@echo "📋 Setting up Tekton Tasks..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/ > /dev/null 2>&1
-	@echo "   ✓ Tasks deployed successfully"
-
-pvc:
-	@echo "💾 Setting up Persistent Volume Claims..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml > /dev/null 2>&1
-	@$(CO) apply -n $(NAMESPACE) -f tekton/cache_pvc.yaml > /dev/null 2>&1
-	@echo "   ✓ Workspace PVC created"
-	@echo "   ✓ Cache PVC created"
+	@echo "📋 Setting up Tekton Task..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml > /dev/null 2>&1
+	@echo "   ✓ Consolidated task deployed successfully"
 
 secrets:
 	@echo "🔐 Configuring Secrets..."
@@ -182,6 +175,51 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
+logs:
+	# Check if tkn CLI is available
+	@if command -v tkn >/dev/null 2>&1; then \
+		echo "   ✓ Tekton CLI found, launching pipeline..."; \
+		echo ""; \
+		$(TK) pipeline start sast-ai-workflow-pipeline \
+		  -n $(NAMESPACE) \
+		  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
+		  -p FALSE_POSITIVES_URL="$(FALSE_POSITIVES_URL)" \
+		  -p LLM_URL="$(LLM_URL)" \
+		  -p LLM_MODEL_NAME="$(LLM_MODEL_NAME)" \
+		  -p EMBEDDINGS_LLM_URL="$(EMBEDDINGS_LLM_URL)" \
+		  -p EMBEDDINGS_LLM_MODEL_NAME="$(EMBEDDINGS_LLM_MODEL_NAME)" \
+		  -p PROJECT_NAME="$(PROJECT_NAME)" \
+		  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
+		  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
+		  -p AGGREGATE_RESULTS_G_SHEET="$(AGGREGATE_RESULTS_G_SHEET)" \
+		  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
+		  --workspace name=google-sa-json-ws,secret=google-service-account-secret \
+		  --showlog; \
+	else \
+		echo "   ❌ Tekton CLI (tkn) not installed"; \
+		echo ""; \
+		echo "   Install tkn CLI: https://tekton.dev/docs/cli/"; \
+		echo "   Or run manually:"; \
+		echo ""; \
+		echo "   tkn --context $(CONTEXT) pipeline start sast-ai-workflow-pipeline \\"; \
+		echo "     -n $(NAMESPACE) \\"; \
+		echo "     -p REPO_REMOTE_URL=\"$(REPO_REMOTE_URL)\" \\"; \
+		echo "     -p FALSE_POSITIVES_URL=\"$(FALSE_POSITIVES_URL)\" \\"; \
+		echo "     -p LLM_URL=\"$(LLM_URL)\" \\"; \
+		echo "     -p LLM_MODEL_NAME=\"$(LLM_MODEL_NAME)\" \\"; \
+		echo "     -p EMBEDDINGS_LLM_URL=\"$(EMBEDDINGS_LLM_URL)\" \\"; \
+		echo "     -p EMBEDDINGS_LLM_MODEL_NAME=\"$(EMBEDDINGS_LLM_MODEL_NAME)\" \\"; \
+		echo "     -p PROJECT_NAME=\"$(PROJECT_NAME)\" \\"; \
+		echo "     -p PROJECT_VERSION=\"$(PROJECT_VERSION)\" \\"; \
+		echo "     -p INPUT_REPORT_FILE_PATH=\"$(INPUT_REPORT_FILE_PATH)\" \\"; \
+		echo "     -p AGGREGATE_RESULTS_G_SHEET=\"$(AGGREGATE_RESULTS_G_SHEET)\" \\"; \
+		echo "     --workspace name=gitlab-token-ws,secret=gitlab-token-secret \\"; \
+		echo "     --workspace name=google-sa-json-ws,secret=google-service-account-secret \\"; \
+		echo "     --showlog"; \
+		echo ""; \
+		echo "   ✅ Infrastructure setup completed successfully!"; \
+	fi
+
 argocd-deploy:
 	@echo "🔄 Deploying ArgoCD Application..."
 	@# Create a temporary file with placeholders replaced
@@ -223,25 +261,11 @@ clean:
 	# Delete Tekton resources
 	@echo "🔧 Removing Pipeline Resources..."
 	@$(CO) delete -n $(NAMESPACE) \
-		-f tekton/tasks/ \
+		-f tekton/tasks/execute_sast_ai_workflow.yaml \
 		-f tekton/pipeline.yaml \
 		--ignore-not-found > /dev/null 2>&1
-	@echo "   ✓ Pipeline definitions removed"
-	@echo "   ✓ Task definitions removed"
-	# Delete only SAST AI specific PVCs
-	@echo "💾 Cleaning Storage..."
-	@$(CO) delete pvc sast-ai-workflow-pvc sast-ai-cache-pvc -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ Persistent volume claims removed"
-	# Wait a moment for PVCs to be deleted before checking PVs
-	@sleep 5
-	# Delete only PVs that were bound to our specific PVCs
-	@for pvc in sast-ai-workflow-pvc sast-ai-cache-pvc; do \
-		pv_name=$$($(CO) get pvc $$pvc -n $(NAMESPACE) -o jsonpath='{.spec.volumeName}' 2>/dev/null || echo ""); \
-		if [ -n "$$pv_name" ]; then \
-			$(CO) delete pv $$pv_name --ignore-not-found > /dev/null 2>&1 || true; \
-		fi; \
-	done
-	@echo "   ✓ Persistent volumes cleaned"
+	@echo "   ✓ Pipeline definition removed"
+	@echo "   ✓ Consolidated task removed"
 	# Remove image pull secrets from pipeline service account
 	@echo "👤 Cleaning Service Accounts..."
 	@$(CO) patch serviceaccount pipeline \
