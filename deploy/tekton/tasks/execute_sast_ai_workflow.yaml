@@ -3,15 +3,29 @@ kind: Task
 metadata:
   name: execute-ai-analysis
 spec:
+  description: >-
+    Complete SAST AI workflow that prepares source, fetches false positives,
+    runs AI analysis, uploads results to Google Drive, and cleans up resources.
+    Uses emptyDir volumes for efficient resource management.
   params:
+    # Parameters from prepare-source
+    - name: REPO_REMOTE_URL
+      type: string
+      description: Source code URL (SRPM or Git repo)
+    
+    # Parameters from fetch-false-positives  
+    - name: FALSE_POSITIVES_URL
+      type: string
+      description: "Optional GitLab URL containing known false positives"
+      default: ""
+    
+    # Parameters from execute-ai-analysis
     - name: PROJECT_NAME
       type: string
       default: ""
     - name: PROJECT_VERSION
       type: string
       default: ""
-    - name: REPO_LOCAL_PATH
-      type: string
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: ""
@@ -41,25 +55,302 @@ spec:
       type: string
       description: "Whether to use known false positive file for filtering (true/false)"
       default: "true"
+    - name: GDRIVE_FOLDER_ID
+      type: string
+      description: "Google Drive folder ID for uploading SAST results (optional)"
+      default: ""
+    - name: GDRIVE_SA_FILE_NAME
+      type: string
+      description: "Optional GDrive SA file name"
+      default: "service_account.json"
+
   workspaces:
-    - name: source-workspace
-    - name: false-positives-workspace
-    - name: llm-credentials-ws
+    - name: gitlab-token-ws
+      description: "Optional secret mount for GitLab token (if needed)"
+      optional: true
     - name: google-sa-json-ws
     - name: cache-workspace
     - name: report-workspace
   steps:
-    - name: run-sast-ai-workflow
-      image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
+    # STEP 1: Validate Source URL
+    - name: validate-source-url
+      image: curlimages/curl:latest
+      script: |
+        #!/usr/bin/env sh
+        echo "=== STEP 1: VALIDATE SOURCE URL ==="
+        echo "Validating source code URL: $(params.REPO_REMOTE_URL)"
+        curl -ksSfL "$(params.REPO_REMOTE_URL)" || (echo "Error: Source code URL is invalid" && exit 1)
+
+    # STEP 2: Validate False Positives URL
+    - name: validate-false-positives-url
+      image: curlimages/curl:latest
+      script: |
+        #!/usr/bin/env sh
+        echo "=== STEP 2: VALIDATE FALSE POSITIVES URL ==="
+        FP_URL="$(params.FALSE_POSITIVES_URL)"
+        echo "Validating false positives URL: $FP_URL"
+        # If blank, skip. If not, ensure it's valid
+        if [ -z "$FP_URL" ]; then
+          echo "No false positives URL provided; skipping validation."
+          exit 0
+        fi
+        curl -ksSfL "$FP_URL" || (echo "Error: False positives URL is invalid" && exit 1)
+
+    # STEP 3: Validate Report File
+    - name: validate-report-file
+      image: 'python:3.11-slim'
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== STEP 3: VALIDATE REPORT FILE ==="
+
+        SPREADSHEET_URL="$(params.INPUT_REPORT_FILE_PATH)"
+        echo "Validating Google Spreadsheet URL: $SPREADSHEET_URL"
+
+        # Check if it's a URL (starts with http:// or https://)
+        if [[ "$SPREADSHEET_URL" =~ ^https?:// ]]; then
+            echo "Detected URL format - validating Google Spreadsheet..."
+            
+            # Extract Sheet ID from URL
+            SHEET_ID=$(echo "$SPREADSHEET_URL" | sed -n 's/.*\/spreadsheets\/d\/\([a-zA-Z0-9_-]*\).*/\1/p')
+
+            if [ -z "$SHEET_ID" ]; then
+                echo "Invalid Google Sheets URL format"
+                echo "Expected format: https://docs.google.com/spreadsheets/d/{SHEET_ID}/..."
+                exit 1
+            fi
+
+            echo "Sheet ID: $SHEET_ID"
+
+            # Check if credentials workspace is provided
+            if [ -f "$(workspaces.google-sa-json-ws.path)/service_account.json" ]; then
+                echo "Service account credentials found - testing access..."
+                
+                echo "Installing Google API libraries..."
+                pip install --quiet google-api-python-client google-auth
+                
+                # Create Python validation script
+                cat > /tmp/validate_sheets.py << 'PYTHON_SCRIPT'
+        import os
+        import sys
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
+
+        def validate_sheet_access(sheet_id, credentials_path):
+            try:
+                credentials = service_account.Credentials.from_service_account_file(
+                    credentials_path,
+                    scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
+                )
+                print("Credentials loaded successfully")
+                
+                service = build('sheets', 'v4', credentials=credentials)
+                print("Sheets API service created")
+                
+                print("Testing access to spreadsheet...")
+                spreadsheet = service.spreadsheets().get(
+                    spreadsheetId=sheet_id,
+                    fields='properties.title'
+                ).execute()
+                
+                title = spreadsheet.get('properties', {}).get('title', 'Unknown')
+                print(f"Successfully accessed spreadsheet: '{title}'")
+                print("Spreadsheet access validation complete")
+                
+            except HttpError as e:
+                if e.resp.status == 403:
+                    print("Access denied - service account lacks permissions")
+                    print("Share the spreadsheet with the service account's email address")
+                elif e.resp.status == 404:
+                    print("Spreadsheet not found - check the URL or permissions")
+                else:
+                    print(f"HTTP error {e.resp.status}: {e}")
+                sys.exit(1)
+            except Exception as e:
+                print(f"Error: {e}")
+                sys.exit(1)
+
+        if __name__ == "__main__":
+            if len(sys.argv) != 3:
+                print("Usage: python validate_sheets.py <sheet_id> <credentials_path>")
+                sys.exit(1)
+            
+            sheet_id = sys.argv[1]
+            credentials_path = sys.argv[2]
+            validate_sheet_access(sheet_id, credentials_path)
+        PYTHON_SCRIPT
+                        
+                        # Run the Python script with arguments
+                        python3 /tmp/validate_sheets.py "$SHEET_ID" "$(workspaces.google-sa-json-ws.path)/service_account.json"
+                    else
+                        echo "No service account credentials provided"
+                        echo "URL format validation passed"
+                        echo "Note: Cannot test access without credentials workspace"
+                        exit 1
+                    fi
+        else
+            echo "Detected local file path - checking if file exists..."
+            
+            # Check if the file exists
+            if [ -f "$SPREADSHEET_URL" ]; then
+                echo "File exists: $SPREADSHEET_URL"
+                echo "Local file validation complete"
+            else
+                echo "File does not exist: $SPREADSHEET_URL"
+                exit 1
+            fi
+        fi
+
+    # STEP 4: Prepare Source Code
+    - name: prepare-source
+      image: registry.access.redhat.com/ubi9/python-312
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: HOME
+          value: "/shared-data"
+        - name: SRC_URL
+          value: "$(params.REPO_REMOTE_URL)"
+        - name: WORKDIR
+          value: "/shared-data"
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      script: |
+        #!/usr/bin/env sh
+        set -ex
+        echo "=== STEP 4: PREPARE SOURCE ==="
+        
+        echo ">> Working directory: $WORKDIR"
+        
+        # Clean any previous content
+        echo ">> Cleaning workspace…"
+        rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
+        mkdir -p "${WORKDIR}/source"
+        
+        echo ">> Processing source code URL: $SRC_URL"
+        
+        if echo "$SRC_URL" | grep -iq '\.rpm$'; then
+          echo ">> Detected SRPM — downloading & expanding..."
+          yum install -y rpm-build curl --allowerasing && yum clean all
+          
+          # init local rpmbuild tree inside shared data
+          mkdir -p "$HOME"/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          echo '%_topdir %(echo $HOME)/rpmbuild' > "$HOME/.rpmmacros"
+          
+          curl -ksLf "$SRC_URL" -o "$HOME/package.src.rpm"
+          rpm -ivh "$HOME/package.src.rpm"
+          
+          SPEC="$(find "$HOME/rpmbuild/SPECS" -name '*.spec' | head -n1)"
+          if [ -z "$SPEC" ]; then
+            echo "!! No .spec found in SRPM" >&2
+            exit 1
+          fi
+          echo ">> rpmbuild -bp $SPEC"
+          rpmbuild -bp "$SPEC"
+          
+          # Find the source directory in BUILD
+          BUILD_DIR=$(find "$HOME/rpmbuild/BUILD" -maxdepth 1 -type d ! -path "$HOME/rpmbuild/BUILD" | head -n1)
+          if [ -z "$BUILD_DIR" ]; then
+            echo "!! No source directory found in BUILD after rpmbuild -bp" >&2
+            exit 1
+          fi
+          
+          # Get just the directory name
+          SOURCE_DIR_NAME=$(basename "$BUILD_DIR")
+          echo ">> Found source directory: $SOURCE_DIR_NAME"
+          
+          # Copy complete source tree into shared data
+          cp -r "$BUILD_DIR" "${WORKDIR}/source/"
+          REPO_LOCAL_PATH="${WORKDIR}/source/$SOURCE_DIR_NAME"
+          
+          # Clean up rpmbuild artifacts  
+          rm -rf "$HOME/rpmbuild"
+          rm -f "$HOME/package.src.rpm" "$HOME/.rpmmacros"
+          
+        else
+          echo ">> Treating URL as Git repo — cloning..."
+          yum install -y git --allowerasing && yum clean all
+          
+          # Extract repo name from URL for clone directory
+          REPO_NAME=$(basename "$SRC_URL" .git)
+          git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME"
+          REPO_LOCAL_PATH="${WORKDIR}/source/$REPO_NAME"
+        fi
+        
+        echo ">> prepare-source completed. Contents of workspace:"
+        ls -lah "$WORKDIR"
+        
+        # Verify the directory exists
+        if [ ! -d "$REPO_LOCAL_PATH" ]; then
+          echo "!! Repository directory not found: $REPO_LOCAL_PATH" >&2
+          exit 1
+        fi
+        
+        # Write the repo path to result and share with next steps
+        echo -n "$REPO_LOCAL_PATH" > $(results.repo-local-path.path)
+        echo "REPO_LOCAL_PATH=$REPO_LOCAL_PATH" > /shared-data/env.txt
+        echo ">> REPO_LOCAL_PATH set to: $REPO_LOCAL_PATH"
+
+    # STEP 5: Fetch False Positives
+    - name: fetch-false-positives
+      image: curlimages/curl:latest
+      env:
+        - name: FP_URL
+          value: "$(params.FALSE_POSITIVES_URL)"
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+        echo "=== STEP 5: FETCH FALSE POSITIVES ==="
+        
+        # Create false positives directory
+        mkdir -p /shared-data/false-positives
+        
+        if [ -z "$FP_URL" ]; then
+          echo "No falsePositivesUrl provided; skipping fetch..."
+          echo "Creating empty ignore.err file"
+          touch /shared-data/false-positives/ignore.err
+          exit 0
+        fi
+        
+        # If a token is needed for private repos, read it from the secret (if present)
+        TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
+        if [ -f "$TOKEN_FILE" ]; then
+            GITLAB_TOKEN=$(cat "$TOKEN_FILE")
+            echo "GitLab token found. Fetching file with authentication..."
+            curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
+              || (echo "Error: Could not fetch false positives file with token." && exit 1)
+        else
+            echo "No GitLab token file found; attempting unauthenticated fetch..."
+            curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
+              || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+        fi
+        
+        if [ -f "/shared-data/false-positives/ignore.err" ]; then
+          echo "False positives file downloaded successfully"
+          echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
+        else
+          echo "Creating empty ignore.err file as fallback"
+          touch /shared-data/false-positives/ignore.err
+        fi
+
+    # STEP 6: Execute SAST AI Analysis
+    - name: run-analysis
+      image: quay.io/yelias/sast-ai-workflow@sha256:9c3e6a60d91d1c9b65d47674b5e517bdfaf1241a445e425a30b9e98ab39757db
       env:
         - name: PROJECT_NAME
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
-        - name: REPO_LOCAL_PATH
-          value: "$(params.REPO_LOCAL_PATH)"
         - name: KNOWN_FALSE_POSITIVE_FILE_PATH
-          value: "$(workspaces.false-positives-workspace.path)/ignore.err"
+          value: "/shared-data/false-positives/ignore.err"
         - name: USE_KNOWN_FALSE_POSITIVE_FILE
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
         - name: INPUT_REPORT_FILE_PATH
@@ -140,13 +431,18 @@ spec:
             configMapKeyRef:
               name: sast-ai-prompt-templates
               key: evaluation_prompt
-        - name: TMPDIR # Directs tempfile module and others
-          value: "$(workspaces.cache-workspace.path)/tmp" 
-        - name: OUTPUT_FILE_PATH # For config.py, to save the Excel file to a workspace
-          value: "$(workspaces.source-workspace.path)/sast_ai_output.xlsx" # Save in source-workspace (shared-workspace)
+        - name: TMPDIR
+          value: "/cache-data/tmp"
+        - name: OUTPUT_FILE_PATH
+          value: "/shared-data/output/sast_ai_output.xlsx"
         - name: LIBCLANG_PATH
           value: "/usr/lib64/libclang.so.19.1.7"
-      computeResources: 
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+        - name: cache-data
+          mountPath: /cache-data
+      computeResources:
         requests:
           ephemeral-storage: "1Gi"
         limits:
@@ -154,24 +450,172 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -ex
-
-        echo "--- START: Storage Redirection Setup ---"
-        # Create the custom TMPDIR on the PVC if it doesn't exist
-        echo ">>> Ensuring custom TMPDIR exists: $(workspaces.cache-workspace.path)/tmp"
-        mkdir -p "$(workspaces.cache-workspace.path)/tmp"
+        echo "=== STEP 6: RUN SAST AI ANALYSIS ==="
         
-        # Your existing debug commands (df -h, du -sh, etc.) are still good here
+        # Load the repo path from step 4
+        if [ -f "/shared-data/env.txt" ]; then
+          source /shared-data/env.txt
+          echo ">> Using REPO_LOCAL_PATH: $REPO_LOCAL_PATH"
+          export REPO_LOCAL_PATH
+        else
+          echo "!! No environment file found from prepare-source step" >&2
+          exit 1
+        fi
+        
+        # Create directories
+        mkdir -p "/cache-data/tmp"
+        mkdir -p "/shared-data/output"
+        
+        echo "--- Storage Setup ---"
+        echo ">> Ensuring custom TMPDIR exists: /cache-data/tmp"
+        mkdir -p "/cache-data/tmp"
+        
         echo ">> Overall disk usage (df -h):"
         df -h
-        echo ">> Usage of default /tmp (du -sh /tmp):"
-        du -sh /tmp || echo "/tmp not found or inaccessible"
-        echo ">> Usage of PVC-backed TMPDIR ($(workspaces.cache-workspace.path)/tmp):"
-        du -sh "$(workspaces.cache-workspace.path)/tmp" || echo "PVC TMPDIR not found or inaccessible"
-        echo ">> Usage of cache-workspace root ($(workspaces.cache-workspace.path)):"
-        du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
-        echo "--- END: Storage Redirection Setup ---"
-
-        echo "Running SAST-AI-Workflow with nat..."
-        nat run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+        echo ">> Usage of PVC-backed TMPDIR (/cache-data/tmp):"
+        du -sh "/cache-data/tmp" || echo "PVC TMPDIR not found or inaccessible"
         
-       
+        echo "Running SAST-AI-Workflow with aiq..."
+        aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+        
+        echo ">> Analysis completed. Checking output file..."
+        if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+          echo "Output file created successfully: $(du -h /shared-data/output/sast_ai_output.xlsx | cut -f1)"
+        else
+          echo "!! Output file not found!" >&2
+          exit 1
+        fi
+
+    # STEP 7: Upload to Google Drive
+    - name: upload-to-gdrive
+      image: google/cloud-sdk:slim
+      env:
+        - name: GDRIVE_FOLDER_ID
+          value: "$(params.GDRIVE_FOLDER_ID)"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "$(workspaces.google-sa-json-ws.path)/$(params.GDRIVE_SA_FILE_NAME)"
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+        - name: GDRIVE_FOLDER_ID_FROM_CM
+          valueFrom:
+            configMapKeyRef:
+              name: gdrive-config
+              key: folder-id
+              optional: true
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+        - name: gdrive-scripts
+          mountPath: /scripts
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
+        
+        # Check if we have required parameters
+        if [ -z "$GDRIVE_FOLDER_ID" ]; then
+          # Try ConfigMap environment variable
+          if [ -n "$GDRIVE_FOLDER_ID_FROM_CM" ]; then
+            GDRIVE_FOLDER_ID="$GDRIVE_FOLDER_ID_FROM_CM"
+            echo "Using Google Drive folder ID from ConfigMap: $GDRIVE_FOLDER_ID"
+          else
+            echo "Skipping Google Drive upload - no folder ID available"
+            echo "This is not an error - pipeline continues gracefully"
+            exit 0
+          fi
+        else
+          echo "Using Google Drive folder ID from parameter: $GDRIVE_FOLDER_ID"
+        fi
+        
+        # Check service account
+        if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+          echo "Skipping Google Drive upload - service account not available"
+          echo "This is not an error - pipeline continues gracefully"
+          exit 0
+        fi
+        
+        # Check if output file exists
+        EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
+        if [ ! -f "$EXCEL_FILE" ]; then
+          echo "ERROR: Excel file not found at $EXCEL_FILE"
+          echo "Available files in output directory:"
+          ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
+          exit 1
+        fi
+        
+        # Install required packages
+        echo "Installing required packages..."
+        apt-get update -qq && apt-get install -y -qq curl jq python3-pip python3-venv
+        
+        # Create virtual environment
+        python3 -m venv /tmp/venv
+        source /tmp/venv/bin/activate
+        
+        # Install Python packages
+        pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib
+        
+        # Set filename
+        EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
+        if [ -z "$EXCEL_FILENAME" ] || [ "$EXCEL_FILENAME" = "-" ]; then
+          EXCEL_FILENAME="sast_ai_output"
+        fi
+        
+        echo "File to upload: $EXCEL_FILE"
+        echo "Remote filename: $EXCEL_FILENAME"
+        echo "Target folder ID: $GDRIVE_FOLDER_ID"
+        
+        echo "Executing Google Drive upload..."
+        python /scripts/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE_FOLDER_ID"
+        
+        if [ $? -eq 0 ]; then
+          echo "=== Google Drive upload completed successfully! ==="
+        else
+          echo "=== Google Drive upload failed ==="
+          exit 1
+        fi
+
+    # STEP 8: Cleanup (Always runs)
+    - name: cleanup
+      image: alpine:latest
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+        - name: cache-data
+          mountPath: /cache-data
+      script: |
+        #!/usr/bin/env sh
+        echo "=== STEP 8: CLEANUP (ALWAYS RUNS) ==="
+        echo "🧹 Starting cleanup - freeing up space..."
+        
+        # Remove source code directory
+        if [ -d "/shared-data/source" ]; then
+            echo "Removing source code directory..."
+            rm -rf /shared-data/source/*
+            echo "Source directory cleaned"
+        fi
+        
+        # Remove false positives file
+        if [ -f "/shared-data/false-positives/ignore.err" ]; then
+            echo "Removing false positives file..."
+            rm -f /shared-data/false-positives/ignore.err
+            echo "False positives file removed"
+        fi
+        
+        # Clean up any temporary files in cache
+        if [ -d "/cache-data/tmp" ]; then
+            echo "Cleaning temporary cache files..."
+            rm -rf /cache-data/tmp/*
+            echo "Cache cleaned"
+        fi
+        
+        # Keep the output file for now (might be needed for debugging)
+        if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+            echo "Output file preserved for debugging: $(du -h /shared-data/output/sast_ai_output.xlsx | cut -f1)"
+        fi
+        
+        # Show final space usage
+        echo "📊 Final disk space usage:"
+        df -h
+        echo "✅ Cleanup completed successfully"
