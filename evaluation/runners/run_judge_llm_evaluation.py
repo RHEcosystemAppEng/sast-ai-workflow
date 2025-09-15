@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Run evaluation for summarize_justifications node using NAT.
+Run evaluation for judge_llm_analysis node using NAT.
 
-This script demonstrates how to run NAT evaluation for the summarize_justifications
+This script demonstrates how to run NAT evaluation for the judge_llm_analysis
 function with automatic token counting and profiling.
 
 Usage:
     export LLM_API_KEY=your_nvidia_api_key
-    python evaluation/runners/run_summarize_evaluation.py
+    python evaluation/runners/run_judge_llm_evaluation.py
 
 Or run directly:
-    LLM_API_KEY=your_key python evaluation/runners/run_summarize_evaluation.py
+    LLM_API_KEY=your_key python evaluation/runners/run_judge_llm_evaluation.py
 """
 
 import os
@@ -24,7 +24,7 @@ sys.path.insert(0, str(project_root))
 # Import archiving utility
 from evaluation.utils import archive_evaluation_results
 
-def check_environment():
+def check_environment(config_file=None):
     """Check if required environment variables are available."""
     api_key = os.getenv('LLM_API_KEY')
     if not api_key:
@@ -32,16 +32,14 @@ def check_environment():
         print("Please set it with: export LLM_API_KEY=your_nvidia_api_key")
         return False
 
-    # Check if config file exists
-    config_path = project_root / "evaluation" / "configs" / "summarize_justifications_eval.yml"
+    # Use provided config file or default
+    if config_file:
+        config_path = Path(config_file)
+    else:
+        config_path = project_root / "evaluation" / "configs" / "judge_llm_analysis_eval.yml"
+
     if not config_path.exists():
         print(f"Error: Config file not found: {config_path}")
-        return False
-
-    # Check if dataset exists
-    dataset_path = project_root / "evaluation" / "dataset" / "summarize_eval" / "summarize_eval_dataset.json"
-    if not dataset_path.exists():
-        print(f"Error: Dataset file not found: {dataset_path}")
         return False
 
     print("Environment checks passed")
@@ -52,15 +50,15 @@ def setup_evaluation_environment():
     print("Setting up evaluation environment variables...")
 
     # Set minimal required environment variables for Config
-    os.environ.setdefault('PROJECT_NAME', 'test-eval')
+    os.environ.setdefault('PROJECT_NAME', 'judge-llm-eval')
     os.environ.setdefault('PROJECT_VERSION', '1.0.0')
     os.environ.setdefault('INPUT_REPORT_FILE_PATH', '/dev/null')
     os.environ.setdefault('OUTPUT_FILE_PATH', '/dev/null')
     os.environ.setdefault('REPO_LOCAL_PATH', str(project_root))
 
-def run_nat_evaluation():
+def run_nat_evaluation(config_file=None):
     """Run NAT evaluation with automatic metrics collection."""
-    print("\\nRunning NAT Evaluation for summarize_justifications...")
+    print("\\nRunning NAT Evaluation for judge_llm_analysis...")
     print("This will automatically collect:")
     print("- Token counts (input/output/total)")
     print("- Processing time metrics")
@@ -68,7 +66,11 @@ def run_nat_evaluation():
     print("- Error counting")
     print("")
 
-    config_path = project_root / "evaluation" / "configs" / "summarize_justifications_eval.yml"
+    # Use provided config file or default
+    if config_file:
+        config_path = Path(config_file)
+    else:
+        config_path = project_root / "evaluation" / "configs" / "judge_llm_analysis_eval.yml"
 
     # Run actual NAT evaluation command
     import subprocess
@@ -97,24 +99,29 @@ def run_nat_evaluation():
 def main():
     """Main evaluation runner."""
     print("=" * 60)
-    print("SAST-AI-Workflow: Summarize Justifications Evaluation")
+    print("SAST-AI-Workflow: Judge LLM Analysis Evaluation")
     print("=" * 60)
 
-    if not check_environment():
+    # Check if config file provided as argument
+    config_file = None
+    if len(sys.argv) > 1:
+        config_file = sys.argv[1]
+
+    if not check_environment(config_file):
         sys.exit(1)
 
     setup_evaluation_environment()
-    run_nat_evaluation()
+    run_nat_evaluation(config_file)
 
     print("\\nEvaluation completed!")
     print("Results saved to:")
-    print("  - evaluation/reports/summarize_justifications/workflow_output.json")
-    print("  - evaluation/reports/summarize_justifications/standardized_data_all.csv")
-    print("  - evaluation/reports/summarize_justifications/all_requests_profiler_traces.json")
+    print("  - evaluation/reports/judge_llm_analysis/workflow_output.json")
+    print("  - evaluation/reports/judge_llm_analysis/standardized_data_all.csv")
+    print("  - evaluation/reports/judge_llm_analysis/all_requests_profiler_traces.json")
 
     # Archive the results after evaluation completes
     reports_dir = project_root / "evaluation" / "reports"
-    archived_path = archive_evaluation_results(str(reports_dir), "summarize_justifications")
+    archived_path = archive_evaluation_results(str(reports_dir), "judge_llm_analysis")
     if archived_path:
         print(f"\\nResults archived to: {archived_path}")
     else:
