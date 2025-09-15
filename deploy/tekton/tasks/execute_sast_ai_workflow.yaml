@@ -197,76 +197,63 @@ spec:
         set -ex
         echo "=== STEP 4: PREPARE SOURCE ==="
         
-        echo ">> Working directory: $WORKDIR"
-        
-        # Clean any previous content
-        echo ">> Cleaning workspace…"
+        # Clean workspace and prepare directories
         rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
         mkdir -p "${WORKDIR}/source"
         
-        echo ">> Processing source code URL: $SRC_URL"
-        
         if echo "$SRC_URL" | grep -iq '\.rpm$'; then
-          echo ">> Detected SRPM — downloading & expanding..."
-          yum install -y rpm-build curl --allowerasing && yum clean all
+          echo "Processing SRPM package..."
+          yum install -y rpm-build curl --allowerasing >/dev/null 2>&1 && yum clean all >/dev/null 2>&1
           
-          # init local rpmbuild tree inside shared data
+          # Setup rpmbuild environment
           mkdir -p "$HOME"/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
           echo '%_topdir %(echo $HOME)/rpmbuild' > "$HOME/.rpmmacros"
           
+          # Download and extract SRPM
           curl -ksLf "$SRC_URL" -o "$HOME/package.src.rpm"
-          rpm -ivh "$HOME/package.src.rpm"
+          rpm -ivh "$HOME/package.src.rpm" >/dev/null 2>&1
           
+          # Build source
           SPEC="$(find "$HOME/rpmbuild/SPECS" -name '*.spec' | head -n1)"
           if [ -z "$SPEC" ]; then
-            echo "!! No .spec found in SRPM" >&2
+            echo "Error: No .spec found in SRPM" >&2
             exit 1
           fi
-          echo ">> rpmbuild -bp $SPEC"
-          rpmbuild -bp "$SPEC"
+          rpmbuild -bp "$SPEC" >/dev/null 2>&1
           
-          # Find the source directory in BUILD
+          # Find and copy source directory
           BUILD_DIR=$(find "$HOME/rpmbuild/BUILD" -maxdepth 1 -type d ! -path "$HOME/rpmbuild/BUILD" | head -n1)
           if [ -z "$BUILD_DIR" ]; then
-            echo "!! No source directory found in BUILD after rpmbuild -bp" >&2
+            echo "Error: No source directory found in BUILD after rpmbuild" >&2
             exit 1
           fi
           
-          # Get just the directory name
           SOURCE_DIR_NAME=$(basename "$BUILD_DIR")
-          echo ">> Found source directory: $SOURCE_DIR_NAME"
-          
-          # Copy complete source tree into shared data
           cp -r "$BUILD_DIR" "${WORKDIR}/source/"
           REPO_LOCAL_PATH="${WORKDIR}/source/$SOURCE_DIR_NAME"
           
-          # Clean up rpmbuild artifacts  
-          rm -rf "$HOME/rpmbuild"
-          rm -f "$HOME/package.src.rpm" "$HOME/.rpmmacros"
+          # Cleanup
+          rm -rf "$HOME/rpmbuild" "$HOME/package.src.rpm" "$HOME/.rpmmacros"
           
         else
-          echo ">> Treating URL as Git repo — cloning..."
-          yum install -y git --allowerasing && yum clean all
+          echo "Processing Git repository..."
+          yum install -y git --allowerasing >/dev/null 2>&1 && yum clean all >/dev/null 2>&1
           
-          # Extract repo name from URL for clone directory
           REPO_NAME=$(basename "$SRC_URL" .git)
-          git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME"
+          git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME" >/dev/null 2>&1
           REPO_LOCAL_PATH="${WORKDIR}/source/$REPO_NAME"
         fi
         
-        echo ">> prepare-source completed. Contents of workspace:"
-        ls -lah "$WORKDIR"
-        
-        # Verify the directory exists
+        # Verify source preparation
         if [ ! -d "$REPO_LOCAL_PATH" ]; then
-          echo "!! Repository directory not found: $REPO_LOCAL_PATH" >&2
+          echo "Error: Repository directory not found: $REPO_LOCAL_PATH" >&2
           exit 1
         fi
         
-        # Write the repo path to result and share with next steps
+        # Save repo path for next steps
         echo -n "$REPO_LOCAL_PATH" > $(results.repo-local-path.path)
         echo "REPO_LOCAL_PATH=$REPO_LOCAL_PATH" > /shared-data/env.txt
-        echo ">> REPO_LOCAL_PATH set to: $REPO_LOCAL_PATH"
+        echo "Source code prepared successfully"
 
     # STEP 5: Fetch False Positives
     - name: fetch-false-positives
