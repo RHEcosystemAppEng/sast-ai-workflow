@@ -3,7 +3,7 @@
 ## Quick Start
 
 The SAST AI Workflow can be run in two ways:
-1. **AIQ Framework** (Recommended) - Modern NeMo-based agent architecture
+1. **NAT Framework** (Recommended) - Modern NeMo-based agent architecture
 2. **Traditional Python** - Direct execution via `run.py`
 
 > **For detailed architecture information**, see [Architecture Documentation](architecture.md)
@@ -24,7 +24,7 @@ download the index.faiss file from the drive and place it under the appropriate 
 
 ### 4. Install Dependencies
 
-#### For AIQ Framework (Recommended)
+#### For NAT Framework (Recommended)
 Create and activate a virtual environment:
 ```bash
 uv venv --seed -p python3.12 .venv
@@ -38,7 +38,7 @@ uv pip install -e .
 
 **For subsequent updates to the workflow:**
 ```bash
-aiq workflow reinstall sast_agent_workflow
+nat workflow reinstall sast_agent_workflow
 ```
 
 #### For Traditional Python
@@ -250,12 +250,12 @@ LOG_FILE=debug.log
 
 ## Usage
 
-### Method 1: AIQ Framework (Recommended)
+### Method 1: NAT Framework (Recommended)
 
-Run the SAST agent workflow using the AIQ framework:
+Run the SAST agent workflow using the NAT framework:
 
 ```bash
-aiq run --config_file src/sast_agent_workflow/configs/config.yml --input "sast_analysis"
+nat run --config_file src/sast_agent_workflow/configs/config.yml --input "sast_analysis"
 ```
 
 > **Note:** The string input parameter is required by NeMo but not used in the workflow. The real inputs come from `default_config.yaml` and environment variables.
@@ -291,5 +291,5 @@ PYTHONPATH=. pytest tests/ -v
 
 Run specific test file:
 ```bash
-PYTHONPATH=. pytest tests/aiq_tests/test_pre_process.py
+PYTHONPATH=. pytest tests/nat_tests/test_pre_process.py
 ```

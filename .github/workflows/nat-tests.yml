@@ -1,4 +1,4 @@
-name: Run AIQ Workflow Unit Tests
+name: Run NAT Workflow Unit Tests
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   unit-tests:
-    name: pytest tests/aiq_tests/
+    name: pytest tests/nat_tests/
     runs-on: ubuntu-latest
 
     steps:
@@ -41,8 +41,8 @@ jobs:
           EMBEDDINGS_LLM_MODEL_NAME: "text-embedding-ada-002"
         run: |          
           # Run validation and capture output
-          echo "Running aiq validate..."
-          output=$(timeout 120 bash -c 'yes q 2>/dev/null  | aiq validate --config_file src/sast_agent_workflow/configs/config.yml' 2>&1)
+          echo "Running nat validate..."
+          output=$(timeout 120 bash -c 'yes q 2>/dev/null  | nat validate --config_file src/sast_agent_workflow/configs/config.yml' 2>&1)
           exit_code=$?
           
           echo "Command output:"
@@ -59,4 +59,4 @@ jobs:
           exit 1
 
       - name: Run tests
-        run: PYTHONPATH=. pytest tests/aiq_tests/
+        run: PYTHONPATH=. pytest tests/nat_tests/

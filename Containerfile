@@ -24,5 +24,5 @@ RUN pip install -e .
 
 VOLUME ["/etc/secrets"]
 
-ENTRYPOINT ["aiq", "run", "--config_file", "src/sast_agent_workflow/configs/config.yml", "--input", "sast_agent"]
+ENTRYPOINT ["nat", "run", "--config_file", "src/sast_agent_workflow/configs/config.yml", "--input", "sast_agent"]
 

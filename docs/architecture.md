@@ -4,14 +4,14 @@
 
 The SAST AI Workflow supports two execution approaches:
 
-1. **AIQ Framework** - Modern NeMo-based agent architecture with LangGraph workflow management
+1. **NAT Framework** - Modern NeMo-based agent architecture with LangGraph workflow management
 2. **Traditional Python** - Direct execution approach
 
-## AIQ Framework Architecture
+## NAT Framework Architecture
 
 ### Workflow Type: `sast_agent`
 
-The AIQ-based workflow is implemented as a custom `sast_agent` type, registered in `src/sast_agent_workflow/register.py`. This approach provides:
+The NAT-based workflow is implemented as a custom `sast_agent` type, registered in `src/sast_agent_workflow/register.py`. This approach provides:
 
 - **Modular Design**: Each analysis step is implemented as a separate tool
 - **LangGraph Integration**: Workflow orchestration using LangGraph
@@ -31,7 +31,7 @@ The AIQ-based workflow is implemented as a custom `sast_agent` type, registered 
 
 #### Configuration
 - **Main Config**: `src/sast_agent_workflow/configs/config.yml`
-- **Package Config**: `pyproject.toml` - Defines AIQ component registration
+- **Package Config**: `pyproject.toml` - Defines NAT component registration
 - **Environment Variables**: Detailed in [setup.md](setup.md)
 
 #### LLM and Embedders
@@ -40,7 +40,7 @@ The AIQ-based workflow is implemented as a custom `sast_agent` type, registered 
 
 ### Workflow Execution Flow
 
-The AIQ framework uses LangGraph with conditional logic for iterative analysis:
+The NAT framework uses LangGraph with conditional logic for iterative analysis:
 
 ```
 Input → pre_process → filter → data_fetcher → judge_llm_analysis → evaluate_analysis
@@ -61,11 +61,11 @@ The traditional approach uses direct Python execution via `run.py`, maintaining 
 
 ## Key Differences
 
-| Aspect | AIQ Framework | Traditional Python |
+| Aspect | NAT Framework | Traditional Python |
 |--------|---------------|-------------------|
-| **Execution** | `aiq run --config_file ...` | `python run.py` |
+| **Execution** | `nat run --config_file ...` | `python run.py` |
 | **Architecture** | Agent-based with LangGraph | Sequential processing |
 | **Configuration** | YAML + Environment variables | Environment variables only |
 | **Modularity** | High (tool-based) | Moderate |
-| **Testing** | `pytest tests/aiq_tests/` | Standard pytest |
+| **Testing** | `pytest tests/nat_tests/` | Standard pytest |
 
