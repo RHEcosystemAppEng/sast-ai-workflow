@@ -12,8 +12,8 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
 from common.config import Config
 from handlers.protocols import RepoHandlerProtocol
-from aiq.builder.builder import Builder
-from tests.aiq_tests.test_utils import TestUtils
+from nat.builder.builder import Builder
+from tests.nat_tests.test_utils import TestUtils
 
 class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
     """Test cases for the pre_process core function (_pre_process_fn)."""
