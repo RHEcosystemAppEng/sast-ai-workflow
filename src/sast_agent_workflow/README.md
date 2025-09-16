@@ -1,6 +1,6 @@
 # SAST Agent Workflow
 
-This directory contains the AIQ framework implementation of the SAST AI Workflow using [Nvidia NeMo's agent architecture](https://docs.nvidia.com/aiqtoolkit/latest/index.html).
+This directory contains the NAT framework implementation of the SAST AI Workflow using [Nvidia NeMo's agent architecture](https://docs.nvidia.com/nemo/agent-toolkit/latest/).
 
 ## Overview
 
@@ -8,7 +8,7 @@ The SAST Agent Workflow implements a LangGraph-based agent architecture for stat
 
 ## Architecture
 
-- **Workflow Type**: `sast_agent` - Custom workflow registered via AIQ framework
+- **Workflow Type**: `sast_agent` - Custom workflow registered via NAT framework
 - **LangGraph Integration**: Uses conditional edges for iterative analysis loops
 - **Modular Tools**: Each analysis step implemented as a separate tool
 
@@ -25,9 +25,9 @@ The SAST Agent Workflow implements a LangGraph-based agent architecture for stat
 - `write_results` - Export final results
 
 ### Configuration Files
-- `configs/config.yml` - AIQ workflow configuration
+- `configs/config.yml` - NAT workflow configuration
 - `graph_builder.py` - LangGraph workflow structure
-- `register.py` - AIQ component registration
+- `register.py` - NAT component registration
 
 ## Quick Reference
 
@@ -44,7 +44,7 @@ uv pip install -e .
 
 **Run:**
 ```bash
-aiq run --config_file src/sast_agent_workflow/configs/config.yml --input "sast_analysis"
+nat run --config_file src/sast_agent_workflow/configs/config.yml --input "sast_analysis"
 ```
 
 **Test:**

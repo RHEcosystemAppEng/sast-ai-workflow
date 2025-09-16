@@ -164,7 +164,7 @@ spec:
         du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
         echo "--- END: Storage Redirection Setup ---"
 
-        echo "Running SAST-AI-Workflow with aiq..."
-        aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+        echo "Running SAST-AI-Workflow with nat..."
+        nat run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
         
        

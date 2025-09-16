@@ -18,7 +18,7 @@ from sast_agent_workflow.graph_builder import (
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.LLMResponse import FinalStatus, CVEValidationStatus, AnalysisResponse
 from common.config import Config
-from tests.aiq_tests.test_utils import TestUtils
+from tests.nat_tests.test_utils import TestUtils
 from Utils.workflow_utils import WorkflowNode
 
 

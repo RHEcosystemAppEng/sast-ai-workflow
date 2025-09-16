@@ -17,11 +17,11 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import KnownFalsePositive
 from common.config import Config
-from aiq.builder.builder import Builder
+from nat.builder.builder import Builder
 
 from sast_agent_workflow.tools.filter import filter, FilterConfig
 from FilterKnownIssues import capture_known_issues
-from tests.aiq_tests.test_utils import TestUtils
+from tests.nat_tests.test_utils import TestUtils
 
 
 class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):

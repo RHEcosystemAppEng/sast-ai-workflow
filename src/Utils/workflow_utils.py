@@ -1,5 +1,5 @@
 """
-Common utilities for AIQ workflow.
+Common utilities for NAT workflow.
 """
 
 from enum import Enum
