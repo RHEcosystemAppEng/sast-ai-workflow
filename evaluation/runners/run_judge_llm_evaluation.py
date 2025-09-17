@@ -21,8 +21,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import archiving utility
+# Import archiving utility and metrics calculation
 from evaluation.utils import archive_evaluation_results
+from evaluation.utils.calculate_eval_metrics import calculate_metrics_from_workflow
+import json
 
 def check_environment(config_file=None):
     """Check if required environment variables are available."""
@@ -118,6 +120,36 @@ def main():
     print("  - evaluation/reports/judge_llm_analysis/workflow_output.json")
     print("  - evaluation/reports/judge_llm_analysis/standardized_data_all.csv")
     print("  - evaluation/reports/judge_llm_analysis/all_requests_profiler_traces.json")
+
+    # Calculate evaluation metrics before archiving
+    workflow_output_path = project_root / "evaluation" / "reports" / "judge_llm_analysis" / "workflow_output.json"
+    if workflow_output_path.exists():
+        print("\\nCalculating evaluation metrics...")
+        try:
+            metrics_results = calculate_metrics_from_workflow(str(workflow_output_path))
+
+            if "error" in metrics_results:
+                print(f"Warning: Could not calculate metrics - {metrics_results['error']}")
+            else:
+                # Save metrics to JSON file
+                metrics_file = project_root / "evaluation" / "reports" / "judge_llm_analysis" / "evaluation_metrics.json"
+                with open(metrics_file, 'w') as f:
+                    json.dump(metrics_results, f, indent=2)
+
+                # Print summary
+                metrics = metrics_results["metrics"]
+                metadata = metrics_results["metadata"]
+
+                print(f"  Processed {metadata['processed_items']}/{metadata['total_items']} items")
+                print(f"  Accuracy:  {metrics['accuracy']:.4f}")
+                print(f"  Precision: {metrics['precision']:.4f}")
+                print(f"  Recall:    {metrics['recall']:.4f}")
+                print(f"  F1 Score:  {metrics['f1_score']:.4f}")
+                print(f"  Metrics saved to: evaluation_metrics.json")
+        except Exception as e:
+            print(f"Warning: Error calculating metrics - {e}")
+    else:
+        print("\\nWarning: workflow_output.json not found, skipping metrics calculation")
 
     # Archive the results after evaluation completes
     reports_dir = project_root / "evaluation" / "reports"

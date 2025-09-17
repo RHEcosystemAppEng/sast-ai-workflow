@@ -164,3 +164,7 @@ cython_debug/
 
 # Cursor
 .cursor/
+
+# SAST workflow specific ignores
+evaluation/dataset/
+evaluation/reports/
