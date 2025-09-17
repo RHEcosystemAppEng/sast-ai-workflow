@@ -9,8 +9,8 @@ from sast_agent_workflow.tools.judge_llm_analysis import judge_llm_analysis, Jud
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import EvaluationResponse, JudgeLLMResponse
 from common.config import Config
-from aiq.builder.builder import Builder
-from tests.aiq_tests.test_utils import TestUtils
+from nat.builder.builder import Builder
+from tests.nat_tests.test_utils import TestUtils
 from Utils.validation_utils import ValidationError
 from langchain_core.prompts import ChatPromptTemplate
 

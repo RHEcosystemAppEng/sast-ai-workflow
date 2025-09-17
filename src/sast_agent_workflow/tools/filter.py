@@ -7,10 +7,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import OpenAIEmbeddings
 from pydantic import Field
 
-from aiq.builder.builder import Builder, LLMFrameworkEnum
-from aiq.builder.function_info import FunctionInfo
-from aiq.cli.register_workflow import register_function
-from aiq.data_models.function import FunctionBaseConfig
+from nat.builder.builder import Builder, LLMFrameworkEnum
+from nat.builder.function_info import FunctionInfo
+from nat.cli.register_workflow import register_function
+from nat.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
