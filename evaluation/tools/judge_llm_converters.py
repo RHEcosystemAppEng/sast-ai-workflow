@@ -103,16 +103,17 @@ def convert_str_to_sast_tracker(input_str: str) -> SASTWorkflowTracker:
 
         # Create a config object for evaluation
         try:
-            # Set up environment variables needed for Config
+            # Set up required environment variables for Config
             import os
-            os.environ.setdefault('PROJECT_NAME', 'judge-llm-eval')
-            os.environ.setdefault('PROJECT_VERSION', '1.0.0')
             os.environ.setdefault('INPUT_REPORT_FILE_PATH', '/dev/null')
             os.environ.setdefault('OUTPUT_FILE_PATH', '/dev/null')
+            os.environ.setdefault('KNOWN_FALSE_POSITIVE_FILE_PATH', '/dev/null')
+            os.environ.setdefault('PROJECT_NAME', 'judge-llm-eval')
+            os.environ.setdefault('PROJECT_VERSION', '1.0.0')
             os.environ.setdefault('REPO_LOCAL_PATH', str(project_root))
 
             tracker_config = Config()
-            logger.info("Created real Config object for evaluation")
+            logger.info("Successfully created real Config object for evaluation")
         except Exception as e:
             logger.info(f"Main Config failed ({e}), using minimal config for evaluation")
             tracker_config = create_minimal_config()
