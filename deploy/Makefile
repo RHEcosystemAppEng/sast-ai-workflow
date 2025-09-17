@@ -37,7 +37,7 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline scripts run logs clean generate-prompts prompts
+.PHONY: all setup tasks secrets pipeline scripts run logs clean generate-prompts prompts
 
 all: setup scripts tasks pipeline prompts run
 
@@ -48,19 +48,12 @@ setup:
 	@echo "   Context: $(CONTEXT)"
 	@echo "   Namespace: $(NAMESPACE)"
 	@echo ""
-	@$(MAKE) --no-print-directory pvc secrets
+	@$(MAKE) --no-print-directory secrets
 
 tasks:
-	@echo "📋 Setting up Tekton Tasks..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/ > /dev/null 2>&1
-	@echo "   ✓ Tasks deployed successfully"
-
-pvc:
-	@echo "💾 Setting up Persistent Volume Claims..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml > /dev/null 2>&1
-	@$(CO) apply -n $(NAMESPACE) -f tekton/cache_pvc.yaml > /dev/null 2>&1
-	@echo "   ✓ Workspace PVC created"
-	@echo "   ✓ Cache PVC created"
+	@echo "📋 Setting up Tekton Task..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml > /dev/null 2>&1
+	@echo "   ✓ Consolidated task deployed successfully"
 
 secrets:
 	@echo "🔐 Configuring Secrets..."
@@ -172,11 +165,8 @@ run:
 		  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
 		  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
 		  -p AGGREGATE_RESULTS_G_SHEET="$(AGGREGATE_RESULTS_G_SHEET)" \
-		  --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \
 		  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
-		  --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \
 		  --workspace name=google-sa-json-ws,secret=google-service-account-secret \
-		  --workspace name=cache-workspace,claimName=sast-ai-cache-pvc \
 		  --showlog; \
 	else \
 		echo "   ❌ Tekton CLI (tkn) not installed"; \
@@ -196,11 +186,8 @@ run:
 		echo "     -p PROJECT_VERSION=\"$(PROJECT_VERSION)\" \\"; \
 		echo "     -p INPUT_REPORT_FILE_PATH=\"$(INPUT_REPORT_FILE_PATH)\" \\"; \
 		echo "     -p AGGREGATE_RESULTS_G_SHEET=\"$(AGGREGATE_RESULTS_G_SHEET)\" \\"; \
-		echo "     --workspace name=shared-workspace,claimName=sast-ai-workflow-pvc \\"; \
 		echo "     --workspace name=gitlab-token-ws,secret=gitlab-token-secret \\"; \
-		echo "     --workspace name=llm-credentials-ws,secret=sast-ai-default-llm-creds \\"; \
 		echo "     --workspace name=google-sa-json-ws,secret=google-service-account-secret \\"; \
-		echo "     --workspace name=cache-workspace,claimName=sast-ai-cache-pvc \\"; \
 		echo "     --showlog"; \
 		echo ""; \
 		echo "   ✅ Infrastructure setup completed successfully!"; \
@@ -236,25 +223,11 @@ clean:
 	# Delete Tekton resources
 	@echo "🔧 Removing Pipeline Resources..."
 	@$(CO) delete -n $(NAMESPACE) \
-		-f tekton/tasks/ \
+		-f tekton/tasks/execute_sast_ai_workflow.yaml \
 		-f tekton/pipeline.yaml \
 		--ignore-not-found > /dev/null 2>&1
-	@echo "   ✓ Pipeline definitions removed"
-	@echo "   ✓ Task definitions removed"
-	# Delete only SAST AI specific PVCs
-	@echo "💾 Cleaning Storage..."
-	@$(CO) delete pvc sast-ai-workflow-pvc sast-ai-cache-pvc -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ Persistent volume claims removed"
-	# Wait a moment for PVCs to be deleted before checking PVs
-	@sleep 5
-	# Delete only PVs that were bound to our specific PVCs
-	@for pvc in sast-ai-workflow-pvc sast-ai-cache-pvc; do \
-		pv_name=$$($(CO) get pvc $$pvc -n $(NAMESPACE) -o jsonpath='{.spec.volumeName}' 2>/dev/null || echo ""); \
-		if [ -n "$$pv_name" ]; then \
-			$(CO) delete pv $$pv_name --ignore-not-found > /dev/null 2>&1 || true; \
-		fi; \
-	done
-	@echo "   ✓ Persistent volumes cleaned"
+	@echo "   ✓ Pipeline definition removed"
+	@echo "   ✓ Consolidated task removed"
 	# Remove image pull secrets from pipeline service account
 	@echo "👤 Cleaning Service Accounts..."
 	@$(CO) patch serviceaccount pipeline \
