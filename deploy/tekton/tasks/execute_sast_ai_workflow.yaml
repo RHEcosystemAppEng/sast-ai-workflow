@@ -455,8 +455,8 @@ spec:
         # Create directories
         mkdir -p "/cache-data/tmp" "/shared-data/output"
         
-        echo "Running SAST-AI-Workflow with aiq..."
-        aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+        echo "Running SAST-AI-Workflow with nat..."
+        nat run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
         
         echo "DVC metadata generation handled by Python workflow"
         

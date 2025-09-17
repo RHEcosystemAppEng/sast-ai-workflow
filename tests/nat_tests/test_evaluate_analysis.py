@@ -12,8 +12,8 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.LLMResponse import FinalStatus
 from dto.ResponseStructures import RecommendationsResponse, InstructionResponse
 from common.config import Config
-from aiq.builder.builder import Builder
-from tests.aiq_tests.test_utils import TestUtils
+from nat.builder.builder import Builder
+from tests.nat_tests.test_utils import TestUtils
 
 
 class TestEvaluateAnalysisCore(unittest.IsolatedAsyncioTestCase):

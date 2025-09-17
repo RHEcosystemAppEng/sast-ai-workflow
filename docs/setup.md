@@ -1,4 +1,14 @@
-# How to run 
+# SAST AI Workflow Setup
+
+## Quick Start
+
+The SAST AI Workflow can be run in two ways:
+1. **NAT Framework** (Recommended) - Modern NeMo-based agent architecture
+2. **Traditional Python** - Direct execution via `run.py`
+
+> **For detailed architecture information**, see [Architecture Documentation](architecture.md)
+
+## Installation
 
 ### 1. Clone the Repository
 ```bash
@@ -13,12 +23,31 @@ If you prefer not to generate embeddings for the source code files(systemd proje
 download the index.faiss file from the drive and place it under the appropriate folder (e.g., the project root folder).
 
 ### 4. Install Dependencies
-Install the required dependencies:
 
+#### For NAT Framework (Recommended)
+Create and activate a virtual environment:
+```bash
+uv venv --seed -p python3.12 .venv
+source .venv/bin/activate
+```
+
+Install the SAST workflow package:
+```bash
+uv pip install -e .
+```
+
+**For subsequent updates to the workflow:**
+```bash
+nat workflow reinstall sast_agent_workflow
+```
+
+#### For Traditional Python
+Install the required dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
+#### Clang Dependencies (Required for Both Methods)
 To extract C functions using Clang's AST, the libclang shared library must be installed on your system.  
 This library is not bundled with the Python clang bindings and must be installed separately.
 
@@ -221,16 +250,46 @@ LOG_FILE=debug.log
 
 ## Usage
 
-Run the main workflow by executing:
+### Method 1: NAT Framework (Recommended)
+
+Run the SAST agent workflow using the NAT framework:
+
+```bash
+nat run --config_file src/sast_agent_workflow/configs/config.yml --input "sast_analysis"
+```
+
+> **Note:** The string input parameter is required by NeMo but not used in the workflow. The real inputs come from `default_config.yaml` and environment variables.
+
+### Method 2: Traditional Python
+
+Run the main workflow directly:
 
 ```bash
 python run.py
 ```
 
-This command will:
+### Workflow Steps
 
+Both methods will:
 1. Process the given SAST report
 2. Generate embeddings from the input sources
 3. Query the language model to analyze the vulnerabilities
-4. Evaluate the response using the defined metrics ->
-5. Export the final summary to an Excel file.
+4. Evaluate the response using the defined metrics
+5. Export the final summary to an Excel file
+
+## Testing
+
+Run all tests:
+```bash
+PYTHONPATH=. pytest tests/
+```
+
+Run with verbose output:
+```bash
+PYTHONPATH=. pytest tests/ -v
+```
+
+Run specific test file:
+```bash
+PYTHONPATH=. pytest tests/nat_tests/test_pre_process.py
+```
