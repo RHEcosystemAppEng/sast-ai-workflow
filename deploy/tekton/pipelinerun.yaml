@@ -25,33 +25,15 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       value: "input-report"
   workspaces:
-    - name: shared-workspace
-      persistentVolumeClaim:
-        claimName: sast-ai-workflow-pvc
     - name: gitlab-token-ws
       secret:
         secretName: gitlab-token-secret
         items:
           - key: gitlab_token
             path: gitlab_token
-    - name: llm-api-key-ws
-      secret:
-        secretName: llm-api-key-secret 
-        items:
-          - key: api_key 
-            path: api_key 
-    - name: embeddings-api-key-ws 
-      secret:
-        secretName: embeddings-api-key-secret 
-        items:
-          - key: api_key 
-            path: api_key 
     - name: google-sa-json-ws 
       secret:
         secretName: google-service-account-secret 
         items:
           - key: service_account.json 
             path: service_account.json
-    - name: cache-workspace
-      persistentVolumeClaim:
-        claimName: sast-ai-cache-pvc

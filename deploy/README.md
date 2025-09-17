@@ -13,7 +13,8 @@ deploy/
 ├── scripts/                    # Deployment utility scripts
 │   └── generate_prompts.py     # ConfigMap generation from templates
 └── tekton/                     # Kubernetes/Tekton resources
-    ├── tasks/                  # Individual pipeline tasks
+    ├── tasks/                  # Consolidated pipeline task
+    │   └── execute_sast_ai_workflow.yaml # Single task with multiple steps
     ├── scripts/                # ConfigMaps for pipeline scripts  
     ├── prompts-config-map.yaml # Generated prompt templates
     └── *.yaml                  # Other pipeline resources
@@ -80,16 +81,15 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 | Command | Description |
 |---------|-------------|
 | `all` | Complete deployment: setup + tasks + pipeline + run |
-| `setup` | Create PVCs and secrets |
+| `setup` | Create secrets |
 | `secrets` | Create secrets from .env file |
-| `pvc` | Create persistent volume claims |
-| `tasks` | Apply Tekton task definitions |
+| `tasks` | Apply consolidated Tekton task definition |
 | `generate-prompts` | Generate ConfigMap from prompt template files |
 | `prompts` | Generate and apply prompts ConfigMap to cluster |
 | `pipeline` | Apply pipeline definition |
 | `run` | Execute pipeline (requires tkn CLI or shows manual command) |
 | `logs` | View pipeline logs |
-| `clean` | **⚠️ Deletes ALL resources in namespace including PVCs** |
+| `clean` | **⚠️ Deletes ALL resources in namespace** |
 | **GitOps** | |
 | `argocd-deploy` | Deploy ArgoCD Application for automated GitOps |
 | `argocd-status` | Check ArgoCD sync and health status |
