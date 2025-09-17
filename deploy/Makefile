@@ -66,7 +66,9 @@ secrets:
 	@echo "🔐 Configuring Secrets..."
 	# Create GitLab token secret
 	@if [ -z "$(GITLAB_TOKEN)" ]; then \
-		echo "   ⚠️  GitLab token not configured"; \
+		echo "   ❌ GitLab token not configured - required for pipeline execution"; \
+		echo "   💡 Set GITLAB_TOKEN in .env file or environment"; \
+		exit 1; \
 	else \
 		$(CO) create secret generic gitlab-token-secret \
 			--from-literal=gitlab_token="$(GITLAB_TOKEN)" \
@@ -74,29 +76,30 @@ secrets:
 		echo "   ✓ GitLab token secret"; \
 	fi
 	# Create consolidated LLM credentials secret
-	@LLM_MISSING=""; EMBEDDINGS_MISSING=""; \
-	if [ -z "$(LLM_API_KEY)" ]; then \
-		echo "   ⚠️  LLM API key not configured"; \
-		LLM_MISSING="true"; \
+	@if [ -z "$(LLM_API_KEY)" ]; then \
+		echo "   ❌ LLM API key not configured - required for AI analysis"; \
+		echo "   💡 Set LLM_API_KEY in .env file or environment"; \
+		exit 1; \
 	fi; \
 	if [ -z "$(EMBEDDINGS_LLM_API_KEY)" ]; then \
-		echo "   ⚠️  Embeddings API key not configured"; \
-		EMBEDDINGS_MISSING="true"; \
+		echo "   ❌ Embeddings API key not configured - required for vector analysis"; \
+		echo "   💡 Set EMBEDDINGS_LLM_API_KEY in .env file or environment"; \
+		exit 1; \
 	fi; \
-	if [ -z "$$LLM_MISSING" ] && [ -z "$$EMBEDDINGS_MISSING" ]; then \
-		$(CO) create secret generic sast-ai-default-llm-creds \
-			--from-literal=llm_url="$(LLM_URL)" \
-			--from-literal=llm_api_key="$(LLM_API_KEY)" \
-			--from-literal=embeddings_llm_url="$(EMBEDDINGS_LLM_URL)" \
-			--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
-			--from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
-			--from-literal=embedding_llm_model_name="$(EMBEDDINGS_LLM_MODEL_NAME)" \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
-		echo "   ✓ LLM credentials secret"; \
-	fi
+	$(CO) create secret generic sast-ai-default-llm-creds \
+		--from-literal=llm_url="$(LLM_URL)" \
+		--from-literal=llm_api_key="$(LLM_API_KEY)" \
+		--from-literal=embeddings_llm_url="$(EMBEDDINGS_LLM_URL)" \
+		--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
+		--from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
+		--from-literal=embedding_llm_model_name="$(EMBEDDINGS_LLM_MODEL_NAME)" \
+		-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+	echo "   ✓ LLM credentials secret"
 	# Create Google Service Account secret
 	@if [ ! -f "$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" ]; then \
-		echo "   ⚠️  Google service account not found"; \
+		echo "   ❌ Google service account not found - required for spreadsheet access"; \
+		echo "   💡 Place service account JSON file at: $(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)"; \
+		exit 1; \
 	else \
 		$(CO) create secret generic google-service-account-secret \
 			--from-file=service_account.json="$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" \
@@ -115,7 +118,9 @@ secrets:
 		DOCKER_AUTH_FILE="$(HOME)/.config/containers/auth.json"; \
 	fi; \
 	if [ -z "$$DOCKER_AUTH_FILE" ]; then \
-		echo "   ⚠️  Container registry auth not found"; \
+		echo "   ❌ Container registry auth not found - required for image pulling"; \
+		echo "   💡 Login to container registry: podman login quay.io (or docker login quay.io)"; \
+		exit 1; \
 	else \
 		$(CO) create secret generic quay-sast-puller \
 			--from-file=.dockerconfigjson="$$DOCKER_AUTH_FILE" \
@@ -193,7 +198,7 @@ argocd-deploy:
 
 argocd-clean:
 	@echo "🧹 Removing ArgoCD Application..."
-	@$(CO) delete application sast-ai-workflow -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
 	@echo "   ✓ ArgoCD Application removed"
 
 clean:
