@@ -11,8 +11,8 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import InstructionResponse
 from common.config import Config
-from aiq.builder.builder import Builder
-from tests.aiq_tests.test_utils import TestUtils
+from nat.builder.builder import Builder
+from tests.nat_tests.test_utils import TestUtils
 
 
 class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
