@@ -1,0 +1,22 @@
+stages:
+  run_sast_workflow:
+    cmd: |
+      cd src && \
+      INPUT_REPORT_FILE_PATH=../data/sast-reports \
+      KNOWN_FALSE_POSITIVE_FILE_PATH=../data/known-issues \
+      REPO_LOCAL_PATH=../data/source-repos \
+      USE_KNOWN_FALSE_POSITIVE_FILE=true \
+      OUTPUT_FILE_PATH=../data/outputs/analysis_results.xlsx \
+      python run.py
+    deps:
+    - data/sast-reports
+    - data/known-issues
+    - data/source-repos
+    - data/models/embeddings
+    - data/models/prompts
+    - data/ground-truth
+    - src/
+    - templates/prompts/
+    outs:
+    - data/outputs/analysis_results.xlsx
+    - faiss_index
