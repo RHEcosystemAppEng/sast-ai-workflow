@@ -7,12 +7,11 @@ from unittest.mock import Mock, patch
 
 from sast_agent_workflow.tools.summarize_justifications import summarize_justifications, SummarizeJustificationsConfig
 from dto.SASTWorkflowModels import SASTWorkflowTracker
-from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
+from dto.LLMResponse import FinalStatus
 from common.config import Config
-from aiq.builder.builder import Builder
-from tests.aiq_tests.test_utils import TestUtils
 from common.constants import DEFAULT_FIELD_VALUE
+from nat.builder.builder import Builder
+from tests.nat_tests.test_utils import TestUtils
 
 
 class TestSummarizeJustificationsCore(unittest.IsolatedAsyncioTestCase):

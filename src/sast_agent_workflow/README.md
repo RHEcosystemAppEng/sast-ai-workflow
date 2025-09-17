@@ -1,76 +1,53 @@
 # SAST Agent Workflow
 
-> **Note:** This README is temporary and is only used during the development phase of NeMo integration.
+This directory contains the NAT framework implementation of the SAST AI Workflow using [Nvidia NeMo's agent architecture](https://docs.nvidia.com/nemo/agent-toolkit/latest/).
 
 ## Overview
 
-This workflow provides a skeleton for implementing SAST analysis capabilities using an AI agent approach. The workflow is designed as a `sast_agent` type and implements various tools for SAST analysis and result processing.
+The SAST Agent Workflow implements a LangGraph-based agent architecture for static application security testing analysis. It provides modular tools for processing SAST reports, analyzing vulnerabilities with LLMs, and generating comprehensive results.
 
-## Structure
+## Architecture
 
-- **Workflow Type**: `sast_agent` - Custom workflow type registered in `register.py`
-- **Tools Package**: Contains the following analysis and processing tools:
-  - calculate_metrics
-  - data_fetcher
-  - evaluate_analysis
-  - filter
-  - judge_llm_analysis
-  - pre_process
-  - summarize_justifications
-  - write_results
+- **Workflow Type**: `sast_agent` - Custom workflow registered via NAT framework
+- **LangGraph Integration**: Uses conditional edges for iterative analysis loops
+- **Modular Tools**: Each analysis step implemented as a separate tool
 
-## Files
+## Core Components
 
-- `src/sast_agent_workflow/tools/` - Directory containing all analysis and processing tools
-- `src/sast_agent_workflow/register.py` - Defines and registers the `sast_agent` workflow, including its LangGraph-based logic
-- `configs/config.yml` - Workflow configuration
-- `pyproject.toml` - Package configuration
+### Tools (`tools/`)
+- `pre_process` - Initialize workflow and load configuration
+- `filter` - Filter known false positives using embeddings
+- `data_fetcher` - Fetch source code for analysis
+- `judge_llm_analysis` - Perform LLM-based vulnerability analysis
+- `evaluate_analysis` - Evaluate results and determine next steps
+- `summarize_justifications` - Generate analysis summaries
+- `calculate_metrics` - Calculate performance metrics
+- `write_results` - Export final results
 
-## Installation
+### Configuration Files
+- `configs/config.yml` - NAT workflow configuration
+- `graph_builder.py` - LangGraph workflow structure
+- `register.py` - NAT component registration
 
-**Note:** Run from the root folder of the project.
+## Quick Reference
 
-1. Create and activate a virtual environment:
-   ```bash
-   uv venv --seed -p python3.12 .venv
-   source .venv/bin/activate
-   ```
+For complete setup and usage instructions, see the main project documentation:
+- [Setup Guide](../../docs/setup.md) - Installation and configuration
+- [Architecture Details](../../docs/architecture.md) - Technical architecture overview
 
-2. Install the SAST workflow package (first time):
-   ```bash
-   uv pip install -e .
-   ```
+### Quick Commands
 
-   **Note:** For subsequent updates, use `aiq workflow reinstall sast_agent_workflow`
-
-## Usage
-
-**Note:** Run from the root folder of the project.
-
-Run the SAST agent workflow:
+**Install (from project root):**
 ```bash
-aiq run --config_file src/sast_agent_workflow/configs/config.yml --input <some str>
+uv pip install -e .
 ```
 
-**Note:** The string input is only present because NeMo requires some input parameter, but this input is not actually used in the workflow. The real inputs come from:
-1. The `default_config.yaml` file
-2. Environment variables
-
-## Testing
-
-**Note:** Run from the root folder of the project.
-
-Run the test suite:
+**Run:**
 ```bash
-PYTHONPATH=. pytest tests/aiq_tests/
+nat run --config_file src/sast_agent_workflow/configs/config.yml --input "sast_analysis"
 ```
 
-Run tests with verbose output:
+**Test:**
 ```bash
-PYTHONPATH=. pytest tests/aiq_tests/ -v
-```
-
-Run a specific test file:
-```bash
-PYTHONPATH=. pytest tests/aiq_tests/test_pre_process.py
+PYTHONPATH=. pytest tests/
 ```

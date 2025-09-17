@@ -2,10 +2,10 @@ import logging
 
 from pydantic import Field
 
-from aiq.builder.builder import Builder, LLMFrameworkEnum
-from aiq.builder.function_info import FunctionInfo
-from aiq.cli.register_workflow import register_function
-from aiq.data_models.function import FunctionBaseConfig
+from nat.builder.builder import Builder, LLMFrameworkEnum
+from nat.builder.function_info import FunctionInfo
+from nat.cli.register_workflow import register_function
+from nat.data_models.function import FunctionBaseConfig
 
 from Utils.validation_utils import ValidationError, validate_issue_dict
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
