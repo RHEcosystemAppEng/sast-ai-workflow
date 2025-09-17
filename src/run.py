@@ -19,6 +19,7 @@ from FilterKnownIssues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
+from services.dvc_metadata_service import DvcMetadataService
 
 # Setup logging
 setup_logging()
@@ -30,6 +31,9 @@ def main():
     os.environ[TOKENIZERS_PARALLELISM] = (
         "false"  # Turn off parallel processing for tokenization to avoid warnings
     )
+
+    dvc_service = DvcMetadataService()
+    dvc_service.log_execution_summary()
 
     llm_service = LLMService(config)
     metric_handler = MetricHandler(llm_service.main_llm, llm_service.embedding_llm)
@@ -220,6 +224,9 @@ def main():
 
     try:
         write_to_excel_file(summary_data, evaluation_summary, config)
+        
+        dvc_service.track_workflow_execution(config, issue_list)
+        
     except Exception as e:
         logger.error("Error occurred while generating excel file:", e)
     finally:
