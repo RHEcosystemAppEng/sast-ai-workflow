@@ -15,7 +15,7 @@ llms:
   eval_llm:
     _type: nim
     model_name: nvidia/llama-3.1-nemotron-70b-instruct
-    temperature: 0.0
+    temperature: 0.5
     max_tokens: 1024
     api_key: ${LLM_API_KEY}
     # Force token counting - add specific parameters that might enable usage tracking
@@ -24,14 +24,16 @@ llms:
   judge_llm:
     _type: nim
     model_name: nvidia/llama-3.1-nemotron-70b-instruct
-    temperature: 0.0
-    max_tokens: 512
+    temperature: 0.5
+    max_tokens: 2048
     api_key: ${LLM_API_KEY}
 
 # Workflow configuration
 workflow:
   _type: judge_llm_analysis
   llm_name: eval_llm
+  input_converter: evaluation.tools.judge_llm_converters.convert_str_to_sast_tracker
+  output_converter: evaluation.tools.judge_llm_converters.convert_sast_tracker_to_str
 
 # Evaluation configuration
 eval:
@@ -39,7 +41,7 @@ eval:
     output_dir: ./evaluation/reports/judge_llm_analysis
     dataset:
       _type: json
-      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/judge_llm_eval/judge_llm_eval_dataset_12.json
+      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/judge_llm_eval/judge_llm_eval_dataset_6.json
       structure:
         question_key: "question"
         answer_key: "expected_investigation_result"
@@ -57,19 +59,36 @@ eval:
       bottleneck_analysis:
         enable_nested_stack: false
 
-  # Custom LLM-as-Judge Evaluation Metrics for Justification Quality
+  # Tunable RAG Evaluator for Justification Quality Assessment
   evaluators:
     justification_quality_eval:
       _type: tunable_rag_evaluator
       llm_name: judge_llm
-      default_scoring: true
-      default_score_weights:
-        clarity: 0.35                # How clear and understandable are the justifications
-        completeness: 0.30           # How thoroughly does the reasoning cover all aspects
-        technical_accuracy: 0.25     # Correctness of technical details and terminology
-        logical_flow: 0.10           # Coherence and logical progression of reasoning
+      # Retry control for rate limiting
+      llm_retry_control_params:
+        stop_after_attempt: 3
+        initial_backoff_delay_seconds: 5
+        has_exponential_jitter: true
+      # Use custom scoring instead of default
+      default_scoring: false
+      # Custom prompt for justification quality evaluation
       judge_llm_prompt: >
         You are an expert software security engineer evaluating the quality of justifications for SAST vulnerability analysis.
+
+        **CRITICAL SCORING INSTRUCTIONS - READ CAREFULLY:**
+
+        SEVERELY PENALIZE justifications that exhibit ANY of the following quality issues:
+        - **IRRELEVANT CONTENT**: Justifications that discuss topics unrelated to security analysis (travel, cooking, sports, weather, etc.)
+        - **CONTRADICTORY ANALYSIS**: When the justification contradicts the provided code or vulnerability description
+        - **INCORRECT PREDICTION**: When the investigation_result contradicts the expected result (TRUE POSITIVE vs FALSE POSITIVE mismatch) - this is a MAJOR ISSUE
+        - **MISSING SECURITY CONTEXT**: Failing to address the security implications or vulnerability aspects
+        - **DAMAGED/INCOMPLETE INFORMATION**: Partial, truncated, or corrupted justification content
+        - **NONSENSICAL REASONING**: Logic that doesn't follow or makes no technical sense
+        - **OFF-TOPIC EXPLANATIONS**: Any content that strays from security vulnerability analysis
+
+        For justifications with these issues, assign very low scores (0.0-0.3) across ALL dimensions.
+
+        **PREDICTION ACCURACY IS CRITICAL**: If the generated investigation_result (TRUE POSITIVE/FALSE POSITIVE) does not match the expected_investigation_result, this represents a fundamental failure in security analysis and should be heavily penalized across all dimensions, especially TECHNICAL_ACCURACY.
 
         CRITICAL INSTRUCTION: Evaluate the clarity and completeness of reasoning in the generated justifications.
         Focus on how well the justifications explain the security analysis decision-making process.
@@ -104,4 +123,32 @@ eval:
         - Flows naturally from problem identification to conclusion
         - Score 1.0 for perfectly logical progression, 0.0 for contradictory or illogical flow
 
-        Return scores 0.0-1.0 for each dimension. Focus on the QUALITY of reasoning and explanation, not just correctness of the final decision.
+        SCORING REQUIREMENTS:
+        - MANDATORY: You MUST calculate the exact final weighted score using this EXACT formula: (clarity_score * 0.35) + (completeness_score * 0.30) + (technical_accuracy_score * 0.25) + (logical_flow_score * 0.10)
+        - CRITICAL: Use EXACTLY these decimal weights: 0.35, 0.30, 0.25, 0.10
+        - STEP-BY-STEP CALCULATION REQUIRED:
+          1. First assign individual scores: CLARITY (0.0-1.0), COMPLETENESS (0.0-1.0), TECHNICAL_ACCURACY (0.0-1.0), LOGICAL_FLOW (0.0-1.0)
+          2. Then calculate: (CLARITY × 0.35) + (COMPLETENESS × 0.30) + (TECHNICAL_ACCURACY × 0.25) + (LOGICAL_FLOW × 0.10)
+          3. Use the EXACT result of this calculation as your final score - do NOT round or modify it
+        - The final score must be a float between 0.0 and 1.0
+        - VERIFICATION: Double-check your arithmetic calculation before submitting
+        - The reasoning must be 1-2 concise sentences explaining the score based on justification quality and contain the scoring components
+
+        **CRITICAL RETURN FORMAT REQUIREMENTS**:
+
+        1. You MUST return ONLY valid JSON - no additional text before or after
+        2. Do NOT use markdown formatting, code blocks, or backticks (```json)
+        3. Do NOT include explanatory text outside the JSON
+        4. Your response must start with { and end with }
+        5. All float values must be between 0.0 and 1
+        6. Inside reasoning return the score's components as dict i.e. "CLARITY": clarity_score,
+                                                      "COMPLETENESS": completeness_score,
+                                                      "TECHNICAL_ACCURACY": technical_accuracy_score,
+                                                      "LOGICAL_FLOW": logical_flow_score,
+                                                      "Reasoning": "explanation string"
+        7. CRITICAL: You MUST verify your final score calculation is exactly: (CLARITY * 0.35) + (COMPLETENESS * 0.30) + (TECHNICAL_ACCURACY * 0.25) + (LOGICAL_FLOW * 0.10)
+        8. MANDATORY: The "score" field in your JSON response must be the EXACT mathematical result of the weighted formula calculation - no rounding, no approximation
+
+        IMPORTANT: Your entire response must be valid JSON that can be parsed by json.loads() in Python.
+
+        Focus on the QUALITY of reasoning and explanation, not just correctness of the final decision.
