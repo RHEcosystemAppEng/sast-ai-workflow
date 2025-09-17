@@ -7,23 +7,25 @@ spec:
     name: sast-ai-workflow-pipeline
   params:
     - name: PROJECT_NAME
-      value: "project-name"
+      value: "PROJECT_NAME_PLACEHOLDER"
     - name: PROJECT_VERSION
-      value: "project-version"
+      value: "PROJECT_VERSION_PLACEHOLDER"
     - name: REPO_REMOTE_URL
-      value: "rpm-package-url"
+      value: "REPO_REMOTE_URL_PLACEHOLDER"
     - name: FALSE_POSITIVES_URL
-      value: "git-lab-url"
+      value: "FALSE_POSITIVES_URL_PLACEHOLDER"
     - name: LLM_URL
-      value: ""
+      value: "LLM_URL_PLACEHOLDER"
     - name: LLM_MODEL_NAME
-      value: "llm-model"
+      value: "LLM_MODEL_NAME_PLACEHOLDER"
     - name: EMBEDDINGS_LLM_URL
-      value: ""
+      value: "EMBEDDINGS_LLM_URL_PLACEHOLDER"
     - name: EMBEDDINGS_LLM_MODEL_NAME
-      value: "embedding-llm-model"
+      value: "EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER"
     - name: INPUT_REPORT_FILE_PATH
-      value: "input-report"
+      value: "INPUT_REPORT_FILE_PATH_PLACEHOLDER"
+    - name: AGGREGATE_RESULTS_G_SHEET
+      value: "AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER"
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:
@@ -34,18 +36,9 @@ spec:
         items:
           - key: gitlab_token
             path: gitlab_token
-    - name: llm-api-key-ws
+    - name: llm-credentials-ws
       secret:
-        secretName: llm-api-key-secret 
-        items:
-          - key: api_key 
-            path: api_key 
-    - name: embeddings-api-key-ws 
-      secret:
-        secretName: embeddings-api-key-secret 
-        items:
-          - key: api_key 
-            path: api_key 
+        secretName: sast-ai-default-llm-creds 
     - name: google-sa-json-ws 
       secret:
         secretName: google-service-account-secret 

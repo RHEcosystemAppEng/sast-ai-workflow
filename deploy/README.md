@@ -79,7 +79,7 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 
 | Command | Description |
 |---------|-------------|
-| `all` | Complete deployment: setup + tasks + pipeline + run |
+| `all` | Complete deployment: setup + tasks + pipeline + prompts + argocd-deploy |
 | `setup` | Create PVCs and secrets |
 | `secrets` | Create secrets from .env file |
 | `pvc` | Create persistent volume claims |
@@ -87,15 +87,11 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 | `generate-prompts` | Generate ConfigMap from prompt template files |
 | `prompts` | Generate and apply prompts ConfigMap to cluster |
 | `pipeline` | Apply pipeline definition |
-| `run` | Execute pipeline (requires tkn CLI or shows manual command) |
-| `logs` | View pipeline logs |
+| `run` | Execute pipeline using oc apply with PipelineRun |
 | `clean` | **⚠️ Deletes ALL resources in namespace including PVCs** |
-| **GitOps** | |
+| **ArgoCD GitOps** | |
 | `argocd-deploy` | Deploy ArgoCD Application for automated GitOps |
-| `argocd-status` | Check ArgoCD sync and health status |
-| `argocd-sync` | Trigger manual sync |
 | `argocd-clean` | Remove ArgoCD Application |
-| `gitops-setup` | Complete GitOps setup with overview |
 
 ### 5. Quick Start
 
@@ -112,7 +108,7 @@ oc project sast-ai-workflow
 make all
 ```
 
-**Note:** If Tekton CLI (`tkn`) is not installed, the command completes infrastructure setup and shows the manual pipeline execution command.
+**Note:** This sets up the complete infrastructure including ArgoCD GitOps but does not execute the pipeline. To run the pipeline, use `make run` separately.
 
 #### 5.3. Run with Custom Parameters
 
@@ -129,9 +125,11 @@ make all PROJECT_NAME="systemd" \
 If you prefer individual steps:
 
 ```bash
-make setup          # Infrastructure only
-make tasks pipeline  # Tekton resources
-make run            # Execute pipeline
+make setup                # Infrastructure only
+make tasks pipeline       # Tekton resources
+make prompts             # Prompt templates
+make argocd-deploy       # GitOps setup
+make run                 # Execute pipeline (optional)
 ```
 
 ### 7. GitOps with ArgoCD
@@ -146,9 +144,6 @@ For VPN-protected clusters, use GitOps to automatically sync Tekton resources fr
 ```bash
 # Deploy ArgoCD Application
 make argocd-deploy
-
-# Check sync status
-make argocd-status
 ```
 
 #### 7.3. How It Works
@@ -270,8 +265,8 @@ This ensures all template files are valid and the ConfigMap generation works cor
 ### 10. Troubleshooting
 
 #### General Issues
-- **View logs:** `make logs`
+- **View logs:** `oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -f`
 - **Clean environment:** `make clean` (⚠️ deletes everything)
 - **Check secrets:** `oc get secrets`
-- **Manual pipeline execution:** Use the command displayed when `tkn` CLI is not available
+- **Manual pipeline execution:** Use `make run` or execute via OpenShift console
 
