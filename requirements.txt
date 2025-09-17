@@ -1,4 +1,3 @@
-agentiq==1.1.0
 aioboto3==15.0.0
 aiobotocore==2.23.0
 aiofiles==24.1.0
@@ -6,8 +5,6 @@ aiohappyeyeballs==2.4.4
 aiohttp==3.11.10
 aioitertools==0.12.0
 aiosignal==1.3.1
-aiqtoolkit==1.1.0
-aiqtoolkit-langchain==1.1.*
 annotated-types==0.7.0
 anyio==4.7.0
 appdirs==1.4.4
@@ -23,7 +20,7 @@ clang==19.1.7
 click==8.2.1
 colorama==0.4.6
 dataclasses-json==0.6.7
-datasets==3.2.0
+datasets>=4.0.0
 dill==0.3.8
 diskcache==5.6.3
 distro==1.9.0
@@ -63,11 +60,11 @@ jsonschema==4.25.0
 jsonschema-specifications==2025.4.1
 langchain==0.3.11
 langchain-community==0.3.11
-langchain-core==0.3.33
+langchain-core>=0.3.34
 langchain-huggingface==0.1.2
 langchain-milvus==0.1.10
 langchain-nvidia-ai-endpoints==0.3.5
-langchain-openai==0.2.14
+langchain-openai>=0.3.5
 langchain-text-splitters==0.3.2
 langgraph==0.2.76
 langgraph-checkpoint==2.1.1
@@ -85,6 +82,8 @@ multiprocess==0.70.16
 mypy-extensions==1.0.0
 nest-asyncio==1.6.0
 networkx==3.4.2
+nvidia-nat==1.2.1
+nvidia-nat-langchain==1.2.1
 numpy==1.26.4
 # NVIDIA CUDA packages - only install on Linux and Windows
 nvidia-cublas-cu12==12.4.5.8; sys_platform == "linux" or sys_platform == "win32"
@@ -101,7 +100,7 @@ nvidia-nvjitlink-cu12==12.4.127; sys_platform == "linux" or sys_platform == "win
 nvidia-nvtx-cu12==12.4.127; sys_platform == "linux" or sys_platform == "win32"
 oauth2client==4.1.3
 oauthlib==3.2.2
-openai==1.60.2
+openai>=1.66.3
 openinference-semantic-conventions==0.1.21
 openpyxl==3.1.5
 orjson==3.10.12
