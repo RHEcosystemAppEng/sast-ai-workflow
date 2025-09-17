@@ -112,6 +112,11 @@ def main():
     print("  - evaluation/reports/summarize_justifications/standardized_data_all.csv")
     print("  - evaluation/reports/summarize_justifications/all_requests_profiler_traces.json")
 
+    # Note: Classification metrics (precision, recall, F1) are not applicable to summarization tasks
+    # The summarize_justifications workflow produces text summaries, not TRUE POSITIVE/FALSE POSITIVE classifications
+    print("\\nNote: Classification metrics not calculated for summarization task")
+    print("Evaluation quality is measured through the summarization_quality_eval judge LLM")
+
     # Archive the results after evaluation completes
     reports_dir = project_root / "evaluation" / "reports"
     archived_path = archive_evaluation_results(str(reports_dir), "summarize_justifications")
