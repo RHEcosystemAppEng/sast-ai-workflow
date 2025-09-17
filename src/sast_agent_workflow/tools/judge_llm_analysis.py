@@ -50,8 +50,9 @@ async def judge_llm_analysis(
 
         logger.info("Running Judge_LLM_Analysis node - performing LLM analysis")
         logger.info(f"Judge_LLM_Analysis node processing tracker with {len(tracker.issues)} issues")
-        
+
         llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+
         vector_service = VectorStoreService()
         issue_analysis_service = IssueAnalysisService(tracker.config, vector_service)
         
@@ -59,15 +60,15 @@ async def judge_llm_analysis(
             if not isinstance(per_issue, PerIssueData):
                 logger.warning(f"Skipping issue {issue_id}: unexpected data type {type(per_issue)}")
                 continue
-                
+
             # Skip if analysis is already final
             if per_issue.analysis_response and per_issue.analysis_response.is_final == FinalStatus.TRUE.value:
                 logger.info(f"Skipping issue {issue_id}: analysis already final")
                 continue
-                
+
             # Build full analysis context
             context = build_analysis_context(per_issue)
-            
+
             try:
                 # Call the core analysis method
                 prompt_string, llm_response = issue_analysis_service.analyze_issue_core_only(
@@ -75,29 +76,49 @@ async def judge_llm_analysis(
                     context=context,
                     main_llm=llm
                 )
-                
+
                 # Update the per-issue analysis response
                 per_issue.analysis_response.investigation_result = llm_response.investigation_result
                 per_issue.analysis_response.is_final = FinalStatus.FALSE.value
                 per_issue.analysis_response.prompt = prompt_string
                 per_issue.analysis_response.justifications = llm_response.justifications
-                
+
                 logger.info(f"Completed analysis for issue {issue_id}")
-                
+
             except Exception as e:
                 logger.error(f"Failed to analyze issue {issue_id}: {e}")
-        
+
         # Increment global iteration count
         tracker.iteration_count += 1
-        
+
         logger.info("Judge_LLM_Analysis node completed")
         return tracker
+
+    # Import evaluation converters for NAT integration
+    try:
+        import sys
+        import os
+        # Add project root to path for evaluation imports
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        from evaluation.tools.judge_llm_converters import (
+            convert_str_to_sast_tracker,
+            convert_sast_tracker_to_str
+        )
+        converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+        logger.info("NAT evaluation converters loaded successfully")
+    except ImportError as e:
+        logger.info(f"NAT evaluation converters not available: {e}")
+        converters = None
 
     try:
         yield FunctionInfo.create(
             single_fn=_judge_llm_analysis_fn,
             description=config.description,
-            input_schema=SASTWorkflowTracker
+            input_schema=SASTWorkflowTracker,
+            converters=converters
         )
     except GeneratorExit:
         logger.info("Judge_LLM_Analysis function exited early!")
