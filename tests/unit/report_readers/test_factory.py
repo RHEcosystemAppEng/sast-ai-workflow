@@ -37,9 +37,7 @@ class TestReportReaderFactory(unittest.TestCase):
         self.config.INPUT_REPORT_FILE_PATH = "test.sarif"
         self.config.SERVICE_ACCOUNT_JSON_PATH = "service_account.json"
 
-    def test_given_factory_initialization_when_creating_factory_then_registers_default_readers(
-        self,
-    ):
+    def test_given_factory_initialization_then_registers_default_readers(self):
         """Test factory initializes with default readers"""
         self.assertIsInstance(self.factory, ReportReaderFactory)
         self.assertGreater(len(self.factory._readers), 0)
