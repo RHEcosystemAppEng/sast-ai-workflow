@@ -273,10 +273,6 @@ class TestSarifReportReader(unittest.TestCase):
         link = self.reader._generate_cwe_link("CVE-2021-1234")
         self.assertEqual(link, "")
 
-    def test_given_sarif_reader_when_getting_format_name_then_returns_sarif(self):
-        """Test format name getter"""
-        self.assertEqual(self.reader.get_format_name(), "SARIF")
-
     def test_given_unsupported_sarif_version_when_checking_can_handle_then_handles_gracefully(self):
         """Test handling of unsupported SARIF versions"""
         import copy

@@ -105,10 +105,6 @@ class SarifReportReader(BaseReportReader):
             logger.error(f"Error reading SARIF file {file_path}: {e}")
             raise
 
-    def get_format_name(self) -> str:
-        """Get the format name."""
-        return "SARIF"
-
     def _is_sarif_file(self, file_path: str) -> bool:
         """
         Check if the file contains valid SARIF structure.
