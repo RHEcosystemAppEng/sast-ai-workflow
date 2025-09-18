@@ -33,9 +33,9 @@ spec:
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: ""
-    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+    - name: USE_KNOWN_NON_ISSUES_FILE
       type: string
-      description: "Whether to use known false positive file for filtering (true/false)"
+      description: "Whether to use known non-issues file for filtering (true/false)"
       default: "true"
   workspaces:
     - name: source-workspace
@@ -53,10 +53,10 @@ spec:
           value: "$(params.PROJECT_VERSION)"
         - name: REPO_LOCAL_PATH
           value: "$(params.REPO_LOCAL_PATH)"
-        - name: KNOWN_FALSE_POSITIVE_FILE_PATH
+        - name: KNOWN_NON_ISSUES_FILE_PATH
           value: "$(workspaces.false-positives-workspace.path)/ignore.err"
-        - name: USE_KNOWN_FALSE_POSITIVE_FILE
-          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        - name: USE_KNOWN_NON_ISSUES_FILE
+          value: "$(params.USE_KNOWN_NON_ISSUES_FILE)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: AGGREGATE_RESULTS_G_SHEET

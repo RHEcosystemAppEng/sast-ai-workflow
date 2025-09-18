@@ -114,14 +114,14 @@ podman run -d --name sast-ai-app \
 -e EMBEDDINGS_API_KEY=<your_key> \
 -e EMBEDDINGS_LLM_MODEL_NAME=<<embeddings-llm-model-name>> \
 -e INPUT_REPORT_FILE_PATH=https://docs.google.com/spreadsheets/d/<sheet-id> \
--e KNOWN_FALSE_POSITIVE_FILE_PATH=/path/to/ignore.err \
+-e KNOWN_NON_ISSUES_FILE_PATH=/path/to/ignore.err \
 -e OUTPUT_FILE_PATH=https://docs.google.com/spreadsheets/d/<sheet-id> \
 quay.io/ecosystem-appeng/sast-ai-workflow:latest
 ```
 Replace <your_key> with the actual LLM API key.
 
 > **Note:**  
-> Make sure the file paths required by the application (e.g., the HTML report, known false positives, etc.) point to the correct locations inside the container. For instance, if these files are copied into `/app`, update your configuration to reference `/app/<filename>` rather than the host paths.
+> Make sure the file paths required by the application (e.g., the HTML report, known non-issues, etc.) point to the correct locations inside the container. For instance, if these files are copied into `/app`, update your configuration to reference `/app/<filename>` rather than the host paths.
 > 
 > If you ever need to run an interactive shell in your container (overriding the default entrypoint), use:
 > 
@@ -146,7 +146,7 @@ environment variables.
 | EMBEDDINGS_LLM_URL             | http://\<<please-set-embedding-llm-url\>> | ✔             | https://integrate.api.nvidia.com/v1        | URL of the embedding model endpoint.                                                                                              |
 | EMBEDDINGS_LLM_MODEL_NAME      | \<<please-set-embeddings-llm-model-name\>>| ✔             | all-mpnet-base-v2                          | Model used for generating embeddings.                                                                                            |
 | INPUT_REPORT_FILE_PATH         | /path/to/report.html                      | ✔             | /path/to/report.html or https://docs.google.com/spreadsheets/d/\<sheet-id\> | Path to the SAST HTML report or URL of a Google Sheet containing the report.                                                                                                        |
-| KNOWN_FALSE_POSITIVE_FILE_PATH | /path/to/ignore.err                       | ✔             | /path/to/ignore.err                        | Path to the file containing known false positives data.                                                                          |
+| KNOWN_NON_ISSUES_FILE_PATH | /path/to/ignore.err                       | ✔             | /path/to/ignore.err                        | Path to the file containing known non-issues data.                                                                          |
 | OUTPUT_FILE_PATH               | /path/to/output_excel.xlsx                | ✔             | /path/to/output.xlsx                       | Path where the generated Excel report will be saved.                                                                             |
 | LIBCLANG_PATH                  | /path/to/libclang                         | ✔             | /usr/lib/llvm-12/lib/libclang.so           | Path of to your libclang location.                                                                                               |
 | COMPILE_COMMANDS_JSON_PATH     | /path/to/compile_commands.json            |               | /path/to/compile_commands.json             | Path to the generated `compile_commands.json` file for the analyzed project. Required only for C projects. |
@@ -155,7 +155,7 @@ environment variables.
 | CHUNK_SEPARATORS               | ["\n\n", "\n", ".", ";", ",", " ", ""]    |               | ["\n\n", "\n", ".", ";"]                   | Ordered list of separators to use when splitting text into chunks.                                                               |
 | CONFIG_H_PATH                  | /path/to/config.h                         |               | /path/to/config.h                          | *(Optional)* Path to the generated `config.h` containing macro definitions. Used for accurate Clang parsing, but not strictly required. |
 | SERVICE_ACCOUNT_JSON_PATH      | ""                                        |               | /path/to/sheet-access-bot-abc123.json      | Path to the JSON file for the Google service account used to access Google Sheets. Mandatory only if using a Google Sheet as input. |
-| USE_KNOWN_FALSE_POSITIVE_FILE  | true                                      |               | true                                       | Flag indicating whether to use the known false positives file in the pipeline as an input.                                       |
+| USE_KNOWN_NON_ISSUES_FILE  | true                                      |               | true                                       | Flag indicating whether to use the known non-issues file in the pipeline as an input.                                       |
 | SIMILARITY_ERROR_THRESHOLD     | 2                                         |               | 3                                          | Number of Documents to return from known issues DB.                                                                              |
 | MAX_ANALYSIS_ITERATIONS     | 2                                            |               | 3                                          | Maximum number of analysis loops allowed for any single issue.  |
 | WRITE_RESULTS_INCLUDE_NON_FINAL        | true                                      |               | true                                       | Whether to include issues with is_final="FALSE"                                                           |

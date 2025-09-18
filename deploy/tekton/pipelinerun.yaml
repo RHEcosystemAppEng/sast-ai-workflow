@@ -12,8 +12,8 @@ spec:
       value: "PROJECT_VERSION_PLACEHOLDER"
     - name: REPO_REMOTE_URL
       value: "REPO_REMOTE_URL_PLACEHOLDER"
-    - name: FALSE_POSITIVES_URL
-      value: "FALSE_POSITIVES_URL_PLACEHOLDER"
+    - name: NON_ISSUES_URL
+      value: "NON_ISSUES_URL_PLACEHOLDER"
     - name: LLM_URL
       value: "LLM_URL_PLACEHOLDER"
     - name: LLM_MODEL_NAME

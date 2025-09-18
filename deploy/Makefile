@@ -11,7 +11,7 @@ CO := oc  --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
 REPO_REMOTE_URL                       ?= source/code/url
-FALSE_POSITIVES_URL              ?= false/positives/url
+NON_ISSUES_URL              ?= false/positives/url
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
@@ -168,13 +168,14 @@ run:
 		-e 's|PROJECT_NAME_PLACEHOLDER|$(PROJECT_NAME)|g' \
 		-e 's|PROJECT_VERSION_PLACEHOLDER|$(PROJECT_VERSION)|g' \
 		-e 's|REPO_REMOTE_URL_PLACEHOLDER|$(REPO_REMOTE_URL)|g' \
-		-e 's|FALSE_POSITIVES_URL_PLACEHOLDER|$(FALSE_POSITIVES_URL)|g' \
+		-e 's|NON_ISSUES_URL_PLACEHOLDER|$(NON_ISSUES_URL)|g' \
 		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
 		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
 		-e 's|EMBEDDINGS_LLM_URL_PLACEHOLDER|$(EMBEDDINGS_LLM_URL)|g' \
 		-e 's|EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER|$(EMBEDDINGS_LLM_MODEL_NAME)|g' \
 		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
 		-e 's|AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER|$(AGGREGATE_RESULTS_G_SHEET)|g' \
+		-e 's|USE_KNOWN_NON_ISSUES_FILE_PLACEHOLDER|$(USE_KNOWN_NON_ISSUES_FILE)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml > /dev/null 2>&1
 	@rm -f tekton/pipelinerun-temp.yaml

@@ -13,9 +13,9 @@ spec:
     - name: REPO_REMOTE_URL
       type: string
       description: "Source code URL (RPM package or Git repository URL)"
-    - name: FALSE_POSITIVES_URL
+    - name: NON_ISSUES_URL
       type: string
-      description: "GitLab repository URL for known false positives (optional)"
+      description: "GitLab repository URL for known non-issues (optional)"
     - name: INPUT_REPORT_FILE_PATH
       type: string
       description: "Google Spreadsheet URL or OSH report .html file path"
@@ -39,6 +39,10 @@ spec:
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: "" 
+    - name: USE_KNOWN_NON_ISSUES_FILE
+      type: string
+      description: "Whether to use known non-issues file for filtering (true/false)"
+      default: "true"
     - name: GDRIVE_FOLDER_ID
       type: string
       description: "Google Drive folder ID for uploading SAST results (optional)"
@@ -67,8 +71,8 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
-        - name: FALSE_POSITIVES_URL
-          value: "$(params.FALSE_POSITIVES_URL)"
+        - name: NON_ISSUES_URL
+          value: "$(params.NON_ISSUES_URL)"
       workspaces:
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
@@ -91,8 +95,8 @@ spec:
       taskRef:
         name: fetch-false-positives
       params:
-        - name: FALSE_POSITIVES_URL
-          value: "$(params.FALSE_POSITIVES_URL)"
+        - name: NON_ISSUES_URL
+          value: "$(params.NON_ISSUES_URL)"
       workspaces:
         - name: false-positives-workspace
           workspace: shared-workspace
@@ -125,8 +129,8 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
-        - name: USE_KNOWN_FALSE_POSITIVE_FILE
-          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        - name: USE_KNOWN_NON_ISSUES_FILE
+          value: "$(params.USE_KNOWN_NON_ISSUES_FILE)"
       workspaces:
         - name: source-workspace
           workspace: shared-workspace

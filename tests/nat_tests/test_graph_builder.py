@@ -244,7 +244,7 @@ class TestShouldContinueAnalysis:
             issues_dict[issue.id] = PerIssueData(
                 issue=issue,
                 analysis_response=AnalysisResponse(
-                    investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
+                    investigation_result=CVEValidationStatus.ISSUE.value,
                     is_final=is_final,
                     instructions=instructions
                 )
@@ -307,7 +307,7 @@ class TestShouldContinueAnalysis:
         issues = TestUtils.create_sample_issues(count=2)
         issues_dict = TestUtils.create_sample_per_issue_data_dict(
             issues, 
-            is_false_positive=CVEValidationStatus.FALSE_POSITIVE.value,  # False positive
+            is_false_positive=CVEValidationStatus.NON_ISSUE.value,  # Non-issue
             is_final=FinalStatus.FALSE.value,
             instructions=[{"action": "analyze_deeper"}]  # Has instructions but is false positive
         )

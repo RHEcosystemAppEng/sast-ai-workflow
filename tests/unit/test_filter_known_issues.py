@@ -13,7 +13,7 @@ class TestCaptureKnownIssues:
         # preparation
         mock_llm_service = Mock()
         mock_config = Mock()
-        mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "valid_file.txt"
+        mock_config.KNOWN_NON_ISSUES_FILE_PATH = "valid_file.txt"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         valid_known_issues = ["Error: USE_AFTER_FREE\nSome error trace\nReason: duplicate variable"]
@@ -39,7 +39,7 @@ class TestCaptureKnownIssues:
         # preparation        
         mock_llm_service = Mock()
         mock_config = Mock()
-        mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "valid_file.txt"
+        mock_config.KNOWN_NON_ISSUES_FILE_PATH = "valid_file.txt"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         valid_known_issues = ["Error: USE_AFTER_FREE\nSome error trace\nReason: duplicate variable"]
@@ -90,7 +90,7 @@ class TestCaptureKnownIssues:
         
         mock_llm_service = Mock()
         mock_config = Mock()
-        mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "valid_file.txt"
+        mock_config.KNOWN_NON_ISSUES_FILE_PATH = "valid_file.txt"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         valid_known_issues = ["Error: USE_AFTER_FREE\nSome error trace\nReason: duplicate variable"]
@@ -160,7 +160,7 @@ class TestCaptureKnownIssues:
         # preparation
         mock_llm_service = Mock()
         mock_config = Mock()
-        mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "/nonexistent/path/file.txt"
+        mock_config.KNOWN_NON_ISSUES_FILE_PATH = "/nonexistent/path/file.txt"
         
         issue_list = [Issue(id="issue1")]
         
@@ -174,7 +174,7 @@ class TestCaptureKnownIssues:
         # preparation
         mock_llm_service = Mock()
         mock_config = Mock()
-        mock_config.KNOWN_FALSE_POSITIVE_FILE_PATH = "empty_file.txt"
+        mock_config.KNOWN_NON_ISSUES_FILE_PATH = "empty_file.txt"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
         
         issue_list = [Issue(id="issue1")]
