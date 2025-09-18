@@ -91,11 +91,11 @@ spec:
         - name: source-workspace
           workspace: shared-workspace
 
-    - name: prepare-report
+    - name: transform-sast-report-to-sarif-format
       runAfter:
         - prepare-source
       taskRef:
-        name: prepare-report
+        name: transform-sast-report-to-sarif-format
       params:
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
@@ -107,7 +107,7 @@ spec:
 
     - name: fetch-false-positives
       runAfter:
-        - prepare-report
+        - transform-sast-report-to-sarif-format
       taskRef:
         name: fetch-false-positives
       params:
@@ -132,7 +132,7 @@ spec:
         - name: REPO_LOCAL_PATH
           value: $(tasks.prepare-source.results.repo-local-path)
         - name: INPUT_REPORT_FILE_PATH
-          value: $(tasks.prepare-report.results.report-file-path)
+          value: $(tasks.transform-sast-report-to-sarif-format.results.report-file-path)
         - name: HUMAN_VERIFIED_FILE_PATH
           value: "$(params.HUMAN_VERIFIED_FILE_PATH)"
         - name: LLM_URL
