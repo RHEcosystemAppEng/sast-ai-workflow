@@ -109,9 +109,6 @@ class TestReportReaderFactory(unittest.TestCase):
             def read_report(self, file_path: str, config: Config) -> list:
                 return []
 
-            def get_format_name(self) -> str:
-                return "First"
-
         class MockReader2(BaseReportReader):
             def can_handle(self, file_path: str, config: Config) -> bool:
                 return True
@@ -119,18 +116,12 @@ class TestReportReaderFactory(unittest.TestCase):
             def read_report(self, file_path: str, config: Config) -> list:
                 return []
 
-            def get_format_name(self) -> str:
-                return "Second"
-
         class MockReader3(BaseReportReader):
             def can_handle(self, file_path: str, config: Config) -> bool:
                 return True
 
             def read_report(self, file_path: str, config: Config) -> list:
                 return []
-
-            def get_format_name(self) -> str:
-                return "Third"
 
         # Create factory with only mock readers
         test_factory = ReportReaderFactory()
