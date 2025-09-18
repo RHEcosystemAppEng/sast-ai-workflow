@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: prepare-report
+  name: transform-sast-report-to-sarif-format
 spec:
   params:
     - name: INPUT_REPORT_FILE_PATH
@@ -48,7 +48,7 @@ spec:
           echo "File downloaded successfully ($(wc -c < "$JSON_FILE") bytes)"
           
           # Check if it's a JSON file and convert to SARIF
-          if [[ "$JSON_FILE" == *.json ]] || file "$JSON_FILE" | grep -q "JSON"; then
+          if [[ "$JSON_FILE" == *.(json|js) ]] || file "$JSON_FILE" | grep -q "JSON"; then
             echo "Detected JSON file - converting to SARIF format..."
 
             # Install required tools
@@ -77,14 +77,14 @@ spec:
             echo "Report converted and saved as: $SARIF_FILE"
             ls -l $SARIF_FILE
           else
-            echo "File is not JSON - using as-is"
+            echo "File is a SARIF file - using as-is"
             # Set the result to the downloaded file path
             echo -n "$JSON_FILE" > $(results.report-file-path.path)
             echo "Report saved as: $JSON_FILE"
           fi
           
         else
-          echo "Input is not a URL - passing through unchanged"
+          echo "Input is not a JSON URL - passing through unchanged"
           # For non-URL paths, pass the original path through
           echo -n "$REPORT_PATH" > $(results.report-file-path.path)
           echo "Report path unchanged: $REPORT_PATH"
