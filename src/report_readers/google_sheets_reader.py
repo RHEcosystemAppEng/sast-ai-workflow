@@ -19,21 +19,18 @@ class GoogleSheetsReportReader(BaseReportReader):
         """
         Check if the provided file_path is a Google Sheets URL.
         """
-        try:
-            # Check if it's a Google Sheets URL
-            if not file_path.startswith("https://"):
-                return False
-
-            # Check if it contains Google Sheets URL patterns
-            google_patterns = ["docs.google.com/spreadsheets", "sheets.google.com"]
-
-            google_patterns = ["docs.google.com/spreadsheets", "sheets.google.com"]
-
-            return any(pattern in file_path for pattern in google_patterns)
-
-        except Exception as e:
-            logger.debug(f"Error checking Google Sheets URL: {e}")
+        # Check if file_path is valid
+        if not file_path:
             return False
+
+        # Check if it's a Google Sheets URL
+        if not file_path.startswith("https://"):
+            return False
+
+        # Check if it contains Google Sheets URL patterns
+        google_patterns = ["docs.google.com/spreadsheets", "sheets.google.com"]
+
+        return any(pattern in file_path for pattern in google_patterns)
 
     def read_report(self, file_path: str, config: Config) -> List[Issue]:
         """
