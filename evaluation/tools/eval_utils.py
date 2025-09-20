@@ -34,6 +34,7 @@ def load_evaluation_dataset(dataset_name: str = "summarize_eval_dataset.json") -
     for base in base_paths:
         dataset_paths.extend([
             base / "evaluation" / "dataset" / "summarize_eval" / dataset_name,  # Add summarize_eval subdir
+            base / "evaluation" / "dataset" / "filter_eval" / dataset_name,  # Add filter_eval subdir
             base / "evaluation" / "dataset" / dataset_name,
             base / "dataset" / dataset_name,
             base / dataset_name
