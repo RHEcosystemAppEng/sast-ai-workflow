@@ -153,11 +153,31 @@ async def filter(
         logger.info(f"Filter node completed. Known false positives: {known_fps}/{len(tracker.issues)}")
         return tracker
 
+    # Import evaluation converters for NAT integration
+    try:
+        import sys
+        import os
+        # Add project root to path for evaluation imports
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        from evaluation.tools.filter_converters import (
+            convert_str_to_sast_tracker,
+            convert_sast_tracker_to_str
+        )
+        converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+        logger.info("NAT evaluation converters loaded successfully")
+    except ImportError as e:
+        logger.info(f"NAT evaluation converters not available: {e}")
+        converters = None
+
     try:
         yield FunctionInfo.create(
             single_fn=_filter_fn,
             description=config.description,
-            input_schema=SASTWorkflowTracker
+            input_schema=SASTWorkflowTracker,
+            converters=converters
         )
     except GeneratorExit:
         logger.info("Filter function exited early!")

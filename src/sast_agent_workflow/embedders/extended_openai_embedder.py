@@ -34,17 +34,18 @@ async def extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder
 
 @register_embedder_client(config_type=ExtendedOpenAIEmbedderConfig, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 async def extended_openai_langchain(embedder_config: ExtendedOpenAIEmbedderConfig, builder: Builder):
-    """Register the extended OpenAI embedder client with extra parameters support.
-       This implementation is exactly the same as the original, but since AIQ maps each client to a provider,
-       we needed to create a new client for the extended provider.
-    """
+    """Register the extended OpenAI embedder client with extra parameters support."""
     from langchain_openai import OpenAIEmbeddings
 
-    # Create config dict and handle http_client properly
     config_dict = embedder_config.model_dump(exclude={"type"}, by_alias=True)
-    
-    # If http_client parameters are provided, create the actual client
-    if config_dict.get("http_client"):
-        config_dict["http_client"] = httpx.Client(**config_dict["http_client"])
+
+    if "http_client" in config_dict:
+        if config_dict["http_client"]:
+            config_dict["http_client"] = httpx.Client(**config_dict["http_client"])
+        else:
+            config_dict["http_client"] = httpx.Client(verify=False)
+
+    if "tiktoken_enabled" not in config_dict or config_dict["tiktoken_enabled"]:
+        config_dict["tiktoken_enabled"] = False
 
     yield OpenAIEmbeddings(**config_dict)
