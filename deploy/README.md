@@ -79,7 +79,7 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 
 | Command | Description |
 |---------|-------------|
-| `all` | Complete deployment: setup + tasks + pipeline + prompts + argocd-deploy |
+| `deploy` | Complete deployment: setup + tasks + pipeline + prompts + argocd-deploy |
 | `setup` | Create PVCs and secrets |
 | `secrets` | Create secrets from .env file |
 | `pvc` | Create persistent volume claims |
@@ -105,7 +105,7 @@ oc project sast-ai-workflow
 #### 5.2. Run Everything
 
 ```bash
-make all
+make deploy
 ```
 
 **Note:** This sets up the complete infrastructure including ArgoCD GitOps but does not execute the pipeline. To run the pipeline, use `make run` separately.
@@ -113,7 +113,7 @@ make all
 #### 5.3. Run with Custom Parameters
 
 ```bash
-make all PROJECT_NAME="systemd" \
+make deploy PROJECT_NAME="systemd" \
  PROJECT_VERSION="257-9" \
  REPO_REMOTE_URL="https://download.devel.redhat.com/brewroot/vol/rhel-10/packages/systemd/257/9.el10/src/systemd-257-9.el10.src.rpm" \
  INPUT_REPORT_FILE_PATH="https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY/export?format=csv" \
