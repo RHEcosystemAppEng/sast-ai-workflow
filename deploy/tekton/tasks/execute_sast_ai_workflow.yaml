@@ -96,42 +96,42 @@ spec:
         - name: ANALYSIS_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: analysis_system_prompt
         - name: ANALYSIS_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: analysis_human_prompt
         - name: FILTER_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: filter_system_prompt
         - name: FILTER_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: filter_human_prompt
         - name: RECOMMENDATIONS_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: recommendations_prompt
         - name: JUSTIFICATION_SUMMARY_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: justification_summary_system_prompt
         - name: JUSTIFICATION_SUMMARY_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: justification_summary_human_prompt
         - name: EVALUATION_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: evaluation_prompt
         - name: TMPDIR # Directs tempfile module and others
           value: "$(workspaces.cache-workspace.path)/tmp" 

@@ -6,7 +6,7 @@ This directory contains utility scripts used during the deployment process.
 
 ### `generate_prompts.py`
 
-Generates the Kubernetes ConfigMap (`tekton/prompts-config-map.yaml`) from the prompt template files located in `../src/templates/prompts/*.yaml`.
+Generates the Kubernetes ConfigMap (`tekton/sast-ai-prompt-templates.yaml`) from the prompt template files located in `../src/templates/prompts/*.yaml`.
 
 **Usage:**
 ```bash
