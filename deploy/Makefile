@@ -29,6 +29,8 @@ INPUT_REPORT_FILE_PATH			 ?= http://<<please-set-google-spreadsheet-url>>
 
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
+# Optional Google Drive configuration
+GDRIVE_FOLDER_ID                 ?= ""
 
 # Secret configuration (loaded from .env file)
 GITLAB_TOKEN                     ?= ""
@@ -37,9 +39,9 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: all setup tasks pvc secrets pipeline scripts run clean generate-prompts prompts argocd-deploy argocd-clean
+.PHONY: deploy setup tasks pvc secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy argocd-clean
 
-all: setup scripts tasks pipeline prompts argocd-deploy
+deploy: setup scripts tasks pipeline prompts configmaps argocd-deploy
 
 setup: 
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -157,6 +159,20 @@ prompts:
 	@$(CO) apply -n $(NAMESPACE) -f tekton/prompts-config-map.yaml > /dev/null 2>&1 || { echo "   ❌ Failed to apply prompts ConfigMap"; exit 1; }
 	@echo "   ✓ Prompt templates deployed"
 
+configmaps:
+	@echo "🗂️  Configuring Optional ConfigMaps..."
+	# Create Google Drive ConfigMap if GDRIVE_FOLDER_ID is set
+	@if [ -n "$(GDRIVE_FOLDER_ID)" ] && [ "$(GDRIVE_FOLDER_ID)" != "" ]; then \
+		echo "   🔄 Creating Google Drive ConfigMap..."; \
+		$(CO) create configmap gdrive-config \
+			--from-literal=folder_id="$(GDRIVE_FOLDER_ID)" \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		echo "   ✓ Google Drive ConfigMap created (folder_id: $(GDRIVE_FOLDER_ID))"; \
+	else \
+		echo "   ⚠️  Google Drive ConfigMap skipped (GDRIVE_FOLDER_ID not set)"; \
+		echo "   💡 Set GDRIVE_FOLDER_ID in .env file to enable Google Drive uploads"; \
+	fi
+
 run:
 	@echo ""
 	@echo "🏃 Starting Pipeline Execution..."
@@ -257,9 +273,14 @@ clean:
 	@echo "   ✓ Prompt templates removed"
 	# Delete ConfigMaps created by scripts
 	@echo "📜 Cleaning Scripts..."
-	@$(CO) delete -f tekton/scripts/upload_to_drive_cm.yaml \
+	@$(CO) delete configmap gdrive-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ Script configurations removed"
+	@echo "   ✓ Google Drive upload scripts removed"
+	# Delete optional ConfigMaps
+	@echo "🗂️  Cleaning Optional ConfigMaps..."
+	@$(CO) delete configmap gdrive-config \
+		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Google Drive ConfigMap removed"
 	# Delete secrets
 	@echo "🔐 Removing Secrets..."
 	@$(CO) delete secret gitlab-token-secret \
