@@ -72,7 +72,7 @@ secrets:
 		echo "   💡 Set GITLAB_TOKEN in .env file or environment"; \
 		exit 1; \
 	else \
-		$(CO) create secret generic gitlab-token-secret \
+		$(CO) create secret generic sast-ai-gitlab-token \
 			--from-literal=gitlab_token="$(GITLAB_TOKEN)" \
 			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
 		echo "   ✓ GitLab token secret"; \
@@ -103,7 +103,7 @@ secrets:
 		echo "   💡 Place service account JSON file at: $(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)"; \
 		exit 1; \
 	else \
-		$(CO) create secret generic google-service-account-secret \
+		$(CO) create secret generic sast-ai-google-service-account \
 			--from-file=service_account.json="$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" \
 			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
 		echo "   ✓ Google service account secret"; \
@@ -124,7 +124,7 @@ secrets:
 		echo "   💡 Login to container registry: podman login quay.io (or docker login quay.io)"; \
 		exit 1; \
 	else \
-		$(CO) create secret generic quay-sast-puller \
+		$(CO) create secret generic sast-ai-quay-registry-config \
 			--from-file=.dockerconfigjson="$$DOCKER_AUTH_FILE" \
 			--type=kubernetes.io/dockerconfigjson \
 			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
@@ -133,7 +133,7 @@ secrets:
 	# Patch pipeline service account to use Quay pull secret
 	@$(CO) patch serviceaccount pipeline \
 		-n $(NAMESPACE) \
-		-p '{"imagePullSecrets": [{"name": "quay-sast-puller"}]}' \
+		-p '{"imagePullSecrets": [{"name": "sast-ai-quay-registry-config"}]}' \
 		--type=merge > /dev/null 2>&1
 	@echo "   ✓ Service account configured"
 
@@ -156,7 +156,7 @@ prompts:
 	@echo "💬 Configuring Prompts..."
 	@$(MAKE) --no-print-directory generate-prompts
 	@echo "   🔄 Applying prompts ConfigMap to cluster..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/prompts-config-map.yaml > /dev/null 2>&1 || { echo "   ❌ Failed to apply prompts ConfigMap"; exit 1; }
+	@$(CO) apply -n $(NAMESPACE) -f tekton/sast-ai-prompt-templates.yaml > /dev/null 2>&1 || { echo "   ❌ Failed to apply prompts ConfigMap"; exit 1; }
 	@echo "   ✓ Prompt templates deployed"
 
 configmaps:
@@ -164,8 +164,8 @@ configmaps:
 	# Create Google Drive ConfigMap if GDRIVE_FOLDER_ID is set
 	@if [ -n "$(GDRIVE_FOLDER_ID)" ] && [ "$(GDRIVE_FOLDER_ID)" != "" ]; then \
 		echo "   🔄 Creating Google Drive ConfigMap..."; \
-		$(CO) create configmap gdrive-config \
-			--from-literal=folder_id="$(GDRIVE_FOLDER_ID)" \
+		$(CO) create configmap sast-ai-gdrive-config \
+			--from-literal=folder-id="$(GDRIVE_FOLDER_ID)" \
 			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
 		echo "   ✓ Google Drive ConfigMap created (folder_id: $(GDRIVE_FOLDER_ID))"; \
 	else \
@@ -238,10 +238,14 @@ clean:
 	@echo "   ✓ ArgoCD Application removed"
 	# Delete Tekton resources
 	@echo "🔧 Removing Pipeline Resources..."
-	@$(CO) delete -n $(NAMESPACE) \
-		-f tekton/tasks/ \
-		-f tekton/pipeline.yaml \
-		--ignore-not-found > /dev/null 2>&1
+	@PIPELINE_NAME=$$(grep "^  name:" tekton/pipeline.yaml | head -1 | awk '{print $$2}'); \
+	if [ -n "$$PIPELINE_NAME" ]; then \
+		$(CO) delete pipeline $$PIPELINE_NAME -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1; \
+	fi
+	@TASK_NAMES=$$(grep "^  name:" tekton/tasks/*.yaml | awk -F: '{print $$3}' | awk '{print $$1}' | tr '\n' ' '); \
+	if [ -n "$$TASK_NAMES" ]; then \
+		$(CO) delete task $$TASK_NAMES -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1; \
+	fi
 	@echo "   ✓ Pipeline definitions removed"
 	@echo "   ✓ Task definitions removed"
 	# Delete only SAST AI specific PVCs
@@ -258,35 +262,32 @@ clean:
 		fi; \
 	done
 	@echo "   ✓ Persistent volumes cleaned"
-	# Remove image pull secrets from pipeline service account
+	# Delete service accounts
 	@echo "👤 Cleaning Service Accounts..."
-	@$(CO) patch serviceaccount pipeline \
-		-n $(NAMESPACE) \
-		-p '{"imagePullSecrets": null}' \
-		--type=merge \
-		--ignore-not-found=true > /dev/null 2>&1 || true
-	@echo "   ✓ Service account reset"
+	@$(CO) delete serviceaccount sast-ai-pipeline-service-account \
+		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Service account removed"
 	# Delete prompts
 	@echo "💬 Removing Prompts..."
-	@$(CO) delete -f  tekton/prompts-config-map.yaml \
+	@$(CO) delete -f  tekton/sast-ai-prompt-templates.yaml \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Prompt templates removed"
 	# Delete ConfigMaps created by scripts
 	@echo "📜 Cleaning Scripts..."
-	@$(CO) delete configmap gdrive-upload-scripts \
+	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Google Drive upload scripts removed"
 	# Delete optional ConfigMaps
 	@echo "🗂️  Cleaning Optional ConfigMaps..."
-	@$(CO) delete configmap gdrive-config \
+	@$(CO) delete configmap sast-ai-gdrive-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Google Drive ConfigMap removed"
 	# Delete secrets
 	@echo "🔐 Removing Secrets..."
-	@$(CO) delete secret gitlab-token-secret \
+	@$(CO) delete secret sast-ai-gitlab-token \
 		sast-ai-default-llm-creds \
-		google-service-account-secret \
-		quay-sast-puller \
+		sast-ai-google-service-account \
+		sast-ai-quay-registry-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ All secrets removed"
 	@echo ""

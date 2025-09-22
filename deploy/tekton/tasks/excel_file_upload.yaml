@@ -32,7 +32,7 @@ spec:
   volumes:
     - name: gdrive-scripts
       configMap:
-        name: gdrive-upload-scripts
+        name: sast-ai-gdrive-upload-scripts
         defaultMode: 0755
   steps:
     - name: validate-and-prepare
@@ -61,7 +61,7 @@ spec:
         - name: GDRIVE_FOLDER_ID_FROM_CM
           valueFrom:
             configMapKeyRef:
-              name: gdrive-config
+              name: sast-ai-gdrive-config
               key: folder-id
               optional: true
       script: |
@@ -115,7 +115,7 @@ spec:
         - name: GDRIVE_FOLDER_ID_FROM_CM
           valueFrom:
             configMapKeyRef:
-              name: gdrive-config
+              name: sast-ai-gdrive-config
               key: folder-id
               optional: true
       volumeMounts:

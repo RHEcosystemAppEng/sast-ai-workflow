@@ -17,6 +17,7 @@ spec:
     directory:
       recurse: true
       include: '*.yaml'
+      exclude: 'pipelinerun.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: TARGET_NAMESPACE_PLACEHOLDER
