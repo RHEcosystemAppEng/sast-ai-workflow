@@ -32,7 +32,7 @@ spec:
         claimName: sast-ai-workflow-pvc
     - name: gitlab-token-ws
       secret:
-        secretName: gitlab-token-secret
+        secretName: sast-ai-gitlab-token
         items:
           - key: gitlab_token
             path: gitlab_token
@@ -41,7 +41,7 @@ spec:
         secretName: sast-ai-default-llm-creds 
     - name: google-sa-json-ws 
       secret:
-        secretName: google-service-account-secret 
+        secretName: sast-ai-google-service-account 
         items:
           - key: service_account.json 
             path: service_account.json
