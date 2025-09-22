@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Generate Kubernetes ConfigMap from prompt template files.
-Used by the Makefile to create prompts-config-map.yaml from src/templates/prompts/*.yaml
+Used by the Makefile to create sast-ai-prompt-templates.yaml from src/templates/prompts/*.yaml
 """
 
 import yaml
@@ -49,16 +49,16 @@ def main():
         'apiVersion': 'v1',
         'kind': 'ConfigMap',
         'metadata': {
-            'name': 'prompt-templates',
+            'name': 'sast-ai-prompt-templates',
             'labels': {
-                'app': 'llm-service'
+                'app': 'sast-ai'
             }
         },
         'data': templates
     }
     
     # Write ConfigMap to file
-    output_file = 'tekton/prompts-config-map.yaml'
+    output_file = 'tekton/sast-ai-prompt-templates.yaml'
     try:
         with open(output_file, 'w', encoding='utf-8') as f:
             # Write header comments
