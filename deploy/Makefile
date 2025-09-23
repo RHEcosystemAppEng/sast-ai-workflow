@@ -214,7 +214,8 @@ argocd-deploy:
 
 argocd-clean:
 	@echo "🧹 Removing ArgoCD Application..."
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+	$(CO) patch application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
 	@echo "   ✓ ArgoCD Application removed"
 
 clean:
@@ -233,9 +234,7 @@ clean:
 	@$(CO) delete taskrun --all -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Task runs removed"
 	# Remove ArgoCD Application early to prevent GitOps interference
-	@echo "🔄 Cleaning ArgoCD Application..."
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ ArgoCD Application removed"
+	@$(MAKE) --no-print-directory argocd-clean
 	# Delete Tekton resources
 	@echo "🔧 Removing Pipeline Resources..."
 	@PIPELINE_NAME=$$(grep "^  name:" tekton/pipeline.yaml | head -1 | awk '{print $$2}'); \
@@ -248,41 +247,57 @@ clean:
 	fi
 	@echo "   ✓ Pipeline definitions removed"
 	@echo "   ✓ Task definitions removed"
-	# Delete only SAST AI specific PVCs
 	@echo "💾 Cleaning Storage..."
-	@$(CO) delete pvc sast-ai-workflow-pvc sast-ai-cache-pvc -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ Persistent volume claims removed"
-	# Wait a moment for PVCs to be deleted before checking PVs
-	@sleep 5
-	# Delete only PVs that were bound to our specific PVCs
-	@for pvc in sast-ai-workflow-pvc sast-ai-cache-pvc; do \
-		pv_name=$$($(CO) get pvc $$pvc -n $(NAMESPACE) -o jsonpath='{.spec.volumeName}' 2>/dev/null || echo ""); \
-		if [ -n "$$pv_name" ]; then \
-			$(CO) delete pv $$pv_name --ignore-not-found > /dev/null 2>&1 || true; \
+	@DYNAMIC_PVCS=$$($(CO) get pvc -n $(NAMESPACE) --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep "sast-ai-workflow-pipeline" || true); \
+	if [ -n "$$DYNAMIC_PVCS" ]; then \
+		echo "   🔍 Found dynamic PVCs: $$DYNAMIC_PVCS"; \
+		PV_NAMES=""; \
+		for pvc in $$DYNAMIC_PVCS; do \
+			pv_name=$$($(CO) get pvc $$pvc -n $(NAMESPACE) -o jsonpath='{.spec.volumeName}' 2>/dev/null || echo ""); \
+			if [ -n "$$pv_name" ]; then \
+				PV_NAMES="$$PV_NAMES $$pv_name"; \
+			fi; \
+		done; \
+		for pvc in $$DYNAMIC_PVCS; do \
+			$(CO) delete pvc $$pvc -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ Dynamic persistent volume claims removed"; \
+		echo "   ⏳ Waiting for PVCs to be fully deleted..."; \
+		timeout=30; \
+		while [ $$timeout -gt 0 ]; do \
+			remaining_pvcs=$$($(CO) get pvc -n $(NAMESPACE) --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep "sast-ai-workflow-pipeline" | wc -l || echo "0"); \
+			if [ "$$remaining_pvcs" -eq 0 ]; then \
+				break; \
+			fi; \
+			sleep 1; \
+			timeout=$$((timeout - 1)); \
+		done; \
+		if [ $$timeout -eq 0 ]; then \
+			echo "   ⚠️  Warning: Some PVCs may still be terminating"; \
+		else \
+			echo "   ✓ All PVCs confirmed deleted"; \
 		fi; \
-	done
-	@echo "   ✓ Persistent volumes cleaned"
-	# Delete service accounts
-	@echo "👤 Cleaning Service Accounts..."
-	@$(CO) delete serviceaccount sast-ai-pipeline-service-account \
-		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ Service account removed"
-	# Delete prompts
+		for pv in $$PV_NAMES; do \
+			$(CO) delete pv $$pv --ignore-not-found > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ Associated persistent volumes cleaned"; \
+	else \
+		echo "   ✓ No dynamic PVCs found to clean"; \
+	fi
+	# Note: We don't unpatch the 'pipeline' service account to avoid breaking other projects
+	# that may have also added image pull secrets to the shared SA in this namespace
 	@echo "💬 Removing Prompts..."
 	@$(CO) delete -f  tekton/sast-ai-prompt-templates.yaml \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Prompt templates removed"
-	# Delete ConfigMaps created by scripts
 	@echo "📜 Cleaning Scripts..."
 	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Google Drive upload scripts removed"
-	# Delete optional ConfigMaps
 	@echo "🗂️  Cleaning Optional ConfigMaps..."
 	@$(CO) delete configmap sast-ai-gdrive-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Google Drive ConfigMap removed"
-	# Delete secrets
 	@echo "🔐 Removing Secrets..."
 	@$(CO) delete secret sast-ai-gitlab-token \
 		sast-ai-default-llm-creds \
