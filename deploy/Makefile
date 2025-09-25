@@ -10,8 +10,8 @@ NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
 CO := oc  --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
-REPO_REMOTE_URL                       ?= source/code/url
-FALSE_POSITIVES_URL              ?= false/positives/url
+REPO_REMOTE_URL                  ?= source/code/url
+HUMAN_VERIFIED_FILE_PATH         ?= ""
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
@@ -27,8 +27,17 @@ REPO_LOCAL_PATH					 ?= /path/to/repo
 
 INPUT_REPORT_FILE_PATH			 ?= http://<<please-set-google-spreadsheet-url>>
 
+FALSE_POSITIVES_URL              ?= false/positives/url
+USE_KNOWN_FALSE_POSITIVE_FILE    ?= true
+
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
+GDRIVE_FOLDER_ID				 ?= ""
+GDRIVE_SA_FILE_NAME			     ?= service_account.json
+
+# GitOps Configuration
+GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
+ARGOCD_NAMESPACE                 ?= sast-ai
 # Optional Google Drive configuration
 GDRIVE_FOLDER_ID                 ?= ""
 
@@ -190,7 +199,11 @@ run:
 		-e 's|EMBEDDINGS_LLM_URL_PLACEHOLDER|$(EMBEDDINGS_LLM_URL)|g' \
 		-e 's|EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER|$(EMBEDDINGS_LLM_MODEL_NAME)|g' \
 		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
+		-e 's|HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER|$(HUMAN_VERIFIED_FILE_PATH)|g' \
+		-e 's|USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER|$(USE_KNOWN_FALSE_POSITIVE_FILE)|g' \
 		-e 's|AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER|$(AGGREGATE_RESULTS_G_SHEET)|g' \
+		-e 's|GDRIVE_FOLDER_ID_PLACEHOLDER|$(GDRIVE_FOLDER_ID)|g' \
+		-e 's|GDRIVE_SA_FILE_NAME_PLACEHOLDER|$(GDRIVE_SA_FILE_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml > /dev/null 2>&1
 	@rm -f tekton/pipelinerun-temp.yaml
