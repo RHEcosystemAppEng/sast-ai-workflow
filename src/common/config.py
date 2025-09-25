@@ -178,8 +178,8 @@ class Config:
 
         # If neither environment nor file works, log error and return empty string
         logger.error(
-            f"Could not load prompt template for {env_var_name} from environment or "
-            f"file {prompt_file_name}.yaml"
+            f"Could not load prompt template for {env_var_name} from environment "
+            f"or file {prompt_file_name}.yaml"
         )
         return ""
 
@@ -235,7 +235,8 @@ class Config:
             required_cfg_files.add(CONFIG_H_PATH)
 
         # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
-        if self.HUMAN_VERIFIED_FILE_PATH:
+        if self.HUMAN_VERIFIED_FILE_PATH and not self.HUMAN_VERIFIED_FILE_PATH.startswith("https"):
+            logger.info(f"HUMAN_VERIFIED_FILE_PATH: {self.HUMAN_VERIFIED_FILE_PATH}")
             required_cfg_files.add(HUMAN_VERIFIED_FILE_PATH)
 
         # Ensure service account JSON exists if using Google Sheets as input
@@ -279,16 +280,19 @@ class Config:
             )
 
         # Validate that similarity error threshold is a valid value
-        if not is_valid_int_value(self.SIMILARITY_ERROR_THRESHOLD, 
-                                  VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"], 
-                                  VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"]):
+        if not is_valid_int_value(
+            self.SIMILARITY_ERROR_THRESHOLD,
+            VALIDATION_LIMITS["MIN_SIMILARITY_THRESHOLD"],
+            VALIDATION_LIMITS["MAX_SIMILARITY_THRESHOLD"],
+        ):
             raise ValueError(
                 f"Configuration variable '{SIMILARITY_ERROR_THRESHOLD}' is not a valid value."
             )
 
         # Validate that MAX_ANALYSIS_ITERATIONS is a positive integer
-        if not is_valid_int_value(self.MAX_ANALYSIS_ITERATIONS, 
-                                  VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]):
+        if not is_valid_int_value(
+            self.MAX_ANALYSIS_ITERATIONS, VALIDATION_LIMITS["MIN_ANALYSIS_ITERATIONS"]
+        ):
             raise ValueError(
                 f"Configuration variable '{MAX_ANALYSIS_ITERATIONS}' is not a valid value."
             )

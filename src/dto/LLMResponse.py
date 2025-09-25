@@ -30,7 +30,11 @@ class AnalysisResponse:
         return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
 
     def is_second_analysis_needed(self):
-        return self.is_final == FinalStatus.FALSE.value and self.instructions and self.is_true_positive()
+        return (
+            self.is_final == FinalStatus.FALSE.value
+            and self.instructions
+            and self.is_true_positive()
+        )
 
     def to_dict(self):
         return asdict(self)
