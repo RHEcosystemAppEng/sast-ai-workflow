@@ -1,0 +1,5 @@
+outs:
+- md5: null
+  size: null
+  nfiles: null
+  path: prompts
