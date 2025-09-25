@@ -1,8 +1,7 @@
+from dataclasses import dataclass
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
-from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -20,10 +19,17 @@ class FilterResponse(BaseModel):
     """
 
     equal_error_trace: List[str] = Field(
-        description="Matching error trace lines.\
-            If there are no matching lines, return an empty list []."
+        description=(
+            "Matching error trace lines. "
+            "If there are no matching lines, return an empty list []."
+        )
     )
-    justifications: str = Field(description="Reasons for classification this error trace is the same as the error trace the user provided.")
+    justifications: str = Field(
+        description=(
+            "Reasons for classification this error trace is the same as the error trace "
+            "the user provided."
+        )
+    )
     result: Literal["YES", "NO"] = Field(
         description="'YES' if it matches a known false positive, otherwise 'NO'."
     )
@@ -52,9 +58,9 @@ class InstructionResponse(BaseModel):
         "The file path of the source code file where the 'expression_name' is called or used."
     )
     recommendation: str = Field(
-        "A clear, concise, and actionable instruction \
-        specifying the exact aspect of the 'expression_name's implementation needs to be \
-        examined and the specific reason for this examination in the context of the reported CVE"
+        "A clear, concise, and actionable instruction "
+        "specifying the exact aspect of the 'expression_name's implementation needs to be "
+        "examined and the specific reason for this examination in the context of the reported CVE"
     )
 
 

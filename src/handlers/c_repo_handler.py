@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Global flag to track if libclang has been initialized
 _libclang_initialized = False
 
+
 class CRepoHandler:
     """
     A handler for managing and analyzing C language Git repositories.
@@ -63,7 +64,7 @@ class CRepoHandler:
 
         # Initialize libclang only once per process (global state limitation)
         global _libclang_initialized
-        
+
         if not _libclang_initialized:
             clang.cindex.Config.set_library_file(config.LIBCLANG_PATH)
             _libclang_initialized = True
@@ -102,7 +103,7 @@ class CRepoHandler:
         except Exception as e:
             logger.warning(f"Failed to parse error trace: {e}")
             return {}
-            
+
         error_code_sources = defaultdict(set)
 
         for file_path, line_number in source_files:
@@ -111,7 +112,7 @@ class CRepoHandler:
             except ValueError:
                 logger.warning(f"Invalid line number '{line_number}' for file {file_path}")
                 continue
-                
+
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
@@ -123,7 +124,9 @@ class CRepoHandler:
                 if source_code:
                     error_code_sources[file_path].add(source_code)
             except Exception as e:
-                logger.warning(f"Failed to extract source code from {local_file_path}:{line_num}: {e}")
+                logger.warning(
+                    f"Failed to extract source code from {local_file_path}:{line_num}: {e}"
+                )
                 continue
 
         return {
@@ -169,7 +172,9 @@ class CRepoHandler:
                         lines = f.readlines()
                         numbered_lines = [
                             f"{i}| {line}"
-                            for i, line in enumerate(lines[start_line - 1 : end_line], start=start_line)
+                            for i, line in enumerate(
+                                lines[start_line - 1 : end_line], start=start_line
+                            )
                         ]
                         source_code = "".join(numbered_lines)
 
@@ -186,14 +191,19 @@ class CRepoHandler:
                 lines = f.readlines()
                 start_line = max(0, line - 100)
                 end_line = min(line + 100, len(lines))
-                numbered_lines = [f"{i}| {line}" for i, line in enumerate(lines[start_line - 1 : end_line], start=start_line)]
+                numbered_lines = [
+                    f"{i}| {line}"
+                    for i, line in enumerate(lines[start_line - 1 : end_line], start=start_line)
+                ]
                 source_code = "".join(numbered_lines)
-        
+
         return source_code
 
-    def extract_missing_functions_or_macros(self, instructions, found_symbols: set) -> tuple[str, set]:
+    def extract_missing_functions_or_macros(
+        self, instructions, found_symbols: set
+    ) -> tuple[str, set]:
         """Get definitions of an expression"""
-        
+
         if not instructions:
             logger.debug("No instructions provided for function/macro extraction")
             return "", found_symbols
@@ -215,7 +225,10 @@ class CRepoHandler:
                 if path and instruction.expression_name not in found_symbols:
                     expressions_by_path[path].add(instruction.expression_name)
                 elif instruction.expression_name in found_symbols:
-                    logger.debug(f"Skipping {instruction.expression_name} - the context contains the code already.")
+                    logger.debug(
+                        f"Skipping {instruction.expression_name} - "
+                        f"the context contains the code already."
+                    )
             except AttributeError as e:
                 logger.warning(f"Invalid instruction format: {instruction}. Error: {e}")
                 continue
@@ -408,11 +421,10 @@ class CRepoHandler:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]
 
         return file_path, code_line_number
-    
+
     def reset_found_symbols(self):
         """Reset the accumulated found symbols for a new analysis session.
-        
+
         Note: Deprecated - symbol tracking is now per-issue in the new workflow.
         """
         pass
-    
