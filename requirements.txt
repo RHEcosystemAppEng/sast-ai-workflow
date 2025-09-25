@@ -18,6 +18,8 @@ certifi==2024.8.30
 charset-normalizer==3.4.0
 clang==19.1.7
 click==8.2.1
+tree-sitter==0.21.3
+tree-sitter-go==0.21.0
 colorama==0.4.6
 dataclasses-json==0.6.7
 datasets>=4.0.0
