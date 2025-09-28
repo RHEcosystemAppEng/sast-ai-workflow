@@ -131,11 +131,11 @@ def convert_str_to_sast_tracker(input_str: str) -> SASTWorkflowTracker:
 
             tracker.config = Config()
             tracker.config.USE_KNOWN_FALSE_POSITIVE_FILE = True
-            tracker.config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / "evaluation/data/known_false_positives.txt")
+            tracker.config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / "evaluation/known_non_issues_data/known_non_issues.txt")
             tracker.config.OUTPUT_DIR = "evaluation/output"
             tracker.config.MAX_ITERATIONS = 1
             # Vector store configuration for real FAISS similarity
-            tracker.config.VECTOR_STORE_PATH = "evaluation/data/faiss_vector_store"
+            tracker.config.VECTOR_STORE_PATH = "evaluation/known_non_issues_data/faiss_vector_store"
             tracker.config.SIMILARITY_ERROR_THRESHOLD = 5  # Number of similar issues to retrieve for comparison
             logger.info("Successfully created real Config object for filter evaluation")
         except Exception as e:
@@ -156,10 +156,10 @@ def create_minimal_config():
     class MinimalConfig:
         def __init__(self):
             self.USE_KNOWN_FALSE_POSITIVE_FILE = True
-            self.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / "evaluation/data/known_false_positives.txt")
+            self.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / "evaluation/known_non_issues_data/known_non_issues.txt")
             self.OUTPUT_DIR = "evaluation/output"
             self.MAX_ITERATIONS = 1
-            self.VECTOR_STORE_PATH = "evaluation/data/faiss_vector_store"
+            self.VECTOR_STORE_PATH = "evaluation/known_non_issues_data/faiss_vector_store"
             self.SIMILARITY_ERROR_THRESHOLD = 5
             self.USE_VECTOR_SIMILARITY = True
             # Add the filter system prompt for LLM analysis (from original YAML template)
