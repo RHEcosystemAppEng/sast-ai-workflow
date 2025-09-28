@@ -32,13 +32,14 @@ llms:
 workflow:
   _type: judge_llm_analysis
   llm_name: eval_llm
-  input_converter: evaluation.tools.judge_llm_converters.convert_str_to_sast_tracker
-  output_converter: evaluation.tools.judge_llm_converters.convert_sast_tracker_to_str
+  input_converter: evaluation.converter_tools.judge_llm_converters.convert_str_to_sast_tracker
+  output_converter: evaluation.converter_tools.judge_llm_converters.convert_sast_tracker_to_str
 
 # Evaluation configuration
 eval:
   general:
-    output_dir: ./evaluation/reports/judge_llm_analysis
+    output_dir: /Users/gziv/Dev/sast-ai-workflow/evaluation/reports/judge_llm_analysis
+
     dataset:
       _type: json
       file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/judge_llm_eval/judge_llm_eval_dataset_6.json

@@ -13,151 +13,83 @@ Or run directly:
     LLM_API_KEY=your_key python evaluation/runners/run_judge_llm_evaluation.py
 """
 
-import os
+import json
 import sys
 from pathlib import Path
+from typing import List, Dict
 
-# Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import archiving utility and metrics calculation
-from evaluation.utils import archive_evaluation_results
+from evaluation.runners.base_runner import BaseEvaluationRunner
 from evaluation.utils.calculate_eval_metrics import calculate_metrics_from_workflow
-import json
 
-def check_environment(config_file=None):
-    """Check if required environment variables are available."""
-    api_key = os.getenv('LLM_API_KEY')
-    if not api_key:
-        print("Error: LLM_API_KEY environment variable not set")
-        print("Please set it with: export LLM_API_KEY=your_nvidia_api_key")
-        return False
+class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
+    """Judge LLM analysis evaluation runner."""
 
-    # Use provided config file or default
-    if config_file:
-        config_path = Path(config_file)
-    else:
-        config_path = project_root / "evaluation" / "configs" / "judge_llm_analysis_eval.yml"
+    def __init__(self):
+        super().__init__("judge_llm_analysis", "judge_llm_analysis_eval.yml")
 
-    if not config_path.exists():
-        print(f"Error: Config file not found: {config_path}")
-        return False
+    def get_required_env_vars(self) -> List[str]:
+        """Get required environment variables for judge LLM evaluation."""
+        return ['LLM_API_KEY']
 
-    print("Environment checks passed")
-    return True
+    def get_default_env_vars(self) -> Dict[str, str]:
+        """Get default environment variables for judge LLM evaluation."""
+        return {
+            'PROJECT_NAME': 'judge-llm-eval',
+            'PROJECT_VERSION': '1.0.0',
+            'INPUT_REPORT_FILE_PATH': '/dev/null',
+            'OUTPUT_FILE_PATH': '/dev/null',
+            'KNOWN_FALSE_POSITIVE_FILE_PATH': '/dev/null',
+            'REPO_LOCAL_PATH': str(self.project_root)
+        }
 
-def setup_evaluation_environment():
-    """Set up required environment variables for SAST Config."""
-    print("Setting up evaluation environment variables...")
+    def get_reports_dir(self) -> Path:
+        """Get the reports directory for judge LLM evaluation."""
+        return self.project_root / "evaluation" / "reports" / "judge_llm_analysis"
 
-    # Set minimal required environment variables for Config
-    os.environ.setdefault('PROJECT_NAME', 'judge-llm-eval')
-    os.environ.setdefault('PROJECT_VERSION', '1.0.0')
-    os.environ.setdefault('INPUT_REPORT_FILE_PATH', '/dev/null')
-    os.environ.setdefault('OUTPUT_FILE_PATH', '/dev/null')
-    os.environ.setdefault('REPO_LOCAL_PATH', str(project_root))
+    def get_debug_hints(self) -> List[str]:
+        """Get debug hints for judge LLM evaluation."""
+        return [
+            "evaluation/tools/judge_llm_converters.py (input/output conversion)",
+            "src/sast_agent_workflow/tools/judge_llm_analysis.py (analysis logic)",
+            "src/sast_agent_workflow/tools/iac.py (context analysis)"
+        ]
 
-def run_nat_evaluation(config_file=None):
-    """Run NAT evaluation with automatic metrics collection."""
-    print("\\nRunning NAT Evaluation for judge_llm_analysis...")
-    print("This will automatically collect:")
-    print("- Token counts (input/output/total)")
-    print("- Processing time metrics")
-    print("- Memory usage tracking")
-    print("- Error counting")
-    print("")
+    def run_post_evaluation_tasks(self):
+        """Calculate evaluation metrics for judge LLM evaluation."""
+        workflow_output_path = self.get_reports_dir() / "workflow_output.json"
+        if workflow_output_path.exists():
+            print("\\nCalculating evaluation metrics...")
+            try:
+                metrics_results = calculate_metrics_from_workflow(str(workflow_output_path))
 
-    # Use provided config file or default
-    if config_file:
-        config_path = Path(config_file)
-    else:
-        config_path = project_root / "evaluation" / "configs" / "judge_llm_analysis_eval.yml"
+                if "error" in metrics_results:
+                    print(f"Warning: Could not calculate metrics - {metrics_results['error']}")
+                else:
+                    metrics_file = self.get_reports_dir() / "evaluation_metrics.json"
+                    with open(metrics_file, 'w') as f:
+                        json.dump(metrics_results, f, indent=2)
 
-    # Run actual NAT evaluation command
-    import subprocess
-    try:
-        print(f"Executing: nat eval --config_file {config_path}")
-        result = subprocess.run([
-            "nat", "eval", "--config_file", str(config_path)
-        ], check=True, capture_output=True, text=True)
+                    metrics = metrics_results["metrics"]
+                    metadata = metrics_results["metadata"]
 
-        print("NAT evaluation completed successfully!")
-        if result.stdout:
-            print("Output:", result.stdout)
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error running NAT evaluation: {e}")
-        if e.stdout:
-            print("Stdout:", e.stdout)
-        if e.stderr:
-            print("Stderr:", e.stderr)
-        raise
-    except FileNotFoundError:
-        print("Error: 'nat' command not found. Please ensure NAT is installed and in PATH.")
-        print("Try: source .venv-test/bin/activate")
-        raise
+                    print(f"  Processed {metadata['processed_items']}/{metadata['total_items']} items")
+                    print(f"  Accuracy:  {metrics['accuracy']:.4f}")
+                    print(f"  Precision: {metrics['precision']:.4f}")
+                    print(f"  Recall:    {metrics['recall']:.4f}")
+                    print(f"  F1 Score:  {metrics['f1_score']:.4f}")
+                    print(f"  Metrics saved to: evaluation_metrics.json")
+            except Exception as e:
+                print(f"Warning: Error calculating metrics - {e}")
+        else:
+            print("\\nWarning: workflow_output.json not found, skipping metrics calculation")
 
 def main():
     """Main evaluation runner."""
-    print("=" * 60)
-    print("SAST-AI-Workflow: Judge LLM Analysis Evaluation")
-    print("=" * 60)
-
-    # Check if config file provided as argument
-    config_file = None
-    if len(sys.argv) > 1:
-        config_file = sys.argv[1]
-
-    if not check_environment(config_file):
-        sys.exit(1)
-
-    setup_evaluation_environment()
-    run_nat_evaluation(config_file)
-
-    print("\\nEvaluation completed!")
-    print("Results saved to:")
-    print("  - evaluation/reports/judge_llm_analysis/workflow_output.json")
-    print("  - evaluation/reports/judge_llm_analysis/standardized_data_all.csv")
-    print("  - evaluation/reports/judge_llm_analysis/all_requests_profiler_traces.json")
-
-    # Calculate evaluation metrics before archiving
-    workflow_output_path = project_root / "evaluation" / "reports" / "judge_llm_analysis" / "workflow_output.json"
-    if workflow_output_path.exists():
-        print("\\nCalculating evaluation metrics...")
-        try:
-            metrics_results = calculate_metrics_from_workflow(str(workflow_output_path))
-
-            if "error" in metrics_results:
-                print(f"Warning: Could not calculate metrics - {metrics_results['error']}")
-            else:
-                # Save metrics to JSON file
-                metrics_file = project_root / "evaluation" / "reports" / "judge_llm_analysis" / "evaluation_metrics.json"
-                with open(metrics_file, 'w') as f:
-                    json.dump(metrics_results, f, indent=2)
-
-                # Print summary
-                metrics = metrics_results["metrics"]
-                metadata = metrics_results["metadata"]
-
-                print(f"  Processed {metadata['processed_items']}/{metadata['total_items']} items")
-                print(f"  Accuracy:  {metrics['accuracy']:.4f}")
-                print(f"  Precision: {metrics['precision']:.4f}")
-                print(f"  Recall:    {metrics['recall']:.4f}")
-                print(f"  F1 Score:  {metrics['f1_score']:.4f}")
-                print(f"  Metrics saved to: evaluation_metrics.json")
-        except Exception as e:
-            print(f"Warning: Error calculating metrics - {e}")
-    else:
-        print("\\nWarning: workflow_output.json not found, skipping metrics calculation")
-
-    # Archive the results after evaluation completes
-    reports_dir = project_root / "evaluation" / "reports"
-    archived_path = archive_evaluation_results(str(reports_dir), "judge_llm_analysis")
-    if archived_path:
-        print(f"\\nResults archived to: {archived_path}")
-    else:
-        print("\\nNote: Results were not archived (no files found)")
+    runner = JudgeLLMEvaluationRunner()
+    runner.run()
 
 if __name__ == "__main__":
     main()

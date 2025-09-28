@@ -35,10 +35,10 @@ workflow:
   _type: filter
   llm_name: eval_llm
   embedder_llm_name: filter_embedding
-  input_converter: evaluation.tools.filter_converters.convert_str_to_sast_tracker
-  output_converter: evaluation.tools.filter_converters.convert_sast_tracker_to_str
+  input_converter: evaluation.converter_tools.filter_converters.convert_str_to_sast_tracker
+  output_converter: evaluation.converter_tools.filter_converters.convert_sast_tracker_to_str
 
-# Evaluation configuration
+# Evaluation configuration - Simplified for validation reports only
 eval:
   general:
     output_dir: /Users/gziv/Dev/sast-ai-workflow/evaluation/reports/filter
@@ -62,96 +62,5 @@ eval:
       bottleneck_analysis:
         enable_nested_stack: false
 
-  # Custom LLM-as-Judge Evaluation Metrics for Filter Quality
-  evaluators:
-    filter_quality_eval:
-      _type: tunable_rag_evaluator
-      llm_name: judge_llm
-      # Retry control for rate limiting
-      llm_retry_control_params:
-        stop_after_attempt: 3
-        initial_backoff_delay_seconds: 5
-        has_exponential_jitter: true
-      # Use custom scoring instead of default
-      default_scoring: false
-      # Custom prompt for filter quality evaluation
-      judge_llm_prompt: >
-        You are an expert software engineer evaluating the quality of SAST vulnerability filtering decisions.
-
-        **CRITICAL SCORING INSTRUCTIONS - READ CAREFULLY:**
-
-        SEVERELY PENALIZE filtering decisions that exhibit ANY of the following quality issues:
-        - **INCORRECT CLASSIFICATION**: When the filter incorrectly identifies true positives as false positives or vice versa
-        - **MISSING KNOWN ISSUES**: Failing to detect issues that should be caught by the known false positive database
-        - **IRRELEVANT SIMILARITY MATCHING**: Matching issues based on superficial similarities rather than actual vulnerability patterns
-        - **INCOMPLETE ANALYSIS**: Partial or truncated analysis of issue similarity
-        - **CONTRADICTORY LOGIC**: When the filtering logic contradicts the provided expected result
-        - **DAMAGED/INCOMPLETE INFORMATION**: Partial, truncated, or corrupted filtering information
-
-        For filtering decisions with these issues, assign very low scores (0.0-0.3) across ALL dimensions.
-
-        CRITICAL INSTRUCTION: Compare the generated filtering result STRICTLY against the provided expected answer.
-        Do NOT evaluate based on your own security knowledge - only compare similarity to the expected answer.
-
-        **SPECIAL CASE - MISSING EXPECTED ANSWER**: If the expected answer is empty, none, null, string with length zero, corrupted or missing entirely,
-        severely punish the score.
-
-        **INCORRECT CLASSIFICATION**: When the filter_result contradicts the expected result (TRUE POSITIVE vs FALSE POSITIVE mismatch) - this is a MAJOR ISSUE.
-
-        **CLASSIFICATION ACCURACY IS CRITICAL**: If the generated filter_result (TRUE POSITIVE/FALSE POSITIVE) does not match the expected_filter_result, this represents a fundamental failure in vulnerability filtering and should be heavily penalized across all dimensions, especially ACCURACY and SIMILARITY_MATCHING.
-
-        If the expected answer contains valid filtering information, evaluate how well the generated filtering matches it:
-
-        ACCURACY (35%): Does the generated filtering result correctly classify the vulnerability?
-        - Same classification decision (false positive vs true positive)
-        - Same confidence level in the decision
-        - Same risk assessment conclusion
-        - Score 1.0 for perfect classification match, 0.0 for completely wrong classification
-
-        SIMILARITY_MATCHING (30%): Does the filtering correctly identify relevant known issues?
-        - Appropriate matching of similar vulnerability patterns
-        - Correct identification of known false positive patterns
-        - Proper use of similarity thresholds and matching criteria
-        - Score 1.0 for perfect similarity analysis, 0.0 for irrelevant or incorrect matching
-
-        COMPLETENESS (20%): Does the filtering analysis cover all relevant aspects?
-        - Thorough analysis of issue characteristics
-        - Complete evaluation of similarity to known issues
-        - Comprehensive reasoning for the filtering decision
-        - Score 1.0 for complete analysis, 0.0 for superficial or incomplete filtering
-
-        JUSTIFICATION_QUALITY (15%): Are the filtering reasons well-explained and logical?
-        - Clear explanation of why an issue was filtered or passed through
-        - Logical reasoning connecting evidence to filtering decision
-        - Professional technical language and structure
-        - Score 1.0 for excellent justification, 0.0 for poor or missing explanation
-
-        SCORING REQUIREMENTS:
-        - MANDATORY: You MUST calculate the exact final weighted score using this EXACT formula: (accuracy * 0.35) + (similarity_matching * 0.30) + (completeness * 0.20) + (justification_quality * 0.15)
-        - CRITICAL: Use EXACTLY these decimal weights: 0.35, 0.30, 0.20, 0.15
-        - STEP-BY-STEP CALCULATION REQUIRED:
-          1. First assign individual scores: ACCURACY (0.0-1.0), SIMILARITY_MATCHING (0.0-1.0), COMPLETENESS (0.0-1.0), JUSTIFICATION_QUALITY (0.0-1.0)
-          2. Then calculate: (ACCURACY × 0.35) + (SIMILARITY_MATCHING × 0.30) + (COMPLETENESS × 0.20) + (JUSTIFICATION_QUALITY × 0.15)
-          3. Use the EXACT result of this calculation as your final score - do NOT round or modify it
-        - The final score must be a float between 0.0 and 1.0
-        - VERIFICATION: Double-check your arithmetic calculation before submitting
-        - The reasoning must be 1-2 concise sentences explaining the score based on filtering quality and contain the scoring components
-
-        **CRITICAL RETURN FORMAT REQUIREMENTS**:
-
-        1. You MUST return ONLY valid JSON - no additional text before or after
-        2. Do NOT use markdown formatting, code blocks, or backticks (```json)
-        3. Do NOT include explanatory text outside the JSON
-        4. Your response must start with { and end with }
-        5. All float values must be between 0.0 and 1
-        6. Inside reasoning return the score's components as dict i.e. "ACCURACY": accuracy_score,
-                                                      "SIMILARITY_MATCHING": similarity_matching_score,
-                                                      "COMPLETENESS": completeness_score,
-                                                      "JUSTIFICATION_QUALITY": justification_quality_score,
-                                                      "Reasoning": "explanation string"
-        7. CRITICAL: You MUST verify your final score calculation is exactly: (ACCURACY * 0.35) + (SIMILARITY_MATCHING * 0.30) + (COMPLETENESS * 0.20) + (JUSTIFICATION_QUALITY * 0.15)
-        8. MANDATORY: The "score" field in your JSON response must be the EXACT mathematical result of the weighted formula calculation - no rounding, no approximation
-
-        IMPORTANT: Your entire response must be valid JSON that can be parsed by json.loads() in Python.
-
-        Focus on SIMILARITY to expected answer and filtering quality, not just correctness of the final decision.
+  # Generate validation reports instead of complex LLM evaluation
+  validation_reports_only: true

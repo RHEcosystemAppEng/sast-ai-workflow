@@ -8,6 +8,7 @@ preventing overwriting of previous results.
 
 import os
 import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -30,20 +31,16 @@ def archive_evaluation_results(reports_dir: str, evaluation_name: str) -> str:
         print(f"No results found to archive at {eval_dir}")
         return None
 
-    # Check if there are any files to archive (only files, not directories)
     files = [f for f in eval_dir.glob("*") if f.is_file()]
     if not files:
         print(f"No files found to archive in {eval_dir}")
         return None
 
-    # Create timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Create timestamped folder directly in the evaluation directory
     timestamped_dir = eval_dir / f"run_{timestamp}"
     timestamped_dir.mkdir(exist_ok=True)
 
-    # Move all files to timestamped folder
     archived_files = []
     for file_path in files:
         dest_path = timestamped_dir / file_path.name
@@ -59,8 +56,6 @@ def archive_evaluation_results(reports_dir: str, evaluation_name: str) -> str:
 
 def main():
     """CLI interface for archiving results."""
-    import sys
-
     if len(sys.argv) != 3:
         print("Usage: python archive_results.py <reports_dir> <evaluation_name>")
         print("Example: python archive_results.py ./evaluation/reports judge_llm_analysis")
