@@ -6,6 +6,7 @@ from workflow output files containing investigation results.
 
 import json
 import os
+import sys
 from typing import Dict, List, Any
 from collections import defaultdict
 
@@ -21,16 +22,12 @@ def extract_investigation_result(generated_answer: str) -> str:
         The investigation_result value or None if not found
     """
     try:
-        # Parse the JSON
         data = json.loads(generated_answer)
 
-        # Look for investigation_result in the top level or nested structure
         if isinstance(data, dict):
-            # Check if it's directly in the data
             if "investigation_result" in data:
                 return data["investigation_result"]
 
-            # Check if it's nested under an ID key
             for key, value in data.items():
                 if isinstance(value, dict) and "investigation_result" in value:
                     return value["investigation_result"]
@@ -54,7 +51,6 @@ def calculate_metrics(predictions: List[str], ground_truth: List[str]) -> Dict[s
     if len(predictions) != len(ground_truth):
         raise ValueError("Predictions and ground truth must have the same length")
 
-    # Count true positives, false positives, true negatives, false negatives
     tp = sum(1 for p, g in zip(predictions, ground_truth)
              if p == "TRUE POSITIVE" and g == "TRUE POSITIVE")
     fp = sum(1 for p, g in zip(predictions, ground_truth)
@@ -66,7 +62,6 @@ def calculate_metrics(predictions: List[str], ground_truth: List[str]) -> Dict[s
 
     total = len(predictions)
 
-    # Calculate metrics
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
@@ -117,7 +112,6 @@ def process_workflow_output(file_path: str) -> Dict[str, Any]:
         if not item_id or not expected_result:
             continue
 
-        # Extract the predicted result from generated_answer
         predicted_result = extract_investigation_result(generated_answer)
 
         if predicted_result and predicted_result in ["TRUE POSITIVE", "FALSE POSITIVE"]:
@@ -143,7 +137,6 @@ def calculate_metrics_from_workflow(workflow_output_file: str) -> Dict[str, Any]
     Returns:
         Dictionary containing calculated metrics and metadata
     """
-    # Process the workflow output file
     processed_data = process_workflow_output(workflow_output_file)
 
     if not processed_data or not processed_data["predictions"]:
@@ -157,10 +150,8 @@ def calculate_metrics_from_workflow(workflow_output_file: str) -> Dict[str, Any]
             }
         }
 
-    # Calculate metrics
     metrics = calculate_metrics(processed_data["predictions"], processed_data["ground_truth"])
 
-    # Create detailed results
     results = {
         "metrics": metrics,
         "metadata": {
@@ -176,8 +167,6 @@ def calculate_metrics_from_workflow(workflow_output_file: str) -> Dict[str, Any]
 
 def main():
     """Main function for standalone execution."""
-    import sys
-
     if len(sys.argv) != 2:
         print("Usage: python calculate_eval_metrics.py <workflow_output.json>")
         sys.exit(1)

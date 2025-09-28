@@ -23,7 +23,6 @@ def load_evaluation_dataset(dataset_name: str = "summarize_eval_dataset.json") -
     Raises:
         FileNotFoundError: If dataset cannot be found
     """
-    # Try multiple possible paths for the dataset
     base_paths = [
         Path.cwd(),  # Current working directory
         Path(__file__).parent.parent,  # evaluation/
