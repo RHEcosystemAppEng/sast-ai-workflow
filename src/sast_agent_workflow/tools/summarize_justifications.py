@@ -83,7 +83,7 @@ async def summarize_justifications(
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
 
-        from evaluation.tools.summarize_converters import (
+        from evaluation.converter_tools.summarize_converters import (
             convert_str_to_sast_tracker,
             convert_sast_tracker_to_str
         )

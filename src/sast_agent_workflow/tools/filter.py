@@ -162,7 +162,7 @@ async def filter(
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
 
-        from evaluation.tools.filter_converters import (
+        from evaluation.converter_tools.filter_converters import (
             convert_str_to_sast_tracker,
             convert_sast_tracker_to_str
         )
