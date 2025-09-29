@@ -27,6 +27,21 @@ Dataset contains vulnerability analysis test cases with SAST issues and source c
 - `input_data.issues[]` - Array of SAST vulnerabilities with detailed context, file paths, and severity levels
 - `expected_output_obj.issues[]` - Expected vulnerability classifications (TRUE_POSITIVE/FALSE_POSITIVE) with detailed justifications and confidence scores
 
+### Naming Convention for Package/Version Detection
+
+The evaluation framework uses a specific naming convention in the test case `id` field to extract package name, version, and issue identifier:
+
+**Format**: `{package}-{version}-{issue_id}`
+- **Package**: Software package name (e.g., `audit`, `glibc`, `openssl`)
+- **Version**: Version with underscores instead of dots (e.g., `4_0` for v4.0, `2_8` for v2.8)
+- **Issue ID**: Descriptive identifier for the specific issue
+
+**Examples**:
+- `audit-4_0-buffer_overflow_analysis` → Package: `audit`, Version: `4.0`, Issue: `buffer_overflow_analysis`
+- `glibc-2_8-memory_leak_assessment` → Package: `glibc`, Version: `2.8`, Issue: `memory_leak_assessment`
+
+This naming convention enables hierarchical analysis and package-specific performance tracking.
+
 ## Converters and Integration
 The `judge_llm_converters.py` handles AIQ framework integration by converting evaluation data into SASTWorkflowTracker format for judge LLM analysis. The judge LLM tool in `src/sast_agent_workflow/tools/judge_llm_analysis.py` was enhanced to support evaluation mode by detecting when converters are available and utilizing them for proper input/output transformation within the AIQ evaluation pipeline.
 

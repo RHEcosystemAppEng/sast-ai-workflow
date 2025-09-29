@@ -127,7 +127,7 @@ class BaseEvaluationConverter(ABC):
     def load_dataset_entry(self, input_str: str) -> Optional[Dict[str, Any]]:
         """Load dataset entry from evaluation dataset."""
         try:
-            from evaluation.tools.convertor_utils import load_evaluation_dataset, find_dataset_entry
+            from evaluation.converter_tools.convertor_utils import load_evaluation_dataset, find_dataset_entry
 
             dataset = load_evaluation_dataset(self.dataset_filename)
             return find_dataset_entry(dataset, input_str)

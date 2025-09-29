@@ -44,7 +44,7 @@ eval:
     output_dir: /Users/gziv/Dev/sast-ai-workflow/evaluation/reports/filter
     dataset:
       _type: json
-      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/filter_eval/filter_eval_dataset.json
+      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/filter_eval/filter_eval_dataset_individual_issues.json
       structure:
         question_key: "question"
         answer_key: "expected_output_obj"
