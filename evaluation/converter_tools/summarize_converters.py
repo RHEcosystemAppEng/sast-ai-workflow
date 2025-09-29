@@ -43,16 +43,22 @@ class SummarizeConverter(BaseEvaluationConverter):
 
     def parse_input_data(self, input_str: str) -> Dict[str, Any]:
         """Parse input string for summarize evaluation."""
+        logger.info(f"Parsing input: '{input_str}'")
         try:
             data = json.loads(input_str)
+            logger.info(f"Successfully parsed JSON input with keys: {list(data.keys())}")
             return data
         except json.JSONDecodeError:
             logger.info("Input is not JSON, loading dataset to find matching entry")
             eval_data = self.load_dataset_entry(input_str)
             if not eval_data:
-                logger.warning(f"No matching entry found for input: {input_str}")
+                logger.error(f"CRITICAL: No matching entry found for input: '{input_str}' - this is why justifications are empty!")
+                logger.error(f"This will result in empty justifications and poor evaluation scores")
                 return {"id": "unknown", "issue_type": "SECURITY_ISSUE", "severity": "HIGH",
                        "source_file": "unknown.c", "full_justification": ""}
+            else:
+                logger.info(f"SUCCESS: Found dataset entry for '{input_str}' with full_justification length: {len(eval_data.get('full_justification', ''))}")
+                logger.info(f"Dataset entry ID: {eval_data.get('id')}")
             return eval_data
 
     def create_issue_objects(self, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
