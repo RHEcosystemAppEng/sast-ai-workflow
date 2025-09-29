@@ -30,16 +30,23 @@ def write_to_excel_file(data: list, evaluation_summary: EvaluationSummary, confi
             write_ai_report_worksheet(data, workbook, config)
             if config.INPUT_REPORT_FILE_PATH.startswith("https"):
                 write_ai_report_google_sheet(data, config)
-            write_confusion_matrix_worksheet(workbook, evaluation_summary)
-            if config.AGGREGATE_RESULTS_G_SHEET:
-                write_summary_results_to_aggregate_google_sheet(config, evaluation_summary)
+
+            # Only write confusion matrix and aggregate results if evaluation_summary is available
+            if evaluation_summary is not None:
+                write_confusion_matrix_worksheet(workbook, evaluation_summary)
+                if config.AGGREGATE_RESULTS_G_SHEET:
+                    write_summary_results_to_aggregate_google_sheet(config, evaluation_summary)
+            else:
+                logger.warning(
+                    "Evaluation summary is None, skipping confusion matrix and aggregate results"
+                )
 
             workbook.close()
 
             pbar.update(1)
             sleep(1)
     except Exception as e:
-        logger.error("Error occurred during Excel writing:", e)
+        logger.error("Error occurred during Excel writing: %s", str(e))
 
 
 @retry(
