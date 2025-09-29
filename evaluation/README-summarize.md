@@ -26,6 +26,21 @@ Dataset contains justification summarization test cases with analyzed vulnerabil
 - `input_data.issues[]` - Array of SAST issues with detailed analysis results, justifications, and confidence scores from previous workflow steps
 - `expected_output_obj.issues[]` - Expected summarized justifications that consolidate multiple vulnerability analyses into clear, concise summaries
 
+### Naming Convention for Package/Version Detection
+
+The evaluation framework uses a specific naming convention in the test case `id` field to extract package name, version, and issue identifier:
+
+**Format**: `{package}-{version}-{issue_id}`
+- **Package**: Software package name (e.g., `audit`, `glibc`, `openssl`)
+- **Version**: Version with underscores instead of dots (e.g., `4_0` for v4.0, `2_8` for v2.8)
+- **Issue ID**: Descriptive identifier for the specific issue
+
+**Examples**:
+- `audit-4_0-buffer_overflow_summary` → Package: `audit`, Version: `4.0`, Issue: `buffer_overflow_summary`
+- `glibc-2_8-memory_leak_summary` → Package: `glibc`, Version: `2.8`, Issue: `memory_leak_summary`
+
+This naming convention enables hierarchical analysis and package-specific performance tracking.
+
 ## Converters and Integration
 The `summarize_converters.py` manages NAT framework integration by transforming evaluation data into SASTWorkflowTracker format for justification summarization. The workflow bypasses earlier workflow steps since input data already contains analyzed issues, focusing specifically on the summarization task. No graph flow modifications were needed as this evaluation tests the final summarization step in isolation.
 

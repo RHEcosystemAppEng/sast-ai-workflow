@@ -27,111 +27,132 @@ class FilterConverter(BaseEvaluationConverter):
     """Filter evaluation converter that inherits from BaseEvaluationConverter."""
 
     def __init__(self):
-        super().__init__("filter", "filter_eval_dataset.json")
+        super().__init__("filter", "filter_eval_dataset_individual_issues.json")
 
     def parse_input_data(self, input_str: str) -> Dict[str, Any]:
         """Parse input string for filter evaluation."""
         try:
-            eval_data = json.loads(input_str)
-            return eval_data
+            # Try to parse the question field as JSON (individual issue data)
+            data = json.loads(input_str)
+            return data
         except json.JSONDecodeError:
             logger.info("Input is not JSON, loading dataset to find matching entry")
             eval_data = self.load_dataset_entry(input_str)
             if not eval_data:
                 logger.warning(f"No matching entry found for input: {input_str}")
-                return {"id": "unknown", "input_data": {}}
-            return eval_data
+                return {"id": "unknown", "issue_id": "unknown", "issue_type": "unknown"}
+
+            # Extract the JSON from the question field
+            question = eval_data.get("question", "{}")
+            try:
+                parsed_question = json.loads(question)
+                return parsed_question
+            except json.JSONDecodeError:
+                logger.warning(f"Question field is not valid JSON: {question}")
+                return eval_data
 
     def create_issue_objects(self, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create Issue objects for filter evaluation."""
-        test_id = parsed_data.get("id", "unknown")
-        input_data = parsed_data.get("input_data", {})
+        # Create a single issue from the individual issue data (like judge converter)
+        issue_id = parsed_data.get("issue_id", parsed_data.get("id", "unknown"))
 
-        issues_data = input_data.get("issues", [])
-        if not issues_data:
-            issues_data = [{
-                "issue_id": test_id,
-                "issue_type": input_data.get("issue_type", "unknown"),
-                "severity": input_data.get("severity", "medium"),
-                "trace": input_data.get("trace", ""),
-                "file_path": input_data.get("file_path", ""),
-                "line_number": input_data.get("line_number", 0),
-                "cwe_id": input_data.get("cwe_id", "CWE-000")
-            }]
+        issue = Issue(
+            id=issue_id,
+            issue_type=parsed_data.get("issue_type", "unknown"),
+            severity=parsed_data.get("severity", "medium"),
+            trace=parsed_data.get("trace", ""),
+            file_path=parsed_data.get("file_path", ""),
+            line_number=parsed_data.get("line_number", 0),
+            cwe_id=parsed_data.get("cwe_id", "CWE-000"),
+            description=f"Filter evaluation for issue: {issue_id}",
+            source_position=parsed_data.get("line_number", 0),
+            sink_position=parsed_data.get("line_number", 0)
+        )
 
-        issues = {}
-        for issue_data in issues_data:
-            issue_id = issue_data.get("issue_id", test_id)
-
-            issue = Issue(
-                id=issue_id,
-                issue_type=issue_data.get("issue_type", "unknown"),
-                severity=issue_data.get("severity", "medium"),
-                trace=issue_data.get("trace", ""),
-                file_path=issue_data.get("file_path", ""),
-                line_number=issue_data.get("line_number", 0),
-                cwe_id=issue_data.get("cwe_id", "CWE-000"),
-                description=f"Test issue for filter evaluation: {issue_id}",
-                source_position=issue_data.get("line_number", 0),
-                sink_position=issue_data.get("line_number", 0)
+        per_issue_data = PerIssueData(
+            issue=issue,
+            analysis_response=AnalysisResponse(
+                investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
+                is_final=FinalStatus.FALSE.value,
+                recommendations=[],
+                justifications=[],
+                short_justifications="Awaiting filter analysis"
             )
+        )
 
-            per_issue_data = PerIssueData(
-                issue=issue,
-                analysis_response=AnalysisResponse(
-                    investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                    is_final=FinalStatus.FALSE.value,
-                    recommendations=[],
-                    justifications=[],
-                    short_justifications="Awaiting filter analysis"
-                )
-            )
+        # Debug logging
+        logger.info(f"Created issue: {issue_id} with trace: {parsed_data.get('trace', '')[:100]}...")
 
-            issues[issue_id] = per_issue_data
-
-        return issues
+        return {issue_id: per_issue_data}
 
     def extract_output_data(self, tracker: SASTWorkflowTracker) -> Dict[str, Any]:
         """Extract output data for filter evaluation."""
-        package_results = {}
+        # For individual issue evaluation, we return flat results (like judge converter)
+        # Since we only have one issue per tracker, return the results for that single issue
 
-        for issue_id, per_issue_data in tracker.issues.items():
-            analysis = per_issue_data.analysis_response
-
-            # Determine if issue was filtered as false positive based on analysis.is_final
-            filter_result = "FALSE_POSITIVE" if analysis.is_final == FinalStatus.TRUE.value else "TRUE_POSITIVE"
-
-            confidence = getattr(per_issue_data, 'filter_confidence', 0.8)
-
-            # Get justification first
-            justification = ""
-            if analysis.justifications:
-                justification = " ".join(analysis.justifications)
-            elif analysis.short_justifications:
-                justification = analysis.short_justifications
-            else:
-                justification = "No justification provided"
-
-            # Parse similar_known_issues from text to extract pattern IDs
-            similar_issues_text = getattr(per_issue_data, 'similar_known_issues', '')
-            similar_issues = []
-            if similar_issues_text and filter_result == "FALSE_POSITIVE":
-                # For known patterns based on content analysis
-                if "alloc_strlen" in similar_issues_text and "databuf_init" in similar_issues_text:
-                    similar_issues = ["buffer_overflow_pattern_1", "buffer_overflow_pattern_2"]
-                elif "overrun-buffer-arg" in similar_issues_text and "nlmsghdr" in similar_issues_text:
-                    similar_issues = ["buffer_overflow_pattern_3"]
-                elif any(keyword in similar_issues_text for keyword in ["alloc_fn", "leaked_storage", "memory"]):
-                    similar_issues = ["memory_management_pattern_1"]
-
-            package_results[issue_id] = {
-                "filter_result": filter_result,
-                "confidence": confidence,
-                "similar_known_issues": similar_issues if isinstance(similar_issues, list) else [],
-                "justification": justification
+        if not tracker.issues:
+            return {
+                "filter_result": "",
+                "confidence": None,
+                "similar_known_issues": [],
+                "justification": ""
             }
 
-        return {"package_analysis": package_results}
+        # Get the single issue (there should only be one for individual evaluation)
+        issue_id, per_issue_data = next(iter(tracker.issues.items()))
+        analysis = per_issue_data.analysis_response
+
+        # Determine if issue was filtered as false positive based on analysis.is_final
+        filter_result = "FALSE_POSITIVE" if analysis.is_final == FinalStatus.TRUE.value else "TRUE_POSITIVE"
+
+        # Use default confidence - let the evaluation system compare with expected values
+        confidence = None
+
+        # Get justification
+        justification = ""
+        if analysis.justifications:
+            justification = " ".join(analysis.justifications)
+        elif analysis.short_justifications:
+            justification = analysis.short_justifications
+        else:
+            justification = "No justification provided"
+
+        # Get similar_known_issues from the per_issue_data if available
+        similar_issues_context = getattr(per_issue_data, 'similar_known_issues', '')
+
+        # Debug logging to see what we're getting
+        logger.info(f"Similar issues context for {issue_id}: {similar_issues_context}")
+        logger.info(f"Type of similar_issues_context: {type(similar_issues_context)}")
+
+        # Extract real similar issue identifiers ONLY if the issue was identified as a known false positive
+        similar_issues = []
+        if (filter_result == "FALSE_POSITIVE" and
+            similar_issues_context and isinstance(similar_issues_context, str)):
+            # Parse the context to extract actual file paths from the error traces
+            lines = similar_issues_context.split('\n')
+            for line in lines:
+                line = line.strip()
+                # Look for lines with file paths in format "audit-4.0/path/file.c:number:"
+                if line and '/' in line and '.c:' in line and ':' in line:
+                    # Extract the file path portion before the colon
+                    colon_idx = line.find(':')
+                    if colon_idx > 0:
+                        potential_path = line[:colon_idx]
+                        # Verify it's a valid file path format
+                        if '/' in potential_path and '.c' in potential_path:
+                            similar_issues.append(potential_path)
+
+            # Remove duplicates while preserving order
+            similar_issues = list(dict.fromkeys(similar_issues))
+
+        # If filter_result is TRUE_POSITIVE, leave similar_issues empty (no matches found)
+
+        return {
+            "filter_result": filter_result,
+            "confidence": confidence,
+            "similar_known_issues": similar_issues,
+            "justification": justification
+        }
 
     def get_minimal_config(self):
         """Get filter-specific minimal config."""

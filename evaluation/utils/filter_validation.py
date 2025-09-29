@@ -37,8 +37,7 @@ class FilterValidationReport:
             "total_test_cases": 0,
             "total_issues": 0,
             "classification_accuracy": 0.0,
-            "faiss_matching_accuracy": 0.0,
-            "overall_score": 0.0
+            "faiss_matching_accuracy": None
         }
         self.detailed_results = {}
         self.faiss_validation = {
@@ -101,16 +100,25 @@ def load_evaluation_results(results_dir: Path) -> Dict[str, Any]:
 
 def extract_expected_faiss_matches(gt_issue: Dict[str, Any]) -> List[str]:
     """Extract expected FAISS matches from ground truth issue."""
+    # Check if we have the old nested format or new individual issue format
     expected_output = gt_issue.get("expected_output_obj", {})
-    package_analysis = expected_output.get("package_analysis", {})
 
-    expected_matches = []
-    for issue_id, analysis in package_analysis.items():
-        similar_issues = analysis.get("similar_known_issues", [])
-        if similar_issues:
-            expected_matches.extend(similar_issues)
-
-    return expected_matches
+    if expected_output and "package_analysis" in expected_output:
+        # Old nested format
+        package_analysis = expected_output.get("package_analysis", {})
+        expected_matches = []
+        for issue_id, analysis in package_analysis.items():
+            similar_issues = analysis.get("similar_known_issues", [])
+            if similar_issues:
+                expected_matches.extend(similar_issues)
+        return expected_matches
+    else:
+        # New individual issue format - expected data is in expected_output_obj
+        if expected_output:
+            return expected_output.get("similar_known_issues", [])
+        else:
+            # Fallback to top level fields for backward compatibility
+            return gt_issue.get("expected_similar_known_issues", [])
 
 
 def validate_faiss_matching(
@@ -127,7 +135,7 @@ def validate_faiss_matching(
         "correct_matches": [],
         "missing_matches": [],
         "unexpected_matches": [],
-        "accuracy": 0.0
+        "accuracy": None  # Default to None when no evaluation is applicable
     }
 
     validation["correct_matches"] = list(set(expected_matches) & set(actual_matches))
@@ -137,11 +145,14 @@ def validate_faiss_matching(
     validation["unexpected_matches"] = list(set(actual_matches) - set(expected_matches))
 
     if expected_matches:
+        # Only calculate accuracy when there are expected matches to evaluate against
         correct_count = len(validation["correct_matches"])
         total_expected = len(expected_matches)
         validation["accuracy"] = correct_count / total_expected if total_expected > 0 else 0.0
     else:
-        validation["accuracy"] = 1.0 if not actual_matches else 0.0
+        # No expected matches - FAISS accuracy is not applicable (None)
+        # We don't penalize or reward when there's nothing to match against
+        validation["accuracy"] = None
 
     return validation
 
@@ -196,27 +207,58 @@ def analyze_test_case(
         report.errors.append(error_msg)
         return
 
-    gt_package_analysis = test_case.get("expected_output_obj", {}).get("package_analysis", {})
-    gen_package_analysis = generated_answer.get("package_analysis", {})
+    # Check if we have the old nested format or new individual issue format
+    expected_output = test_case.get("expected_output_obj", {})
+
+    if expected_output and "package_analysis" in expected_output:
+        # Old nested format
+        gt_package_analysis = expected_output.get("package_analysis", {})
+        gen_package_analysis = generated_answer.get("package_analysis", {})
+        issue_data_pairs = [(issue_id, gt_package_analysis[issue_id], gen_package_analysis.get(issue_id, {}))
+                           for issue_id in gt_package_analysis.keys()]
+    else:
+        # New individual issue format - treat the test case as a single issue
+        issue_id = test_case.get("question", "")
+        if isinstance(issue_id, str) and issue_id.startswith("{"):
+            try:
+                parsed = json.loads(issue_id)
+                issue_id = parsed.get("issue_id", test_id)
+            except:
+                issue_id = test_id
+
+        # Extract expected values from expected_output_obj if available, otherwise fallback to top-level fields
+        if expected_output:
+            gt_analysis = {
+                "filter_result": expected_output.get("filter_result", ""),
+                "confidence": expected_output.get("confidence", 0.0),
+                "similar_known_issues": expected_output.get("similar_known_issues", []),
+                "justification": expected_output.get("justification", "")
+            }
+        else:
+            # Fallback to top-level fields for backward compatibility
+            gt_analysis = {
+                "filter_result": test_case.get("expected_filter_result", ""),
+                "confidence": test_case.get("expected_confidence", 0.0),
+                "similar_known_issues": test_case.get("expected_similar_known_issues", []),
+                "justification": test_case.get("expected_justification", "")
+            }
+
+        issue_data_pairs = [(issue_id, gt_analysis, generated_answer)]
 
     test_case_results = {
         "test_id": test_id,
         "issues": {},
         "classification_accuracy": 0.0,
-        "faiss_accuracy": 0.0,
-        "overall_accuracy": 0.0
+        "faiss_accuracy": None
     }
 
     total_issues = 0
     correct_classifications = 0
     correct_faiss_results = 0
 
-    for issue_id in gt_package_analysis.keys():
+    for issue_id, gt_analysis, gen_analysis in issue_data_pairs:
         total_issues += 1
         report.summary["total_issues"] += 1
-
-        gt_analysis = gt_package_analysis[issue_id]
-        gen_analysis = gen_package_analysis.get(issue_id, {})
 
         expected_classification = gt_analysis.get("filter_result", "")
         actual_classification = gen_analysis.get("filter_result", "")
@@ -243,17 +285,15 @@ def analyze_test_case(
             gen_analysis, expected_similar_issues, issue_id
         )
 
-        if faiss_validation["accuracy"] == 1.0:
+        # Only count FAISS accuracy when it's actually applicable (not None)
+        if faiss_validation["accuracy"] is not None and faiss_validation["accuracy"] == 1.0:
             correct_faiss_results += 1
 
         if expected_similar_issues:
             report.faiss_validation["total_expected_matches"] += len(expected_similar_issues)
             report.faiss_validation["correct_matches_found"] += len(faiss_validation["correct_matches"])
             report.faiss_validation["missing_expected_matches"] += len(faiss_validation["missing_matches"])
-        else:
-            report.faiss_validation["total_no_match_items"] += 1
-            if faiss_validation["accuracy"] == 1.0:
-                report.faiss_validation["correct_no_matches"] += 1
+        # Note: We don't track "no match items" anymore since FAISS accuracy is None when no matches expected
 
         report.faiss_validation["unexpected_matches"] += len(faiss_validation["unexpected_matches"])
 
@@ -265,7 +305,7 @@ def analyze_test_case(
             }
         }
 
-        if expected_similar_issues or faiss_validation["accuracy"] < 1.0:
+        if expected_similar_issues or (faiss_validation["accuracy"] is not None and faiss_validation["accuracy"] < 1.0):
             issue_result["faiss_matching"] = {
                 "expected_matches": expected_similar_issues,
                 "actual_matches": faiss_validation["actual_matches"],
@@ -283,10 +323,12 @@ def analyze_test_case(
 
     if total_issues > 0:
         test_case_results["classification_accuracy"] = correct_classifications / total_issues
-        test_case_results["faiss_accuracy"] = correct_faiss_results / total_issues
-        test_case_results["overall_accuracy"] = (
-            test_case_results["classification_accuracy"] + test_case_results["faiss_accuracy"]
-        ) / 2
+        # Only calculate FAISS accuracy if there were issues with expected matches
+        faiss_applicable_issues = sum(1 for _, gt_analysis, _ in issue_data_pairs if gt_analysis.get("similar_known_issues", []))
+        if faiss_applicable_issues > 0:
+            test_case_results["faiss_accuracy"] = correct_faiss_results / faiss_applicable_issues
+        else:
+            test_case_results["faiss_accuracy"] = None
 
     report.detailed_results[test_id] = test_case_results
     logger.info(f"Test case {test_id}: {correct_classifications}/{total_issues} correct classifications, "
@@ -323,17 +365,12 @@ def calculate_final_metrics(report: FilterValidationReport) -> None:
 
         total_expected_matches = report.faiss_validation["total_expected_matches"]
         correct_matches = report.faiss_validation["correct_matches_found"]
-        correct_no_matches = report.faiss_validation["correct_no_matches"]
-        total_no_match_items = report.faiss_validation["total_no_match_items"]
 
-        total_faiss_checks = total_expected_matches + total_no_match_items
-        if total_faiss_checks > 0:
-            correct_faiss_total = correct_matches + correct_no_matches
-            report.summary["faiss_matching_accuracy"] = correct_faiss_total / total_faiss_checks
-
-        report.summary["overall_score"] = (
-            report.summary["classification_accuracy"] + report.summary["faiss_matching_accuracy"]
-        ) / 2
+        # Only calculate FAISS accuracy when there are expected matches to evaluate
+        if total_expected_matches > 0:
+            report.summary["faiss_matching_accuracy"] = correct_matches / total_expected_matches
+        else:
+            report.summary["faiss_matching_accuracy"] = None
 
 
 def main():
@@ -346,7 +383,7 @@ def main():
     if len(sys.argv) >= 3:
         dataset_file = Path(sys.argv[2])
     else:
-        dataset_file = project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset.json"
+        dataset_file = project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset_individual_issues.json"
 
     logger.info("=" * 80)
     logger.info("Filter Evaluation Validation Report")
@@ -386,8 +423,11 @@ def main():
     logger.info(f"Total test cases analyzed: {report.summary['total_test_cases']}")
     logger.info(f"Total issues analyzed: {report.summary['total_issues']}")
     logger.info(f"Classification accuracy: {report.summary['classification_accuracy']:.3f}")
-    logger.info(f"FAISS matching accuracy: {report.summary['faiss_matching_accuracy']:.3f}")
-    logger.info(f"Overall score: {report.summary['overall_score']:.3f}")
+    faiss_acc = report.summary['faiss_matching_accuracy']
+    if faiss_acc is not None:
+        logger.info(f"FAISS matching accuracy: {faiss_acc:.3f}")
+    else:
+        logger.info(f"FAISS matching accuracy: N/A (no expected matches to evaluate)")
 
     cm = report.classification_metrics
     logger.info(f"\nClassification Metrics:")
