@@ -68,11 +68,17 @@ def find_dataset_entry(dataset: List[Dict[str, Any]],
     if id_fields is None:
         id_fields = ['id', 'question']
 
+    logger.info(f"Looking for entry_id: '{entry_id}' in dataset with {len(dataset)} entries")
+
     for item in dataset:
         for field in id_fields:
-            if item.get(field) == entry_id:
+            dataset_value = item.get(field, "")
+            if dataset_value == entry_id:
+                logger.info(f"Found exact match for '{entry_id}' in field '{field}'")
                 return item
 
+    logger.warning(f"No match found for entry_id: '{entry_id}'")
+    logger.info(f"Available dataset IDs: {[item.get('id', 'NO_ID') for item in dataset[:5]]}...")  # Show first 5 for debugging
     return None
 
 

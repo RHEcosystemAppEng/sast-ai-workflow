@@ -11,6 +11,7 @@ Or run directly:
     LLM_API_KEY=your_key python evaluation/runners/run_filter_evaluation.py
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -39,7 +40,8 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
             'PROJECT_VERSION': '1.0.0',
             'INPUT_REPORT_FILE_PATH': '/dev/null',
             'OUTPUT_FILE_PATH': '/dev/null',
-            'REPO_LOCAL_PATH': str(self.project_root)
+            'REPO_LOCAL_PATH': str(self.project_root),
+            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDING_API_KEY', os.getenv('EMBEDDINGS_LLM_API_KEY', ''))
         }
 
     def get_reports_dir(self) -> Path:
@@ -76,7 +78,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         print("=" * 60)
 
         validation_script = self.project_root / "evaluation" / "utils" / "filter_validation.py"
-        dataset_file = self.project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset.json"
+        dataset_file = self.project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset_individual_issues.json"
         reports_dir = self.get_reports_dir()
 
         try:
