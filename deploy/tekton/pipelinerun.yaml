@@ -15,9 +15,9 @@ spec:
     - name: FALSE_POSITIVES_URL
       value: "FALSE_POSITIVES_URL_PLACEHOLDER"
     - name: INPUT_REPORT_FILE_PATH
-      value: "input-report"
+      value: "INPUT_REPORT_FILE_PATH_PLACEHOLDER"
     - name: HUMAN_VERIFIED_FILE_PATH
-      value: ""
+      value: "HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER"
     - name: LLM_URL
       value: "LLM_URL_PLACEHOLDER"
     - name: LLM_MODEL_NAME
@@ -26,10 +26,12 @@ spec:
       value: "EMBEDDINGS_LLM_URL_PLACEHOLDER"
     - name: EMBEDDINGS_LLM_MODEL_NAME
       value: "EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER"
-    - name: INPUT_REPORT_FILE_PATH
-      value: "INPUT_REPORT_FILE_PATH_PLACEHOLDER"
     - name: AGGREGATE_RESULTS_G_SHEET
       value: "AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER"
+    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+      value: "USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER"
+    - name: GDRIVE_FOLDER_ID
+      value: "GDRIVE_FOLDER_ID_PLACEHOLDER"
   workspaces:
     - name: shared-workspace
       persistentVolumeClaim:
