@@ -1,0 +1,148 @@
+name: Run Conditional Evaluation Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  detect-changes:
+    name: Detect changed files
+    runs-on: ubuntu-latest
+    outputs:
+      filter: ${{ steps.changes.outputs.filter }}
+      judge_llm: ${{ steps.changes.outputs.judge_llm }}
+      summarize: ${{ steps.changes.outputs.summarize }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect file changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            filter:
+              - 'src/sast_agent_workflow/tools/filter.py'
+              - 'src/FilterKnownIssues.py'
+              - 'src/services/vector_store_service.py'
+            judge_llm:
+              - 'src/sast_agent_workflow/tools/judge_llm_analysis.py'
+              - 'src/services/issue_analysis_service.py'
+            summarize:
+              - 'src/services/issue_analysis_service.py'
+              - 'src/sast_agent_workflow/tools/summarize_justifications.py'
+
+  filter-evaluation:
+    name: Filter Evaluation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.filter == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/dev-requirements.txt', '**/test-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r test-requirements.txt
+          pip install -e .
+
+      - name: Run filter evaluation
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+        run: |
+          python evaluation/runners/run_filter_evaluation.py
+
+  judge-llm-evaluation:
+    name: Judge LLM Evaluation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.judge_llm == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/dev-requirements.txt', '**/test-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r test-requirements.txt
+          pip install -e .
+
+      - name: Run judge LLM evaluation
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          python evaluation/runners/run_judge_llm_evaluation.py
+
+  summarize-evaluation:
+    name: Summarize Justifications Evaluation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.summarize == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/dev-requirements.txt', '**/test-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r test-requirements.txt
+          pip install -e .
+
+      - name: Run summarize evaluation
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          python evaluation/runners/run_summarize_evaluation.py
