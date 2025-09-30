@@ -113,6 +113,8 @@ spec:
       params:
         - name: FALSE_POSITIVES_URL
           value: "$(params.FALSE_POSITIVES_URL)"
+        - name: USE_KNOWN_FALSE_POSITIVE_FILE
+          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
       workspaces:
         - name: false-positives-workspace
           workspace: shared-workspace

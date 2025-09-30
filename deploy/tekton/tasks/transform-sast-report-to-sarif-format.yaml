@@ -30,8 +30,8 @@ spec:
         echo "Processing report path: $REPORT_PATH"
         echo "Workspace path: $WORKSPACE_PATH"
         
-        # Check if the input is a URL of json file 
-        if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
+        # Check if the input is a URL of json/js/sarif file 
+        if echo "$REPORT_PATH" | grep -qE '^https?://.*\.(json|js|sarif)$'; then
           echo "Detected JSON URL - using direct download ..."
           
           # Download the JSON file
@@ -48,7 +48,7 @@ spec:
           echo "File downloaded successfully ($(wc -c < "$JSON_FILE") bytes)"
           
           # Check if it's a JSON file and convert to SARIF
-          if [[ "$JSON_FILE" == *.(json|js) ]] || file "$JSON_FILE" | grep -q "JSON"; then
+          if echo "$JSON_FILE" | grep -qE '\.(json|js)$' || file "$JSON_FILE" | grep -q "JSON"; then
             echo "Detected JSON file - converting to SARIF format..."
 
             # Install required tools

@@ -15,12 +15,12 @@ from common.constants import (
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
-from ExcelWriter import write_to_excel_file
+from FilterKnownIssues import capture_known_issues
 from handlers.repo_handler_factory import repo_handler_factory
 from LLMService import LLMService
 from MetricHandler import MetricHandler, metric_request_from_prompt
+from report_writers import write_to_excel_file
 from ReportReader import read_sast_report
-from FilterKnownIssues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
