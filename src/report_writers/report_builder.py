@@ -44,7 +44,7 @@ class ReportBuilder:
     def build_sarif_if_applicable(self) -> "ReportBuilder":
         """Build SARIF report if input was SARIF format and output extension is SARIF/JSON."""
         if not self._is_sarif_input():
-            logger.debug("Skipping SARIF generation - input is not SARIF format")
+            logger.info("Skipping SARIF generation - input is not SARIF format")
             return self
 
         # Generate SARIF report using derived path from Excel output

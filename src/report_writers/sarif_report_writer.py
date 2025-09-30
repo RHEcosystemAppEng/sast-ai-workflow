@@ -37,6 +37,10 @@ def _inject_analysis_results(sarif_data, analysis_data, config):
     # Update tool info
     _update_tool_info(sarif_data, config)
 
+    if not analysis_data:
+        logger.info("No analysis data provided, skipping AI analysis")
+        return sarif_data
+
     # Add suppressions to results
     for run in sarif_data.get("runs", []):
         results = run.get("results", [])

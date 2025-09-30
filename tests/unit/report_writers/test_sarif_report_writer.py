@@ -196,14 +196,21 @@ class TestInjectAnalysisResults(SarifTestBase):
         # Verify the original SARIF data is returned (modified in place)
         self.assertEqual(result, self.sarif_data)
 
-    def test_given_empty_analysis_data_with_sarif_results_when_injecting_then_raises_error(self):
-        """Test that empty analysis data with SARIF results raises ValueError."""
-        # Should raise ValueError due to index mismatch (2 SARIF results, 0 analysis data)
-        with self.assertRaises(ValueError) as cm:
-            _inject_analysis_results(self.sarif_data, [], self.mock_config)
+    def test_given_empty_analysis_data_with_sarif_results_when_injecting_then_skips_analysis(self):
+        """Test that empty analysis data with SARIF results skips AI analysis gracefully."""
+        # Should return original SARIF data without modifications when analysis_data is empty
+        result = _inject_analysis_results(self.sarif_data, [], self.mock_config)
 
-        self.assertIn("Index mismatch error", str(cm.exception))
-        self.assertIn("SARIF has 2 results but analysis data has 0 items", str(cm.exception))
+        # Verify the original SARIF data is returned (tool info updated, but no suppressions added)
+        self.assertEqual(result, self.sarif_data)
+
+        # Verify tool info was still updated (this should always happen)
+        self.assertEqual(result["runs"][0]["tool"]["driver"]["name"], "sast-ai")
+
+        # Verify no suppressions were added to results
+        for run in result["runs"]:
+            for result_item in run["results"]:
+                self.assertNotIn("suppressions", result_item)
 
     def test_given_more_sarif_results_than_analysis_data_when_injecting_then_raises_error(self):
         """Test that more SARIF results than analysis data raises ValueError."""

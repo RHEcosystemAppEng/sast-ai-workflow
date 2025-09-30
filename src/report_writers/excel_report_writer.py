@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from datetime import datetime
 
@@ -22,6 +23,9 @@ def write_to_excel_file(data: list, evaluation_summary: EvaluationSummary, confi
     logger.info(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, "*"))
 
     try:
+        # Create output directory if it doesn't exist
+        os.makedirs(os.path.dirname(config.OUTPUT_FILE_PATH), exist_ok=True)
+
         with tqdm(
             total=len(data), file=sys.stdout, desc="Writing to " + config.OUTPUT_FILE_PATH + ": "
         ) as pbar:
