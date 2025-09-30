@@ -66,13 +66,16 @@ def _update_tool_info(sarif_data, config):
         original_name = driver.get("name", "unknown")
         original_version = driver.get("version", "unknown")
 
+        # Get dynamic project version
+        project_version = _get_project_version()
+
         # Update to show AI enhancement
         driver.update(
             {
-                "name": "sast-ai-workflow",
-                "version": "2.0.0",
+                "name": "sast-ai",
+                "version": project_version,
                 "informationUri": "https://github.com/RHEcosystemAppEng/sast-ai-workflow",
-                "organization": "Red Hat",
+                "organization": "Red Hat Ecosystem AppEng",
                 "product": "SAST AI Workflow",
                 "properties": {
                     "originalTool": original_name,
@@ -82,6 +85,18 @@ def _update_tool_info(sarif_data, config):
                 },
             }
         )
+
+
+def _get_project_version():
+    """
+    Get SAST-AI-Workflow project version from build-time environment variable.
+
+    Returns:
+        str: The project version (e.g., "2.0.0")
+    """
+    version = os.getenv("SAST_AI_WORKFLOW_VERSION", "unknown")
+    logger.debug(f"Retrieved static project version: {version}")
+    return version
 
 
 def _add_suppression(sarif_result, issue, summary_info):

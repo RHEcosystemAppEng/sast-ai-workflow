@@ -162,8 +162,8 @@ class TestReportWritersIntegration(unittest.TestCase):
 
         # Verify tool info was updated
         driver = enhanced_sarif["runs"][0]["tool"]["driver"]
-        self.assertEqual(driver["name"], "sast-ai-workflow")
-        self.assertEqual(driver["organization"], "Red Hat")
+        self.assertEqual(driver["name"], "sast-ai")
+        self.assertEqual(driver["organization"], "Red Hat Ecosystem AppEng")
         self.assertIn("originalTool", driver["properties"])
 
         # Verify Excel writer was called with original config

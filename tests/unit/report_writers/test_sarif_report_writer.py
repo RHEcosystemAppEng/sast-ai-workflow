@@ -284,12 +284,12 @@ class TestUpdateToolInfo(SarifTestBase):
         driver = self.sarif_data["runs"][0]["tool"]["driver"]
 
         # Verify main fields are updated
-        self.assertEqual(driver["name"], "sast-ai-workflow")
-        self.assertEqual(driver["version"], "2.0.0")
+        self.assertEqual(driver["name"], "sast-ai")
+        self.assertEqual(driver["version"], "unknown")  # Default when no env var set
         self.assertEqual(
             driver["informationUri"], "https://github.com/RHEcosystemAppEng/sast-ai-workflow"
         )
-        self.assertEqual(driver["organization"], "Red Hat")
+        self.assertEqual(driver["organization"], "Red Hat Ecosystem AppEng")
         self.assertEqual(driver["product"], "SAST AI Workflow")
 
         # Verify properties contain original tool info
@@ -320,7 +320,7 @@ class TestUpdateToolInfo(SarifTestBase):
         _update_tool_info(self.sarif_data, self.mock_config)
 
         driver = self.sarif_data["runs"][0]["tool"]["driver"]
-        self.assertEqual(driver["version"], "2.0.0")  # Default value
+        self.assertEqual(driver["version"], "unknown")  # Default value when no env var
 
     def test_given_multiple_runs_when_updating_tool_then_updates_all_runs(self):
         """Test that all runs are updated when multiple runs exist."""
@@ -333,8 +333,8 @@ class TestUpdateToolInfo(SarifTestBase):
         # Verify both runs were updated
         for run in self.sarif_data["runs"]:
             driver = run["tool"]["driver"]
-            self.assertEqual(driver["name"], "sast-ai-workflow")
-            self.assertEqual(driver["organization"], "Red Hat")
+            self.assertEqual(driver["name"], "sast-ai")
+            self.assertEqual(driver["organization"], "Red Hat Ecosystem AppEng")
 
     def test_given_missing_tool_structure_when_updating_tool_then_handles_gracefully(self):
         """Test that missing tool structure is handled gracefully."""
