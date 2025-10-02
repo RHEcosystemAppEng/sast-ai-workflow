@@ -9,7 +9,7 @@ EMBEDDINGS_LLM_MODEL_NAME: "embedding-llm-model"
 
 EMBEDDING_HTTP_POOL_ENABLED: true
 EMBEDDING_HTTP_POOL_SIZE: 5
-EMBEDDING_HTTP_POOL_TTL: 300
+EMBEDDING_HTTP_POOL_TTL_SECONDS: 300
 EMBEDDING_HTTP_VERIFY_SSL: false  # Set to true for production with valid certificates
 
 INPUT_REPORT_FILE_PATH: "/path/to/report.html"
