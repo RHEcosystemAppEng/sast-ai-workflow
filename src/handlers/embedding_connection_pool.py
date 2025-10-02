@@ -88,15 +88,17 @@ class EmbeddingConnectionPool:
         if self._config is None:
             raise RuntimeError("EmbeddingConnectionPool not configured. Call configure() first.")
 
-        # Check if client needs refresh due to TTL
-        if self._needs_refresh():
-            self._refresh_client()
+        # Thread-safe client creation and refresh
+        with self._lock:
+            # Check if client needs refresh due to TTL
+            if self._needs_refresh():
+                self._refresh_client()
 
-        # Create client if not exists
-        if self._client is None:
-            self._create_pooled_client()
+            # Create client if not exists
+            if self._client is None:
+                self._create_pooled_client()
 
-        return self._client
+            return self._client
 
     def _needs_refresh(self) -> bool:
         """Check if client needs refresh based on TTL."""
