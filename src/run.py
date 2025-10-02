@@ -6,7 +6,12 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND, TOKENIZERS_PARALLELISM
+from common.constants import (
+    FALLBACK_JUSTIFICATION_MESSAGE,
+    KNOWN_ISSUES_SHORT_JUSTIFICATION,
+    NO_MATCHING_TRACE_FOUND,
+    TOKENIZERS_PARALLELISM,
+)
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
@@ -98,18 +103,11 @@ def main():
         if config.USE_KNOWN_FALSE_POSITIVE_FILE:
             already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(
                 llm_service,
-                # [e for e in issue_list if e.id in selected_issue_list],
-                # # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
-                issue_list,  # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
+                issue_list,
                 config,
             )
 
         for issue in issue_list:
-            # if issue.id not in selected_issue_list:
-            # # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
-            #     continue
-
-            # Set default values
             score, critique_response, context = {}, "", ""
             try:
                 if issue.id in already_seen_issues_dict.keys():
