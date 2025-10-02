@@ -7,16 +7,16 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import OpenAIEmbeddings
 from pydantic import Field
 
-from aiq.builder.builder import Builder, LLMFrameworkEnum
-from aiq.builder.function_info import FunctionInfo
-from aiq.cli.register_workflow import register_function
-from aiq.data_models.function import FunctionBaseConfig
+from nat.builder.builder import Builder, LLMFrameworkEnum
+from nat.builder.function_info import FunctionInfo
+from nat.cli.register_workflow import register_function
+from nat.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import PerIssueData, SASTWorkflowTracker
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.constants import KNOWN_FALSE_POSITIVES, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND
 from LLMService import LLMService
-from stage.filter_known_issues import (
+from FilterKnownIssues import (
     create_known_issue_retriever,
     is_known_false_positive,
     convert_similar_issues_to_examples_context_string

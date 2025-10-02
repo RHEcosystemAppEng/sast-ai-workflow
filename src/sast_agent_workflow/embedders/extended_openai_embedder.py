@@ -5,16 +5,16 @@ Extended OpenAI embedder (provider and client) to support tiktoken_enabled, show
 import httpx
 from pydantic import Field
 
-from aiq.builder.builder import Builder
-from aiq.builder.embedder import EmbedderProviderInfo
-from aiq.cli.register_workflow import register_embedder_provider
-from aiq.embedder.openai_embedder import OpenAIEmbedderModelConfig
-from aiq.builder.framework_enum import LLMFrameworkEnum
-from aiq.cli.register_workflow import register_embedder_client
+from nat.builder.builder import Builder
+from nat.builder.embedder import EmbedderProviderInfo
+from nat.cli.register_workflow import register_embedder_provider
+from nat.embedder.openai_embedder import OpenAIEmbedderModelConfig
+from nat.builder.framework_enum import LLMFrameworkEnum
+from nat.cli.register_workflow import register_embedder_client
 
 
 class ExtendedOpenAIEmbedderConfig(OpenAIEmbedderModelConfig, name="extended_openai"):
-    """Extended OpenAI embedder that inherits from AIQ's base config and adds missing parameters."""
+    """Extended OpenAI embedder that inherits from NAT's base config and adds missing parameters."""
 
     # Additional parameters needed for SAST workflow
     tiktoken_enabled: bool = Field(default=False, description="Whether to use tiktoken for tokenization.")
@@ -35,7 +35,7 @@ async def extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder
 @register_embedder_client(config_type=ExtendedOpenAIEmbedderConfig, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 async def extended_openai_langchain(embedder_config: ExtendedOpenAIEmbedderConfig, builder: Builder):
     """Register the extended OpenAI embedder client with extra parameters support.
-       This implementation is exactly the same as the original, but since AIQ maps each client to a provider,
+       This implementation is exactly the same as the original, but since NAT maps each client to a provider,
        we needed to create a new client for the extended provider.
     """
     from langchain_openai import OpenAIEmbeddings

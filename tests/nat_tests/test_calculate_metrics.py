@@ -6,8 +6,8 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.config import Config
-from aiq.builder.builder import Builder
-from tests.aiq_tests.test_utils import TestUtils
+from nat.builder.builder import Builder
+from tests.nat_tests.test_utils import TestUtils
 
 
 class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
@@ -24,7 +24,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         mock_config.WRITE_RESULTS_INCLUDE_NON_FINAL = write_results_include_non_final
         return mock_config
 
-    async def test__aiq_tests__ragas_metrics_disabled_still_calculates(self):
+    async def test__nat_tests__ragas_metrics_disabled_still_calculates(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
         tracker.config = self._create_mock_config(calculate_ragas_metrics=False)
@@ -46,7 +46,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics["has_ground_truth"], False)
         self.assertIsNone(metrics["confusion_matrix"])
 
-    async def test__aiq_tests__no_config_preserves_empty_metrics(self):
+    async def test__nat_tests__no_config_preserves_empty_metrics(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
         tracker.config = None
@@ -59,7 +59,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result_tracker.metrics, {})
         self.assertTrue(any("No config found" in record.message for record in log.records))
 
-    async def test__aiq_tests__no_completed_issues_when_include_non_final_is_false_returns_error(self):
+    async def test__nat_tests__no_completed_issues_when_include_non_final_is_false_returns_error(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True, write_results_include_non_final=False)
@@ -74,7 +74,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result_tracker.metrics["error"], "No completed issues found")
         self.assertEqual(len(result_tracker.metrics), 1)
 
-    async def test__aiq_tests__mixed_issues_when_include_non_final_is_false_processes_only_final(self):
+    async def test__nat_tests__mixed_issues_when_include_non_final_is_false_processes_only_final(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True, write_results_include_non_final=False)
@@ -100,7 +100,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(metrics["predicted_false_positives"], set)
 
     @patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results')
-    async def test__aiq_tests__no_ground_truth_calculates_basic_metrics(self, mock_get_ground_truth):
+    async def test__nat_tests__no_ground_truth_calculates_basic_metrics(self, mock_get_ground_truth):
         # preparation
         mock_get_ground_truth.return_value = None
 
@@ -136,7 +136,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         mock_get_ground_truth.assert_called_once_with(tracker.config)
 
     @patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results')
-    async def test__aiq_tests__with_ground_truth_calculates_full_metrics(self, mock_get_ground_truth):
+    async def test__nat_tests__with_ground_truth_calculates_full_metrics(self, mock_get_ground_truth):
         # preparation
         mock_ground_truth = {
             "def1": "yes",
@@ -179,7 +179,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cm["false_negatives"], 0)  # AI incorrectly marked as negative
 
     @patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results')
-    async def test__aiq_tests__perfect_predictions_calculates_correct_metrics(self, mock_get_ground_truth):
+    async def test__nat_tests__perfect_predictions_calculates_correct_metrics(self, mock_get_ground_truth):
         # preparation
         mock_ground_truth = {
             "def1": "no",
@@ -209,7 +209,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(metrics["actual_true_positives"], set)
 
     @patch('sast_agent_workflow.tools.calculate_metrics.get_human_verified_results')
-    async def test__aiq_tests__calculation_failure_captures_error(self, mock_get_ground_truth):
+    async def test__nat_tests__calculation_failure_captures_error(self, mock_get_ground_truth):
         # preparation
         mock_get_ground_truth.side_effect = Exception("Ground truth loading failed")
         
@@ -229,7 +229,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result_tracker.issues), 2)
         self.assertEqual(tracker.iteration_count, result_tracker.iteration_count)
 
-    async def test__aiq_tests__empty_tracker_returns_error(self):
+    async def test__nat_tests__empty_tracker_returns_error(self):
         # preparation
         tracker = SASTWorkflowTracker(issues={})
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
@@ -240,7 +240,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         # assertion
         self.assertEqual(result_tracker.metrics, {"error": "No completed issues found"})
 
-    async def test__aiq_tests__preserves_all_other_data_unchanged(self):
+    async def test__nat_tests__preserves_all_other_data_unchanged(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True)
@@ -268,7 +268,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(per_issue_data.source_code, dict)
             self.assertEqual(per_issue_data.issue.id, original_issues[issue_id].issue.id)
 
-    async def test__aiq_tests__critique_enabled_uses_correct_config(self):
+    async def test__nat_tests__critique_enabled_uses_correct_config(self):
         # preparation
         tracker = TestUtils.create_sample_tracker(self.sample_issues)
         tracker.config = self._create_mock_config(calculate_ragas_metrics=True, use_critique_as_final=True)

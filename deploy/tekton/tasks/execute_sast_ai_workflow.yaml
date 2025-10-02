@@ -15,6 +15,10 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: ""
+    - name: HUMAN_VERIFIED_FILE_PATH
+      type: string
+      description: "Path to human verified file for validation"
+      default: ""
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: ""
@@ -43,6 +47,7 @@ spec:
     - name: llm-credentials-ws
     - name: google-sa-json-ws
     - name: cache-workspace
+    - name: report-workspace
   steps:
     - name: run-sast-ai-workflow
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest
@@ -59,6 +64,8 @@ spec:
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: HUMAN_VERIFIED_FILE_PATH
+          value: "$(params.HUMAN_VERIFIED_FILE_PATH)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: LLM_URL
@@ -96,42 +103,42 @@ spec:
         - name: ANALYSIS_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: analysis_system_prompt
         - name: ANALYSIS_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: analysis_human_prompt
         - name: FILTER_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: filter_system_prompt
         - name: FILTER_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: filter_human_prompt
         - name: RECOMMENDATIONS_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: recommendations_prompt
         - name: JUSTIFICATION_SUMMARY_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: justification_summary_system_prompt
         - name: JUSTIFICATION_SUMMARY_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: justification_summary_human_prompt
         - name: EVALUATION_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: evaluation_prompt
         - name: TMPDIR # Directs tempfile module and others
           value: "$(workspaces.cache-workspace.path)/tmp" 
@@ -164,7 +171,7 @@ spec:
         du -sh "$(workspaces.cache-workspace.path)" || echo "cache-workspace not found or inaccessible"
         echo "--- END: Storage Redirection Setup ---"
 
-        echo "Running SAST-AI-Workflow with aiq..."
-        aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+        echo "Running SAST-AI-Workflow with nat..."
+        nat run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
         
        

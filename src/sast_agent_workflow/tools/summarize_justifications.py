@@ -2,15 +2,16 @@ import logging
 
 from pydantic import Field
 
-from aiq.builder.builder import Builder, LLMFrameworkEnum
-from aiq.builder.function_info import FunctionInfo
-from aiq.cli.register_workflow import register_function
-from aiq.data_models.function import FunctionBaseConfig
+from nat.builder.builder import Builder, LLMFrameworkEnum
+from nat.builder.function_info import FunctionInfo
+from nat.cli.register_workflow import register_function
+from nat.data_models.function import FunctionBaseConfig
 
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from dto.ResponseStructures import JudgeLLMResponse
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
+from common.constants import DEFAULT_FIELD_VALUE
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ async def summarize_justifications(
         
         for issue_id, per_issue_data in tracker.issues.items():
             if (per_issue_data.analysis_response and 
-                not per_issue_data.analysis_response.short_justifications):
+                per_issue_data.analysis_response.short_justifications == DEFAULT_FIELD_VALUE):
                 
                 logger.debug(f"Summarizing justifications for issue {issue_id}")
                 try:

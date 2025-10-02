@@ -15,7 +15,7 @@ deploy/
 └── tekton/                     # Kubernetes/Tekton resources
     ├── tasks/                  # Individual pipeline tasks
     ├── scripts/                # ConfigMaps for pipeline scripts  
-    ├── prompts-config-map.yaml # Generated prompt templates
+    ├── sast-ai-prompt-templates.yaml # Generated prompt templates
     └── *.yaml                  # Other pipeline resources
 ```
 
@@ -75,11 +75,39 @@ make secrets
 
 This creates all required Kubernetes secrets and patches the pipeline service account.
 
-### 4. Makefile Commands
+### 4. Resource Naming Convention
+
+All SAST AI Workflow resources use the `sast-ai-` prefix for easy identification and management:
+
+**Secrets:**
+- `sast-ai-gitlab-token` - GitLab access token
+- `sast-ai-default-llm-creds` - LLM and embeddings API credentials
+- `sast-ai-google-service-account` - Google service account JSON
+- `sast-ai-quay-registry-config` - Container registry pull credentials
+
+**ConfigMaps:**
+- `sast-ai-prompt-templates` - LLM prompt templates
+- `sast-ai-gdrive-upload-scripts` - Google Drive upload scripts
+- `sast-ai-gdrive-config` - Google Drive folder ID (optional)
+
+
+**PVCs:**
+- `sast-ai-workflow-pvc` - Main workspace storage
+- `sast-ai-cache-pvc` - Build cache storage
+
+This naming convention allows administrators to quickly filter and manage SAST AI resources:
+```bash
+# View all SAST AI resources
+oc get all,secrets,configmaps,pvc -l app=sast-ai
+# Or use grep filtering
+oc get secrets | grep sast-ai
+```
+
+### 5. Makefile Commands
 
 | Command | Description |
 |---------|-------------|
-| `all` | Complete deployment: setup + tasks + pipeline + run |
+| `deploy` | Complete deployment: setup + tasks + pipeline + prompts + argocd-deploy |
 | `setup` | Create PVCs and secrets |
 | `secrets` | Create secrets from .env file |
 | `pvc` | Create persistent volume claims |
@@ -87,84 +115,79 @@ This creates all required Kubernetes secrets and patches the pipeline service ac
 | `generate-prompts` | Generate ConfigMap from prompt template files |
 | `prompts` | Generate and apply prompts ConfigMap to cluster |
 | `pipeline` | Apply pipeline definition |
-| `run` | Execute pipeline (requires tkn CLI or shows manual command) |
-| `logs` | View pipeline logs |
+| `run` | Execute pipeline using oc apply with PipelineRun |
 | `clean` | **⚠️ Deletes ALL resources in namespace including PVCs** |
-| **GitOps** | |
+| **ArgoCD GitOps** | |
 | `argocd-deploy` | Deploy ArgoCD Application for automated GitOps |
-| `argocd-status` | Check ArgoCD sync and health status |
-| `argocd-sync` | Trigger manual sync |
 | `argocd-clean` | Remove ArgoCD Application |
-| `gitops-setup` | Complete GitOps setup with overview |
 
-### 5. Quick Start
+### 6. Quick Start
 
-#### 5.1. Create OpenShift Project
+#### 6.1. Create OpenShift Project
 
 ```bash
 oc new-project sast-ai-workflow
 oc project sast-ai-workflow
 ```
 
-#### 5.2. Run Everything
+#### 6.2. Run Everything
 
 ```bash
-make all
+make deploy
 ```
 
-**Note:** If Tekton CLI (`tkn`) is not installed, the command completes infrastructure setup and shows the manual pipeline execution command.
+**Note:** This sets up the complete infrastructure including ArgoCD GitOps but does not execute the pipeline. To run the pipeline, use `make run` separately.
 
-#### 5.3. Run with Custom Parameters
+#### 6.3. Run with Custom Parameters
 
 ```bash
-make all PROJECT_NAME="systemd" \
+make deploy PROJECT_NAME="systemd" \
  PROJECT_VERSION="257-9" \
  REPO_REMOTE_URL="https://download.devel.redhat.com/brewroot/vol/rhel-10/packages/systemd/257/9.el10/src/systemd-257-9.el10.src.rpm" \
  INPUT_REPORT_FILE_PATH="https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY/export?format=csv" \
  FALSE_POSITIVES_URL="https://gitlab.cee.redhat.com/osh/known-false-positives/-/raw/master/systemd/ignore.err"
 ```
 
-### 6. Step-by-Step Alternative
+### 7. Step-by-Step Alternative
 
 If you prefer individual steps:
 
 ```bash
-make setup          # Infrastructure only
-make tasks pipeline  # Tekton resources
-make run            # Execute pipeline
+make setup                # Infrastructure only
+make tasks pipeline       # Tekton resources
+make prompts             # Prompt templates
+make argocd-deploy       # GitOps setup
+make run                 # Execute pipeline (optional)
 ```
 
-### 7. GitOps with ArgoCD
+### 8. GitOps with ArgoCD
 
 For VPN-protected clusters, use GitOps to automatically sync Tekton resources from GitHub.
 
-#### 7.1. Prerequisites
+#### 8.1. Prerequisites
 - ArgoCD installed in your cluster (e.g., in `sast-ai` namespace)
 - Repository access from within the cluster
 
-#### 7.2. Deploy GitOps
+#### 8.2. Deploy GitOps
 ```bash
 # Deploy ArgoCD Application
 make argocd-deploy
-
-# Check sync status
-make argocd-status
 ```
 
-#### 7.3. How It Works
+#### 8.3. How It Works
 - **Auto-sync**: Changes to `main` branch deploy automatically (~3 min)
 - **Self-healing**: Manual changes are automatically reverted
 - **Pruning**: Deleted files are removed from cluster
 - **Path**: Only syncs `deploy/tekton/` directory
 
-#### 7.4. Configuration
+#### 8.4. Configuration
 Set in `.env` file (optional):
 ```env
 GITHUB_REPO_URL=https://github.com/your-org/sast-ai-workflow.git
 ARGOCD_NAMESPACE=sast-ai
 ```
 
-#### 7.5. Prompt Changes with GitOps
+#### 8.5. Prompt Changes with GitOps
 When modifying prompts in `src/templates/prompts/`, you must regenerate the ConfigMap:
 
 ```bash
@@ -173,7 +196,7 @@ When modifying prompts in `src/templates/prompts/`, you must regenerate the Conf
 make generate-prompts
 
 # 3. Commit the updated ConfigMap
-git add deploy/tekton/prompts-config-map.yaml
+git add deploy/tekton/sast-ai-prompt-templates.yaml
 git commit -m "Update prompts"
 git push
 
@@ -182,11 +205,11 @@ git push
 
 **Note**: This is only needed when changing prompts, not for regular commits.
 
-### 8. Customizing Prompts
+### 9. Customizing Prompts
 
 The SAST AI Workflow uses a template-based prompt system with a single source of truth. Prompts are now managed through individual template files rather than being hardcoded.
 
-#### 7.1. Template-Based Prompt System
+#### 9.1. Template-Based Prompt System
 
 All prompts are stored as individual YAML template files in `src/templates/prompts/`:
 
@@ -202,7 +225,7 @@ src/templates/prompts/
 └── evaluation_prompt.yaml
 ```
 
-#### 7.2. How to Customize Prompts
+#### 9.2. How to Customize Prompts
 
 **Option 1: Edit Template Files (Recommended)**
 
@@ -226,16 +249,16 @@ export FILTER_SYSTEM_PROMPT="Another custom prompt..."
 
 **Option 3: Direct ConfigMap Edit (Not Recommended)**
 
-Edit `deploy/tekton/prompts-config-map.yaml` directly, but note that changes will be lost when `make generate-prompts` is run.
+Edit `deploy/tekton/sast-ai-prompt-templates.yaml` directly, but note that changes will be lost when `make generate-prompts` is run.
 
-#### 7.3. Prompt Template Guidelines
+#### 9.3. Prompt Template Guidelines
 
 - Keep `{placeholder}` variables intact (e.g., `{cve_error_trace}`, `{context}`)
 - Use YAML literal block scalar (`|`) for multi-line prompts
 - Test prompts locally before deploying to cluster
 - Document any significant changes for team members
 
-#### 7.4. Applying Prompt Changes
+#### 9.4. Applying Prompt Changes
 
 ```bash
 # Option 1: Regenerate and apply (recommended)
@@ -246,10 +269,10 @@ make generate-prompts  # Generate ConfigMap from templates
 make prompts          # Apply to cluster
 
 # Option 3: Apply without regenerating (if manually edited)
-oc apply -f tekton/prompts-config-map.yaml
+oc apply -f tekton/sast-ai-prompt-templates.yaml
 ```
 
-### 9. Testing Prompt Generation
+### 10. Testing Prompt Generation
 
 Before deploying, you can test prompt generation locally:
 
@@ -259,19 +282,19 @@ cd deploy
 make generate-prompts
 
 # Verify the generated ConfigMap looks correct
-head -20 tekton/prompts-config-map.yaml
+head -20 tekton/sast-ai-prompt-templates.yaml
 
 # Check that all 8 prompts are included
-grep -c "prompt:" tekton/prompts-config-map.yaml  # Should show 8
+grep -c "prompt:" tekton/sast-ai-prompt-templates.yaml  # Should show 8
 ```
 
 This ensures all template files are valid and the ConfigMap generation works correctly.
 
-### 10. Troubleshooting
+### 11. Troubleshooting
 
 #### General Issues
-- **View logs:** `make logs`
+- **View logs:** `oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -f`
 - **Clean environment:** `make clean` (⚠️ deletes everything)
 - **Check secrets:** `oc get secrets`
-- **Manual pipeline execution:** Use the command displayed when `tkn` CLI is not available
+- **Manual pipeline execution:** Use `make run` or execute via OpenShift console
 

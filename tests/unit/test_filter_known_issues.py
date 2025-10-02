@@ -1,10 +1,10 @@
 """
-Tests for capture_known_issues function in stage/filter_known_issues.py
+Tests for capture_known_issues function in FilterKnownIssues.py
 Covers LLM vector search for identifying known false positives.
 """
 import pytest
 from unittest.mock import Mock, patch
-from src.stage.filter_known_issues import capture_known_issues
+from src.FilterKnownIssues import capture_known_issues
 from dto.Issue import Issue
 
 
@@ -27,7 +27,7 @@ class TestCaptureKnownIssues:
         issue_list = [issue1]
         
         # testing
-        with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=valid_known_issues):
+        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=valid_known_issues):
             with caplog.at_level('ERROR'):
                 with pytest.raises(Exception, match="FAISS embedding failed"):
                     capture_known_issues(mock_llm_service, issue_list, mock_config)
@@ -80,7 +80,7 @@ class TestCaptureKnownIssues:
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
         
         # testing
-        with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=valid_known_issues):
+        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=valid_known_issues):
             with caplog.at_level('ERROR'):
                 with pytest.raises(Exception, match="Processing failed for issue2"):
                     capture_known_issues(mock_llm_service, issue_list, mock_config)
@@ -136,7 +136,7 @@ class TestCaptureKnownIssues:
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
         
         # testing
-        with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=valid_known_issues):
+        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=valid_known_issues):
             already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
             
             # assertion
@@ -165,7 +165,7 @@ class TestCaptureKnownIssues:
         issue_list = [Issue(id="issue1")]
         
         # testing
-        with patch('src.stage.filter_known_issues.read_known_errors_file', side_effect=FileNotFoundError("File not found")):
+        with patch('src.FilterKnownIssues.read_known_errors_file', side_effect=FileNotFoundError("File not found")):
             with caplog.at_level('ERROR'):
                 with pytest.raises(FileNotFoundError, match="File not found"):
                     capture_known_issues(mock_llm_service, issue_list, mock_config)
@@ -195,7 +195,7 @@ class TestCaptureKnownIssues:
         mock_llm_service.filter_known_error.return_value = mock_response
         
         # testing
-        with patch('src.stage.filter_known_issues.read_known_errors_file', return_value=[]):
+        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=[]):
             already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
             
             # assertion
