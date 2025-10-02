@@ -120,6 +120,14 @@ class EmbeddingConnectionPool:
 
     def _create_pooled_client(self) -> None:
         """Create new pooled HTTP client."""
+        # Close existing client before creating new one to prevent resource leak
+        if self._client is not None:
+            try:
+                self._client.close()
+                logging.debug("Closed existing HTTP client before creating new one")
+            except Exception as e:
+                logging.warning(f"Error closing existing HTTP client: {e}")
+
         try:
             limits = httpx.Limits(
                 max_keepalive_connections=self._pool_size,
@@ -142,8 +150,10 @@ class EmbeddingConnectionPool:
 
         except Exception as e:
             logging.error(f"Failed to create pooled HTTP client: {e}")
-            # Fallback to fresh client
+            # Fallback to fresh client with proper SSL configuration
             self._client = self._create_fresh_client()
+            # Reset created_at since this is now a fresh client, not pooled
+            self._created_at = None
 
     def _create_fresh_client(self) -> httpx.Client:
         """Create a fresh HTTP client without pooling (fallback behavior)."""
