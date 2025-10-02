@@ -98,6 +98,13 @@ class EmbeddingConnectionPool:
             if self._client is None:
                 self._create_pooled_client()
 
+            # Ensure we always return a valid client
+            if self._client is None:
+                logging.error(
+                    "All client creation attempts failed, creating emergency fallback client"
+                )
+                return self._create_fresh_client()
+
             return self._client
 
     def _needs_refresh(self) -> bool:
