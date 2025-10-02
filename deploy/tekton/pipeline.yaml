@@ -56,12 +56,9 @@ spec:
       description: "Whether to use known false positive file for filtering (true/false)"
       default: "true"
   workspaces:
-    - name: shared-workspace
     - name: gitlab-token-ws
       optional: true
-    - name: llm-credentials-ws 
     - name: google-sa-json-ws 
-    - name: cache-workspace
   tasks:
     - name: validate-urls
       taskRef:
@@ -120,8 +117,6 @@ spec:
           workspace: gitlab-token-ws
 
     - name: execute-ai-analysis
-      runAfter:
-        - fetch-false-positives
       taskRef:
         name: execute-ai-analysis
       params:
@@ -129,8 +124,10 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
-        - name: REPO_LOCAL_PATH
-          value: $(tasks.prepare-source.results.repo-local-path)
+        - name: REPO_REMOTE_URL
+          value: "$(params.REPO_REMOTE_URL)"
+        - name: FALSE_POSITIVES_URL
+          value: "$(params.FALSE_POSITIVES_URL)"
         - name: INPUT_REPORT_FILE_PATH
           value: $(tasks.transform-sast-report-to-sarif-format.results.report-file-path)
         - name: HUMAN_VERIFIED_FILE_PATH
@@ -145,17 +142,15 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
-        - name: AGGREGATE_RESULTS_G_SHEET
-          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: USE_KNOWN_FALSE_POSITIVE_FILE
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        - name: GDRIVE_FOLDER_ID
+          value: "$(params.GDRIVE_FOLDER_ID)"
+        - name: GDRIVE_SA_FILE_NAME
+          value: "$(params.GDRIVE_SA_FILE_NAME)"
       workspaces:
-        - name: source-workspace
-          workspace: shared-workspace
-        - name: false-positives-workspace
-          workspace: shared-workspace
-        - name: llm-credentials-ws
-          workspace: llm-credentials-ws
+        - name: gitlab-token-ws
+          workspace: gitlab-token-ws
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
         - name: cache-workspace

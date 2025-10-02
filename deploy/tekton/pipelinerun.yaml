@@ -31,9 +31,6 @@ spec:
     - name: AGGREGATE_RESULTS_G_SHEET
       value: "AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER"
   workspaces:
-    - name: shared-workspace
-      persistentVolumeClaim:
-        claimName: sast-ai-workflow-pvc
     - name: gitlab-token-ws
       secret:
         secretName: sast-ai-gitlab-token
@@ -42,13 +39,10 @@ spec:
             path: gitlab_token
     - name: llm-credentials-ws
       secret:
-        secretName: sast-ai-default-llm-creds 
+        secretName: sast-ai-default-llm-creds
     - name: google-sa-json-ws 
       secret:
         secretName: sast-ai-google-service-account 
         items:
           - key: service_account.json 
             path: service_account.json
-    - name: cache-workspace
-      persistentVolumeClaim:
-        claimName: sast-ai-cache-pvc
