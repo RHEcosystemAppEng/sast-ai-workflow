@@ -2,14 +2,16 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from common.config import Config
+from dto.Issue import Issue
+from dto.SummaryInfo import SummaryInfo
 
 logger = logging.getLogger(__name__)
 
 
-def generate_sarif_report_with_ai_analysis(data: List, config: Config):
+def generate_sarif_report_with_ai_analysis(data: List[Tuple[Issue, SummaryInfo]], config: Config):
     """
     Generate SARIF report with AI analysis suppressions and properties.
     Simple, focused function - no classes needed.
@@ -49,10 +51,12 @@ def _inject_analysis_results(sarif_data, analysis_data, config):
         # Validate that SARIF results and analysis data have matching sizes
         # This is critical since we depend on index matching
         if len(results) != len(analysis_data):
-            raise ValueError(
-                f"Index mismatch error: SARIF has {len(results)} results but analysis data has "
-                f"{len(analysis_data)} items. Index-based matching requires equal counts."
+            logger.warning(
+                f"Count mismatch: SARIF has {len(results)} results but analysis data has "
+                f"{len(analysis_data)} items. Skipping AI analysis to avoid mismatched "
+                f"suppressions."
             )
+            return sarif_data
 
         # Process all results with matching analysis data
         for i, result in enumerate(results):

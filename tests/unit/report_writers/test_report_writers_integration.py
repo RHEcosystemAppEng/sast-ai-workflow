@@ -247,10 +247,10 @@ class TestReportWritersIntegration(unittest.TestCase):
             self.assertEqual(ai_analysis["investigation_result"], expected_result)
             self.assertEqual(ai_analysis["recommendations"], [f"Recommendation {i+1}"])
 
-    def test_given_mismatched_sarif_and_analysis_counts_when_writing_results_then_raises_error(
+    def test_given_mismatched_counts_when_writing_results_then_handles_gracefully(
         self,
     ):
-        """Integration test: Mismatched SARIF and analysis counts should raise ValueError."""
+        """Integration test: Mismatched SARIF and analysis counts should be handled gracefully."""
         # Setup paths
         sarif_output_path = os.path.join(self.output_dir, "enhanced.sarif")
         self.mock_config.INPUT_REPORT_FILE_PATH = self.sarif_input_path
@@ -273,12 +273,24 @@ class TestReportWritersIntegration(unittest.TestCase):
 
         # Mock Excel writer to focus on SARIF functionality
         with patch("report_writers.excel_report_writer.write_to_excel_file"):
-            # Should raise ValueError due to index mismatch
-            with self.assertRaises(ValueError) as cm:
-                write_analysis_results(mismatched_data, self.evaluation_summary, self.mock_config)
+            # Should handle gracefully - no exception raised
+            write_analysis_results(mismatched_data, self.evaluation_summary, self.mock_config)
 
-            self.assertIn("Index mismatch error", str(cm.exception))
-            self.assertIn("SARIF has 2 results but analysis data has 3 items", str(cm.exception))
+        # Verify SARIF file was created (even with mismatch)
+        self.assertTrue(os.path.exists(sarif_output_path))
+
+        # Verify SARIF content - should have tool info updated but no suppressions due to mismatch
+        with open(sarif_output_path, "r") as f:
+            enhanced_sarif = json.load(f)
+
+        # Check that tool info was updated
+        driver = enhanced_sarif["runs"][0]["tool"]["driver"]
+        self.assertEqual(driver["name"], "sast-ai")
+
+        # Check that NO suppressions were added due to count mismatch
+        results = enhanced_sarif["runs"][0]["results"]
+        for result in results:
+            self.assertNotIn("suppressions", result)
 
 
 if __name__ == "__main__":

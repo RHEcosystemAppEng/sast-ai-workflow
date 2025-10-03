@@ -2,10 +2,12 @@ import copy
 import json
 import logging
 import os
-from typing import List
+from typing import List, Tuple
 
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
+from dto.Issue import Issue
+from dto.SummaryInfo import SummaryInfo
 
 from .excel_report_writer import write_to_excel_file
 from .sarif_report_writer import generate_sarif_report_with_ai_analysis
@@ -111,7 +113,7 @@ class ReportBuilder:
 
 # Public API function (maintains backward compatibility)
 def write_analysis_results(
-    data: List, evaluation_summary: EvaluationSummary, config: Config
+    data: List[Tuple[Issue, SummaryInfo]], evaluation_summary: EvaluationSummary, config: Config
 ) -> None:
     """
     Write analysis results using the Builder pattern.

@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from typing import List, Tuple
 
 import gspread
 import xlsxwriter
@@ -11,6 +12,8 @@ from tqdm import tqdm
 
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
+from dto.Issue import Issue
+from dto.SummaryInfo import SummaryInfo
 from Utils.file_utils import get_google_sheet
 from Utils.log_utils import log_attempt_number
 from Utils.metrics_utils import get_metrics, get_percentage_value
@@ -19,7 +22,9 @@ from Utils.output_utils import cell_formatting
 logger = logging.getLogger(__name__)
 
 
-def write_to_excel_file(data: list, evaluation_summary: EvaluationSummary, config: Config):
+def write_to_excel_file(
+    data: List[Tuple[Issue, SummaryInfo]], evaluation_summary: EvaluationSummary, config: Config
+):
     logger.info(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, "*"))
 
     try:

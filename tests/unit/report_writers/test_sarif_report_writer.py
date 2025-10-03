@@ -212,30 +212,49 @@ class TestInjectAnalysisResults(SarifTestBase):
             for result_item in run["results"]:
                 self.assertNotIn("suppressions", result_item)
 
-    def test_given_more_sarif_results_than_analysis_data_when_injecting_then_raises_error(self):
-        """Test that more SARIF results than analysis data raises ValueError."""
+    def test_given_more_sarif_results_than_analysis_data_when_injecting_then_skips_analysis(self):
+        """Test that more SARIF results than analysis data skips AI analysis gracefully."""
         # More results than analysis data
         extra_result = {"ruleId": "rule3", "message": {"text": "Third issue"}, "locations": []}
         self.sarif_data["runs"][0]["results"].append(extra_result)
 
-        # Should raise ValueError due to index mismatch
-        with self.assertRaises(ValueError) as cm:
-            _inject_analysis_results(self.sarif_data, self.analysis_data, self.mock_config)
+        # Should handle gracefully - no exception raised, but AI analysis is skipped
+        result = _inject_analysis_results(self.sarif_data, self.analysis_data, self.mock_config)
 
-        self.assertIn("Index mismatch error", str(cm.exception))
-        self.assertIn("SARIF has 3 results but analysis data has 2 items", str(cm.exception))
+        # Verify the result is returned (not None)
+        self.assertIsNotNone(result)
 
-    def test_given_more_analysis_data_than_sarif_results_when_injecting_then_raises_error(self):
-        """Test that more analysis data than SARIF results raises ValueError."""
+        # Verify that NO suppressions were added due to count mismatch
+        results = result["runs"][0]["results"]
+        self.assertEqual(len(results), 3)
+
+        # None should have suppressions (AI analysis was skipped)
+        for result_item in results:
+            self.assertNotIn("suppressions", result_item)
+
+        # Tool info should still be updated
+        self.assertEqual(result["runs"][0]["tool"]["driver"]["name"], "sast-ai")
+
+    def test_given_more_analysis_data_than_sarif_results_when_injecting_then_skips_analysis(self):
+        """Test that more analysis data than SARIF results skips AI analysis gracefully."""
         # More analysis data than SARIF results - remove one SARIF result
         self.sarif_data["runs"][0]["results"].pop()
 
-        # Should raise ValueError due to index mismatch
-        with self.assertRaises(ValueError) as cm:
-            _inject_analysis_results(self.sarif_data, self.analysis_data, self.mock_config)
+        # Should handle gracefully - no exception raised, but AI analysis is skipped
+        result = _inject_analysis_results(self.sarif_data, self.analysis_data, self.mock_config)
 
-        self.assertIn("Index mismatch error", str(cm.exception))
-        self.assertIn("SARIF has 1 results but analysis data has 2 items", str(cm.exception))
+        # Verify the result is returned (not None)
+        self.assertIsNotNone(result)
+
+        # Verify that NO suppressions were added due to count mismatch
+        results = result["runs"][0]["results"]
+        self.assertEqual(len(results), 1)
+
+        # No suppressions should be added (AI analysis was skipped)
+        self.assertNotIn("suppressions", results[0])
+
+        # Tool info should still be updated
+        self.assertEqual(result["runs"][0]["tool"]["driver"]["name"], "sast-ai")
 
     def test_given_sarif_with_no_runs_when_injecting_then_handles_gracefully(self):
         """Test that SARIF data with no runs is handled gracefully."""
@@ -244,21 +263,24 @@ class TestInjectAnalysisResults(SarifTestBase):
         result = _inject_analysis_results(sarif_no_runs, self.analysis_data, self.mock_config)
         self.assertEqual(result, sarif_no_runs)
 
-    def test_given_sarif_run_with_no_results_and_analysis_data_when_injecting_then_raises_error(
+    def test_given_sarif_run_with_no_results_and_analysis_data_when_injecting_then_skips_analysis(
         self,
     ):
-        """Test that SARIF run with no results but analysis data raises ValueError."""
+        """Test that SARIF run with no results but analysis data skips AI analysis gracefully."""
         sarif_no_results = {
             "version": "2.1.0",
             "runs": [{"tool": {"driver": {"name": "test"}}, "results": []}],
         }
 
-        # Should raise ValueError due to index mismatch (0 SARIF results, 2 analysis data)
-        with self.assertRaises(ValueError) as cm:
-            _inject_analysis_results(sarif_no_results, self.analysis_data, self.mock_config)
+        # Should handle gracefully - no exception raised, AI analysis skipped
+        result = _inject_analysis_results(sarif_no_results, self.analysis_data, self.mock_config)
 
-        self.assertIn("Index mismatch error", str(cm.exception))
-        self.assertIn("SARIF has 0 results but analysis data has 2 items", str(cm.exception))
+        # Verify the result is returned and unchanged (no results to process)
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result["runs"][0]["results"]), 0)
+
+        # Tool info should still be updated
+        self.assertEqual(result["runs"][0]["tool"]["driver"]["name"], "sast-ai")
 
     def test_given_sarif_run_with_no_results_and_no_analysis_data_when_injecting_then_succeeds(
         self,
