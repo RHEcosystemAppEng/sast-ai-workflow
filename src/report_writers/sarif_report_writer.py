@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 from typing import List
 
 from common.config import Config
@@ -93,14 +94,32 @@ def _update_tool_info(sarif_data, config):
 
 def _get_project_version():
     """
-    Get SAST-AI-Workflow project version from build-time environment variable.
+    Get SAST-AI-Workflow project version from pyproject.toml.
 
     Returns:
         str: The project version (e.g., "2.0.0")
     """
-    version = os.getenv("SAST_AI_WORKFLOW_VERSION", "unknown")
-    logger.debug(f"Retrieved static project version: {version}")
-    return version
+    try:
+        import tomllib
+
+        # Direct path to pyproject.toml from src/report_writers/
+        pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+
+        with open(pyproject_path, "rb") as f:
+            pyproject_data = tomllib.load(f)
+
+        # Get version from project section
+        version = pyproject_data.get("project", {}).get("version")
+        if version:
+            logger.debug(f"Retrieved project version from pyproject.toml: {version}")
+            return version
+
+        logger.warning("Could not find version in pyproject.toml")
+        return "unknown"
+
+    except Exception as e:
+        logger.warning(f"Error reading project version from pyproject.toml: {e}")
+        return "unknown"
 
 
 def _add_suppression(sarif_result, issue, summary_info):

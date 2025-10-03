@@ -292,7 +292,7 @@ class TestUpdateToolInfo(SarifTestBase):
 
         # Verify main fields are updated
         self.assertEqual(driver["name"], "sast-ai")
-        self.assertEqual(driver["version"], "unknown")  # Default when no env var set
+        self.assertEqual(driver["version"], "2.0.0")  # Read from pyproject.toml
         self.assertEqual(
             driver["informationUri"], "https://github.com/RHEcosystemAppEng/sast-ai-workflow"
         )
@@ -327,7 +327,7 @@ class TestUpdateToolInfo(SarifTestBase):
         _update_tool_info(self.sarif_data, self.mock_config)
 
         driver = self.sarif_data["runs"][0]["tool"]["driver"]
-        self.assertEqual(driver["version"], "unknown")  # Default value when no env var
+        self.assertEqual(driver["version"], "2.0.0")  # Read from pyproject.toml
 
     def test_given_multiple_runs_when_updating_tool_then_updates_all_runs(self):
         """Test that all runs are updated when multiple runs exist."""

@@ -20,9 +20,6 @@ USER 1001
 # Set version for setuptools-scm since .git folder is not available in container
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
 
-# Accept version as build argument and set as environment variable
-ARG SAST_AI_WORKFLOW_VERSION=unknown
-ENV SAST_AI_WORKFLOW_VERSION=${SAST_AI_WORKFLOW_VERSION}
 
 RUN pip install -e . 
 
