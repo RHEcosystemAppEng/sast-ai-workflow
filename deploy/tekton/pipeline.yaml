@@ -97,7 +97,3 @@ spec:
           workspace: gitlab-token-ws
         - name: google-sa-json-ws
           workspace: google-sa-json-ws
-        - name: cache-workspace
-          workspace: cache-workspace
-        - name: report-workspace
-          workspace: shared-workspace

@@ -69,8 +69,6 @@ spec:
       description: "Optional secret mount for GitLab token (if needed)"
       optional: true
     - name: google-sa-json-ws
-    - name: cache-workspace
-    - name: report-workspace
 
   results:
     - name: repo-local-path
@@ -87,7 +85,7 @@ spec:
         sizeLimit: "5Gi"
     - name: gdrive-scripts
       configMap:
-        name: gdrive-upload-scripts
+        name: sast-ai-gdrive-upload-scripts
         defaultMode: 0755
 
   steps:
@@ -312,7 +310,7 @@ spec:
           echo "File downloaded successfully ($(wc -c < "$JSON_FILE") bytes)"
           
           # Check if it's a JSON file and convert to SARIF
-          if [[ "$JSON_FILE" == *.(json|js) ]] || file "$JSON_FILE" | grep -q "JSON"; then
+          if [[ "$JSON_FILE" =~ \.(json|js)$ ]] || file "$JSON_FILE" | grep -q "JSON"; then
             echo "Detected JSON file - converting to SARIF format..."
 
             # Install required tools
