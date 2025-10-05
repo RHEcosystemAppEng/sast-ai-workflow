@@ -204,51 +204,6 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
-logs:
-	# Check if tkn CLI is available
-	@if command -v tkn >/dev/null 2>&1; then \
-		echo "   ✓ Tekton CLI found, launching pipeline..."; \
-		echo ""; \
-		$(TK) pipeline start sast-ai-workflow-pipeline \
-		  -n $(NAMESPACE) \
-		  -p REPO_REMOTE_URL="$(REPO_REMOTE_URL)" \
-		  -p FALSE_POSITIVES_URL="$(FALSE_POSITIVES_URL)" \
-		  -p LLM_URL="$(LLM_URL)" \
-		  -p LLM_MODEL_NAME="$(LLM_MODEL_NAME)" \
-		  -p EMBEDDINGS_LLM_URL="$(EMBEDDINGS_LLM_URL)" \
-		  -p EMBEDDINGS_LLM_MODEL_NAME="$(EMBEDDINGS_LLM_MODEL_NAME)" \
-		  -p PROJECT_NAME="$(PROJECT_NAME)" \
-		  -p PROJECT_VERSION="$(PROJECT_VERSION)" \
-		  -p INPUT_REPORT_FILE_PATH="$(INPUT_REPORT_FILE_PATH)" \
-		  -p AGGREGATE_RESULTS_G_SHEET="$(AGGREGATE_RESULTS_G_SHEET)" \
-		  --workspace name=gitlab-token-ws,secret=gitlab-token-secret \
-		  --workspace name=google-sa-json-ws,secret=google-service-account-secret \
-		  --showlog; \
-	else \
-		echo "   ❌ Tekton CLI (tkn) not installed"; \
-		echo ""; \
-		echo "   Install tkn CLI: https://tekton.dev/docs/cli/"; \
-		echo "   Or run manually:"; \
-		echo ""; \
-		echo "   tkn --context $(CONTEXT) pipeline start sast-ai-workflow-pipeline \\"; \
-		echo "     -n $(NAMESPACE) \\"; \
-		echo "     -p REPO_REMOTE_URL=\"$(REPO_REMOTE_URL)\" \\"; \
-		echo "     -p FALSE_POSITIVES_URL=\"$(FALSE_POSITIVES_URL)\" \\"; \
-		echo "     -p LLM_URL=\"$(LLM_URL)\" \\"; \
-		echo "     -p LLM_MODEL_NAME=\"$(LLM_MODEL_NAME)\" \\"; \
-		echo "     -p EMBEDDINGS_LLM_URL=\"$(EMBEDDINGS_LLM_URL)\" \\"; \
-		echo "     -p EMBEDDINGS_LLM_MODEL_NAME=\"$(EMBEDDINGS_LLM_MODEL_NAME)\" \\"; \
-		echo "     -p PROJECT_NAME=\"$(PROJECT_NAME)\" \\"; \
-		echo "     -p PROJECT_VERSION=\"$(PROJECT_VERSION)\" \\"; \
-		echo "     -p INPUT_REPORT_FILE_PATH=\"$(INPUT_REPORT_FILE_PATH)\" \\"; \
-		echo "     -p AGGREGATE_RESULTS_G_SHEET=\"$(AGGREGATE_RESULTS_G_SHEET)\" \\"; \
-		echo "     --workspace name=gitlab-token-ws,secret=gitlab-token-secret \\"; \
-		echo "     --workspace name=google-sa-json-ws,secret=google-service-account-secret \\"; \
-		echo "     --showlog"; \
-		echo ""; \
-		echo "   ✅ Infrastructure setup completed successfully!"; \
-	fi
-
 argocd-deploy:
 	@echo "🔄 Deploying ArgoCD Application..."
 	@# Create a temporary file with placeholders replaced
