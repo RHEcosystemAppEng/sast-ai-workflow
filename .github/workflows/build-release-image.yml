@@ -37,6 +37,33 @@ jobs:
         VERSION=${VERSION#v}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+    - name: Update pyproject.toml with release version
+      run: |
+        # Update the version in pyproject.toml
+        sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' pyproject.toml
+        
+        # Verify the change
+        echo "Updated pyproject.toml version:"
+        grep '^version = ' pyproject.toml
+
+    - name: Commit version updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add pyproject.toml
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          # Switch to the default branch first
+          DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+          git checkout $DEFAULT_BRANCH
+          git pull origin $DEFAULT_BRANCH
+          # Re-add and commit the changes
+          git add pyproject.toml
+          git commit -m "Update version to ${{ steps.version.outputs.version }} for release"
+          git push origin $DEFAULT_BRANCH
+        fi
+
     - name: Generate container metadata
       id: meta
       uses: docker/metadata-action@v5
