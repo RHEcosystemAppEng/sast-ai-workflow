@@ -61,7 +61,7 @@ def _inject_analysis_results(sarif_data, analysis_data, config):
         # Process all results with matching analysis data
         for i, result in enumerate(results):
             issue, summary_info = analysis_data[i]
-            _add_suppression(result, issue, summary_info)
+            _add_suppression(result, summary_info)
 
     return sarif_data
 
@@ -126,7 +126,7 @@ def _get_project_version():
         return "unknown"
 
 
-def _add_suppression(sarif_result, issue, summary_info):
+def _add_suppression(sarif_result, summary_info):
     """Add AI suppression to SARIF result."""
 
     llm_response = summary_info.llm_response

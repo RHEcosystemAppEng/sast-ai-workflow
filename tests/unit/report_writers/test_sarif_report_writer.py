@@ -190,8 +190,7 @@ class TestInjectAnalysisResults(SarifTestBase):
             self.assertEqual(
                 call_args[0][0], self.sarif_data["runs"][0]["results"][i]
             )  # SARIF result
-            self.assertEqual(call_args[0][1], self.analysis_data[i][0])  # Issue
-            self.assertEqual(call_args[0][2], self.analysis_data[i][1])  # SummaryInfo
+            self.assertEqual(call_args[0][1], self.analysis_data[i][1])  # SummaryInfo
 
         # Verify the original SARIF data is returned (modified in place)
         self.assertEqual(result, self.sarif_data)
@@ -399,7 +398,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = ["No action needed"]
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify suppression was added
         self.assertIn("suppressions", self.sarif_result)
@@ -420,7 +419,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = ["Fix this vulnerability"]
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify suppression was added
         suppressions = self.sarif_result["suppressions"]
@@ -438,7 +437,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = ["Test recommendation"]
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify AI analysis properties were added
         self.assertIn("properties", self.sarif_result)
@@ -461,7 +460,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = ["Fix it"]
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify both suppressions exist
         suppressions = self.sarif_result["suppressions"]
@@ -488,7 +487,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = ["No action"]
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify both properties exist
         properties = self.sarif_result["properties"]
@@ -504,7 +503,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = []
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify suppression was still added
         suppressions = self.sarif_result["suppressions"]
@@ -520,7 +519,7 @@ class TestAddSuppression(SarifTestBase):
         self.summary_info.llm_response.recommendations = None
 
         # Execute
-        _add_suppression(self.sarif_result, self.issue, self.summary_info)
+        _add_suppression(self.sarif_result, self.summary_info)
 
         # Verify AI analysis properties handle None recommendations
         ai_analysis = self.sarif_result["properties"]["aiAnalysis"]
