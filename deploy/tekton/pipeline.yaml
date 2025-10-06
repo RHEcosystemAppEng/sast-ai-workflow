@@ -58,7 +58,7 @@ spec:
   workspaces:
     - name: gitlab-token-ws
       optional: true
-    - name: google-sa-json-ws 
+    - name: google-sa-json-ws
   tasks:
     - name: execute-ai-analysis
       taskRef:

@@ -1,6 +1,8 @@
 import logging
+import os
 import sys
 from datetime import datetime
+from typing import List, Tuple
 
 import gspread
 import xlsxwriter
@@ -10,6 +12,8 @@ from tqdm import tqdm
 
 from common.config import Config
 from dto.EvaluationSummary import EvaluationSummary
+from dto.Issue import Issue
+from dto.SummaryInfo import SummaryInfo
 from Utils.file_utils import get_google_sheet
 from Utils.log_utils import log_attempt_number
 from Utils.metrics_utils import get_metrics, get_percentage_value
@@ -18,10 +22,15 @@ from Utils.output_utils import cell_formatting
 logger = logging.getLogger(__name__)
 
 
-def write_to_excel_file(data: list, evaluation_summary: EvaluationSummary, config: Config):
+def write_to_excel_file(
+    data: List[Tuple[Issue, SummaryInfo]], evaluation_summary: EvaluationSummary, config: Config
+):
     logger.info(f" Writing to {config.OUTPUT_FILE_PATH} ".center(80, "*"))
 
     try:
+        # Create output directory if it doesn't exist
+        os.makedirs(os.path.dirname(config.OUTPUT_FILE_PATH), exist_ok=True)
+
         with tqdm(
             total=len(data), file=sys.stdout, desc="Writing to " + config.OUTPUT_FILE_PATH + ": "
         ) as pbar:
@@ -30,16 +39,23 @@ def write_to_excel_file(data: list, evaluation_summary: EvaluationSummary, confi
             write_ai_report_worksheet(data, workbook, config)
             if config.INPUT_REPORT_FILE_PATH.startswith("https"):
                 write_ai_report_google_sheet(data, config)
-            write_confusion_matrix_worksheet(workbook, evaluation_summary)
-            if config.AGGREGATE_RESULTS_G_SHEET:
-                write_summary_results_to_aggregate_google_sheet(config, evaluation_summary)
+
+            # Only write confusion matrix and aggregate results if evaluation_summary is available
+            if evaluation_summary is not None:
+                write_confusion_matrix_worksheet(workbook, evaluation_summary)
+                if config.AGGREGATE_RESULTS_G_SHEET:
+                    write_summary_results_to_aggregate_google_sheet(config, evaluation_summary)
+            else:
+                logger.warning(
+                    "Evaluation summary is None, skipping confusion matrix and aggregate results"
+                )
 
             workbook.close()
 
             pbar.update(1)
             sleep(1)
     except Exception as e:
-        logger.error("Error occurred during Excel writing:", e)
+        logger.error("Error occurred during Excel writing: %s", str(e))
 
 
 @retry(
