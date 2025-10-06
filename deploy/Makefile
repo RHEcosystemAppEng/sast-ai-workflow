@@ -59,19 +59,12 @@ setup:
 	@echo "   Context: $(CONTEXT)"
 	@echo "   Namespace: $(NAMESPACE)"
 	@echo ""
-	@$(MAKE) --no-print-directory pvc secrets
+	@$(MAKE) --no-print-directory secrets
 
 tasks:
-	@echo "📋 Setting up Tekton Tasks..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/ > /dev/null 2>&1
-	@echo "   ✓ Tasks deployed successfully"
-
-pvc:
-	@echo "💾 Setting up Persistent Volume Claims..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/pvc.yaml > /dev/null 2>&1
-	@$(CO) apply -n $(NAMESPACE) -f tekton/cache_pvc.yaml > /dev/null 2>&1
-	@echo "   ✓ Workspace PVC created"
-	@echo "   ✓ Cache PVC created"
+	@echo "📋 Setting up Tekton Task..."
+	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml > /dev/null 2>&1
+	@echo "   ✓ Consolidated task deployed successfully"
 
 secrets:
 	@echo "🔐 Configuring Secrets..."
