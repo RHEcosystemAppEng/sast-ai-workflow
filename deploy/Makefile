@@ -48,7 +48,7 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: deploy setup tasks pvc secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy argocd-clean
+.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy argocd-clean
 
 deploy: setup scripts tasks pipeline prompts configmaps argocd-deploy
 
