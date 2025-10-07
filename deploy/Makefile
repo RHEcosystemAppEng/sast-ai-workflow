@@ -243,13 +243,17 @@ clean:
 	@$(MAKE) --no-print-directory argocd-clean
 	# Delete Tekton resources
 	@echo "🔧 Removing Pipeline Resources..."
-	@PIPELINE_NAME=$$(grep "^  name:" tekton/pipeline.yaml | head -1 | awk '{print $$2}'); \
-	if [ -n "$$PIPELINE_NAME" ]; then \
-		$(CO) delete pipeline $$PIPELINE_NAME -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1; \
+	@if [ -f "tekton/pipeline.yaml" ]; then \
+		PIPELINE_NAME=$$(grep "^  name:" tekton/pipeline.yaml | head -1 | awk '{print $$2}' || echo ""); \
+		if [ -n "$$PIPELINE_NAME" ]; then \
+			$(CO) delete pipeline $$PIPELINE_NAME -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		fi; \
 	fi
-	@TASK_NAMES=$$(grep "^  name:" tekton/tasks/*.yaml | awk -F: '{print $$3}' | awk '{print $$1}' | tr '\n' ' '); \
-	if [ -n "$$TASK_NAMES" ]; then \
-		$(CO) delete task $$TASK_NAMES -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1; \
+	@if ls tekton/tasks/*.yaml >/dev/null 2>&1; then \
+		TASK_NAMES=$$(grep "^  name:" tekton/tasks/*.yaml | awk -F: '{print $$3}' | awk '{print $$1}' | tr '\n' ' ' || echo ""); \
+		if [ -n "$$TASK_NAMES" ]; then \
+			$(CO) delete task $$TASK_NAMES -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		fi; \
 	fi
 	@echo "   ✓ Pipeline definitions removed"
 	@echo "   ✓ Task definitions removed"
@@ -293,8 +297,7 @@ clean:
 	# Note: We don't unpatch the 'pipeline' service account to avoid breaking other projects
 	# that may have also added image pull secrets to the shared SA in this namespace
 	@echo "💬 Removing Prompts..."
-	@$(CO) delete -f  tekton/sast-ai-prompt-templates.yaml \
-		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@$(CO) delete -f tekton/sast-ai-prompt-templates.yaml -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Prompt templates removed"
 	@echo "📜 Cleaning Scripts..."
 	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \

@@ -89,30 +89,32 @@ spec:
         defaultMode: 0755
 
   steps:
-    # STEP 1: Validate Source URL
-    - name: validate-source-url
-      image: curlimages/curl:latest
+    # STEP 1: Validate Input URLs
+    - name: validate-input-urls
+      image: registry.access.redhat.com/ubi9/ubi:latest
       script: |
         #!/usr/bin/env sh
-        echo "=== STEP 1: VALIDATE SOURCE URL ==="
+        echo "=== STEP 1: VALIDATE INPUT URLS ==="
+
+        # Install curl once for both validations
+        dnf install -y curl --allowerasing >/dev/null 2>&1
+
+        # Validate source URL
+        echo "Validating source URL..."
         curl -ksSfL "$(params.REPO_REMOTE_URL)" >/dev/null 2>&1 || (echo "Error: Source code URL is invalid" && exit 1)
         echo "Source URL validated successfully"
 
-    # STEP 2: Validate False Positives URL
-    - name: validate-false-positives-url
-      image: curlimages/curl:latest
-      script: |
-        #!/usr/bin/env sh
-        echo "=== STEP 2: VALIDATE FALSE POSITIVES URL ==="
+        # Validate false positives URL (if provided)
         FP_URL="$(params.FALSE_POSITIVES_URL)"
         if [ -z "$FP_URL" ]; then
           echo "No FALSE_POSITIVES_URL provided; skipping validation"
-          exit 0
+        else
+          echo "Validating false positives URL..."
+          curl -ksSfL "$FP_URL" >/dev/null 2>&1 || (echo "Error: False positives URL is invalid" && exit 1)
+          echo "False positives URL validated successfully"
         fi
-        curl -ksSfL "$FP_URL" >/dev/null 2>&1 || (echo "Error: False positives URL is invalid" && exit 1)
-        echo "False positives URL validated successfully"
 
-    # STEP 3: Validate Report File
+    # STEP 2: Validate Report File
     - name: validate-report-file
       image: 'python:3.11-slim'
       volumeMounts:
@@ -121,7 +123,7 @@ spec:
       script: |
         #!/bin/bash
         set -e
-        echo "=== STEP 3: VALIDATE REPORT FILE ==="
+        echo "=== STEP 2: VALIDATE REPORT FILE ==="
 
         SPREADSHEET_URL="$(params.INPUT_REPORT_FILE_PATH)"
 
@@ -194,7 +196,7 @@ spec:
             fi
         fi
 
-    # STEP 4: Prepare Source Code
+    # STEP 3: Prepare Source Code
     - name: prepare-source
       image: registry.access.redhat.com/ubi9/python-312
       securityContext:
@@ -212,7 +214,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -ex
-        echo "=== STEP 4: PREPARE SOURCE ==="
+        echo "=== STEP 3: PREPARE SOURCE ==="
         
         # Clean workspace and prepare directories
         rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
@@ -272,7 +274,7 @@ spec:
         echo "REPO_LOCAL_PATH=$REPO_LOCAL_PATH" > /shared-data/env.txt
         echo "Source code prepared successfully"
 
-    # STEP 5: Transform SAST Report to SARIF Format
+    # STEP 4: Transform SAST Report to SARIF Format
     - name: transform-report
       image: registry.access.redhat.com/ubi9/ubi:latest
       volumeMounts:
@@ -284,7 +286,7 @@ spec:
       script: |
         #!/bin/bash
         set -e
-        echo "=== STEP 5: TRANSFORM SAST REPORT TO SARIF FORMAT ==="
+        echo "=== STEP 4: TRANSFORM SAST REPORT TO SARIF FORMAT ==="
         
         REPORT_PATH="$INPUT_REPORT_FILE_PATH"
         WORKSPACE_PATH="/shared-data"
@@ -357,9 +359,9 @@ spec:
         
         echo "Report preparation completed"
 
-    # STEP 6: Fetch False Positives
+    # STEP 5: Fetch False Positives
     - name: fetch-false-positives
-      image: curlimages/curl:latest
+      image: registry.access.redhat.com/ubi9/ubi:latest
       env:
         - name: FP_URL
           value: "$(params.FALSE_POSITIVES_URL)"
@@ -369,18 +371,21 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -euo pipefail
-        echo "=== STEP 6: FETCH FALSE POSITIVES ==="
-        
+        echo "=== STEP 5: FETCH FALSE POSITIVES ==="
+
         # Create false positives directory
         mkdir -p /shared-data/false-positives
-        
+
         if [ -z "$FP_URL" ]; then
           echo "No falsePositivesUrl provided; skipping fetch..."
           echo "Creating empty ignore.err file"
           touch /shared-data/false-positives/ignore.err
           exit 0
         fi
-        
+
+        # Install curl
+        dnf install -y curl --allowerasing >/dev/null 2>&1
+
         # If a token is needed for private repos, read it from the secret (if present)
         TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
         if [ -f "$TOKEN_FILE" ]; then
@@ -393,7 +398,7 @@ spec:
             curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
               || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
         fi
-        
+
         if [ -f "/shared-data/false-positives/ignore.err" ]; then
           echo "False positives file downloaded successfully"
           echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
@@ -402,7 +407,7 @@ spec:
           touch /shared-data/false-positives/ignore.err
         fi
 
-    # STEP 7: Execute SAST AI Analysis
+    # STEP 6: Execute SAST AI Analysis
     - name: run-analysis
       image: quay.io/ecosystem-appeng/sast-ai-workflow:latest-dev
       env:
@@ -511,7 +516,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -ex
-        echo "=== STEP 7: RUN SAST AI ANALYSIS ==="
+        echo "=== STEP 6: RUN SAST AI ANALYSIS ==="
         
         # Load the repo path from step 4
         if [ -f "/shared-data/env.txt" ]; then
@@ -545,7 +550,7 @@ spec:
           exit 1
         fi
 
-    # STEP 8: Upload to Google Drive
+    # STEP 7: Upload to Google Drive
     - name: upload-to-gdrive
       image: google/cloud-sdk:slim
       env:
@@ -571,7 +576,7 @@ spec:
       script: |
         #!/bin/bash
         set -e
-        echo "=== STEP 8: UPLOAD TO GOOGLE DRIVE ==="
+        echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
         
         # Check if we have required parameters
         if [ -z "$GDRIVE_FOLDER_ID" ]; then
@@ -636,7 +641,7 @@ spec:
           exit 1
         fi
 
-    # STEP 9: Cleanup (Always runs)
+    # STEP 8: Cleanup (Always runs)
     - name: cleanup
       image: alpine:latest
       volumeMounts:
@@ -646,7 +651,7 @@ spec:
           mountPath: /cache-data
       script: |
         #!/usr/bin/env sh
-        echo "=== STEP 9: CLEANUP ==="
+        echo "=== STEP 8: CLEANUP ==="
         
         CLEANED_ITEMS=""
         
