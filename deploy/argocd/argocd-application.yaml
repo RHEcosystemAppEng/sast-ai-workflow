@@ -1,11 +1,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: sast-ai-workflow
+  name: sast-ai-tekton-pipeline-syncer
   namespace: ARGOCD_NAMESPACE_PLACEHOLDER
   labels:
     app.kubernetes.io/name: sast-ai-workflow
-    app.kubernetes.io/part-of: sast-ai
+    app.kubernetes.io/part-of: sast-ai-workflow
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

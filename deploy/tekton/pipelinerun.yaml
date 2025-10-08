@@ -7,33 +7,44 @@ spec:
     name: sast-ai-workflow-pipeline
   params:
     - name: PROJECT_NAME
-      value: "project-name"
+      value: "PROJECT_NAME_PLACEHOLDER"
     - name: PROJECT_VERSION
-      value: "project-version"
+      value: "PROJECT_VERSION_PLACEHOLDER"
     - name: REPO_REMOTE_URL
-      value: "rpm-package-url"
+      value: "REPO_REMOTE_URL_PLACEHOLDER"
     - name: FALSE_POSITIVES_URL
-      value: "git-lab-url"
-    - name: LLM_URL
-      value: ""
-    - name: LLM_MODEL_NAME
-      value: "llm-model"
-    - name: EMBEDDINGS_LLM_URL
-      value: ""
-    - name: EMBEDDINGS_LLM_MODEL_NAME
-      value: "embedding-llm-model"
+      value: "FALSE_POSITIVES_URL_PLACEHOLDER"
     - name: INPUT_REPORT_FILE_PATH
-      value: "input-report"
+      value: "INPUT_REPORT_FILE_PATH_PLACEHOLDER"
+    - name: HUMAN_VERIFIED_FILE_PATH
+      value: "HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER"
+    - name: LLM_URL
+      value: "LLM_URL_PLACEHOLDER"
+    - name: LLM_MODEL_NAME
+      value: "LLM_MODEL_NAME_PLACEHOLDER"
+    - name: EMBEDDINGS_LLM_URL
+      value: "EMBEDDINGS_LLM_URL_PLACEHOLDER"
+    - name: EMBEDDINGS_LLM_MODEL_NAME
+      value: "EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER"
+    - name: AGGREGATE_RESULTS_G_SHEET
+      value: "AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER"
+    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+      value: "USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER"
+    - name: GDRIVE_FOLDER_ID
+      value: "GDRIVE_FOLDER_ID_PLACEHOLDER"
   workspaces:
     - name: gitlab-token-ws
       secret:
-        secretName: gitlab-token-secret
+        secretName: sast-ai-gitlab-token
         items:
           - key: gitlab_token
             path: gitlab_token
+    - name: llm-credentials-ws
+      secret:
+        secretName: sast-ai-default-llm-creds
     - name: google-sa-json-ws 
       secret:
-        secretName: google-service-account-secret 
+        secretName: sast-ai-google-service-account 
         items:
           - key: service_account.json 
             path: service_account.json

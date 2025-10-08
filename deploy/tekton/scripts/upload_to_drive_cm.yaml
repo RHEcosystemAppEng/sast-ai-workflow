@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: gdrive-upload-scripts
+  name: sast-ai-gdrive-upload-scripts
 data:
   gdrive_upload.py: |
     import sys

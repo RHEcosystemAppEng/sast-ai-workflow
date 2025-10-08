@@ -20,6 +20,10 @@ spec:
       type: string
       description: "Google Spreadsheet URL or OSH report .html file path"
       default: "input-report"
+    - name: HUMAN_VERIFIED_FILE_PATH
+      type: string
+      description: "Path to human verified file for validation"
+      default: ""
     - name: LLM_URL
       type: string
       default: "http://<<please-set-llm-url>>"
@@ -54,7 +58,7 @@ spec:
   workspaces:
     - name: gitlab-token-ws
       optional: true
-    - name: google-sa-json-ws 
+    - name: google-sa-json-ws
   tasks:
     - name: execute-ai-analysis
       taskRef:
@@ -70,8 +74,8 @@ spec:
           value: "$(params.FALSE_POSITIVES_URL)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
-        - name: AGGREGATE_RESULTS_G_SHEET
-          value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
+        - name: HUMAN_VERIFIED_FILE_PATH
+          value: "$(params.HUMAN_VERIFIED_FILE_PATH)"
         - name: LLM_URL
           value: "$(params.LLM_URL)"
         - name: LLM_MODEL_NAME
