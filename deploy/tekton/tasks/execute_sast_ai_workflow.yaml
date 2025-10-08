@@ -29,6 +29,10 @@ spec:
     - name: INPUT_REPORT_FILE_PATH
       type: string
       default: ""
+    - name: HUMAN_VERIFIED_FILE_PATH
+      type: string
+      description: "Path to human verified file for validation"
+      default: ""
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: ""
@@ -77,7 +81,6 @@ spec:
       optional: true
     - name: google-sa-json-ws
       description: "Google service account JSON file"
-
   volumes:
     - name: shared-data
       emptyDir:
@@ -89,10 +92,11 @@ spec:
       configMap:
         name: gdrive-upload-scripts
         defaultMode: 0755
-
   results:
     - name: repo-local-path
       description: "Local path to the prepared source code directory"
+    - name: report-file-path
+      description: "Final path to the report file (converted to SARIF if needed)"
     - name: dvc-data-version
       description: "Generated DVC data version tag for this execution"
     - name: dvc-commit-hash
@@ -100,30 +104,32 @@ spec:
     - name: dvc-pipeline-stage
       description: "DVC pipeline stage identifier"
   steps:
-    # STEP 1: Validate Source URL
-    - name: validate-source-url
-      image: curlimages/curl:latest
+    # STEP 1: Validate Input URLs
+    - name: validate-input-urls
+      image: registry.access.redhat.com/ubi9/ubi:latest
       script: |
         #!/usr/bin/env sh
-        echo "=== STEP 1: VALIDATE SOURCE URL ==="
-        curl -ksSfL "$(params.REPO_REMOTE_URL)" >/dev/null 2>&1 || (echo "Error: Source code URL is invalid" && exit 1)
-        echo "✓ Source URL validated successfully"
+        echo "=== STEP 1: VALIDATE INPUT URLS ==="
 
-    # STEP 2: Validate False Positives URL
-    - name: validate-false-positives-url
-      image: curlimages/curl:latest
-      script: |
-        #!/usr/bin/env sh
-        echo "=== STEP 2: VALIDATE FALSE POSITIVES URL ==="
+        # Install curl once for both validations
+        dnf install -y curl --allowerasing >/dev/null 2>&1
+
+        # Validate source URL
+        echo "Validating source URL..."
+        curl -ksSfL "$(params.REPO_REMOTE_URL)" >/dev/null 2>&1 || (echo "Error: Source code URL is invalid" && exit 1)
+        echo "Source URL validated successfully"
+
+        # Validate false positives URL (if provided)
         FP_URL="$(params.FALSE_POSITIVES_URL)"
         if [ -z "$FP_URL" ]; then
-          echo "✓ No false positives URL provided; skipping validation"
-          exit 0
+          echo "No FALSE_POSITIVES_URL provided; skipping validation"
+        else
+          echo "Validating false positives URL..."
+          curl -ksSfL "$FP_URL" >/dev/null 2>&1 || (echo "Error: False positives URL is invalid" && exit 1)
+          echo "False positives URL validated successfully"
         fi
-        curl -ksSfL "$FP_URL" >/dev/null 2>&1 || (echo "Error: False positives URL is invalid" && exit 1)
-        echo "✓ False positives URL validated successfully"
 
-    # STEP 3: Validate Report File
+    # STEP 2: Validate Report File
     - name: validate-report-file
       image: 'python:3.11-slim'
       volumeMounts:
@@ -132,7 +138,7 @@ spec:
       script: |
         #!/bin/bash
         set -e
-        echo "=== STEP 3: VALIDATE REPORT FILE ==="
+        echo "=== STEP 2: VALIDATE REPORT FILE ==="
 
         SPREADSHEET_URL="$(params.INPUT_REPORT_FILE_PATH)"
 
@@ -171,7 +177,7 @@ spec:
                     fields='properties.title'
                 ).execute()
                 title = spreadsheet.get('properties', {}).get('title', 'Unknown')
-                print(f"✓ Successfully validated access to spreadsheet: '{title}'")
+                print(f"Successfully validated access to spreadsheet: '{title}'")
             except HttpError as e:
                 if e.resp.status == 403:
                     print("Error: Access denied - service account lacks permissions")
@@ -198,14 +204,14 @@ spec:
         else
             # Check if local file exists
             if [ -f "$SPREADSHEET_URL" ]; then
-                echo "✓ Local file validated successfully"
+                echo "Local file validated successfully"
             else
                 echo "Error: File does not exist: $SPREADSHEET_URL"
                 exit 1
             fi
         fi
 
-    # STEP 4: Prepare Source Code
+    # STEP 3: Prepare Source Code
     - name: prepare-source
       image: registry.access.redhat.com/ubi9/python-312
       securityContext:
@@ -223,7 +229,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -ex
-        echo "=== STEP 4: PREPARE SOURCE ==="
+        echo "=== STEP 3: PREPARE SOURCE ==="
         
         # Clean workspace and prepare directories
         rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
@@ -283,9 +289,94 @@ spec:
         echo "REPO_LOCAL_PATH=$REPO_LOCAL_PATH" > /shared-data/env.txt
         echo "Source code prepared successfully"
 
+    # STEP 4: Transform SAST Report to SARIF Format
+    - name: transform-report
+      image: registry.access.redhat.com/ubi9/ubi:latest
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      env:
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== STEP 4: TRANSFORM SAST REPORT TO SARIF FORMAT ==="
+        
+        REPORT_PATH="$INPUT_REPORT_FILE_PATH"
+        WORKSPACE_PATH="/shared-data"
+        
+        echo "Processing report path: $REPORT_PATH"
+        echo "Workspace path: $WORKSPACE_PATH"
+        
+        # Check if the input is a URL of json file 
+        if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
+          echo "Detected JSON URL - using direct download ..."
+          
+          # Download the JSON file
+          JSON_FILE="$WORKSPACE_PATH/downloaded_report.json"
+          echo "Downloading file to: $JSON_FILE"
+          curl -kL "$REPORT_PATH" -o "$JSON_FILE"
+          
+          # Verify the file was downloaded
+          if [ ! -f "$JSON_FILE" ]; then
+            echo "Error: Failed to download file"
+            exit 1
+          fi
+          
+          echo "File downloaded successfully ($(wc -c < "$JSON_FILE") bytes)"
+          
+          # Check if it's a JSON file and convert to SARIF
+          if [[ "$JSON_FILE" =~ \.(json|js)$ ]] || file "$JSON_FILE" | grep -q "JSON"; then
+            echo "Detected JSON file - converting to SARIF format..."
+
+            # Install required tools
+            echo "Installing required packages..."
+            dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+            dnf install -y csdiff python3-pip
+            
+            # Convert to SARIF format using csgrep
+            SARIF_FILE="$WORKSPACE_PATH/report.sarif"
+            echo "Converting to SARIF format: $SARIF_FILE"
+            csgrep "$JSON_FILE" --mode sarif > "$SARIF_FILE"
+            
+            # Verify the SARIF file was created
+            if [ ! -f "$SARIF_FILE" ]; then
+              echo "Error: Failed to create SARIF file"
+              exit 1
+            fi
+            
+            echo "SARIF file created successfully ($(wc -c < "$SARIF_FILE") bytes)"
+            
+            # Clean up the downloaded JSON file
+            rm -f "$JSON_FILE"
+            
+            # Set the result to the SARIF file path
+            echo -n "$SARIF_FILE" > $(results.report-file-path.path)
+            echo -n "$SARIF_FILE" > /shared-data/report-file-path.txt
+            echo "Report converted and saved as: $SARIF_FILE"
+            ls -l $SARIF_FILE
+          else
+            echo "File is a SARIF file - using as-is"
+            # Set the result to the downloaded file path
+            echo -n "$JSON_FILE" > $(results.report-file-path.path)
+            echo -n "$JSON_FILE" > /shared-data/report-file-path.txt
+            echo "Report saved as: $JSON_FILE"
+          fi
+          
+        else
+          echo "Input is not a JSON URL - passing through unchanged"
+          # For non-URL paths, pass the original path through
+          echo -n "$REPORT_PATH" > $(results.report-file-path.path)
+          echo -n "$REPORT_PATH" > /shared-data/report-file-path.txt
+          echo "Report path unchanged: $REPORT_PATH"
+        fi
+        
+        echo "Report preparation completed"
+
     # STEP 5: Fetch False Positives
     - name: fetch-false-positives
-      image: curlimages/curl:latest
+      image: registry.access.redhat.com/ubi9/ubi:latest
       env:
         - name: FP_URL
           value: "$(params.FALSE_POSITIVES_URL)"
@@ -296,17 +387,20 @@ spec:
         #!/usr/bin/env sh
         set -euo pipefail
         echo "=== STEP 5: FETCH FALSE POSITIVES ==="
-        
+
         # Create false positives directory
         mkdir -p /shared-data/false-positives
-        
+
         if [ -z "$FP_URL" ]; then
           echo "No falsePositivesUrl provided; skipping fetch..."
           echo "Creating empty ignore.err file"
           touch /shared-data/false-positives/ignore.err
           exit 0
         fi
-        
+
+        # Install curl
+        dnf install -y curl --allowerasing >/dev/null 2>&1
+
         # If a token is needed for private repos, read it from the secret (if present)
         TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
         if [ -f "$TOKEN_FILE" ]; then
@@ -319,7 +413,6 @@ spec:
             curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
               || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
         fi
-        
         if [ -f "/shared-data/false-positives/ignore.err" ]; then
           echo "False positives file downloaded successfully"
           echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
@@ -342,6 +435,8 @@ spec:
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
         - name: INPUT_REPORT_FILE_PATH
           value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: HUMAN_VERIFIED_FILE_PATH
+          value: "$(params.HUMAN_VERIFIED_FILE_PATH)"
         - name: AGGREGATE_RESULTS_G_SHEET
           value: "$(params.AGGREGATE_RESULTS_G_SHEET)"
         - name: LLM_URL
@@ -379,42 +474,42 @@ spec:
         - name: ANALYSIS_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: analysis_system_prompt
         - name: ANALYSIS_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: analysis_human_prompt
         - name: FILTER_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: filter_system_prompt
         - name: FILTER_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: filter_human_prompt
         - name: RECOMMENDATIONS_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: recommendations_prompt
         - name: JUSTIFICATION_SUMMARY_SYSTEM_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: justification_summary_system_prompt
         - name: JUSTIFICATION_SUMMARY_HUMAN_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: justification_summary_human_prompt
         - name: EVALUATION_PROMPT
           valueFrom:
             configMapKeyRef:
-              name: prompt-templates
+              name: sast-ai-prompt-templates
               key: evaluation_prompt
         - name: TMPDIR
           value: "/cache-data/tmp"
@@ -452,13 +547,20 @@ spec:
           exit 1
         fi
         
+        # Use the transformed report file path if available
+        if [ -f "/shared-data/report-file-path.txt" ]; then
+          TRANSFORMED_REPORT_PATH=$(cat /shared-data/report-file-path.txt)
+          export INPUT_REPORT_FILE_PATH="$TRANSFORMED_REPORT_PATH"
+          echo "Using transformed report file path: $INPUT_REPORT_FILE_PATH"
+        else
+          echo "Using original report file path: $INPUT_REPORT_FILE_PATH"
+        fi
+        
         # Create directories
         mkdir -p "/cache-data/tmp" "/shared-data/output"
         
-        echo "Running SAST-AI-Workflow with nat..."
-        nat run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
-        
-        echo "DVC metadata generation handled by Python workflow"
+        echo "Running SAST-AI-Workflow with aiq..."
+        aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
         
         # Verify output file was created
         if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
@@ -537,7 +639,7 @@ spec:
         
         # Install Python packages
         pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
-        echo "✓ Dependencies installed successfully"
+        echo "Dependencies installed successfully"
         
         # Set filename
         EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
@@ -593,14 +695,14 @@ spec:
         
         # Report what was cleaned
         if [ -n "$CLEANED_ITEMS" ]; then
-            echo "✓ Cleaned:$CLEANED_ITEMS"
+            echo "Cleaned:$CLEANED_ITEMS"
         else
-            echo "✓ Nothing to clean"
+            echo "Nothing to clean"
         fi
         
         # Preserve output file
         if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
-            echo "✓ Output file preserved"
+            echo "Output file preserved"
         fi
         
         echo "Cleanup completed successfully"

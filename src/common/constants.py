@@ -67,9 +67,15 @@ KNOWN_FALSE_POSITIVE_TEMPLATES = {
 REGEX_PATTERNS = {"CWE_PATTERN": r"CWE-\d+", "CODE_BLOCK_LINE_PATTERN": r"#\s*\d+\|"}
 
 # Validation constants
-VALIDATION_LIMITS = {"MIN_SIMILARITY_THRESHOLD": 1, "MAX_SIMILARITY_THRESHOLD": 10, 
-                     "MIN_ANALYSIS_ITERATIONS": 1}
-KNOWN_ISSUES_SHORT_JUSTIFICATION = "The error is similar to one found in the provided known issues (Details in the full Justification)"
+VALIDATION_LIMITS = {
+    "MIN_SIMILARITY_THRESHOLD": 1,
+    "MAX_SIMILARITY_THRESHOLD": 10,
+    "MIN_ANALYSIS_ITERATIONS": 1,
+}
+KNOWN_ISSUES_SHORT_JUSTIFICATION = (
+    "The error is similar to one found in the provided "
+    "known issues (Details in the full Justification)"
+)
 NO_MATCHING_TRACE_FOUND = "No matching trace found"
 
 # Pre-process constants
@@ -83,11 +89,16 @@ METRICS_ERROR_UNEXPECTED = "Unexpected error"
 
 # Write results constants
 WRITE_RESULTS_CONFIG_MISSING = "No config found in tracker - skipping results writing"
-WRITE_RESULTS_NO_VALID_METRICS = "Calculate_Metrics node failed or was skipped - creating EvaluationSummary from scratch for Excel generation"
+WRITE_RESULTS_NO_VALID_METRICS = (
+    "Calculate_Metrics node failed or was skipped - "
+    "creating EvaluationSummary from scratch for Excel generation"
+)
 WRITE_RESULTS_SUCCESS = "Successfully wrote results to configured destinations"
 WRITE_RESULTS_FAILURE = "Failed to write results: {}"
 WRITE_RESULTS_SUMMARY_SUCCESS = "Successfully created EvaluationSummary from existing metrics"
-WRITE_RESULTS_SUMMARY_FALLBACK = "Failed to create EvaluationSummary from metrics: {}. Falling back to fresh calculation."
+WRITE_RESULTS_SUMMARY_FALLBACK = (
+    "Failed to create EvaluationSummary from metrics: {}. Falling back to fresh calculation."
+)
 WRITE_RESULTS_SUMMARY_FALLBACK_FAILED = "Fallback EvaluationSummary creation also failed: {}"
 
 # Metrics field names
@@ -104,17 +115,25 @@ METRICS_FIELD_PREDICTED_FALSE_POSITIVES = "predicted_false_positives"
 METRICS_FIELD_COUNT_SUFFIX = "_count"
 
 # Constants for issue categorization counter keys
-TOTAL_ISSUES = 'total_issues'
-NON_FINAL_ISSUES = 'non_final_issues'
-FINAL_ISSUES = 'final_issues'
-KNOWN_FALSE_POSITIVES = 'known_false_positives'
-TRUE_POSITIVES = 'true_positives'
-FALSE_POSITIVES = 'false_positives'
-NEEDS_SECOND_ANALYSIS = 'needs_second_analysis'
-NO_ANALYSIS_RESPONSE = 'no_analysis_response'
+TOTAL_ISSUES = "total_issues"
+NON_FINAL_ISSUES = "non_final_issues"
+FINAL_ISSUES = "final_issues"
+KNOWN_FALSE_POSITIVES = "known_false_positives"
+TRUE_POSITIVES = "true_positives"
+FALSE_POSITIVES = "false_positives"
+NEEDS_SECOND_ANALYSIS = "needs_second_analysis"
+NO_ANALYSIS_RESPONSE = "no_analysis_response"
 
 # Graph builder log messages
-GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG = "Config not found in config, reloading config and using default value of MAX_ANALYSIS_ITERATIONS"
-CONDITIONAL_EDGE_LOG = "Conditional edge: {action}. {issues_needing_second_analysis_count} issues need second analysis, " \
+GRAPH_BUILDER_CONFIG_NOT_FOUND_LOG = (
+    "Config not found in config, "
+    "reloading config and using default value of MAX_ANALYSIS_ITERATIONS"
+)
+CONDITIONAL_EDGE_LOG = (
+    "Conditional edge: {action}. "
+    "{issues_needing_second_analysis_count} issues need second analysis, "
     "iteration_count={iteration_count}, max_analysis_iterations={max_analysis_iterations}"
-GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG = "Could not fully verify graph structure: {e}, but graph compilation succeeded"
+)
+GRAPH_BUILDER_VERIFY_GRAPH_STRUCTURE_LOG = (
+    "Could not fully verify graph structure: {e}, but graph compilation succeeded"
+)

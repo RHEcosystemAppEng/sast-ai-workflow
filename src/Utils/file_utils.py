@@ -30,12 +30,20 @@ def read_known_errors_file(path):
     with open(path, "r", encoding="utf-8") as f:
         plain_text = f.read()
         doc_set = set()
-        doc_set = {item.strip() for item in plain_text.split(KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR) if item.strip()!=''}
+        doc_set = {
+            item.strip()
+            for item in plain_text.split(KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR)
+            if item.strip() != ""
+        }
         return doc_set
 
 
 def get_human_verified_results(config: Config):
     if config.HUMAN_VERIFIED_FILE_PATH:
+        if config.HUMAN_VERIFIED_FILE_PATH.startswith("https"):
+            return get_human_verified_results_google_sheet(
+                config.SERVICE_ACCOUNT_JSON_PATH, config.HUMAN_VERIFIED_FILE_PATH
+            )
         return get_human_verified_results_local_excel(config.HUMAN_VERIFIED_FILE_PATH)
     elif config.SERVICE_ACCOUNT_JSON_PATH and config.INPUT_REPORT_FILE_PATH:
         return get_human_verified_results_google_sheet(

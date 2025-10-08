@@ -20,6 +20,7 @@ USER 1001
 # Set version for setuptools-scm since .git folder is not available in container
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
 
+
 RUN pip install -e . 
 
 VOLUME ["/etc/secrets"]
