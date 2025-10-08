@@ -72,7 +72,7 @@ class DvcMetadataService:
             logger.debug(f"Using DVC hash from {first_dvc_file}: {dvc_hash}")
             return dvc_hash
             
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.error(f"Failed to get DVC hash: {e}")
             return 'dvc-hash-failed'
     
@@ -91,7 +91,7 @@ class DvcMetadataService:
             logger.debug(f"Using DVC path from {first_dvc_file}: {dvc_path}")
             return f"data/{dvc_path}"
             
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.error(f"Failed to determine DVC path: {e}")
             return 'data/unknown'
 
@@ -108,7 +108,7 @@ class DvcMetadataService:
                 'data_version': self.get_data_version()
             }
             return json.dumps(summary_data, separators=(',', ':'))
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             logger.error(f"Failed to create analysis summary: {e}")
             return '{"status":"summary_generation_failed"}'
     
@@ -135,7 +135,7 @@ class DvcMetadataService:
             logger.debug(f"Found {len(existing_dvc_files)} DVC files: {existing_dvc_files}")
             return existing_dvc_files
             
-        except Exception as e:
+        except OSError as e:
             logger.error(f"Failed to get relevant DVC files: {e}")
             return []
     
@@ -154,7 +154,7 @@ class DvcMetadataService:
             
             return 'invalid-dvc-format'
             
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.error(f"Failed to extract hash from {dvc_file_path}: {e}")
             return 'hash-extraction-failed'
     
@@ -172,7 +172,7 @@ class DvcMetadataService:
             dvc_filename = Path(dvc_file_path).name
             return dvc_filename.replace('.dvc', '')
             
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.error(f"Failed to extract path from {dvc_file_path}: {e}")
             return 'unknown'
     
@@ -195,7 +195,7 @@ class DvcMetadataService:
             
             logger.debug("DVC workflow tracking completed successfully")
             
-        except Exception as e:
+        except (OSError, AttributeError) as e:
             logger.error(f"Failed to track workflow execution: {e}")
     
     def export_to_tekton_results(self, results_dir: str = "/tekton/results", config=None, issue_list=None) -> None:
@@ -232,26 +232,28 @@ class DvcMetadataService:
                 "dvc-repo-branch": self.dvc_metadata.get('repo_branch', ''),
 
                 # Additional required metadata fields
-                "dvc-split-type": "train",  # Hardcoded as requested
+                "dvc-split-type": "train",
                 "dvc-sast-report-path": getattr(config, 'INPUT_REPORT_FILE_PATH', '') if config else '',
                 "dvc-issues-count": str(len(issue_list)) if issue_list else "0"
             }
             
-            for result_name, value in metadata_exports.items():
-                if value:
-                    try:
-                        with open(Path(results_dir) / result_name, "w") as f:
+            try:
+                for result_name, value in metadata_exports.items():
+                    if value:
+                        file_path = Path(results_dir) / result_name
+                        with open(file_path, "w") as f:
                             f.write(str(value))
                         logger.debug(f"Exported {result_name}: {value}")
-                    except Exception as e:
-                        logger.error(f"Failed to export {result_name}: {e}")
-                else:
-                    logger.warning(f"Skipping empty value for {result_name}")
-            
-            logger.debug(f"Comprehensive DVC metadata exported to Tekton results: {results_dir}")
-            
-        except Exception as e:
-            logger.error(f"Failed to export DVC metadata to Tekton results: {e}")
+                    else:
+                        logger.warning(f"Skipping empty value for {result_name}")
+
+                logger.debug(f"Comprehensive DVC metadata exported to Tekton results: {results_dir}")
+
+            except OSError as e:
+                logger.error(f"Failed to export DVC metadata to Tekton results: {e}")
+
+        except OSError as e:
+            logger.error(f"Failed to create results directory {results_dir}: {e}")
 
     def log_execution_summary(self) -> None:
         """Log execution summary with DVC metadata"""
