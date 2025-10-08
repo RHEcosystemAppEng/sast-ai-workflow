@@ -6,20 +6,27 @@ from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
-from common.constants import FALLBACK_JUSTIFICATION_MESSAGE, KNOWN_ISSUES_SHORT_JUSTIFICATION, NO_MATCHING_TRACE_FOUND, TOKENIZERS_PARALLELISM
+from common.constants import (
+    FALLBACK_JUSTIFICATION_MESSAGE,
+    KNOWN_ISSUES_SHORT_JUSTIFICATION,
+    NO_MATCHING_TRACE_FOUND,
+    TOKENIZERS_PARALLELISM,
+)
 from dto.EvaluationSummary import EvaluationSummary
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from dto.SummaryInfo import SummaryInfo
-from ExcelWriter import write_to_excel_file
+from FilterKnownIssues import capture_known_issues
+from handlers.embedding_connection_pool import close_embedding_pool
 from handlers.repo_handler_factory import repo_handler_factory
 from LLMService import LLMService
 from MetricHandler import MetricHandler, metric_request_from_prompt
+from report_writers import write_to_excel_file
 from ReportReader import read_sast_report
-from FilterKnownIssues import capture_known_issues
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
 from services.dvc_metadata_service import DvcMetadataService
+from Utils.validation_utils import validate_issue
 
 # Setup logging
 setup_logging()
@@ -101,20 +108,14 @@ def main():
         if config.USE_KNOWN_FALSE_POSITIVE_FILE:
             already_seen_issues_dict, similar_known_issues_dict = capture_known_issues(
                 llm_service,
-                # [e for e in issue_list if e.id in selected_issue_list],
-                # # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
-                issue_list,  # WE SHOULD ENABLE THIS WHEN WE RUN ENTIRE REPORT!
+                issue_list,
                 config,
             )
 
         for issue in issue_list:
-            # if issue.id not in selected_issue_list:
-            # # WE SHOULD DISABLE THIS WHEN WE RUN ENTIRE REPORT!
-            #     continue
-
-            # Set default values
-            score, critique_response, context = {}, "", ""
+            score, critique_response, context, llm_response = {}, "", "", None
             try:
+                validate_issue(issue)
                 if issue.id in already_seen_issues_dict.keys():
                     logger.info(
                         f"{issue.id} already marked as a false positive since it's a known issue"
@@ -149,8 +150,8 @@ def main():
                     )
 
                     # cwe_context = ""
-                    # if issue.issue_cve_link:
-                    # cwe_texts = read_cve_html_file(issue.issue_cve_link, config)
+                    # if issue.issue_cwe_link:
+                    # cwe_texts = read_cve_html_file(issue.issue_cwe_link, config)
                     # cwe_context = "".join(cwe_texts)
 
                     context = (
@@ -231,6 +232,7 @@ def main():
         logger.error("Error occurred while generating excel file:", e)
     finally:
         print_conclusion(evaluation_summary, failed_item_ids)
+        close_embedding_pool()
 
 
 if __name__ == "__main__":
