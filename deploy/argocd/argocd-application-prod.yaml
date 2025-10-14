@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sast-ai-tekton-pipeline-syncer-prod
+  namespace: ARGOCD_NAMESPACE_PLACEHOLDER
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/part-of: sast-ai-workflow
+    app.kubernetes.io/environment: prod
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: GITHUB_REPO_URL_PLACEHOLDER
+    targetRevision: HEAD
+    path: deploy/tekton
+    directory:
+      recurse: true
+      include: '*.yaml'
+      exclude: 'pipelinerun.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: TARGET_NAMESPACE_PLACEHOLDER
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+

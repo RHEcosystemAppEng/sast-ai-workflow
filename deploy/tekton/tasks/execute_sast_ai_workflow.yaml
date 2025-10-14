@@ -63,6 +63,10 @@ spec:
       type: string
       description: "Optional GDrive SA file name"
       default: "service_account.json"
+    - name: CONTAINER_IMAGE
+      type: string
+      description: "Container image to use for SAST AI analysis"
+      default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
 
   workspaces:
     - name: gitlab-token-ws
@@ -409,7 +413,7 @@ spec:
 
     # STEP 6: Execute SAST AI Analysis
     - name: run-analysis
-      image: quay.io/ecosystem-appeng/sast-ai-workflow:latest-dev
+      image: $(params.CONTAINER_IMAGE)
       env:
         - name: PROJECT_NAME
           value: "$(params.PROJECT_NAME)"

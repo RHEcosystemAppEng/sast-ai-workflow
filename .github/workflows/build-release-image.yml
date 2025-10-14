@@ -72,8 +72,6 @@ jobs:
         tags: |
           # Exact release version only (e.g., 1.2.3)
           type=semver,pattern={{version}}
-          # Latest tag for releases
-          type=raw,value=latest
         labels: |
           org.opencontainers.image.title=SAST AI Workflow
           org.opencontainers.image.description=LLM-based tool for SAST vulnerability detection
@@ -100,9 +98,10 @@ jobs:
         echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Note:** Production deployments should use this specific version tag." >> $GITHUB_STEP_SUMMARY
 
     - name: Update release with container info
       uses: actions/github-script@v7
@@ -119,23 +118,21 @@ jobs:
 
           ## 📦 Container Images
 
-          This release includes the following container images published to Quay.io:
+          This release includes the following container image published to Quay.io:
 
           - \`${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`
-          - \`${{ env.IMAGE_NAME }}:latest\`
 
           ### 🐳 Usage
 
           \`\`\`bash
-          # Pull specific version
+          # Pull specific version for production
           podman pull ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-          
-          # Pull latest
-          podman pull ${{ env.IMAGE_NAME }}:latest
           \`\`\`
 
           ### 🔗 Registry
           View all versions: [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)
+          
+          **Note:** Production deployments should use this specific version tag.
           `;
           
           await github.rest.repos.updateRelease({
