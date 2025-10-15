@@ -88,6 +88,12 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: USE_KNOWN_FALSE_POSITIVE_FILE
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        - name: GIT_COMMIT_HASH
+          value: $(tasks.prepare-source.results.git-commit-hash)
+        - name: REPO_BRANCH
+          value: $(tasks.prepare-source.results.repo-branch)
+        - name: REPO_URL
+          value: $(tasks.prepare-source.results.repo-url)
         - name: GDRIVE_FOLDER_ID
           value: "$(params.GDRIVE_FOLDER_ID)"
         - name: GDRIVE_SA_FILE_NAME
