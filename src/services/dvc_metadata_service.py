@@ -31,7 +31,7 @@ class DvcMetadataService:
             'repo_branch': os.getenv('DVC_REPO_BRANCH', 'main'),
             'repo_url': os.getenv('DVC_REPO_URL', ''),
             'data_version': self._generate_data_version(),
-            'pipeline_stage': 'sast_ai_analysis',
+            'pipeline_stage': 'sast_ai_analysis', # default pipeline stage for now
             'execution_timestamp': datetime.now().isoformat()
         }
         
@@ -94,10 +94,6 @@ class DvcMetadataService:
         except (OSError, yaml.YAMLError) as e:
             logger.error(f"Failed to determine DVC path: {e}")
             return 'data/unknown'
-
-    def _determine_artifact_type(self) -> str:
-        """Determine the type of artifacts generated - hardcoded as requested"""
-        return 'default_type'
 
     def _get_analysis_summary(self) -> str:
         """Get a summary of the analysis execution for metadata"""
@@ -221,8 +217,7 @@ class DvcMetadataService:
                 # Artifact metadata
                 "dvc-hash": self._calculate_dvc_hash(),
                 "dvc-path": self._get_dvc_path(),
-                "dvc-artifact-type": self._determine_artifact_type(),
-                
+
                 # Execution context metadata
                 "dvc-execution-timestamp": self.dvc_metadata.get('execution_timestamp', ''),
                 "dvc-source-analysis-summary": self._get_analysis_summary(),
