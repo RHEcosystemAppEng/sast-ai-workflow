@@ -34,6 +34,14 @@ spec:
       value: "GDRIVE_FOLDER_ID_PLACEHOLDER"
     - name: CONTAINER_IMAGE
       value: "CONTAINER_IMAGE_PLACEHOLDER"
+    - name: GDRIVE_SA_FILE_NAME
+      value: "GDRIVE_SA_FILE_NAME_PLACEHOLDER"
+    - name: GCS_BUCKET_NAME
+      value: "GCS_BUCKET_NAME_PLACEHOLDER"
+    - name: GCS_BUCKET_UPLOAD_ENABLED
+      value: "GCS_BUCKET_UPLOAD_ENABLED_PLACEHOLDER"
+    - name: GCS_SA_FILE_NAME
+      value: "GCS_SA_FILE_NAME_PLACEHOLDER"
   workspaces:
     - name: gitlab-token-ws
       secret:
@@ -50,3 +58,11 @@ spec:
         items:
           - key: service_account.json 
             path: service_account.json
+    - name: gcs-sa-json-ws
+      secret:
+        secretName: sast-ai-gcs-service-account
+        items:
+          - key: gcs_service_account.json
+            path: gcs_service_account.json
+        optional: true
+        

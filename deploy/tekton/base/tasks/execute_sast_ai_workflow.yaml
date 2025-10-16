@@ -80,12 +80,29 @@ spec:
       description: "Container image to use for SAST AI analysis"
       default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
 
+    - name: GCS_BUCKET_NAME
+      type: string
+      description: "GCS bucket name for uploading SARIF reports (optional)"
+      default: ""
+    - name: GCS_BUCKET_UPLOAD_ENABLED
+      type: string
+      description: "Enable GCS bucket upload for SARIF reports (true/false)"
+      default: "false"
+    - name: GCS_SA_FILE_NAME
+      type: string
+      description: "GCS service account file name"
+      default: "gcs_service_account.json"
+
   workspaces:
     - name: gitlab-token-ws
       description: "Optional secret mount for GitLab token (if needed)"
       optional: true
     - name: google-sa-json-ws
-      description: "Google service account JSON file"
+      description: "Secret mount for Google Drive service account"
+    - name: gcs-sa-json-ws
+      description: "Optional secret mount for GCS service account"
+      optional: true
+
   volumes:
     - name: shared-data
       emptyDir:
@@ -96,6 +113,10 @@ spec:
     - name: gdrive-scripts
       configMap:
         name: gdrive-upload-scripts
+        defaultMode: 0755
+    - name: gcs-scripts
+      configMap:
+        name: sast-ai-gcs-upload-scripts
         defaultMode: 0755
   results:
     - name: repo-local-path
@@ -108,6 +129,7 @@ spec:
       description: "Git commit hash for DVC metadata"
     - name: dvc-pipeline-stage
       description: "DVC pipeline stage identifier"
+
   steps:
     # STEP 1: Validate Input URLs
     - name: validate-input-urls
@@ -149,6 +171,13 @@ spec:
 
         # Check if it's a URL (starts with http:// or https://)
         if [[ "$SPREADSHEET_URL" =~ ^https?:// ]]; then
+
+            # Skip validation for SARIF reports (JSON URLs) - they should not be validated as spreadsheets
+            if [[ "$SPREADSHEET_URL" =~ ^https?://.*\.(json|js)$ ]]; then
+              echo "Detected JSON URL - skipping validation"
+              exit 0
+            fi
+
             # Extract Sheet ID from URL
             SHEET_ID=$(echo "$SPREADSHEET_URL" | sed -n 's/.*\/spreadsheets\/d\/\([a-zA-Z0-9_-]*\).*/\1/p')
 
@@ -390,6 +419,12 @@ spec:
           mountPath: /shared-data
       script: |
         #!/usr/bin/env sh
+        echo "USE_KNOWN_FALSE_POSITIVE_FILE: $(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        if [ "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)" = "false" ]; then
+          echo "USE_KNOWN_FALSE_POSITIVE_FILE is false; skipping fetch..."
+          exit 0
+        fi
+
         set -euo pipefail
         echo "=== STEP 5: FETCH FALSE POSITIVES ==="
 
@@ -667,9 +702,96 @@ spec:
           exit 1
         fi
 
-    # STEP 8: Cleanup (Always runs)
+    # STEP 8: Upload SARIF to GCS Bucket
+    - name: upload-sarif-to-gcs
+      image: google/cloud-sdk:slim
+      env:
+        - name: GCS_BUCKET_NAME
+          value: "$(params.GCS_BUCKET_NAME)"
+        - name: GCS_BUCKET_UPLOAD_ENABLED
+          value: "$(params.GCS_BUCKET_UPLOAD_ENABLED)"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "$(workspaces.gcs-sa-json-ws.path)/$(params.GCS_SA_FILE_NAME)"
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+        - name: gcs-scripts
+          mountPath: /scripts
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== STEP 8: UPLOAD SARIF TO GCS BUCKET ==="
+        
+        # Check if GCS upload is enabled
+        if [ "$GCS_BUCKET_UPLOAD_ENABLED" != "true" ]; then
+          echo "GCS bucket upload disabled - skipping"
+          exit 0
+        fi
+        
+        # Check if we have required parameters
+        if [ -z "$GCS_BUCKET_NAME" ]; then
+          echo "Skipping GCS upload - no bucket name provided"
+          exit 0
+        fi
+        
+        # Check service account
+        if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+          echo "Skipping GCS upload - service account not available"
+          exit 0
+        fi
+        
+        # Look for the SARIF file in output directory
+        SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
+        
+        if [ -z "$SARIF_FILE" ]; then
+          echo "No SARIF file found in output directory - skipping GCS upload"
+          echo "Available files in output directory:"
+          ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
+          exit 0
+        fi
+        
+        echo "Found SARIF file: $SARIF_FILE"
+        
+        # Install required packages
+        echo "Installing required packages..."
+        apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq python3-pip python3-venv >/dev/null 2>&1
+        
+        # Create virtual environment
+        python3 -m venv /tmp/venv >/dev/null 2>&1
+        source /tmp/venv/bin/activate
+        
+        # Install Google Cloud Storage
+        pip install --quiet google-cloud-storage >/dev/null 2>&1
+        echo "Dependencies installed successfully"
+        
+        # Generate timestamp for folder organization
+        TIMESTAMP=$(date +"%Y-%m-%dT%H-%M-%S")
+        
+        # Upload the SARIF file
+        SCAN_FILENAME=$(basename "$SARIF_FILE")
+        
+        # Create organized path: sarif-reports/timestamp/scan_filename
+        DESTINATION_PATH="sarif-reports/${TIMESTAMP}/${SCAN_FILENAME}"
+        
+        echo "Uploading: $SARIF_FILE"
+        echo "Destination: gs://$GCS_BUCKET_NAME/$DESTINATION_PATH"
+        
+        if python /scripts/gcs_upload.py "$SARIF_FILE" "$GCS_BUCKET_NAME" "$DESTINATION_PATH"; then
+          echo "✓ Successfully uploaded: $SCAN_FILENAME"
+          echo "=== SARIF file uploaded to GCS successfully! ==="
+        else
+          echo "✗ Failed to upload: $SCAN_FILENAME"
+          echo "=== SARIF upload failed, but pipeline continues ==="
+          # Don't fail the pipeline for upload issues
+        fi
+
+    # STEP 9: Cleanup (Always runs)
     - name: cleanup
-      image: alpine:latest
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -677,7 +799,7 @@ spec:
           mountPath: /cache-data
       script: |
         #!/usr/bin/env sh
-        echo "=== STEP 8: CLEANUP ==="
+        echo "=== STEP 9: CLEANUP ==="
         
         CLEANED_ITEMS=""
         
