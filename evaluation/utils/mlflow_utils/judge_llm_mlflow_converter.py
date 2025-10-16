@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple
 
 import mlflow
 
-from .base_mlflow_converter import BaseMLflowConverter
+from .base_mlflow_converter import BaseMLflowConverter, load_json_file
 
 
 class JudgeLLMNodeConverter(BaseMLflowConverter):
@@ -45,18 +45,18 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
         # Load judge LLM justification quality evaluation
         justification_quality_file = run_dir / "justification_quality_eval_output.json"
         if justification_quality_file.exists():
-            metrics["justification_quality"] = self._load_json_file(justification_quality_file)
+            metrics["justification_quality"] = load_json_file(str(justification_quality_file))
 
         # Load profiler traces for timing data
         profiler_file = run_dir / "all_requests_profiler_traces.json"
         if profiler_file.exists():
-            metrics["profiler"] = self._load_json_file(profiler_file)
+            metrics["profiler"] = load_json_file(str(profiler_file))
 
         return metrics
 
     def _process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
         """Process evaluation_metrics.json file."""
-        metrics_data = self._load_json_file(metrics_file)
+        metrics_data = load_json_file(str(metrics_file))
         if not metrics_data or "metrics" not in metrics_data:
             return {}
 
@@ -75,7 +75,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
 
     def _process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
         """Process inference_optimization.json file for token usage and timing."""
-        inference_data = self._load_json_file(inference_file)
+        inference_data = load_json_file(str(inference_file))
         if not inference_data:
             return {}
 
@@ -166,7 +166,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
         similar_issues_count = justification_count  # Number of justifications as "similar issues"
 
         # Log the 8 standardized metrics
-        self.log_standard_metrics(
+        self._log_standard_metrics(
             total_packages, total_issues, similar_issues_count,
             judge_precision, judge_recall, total_tokens,
             avg_time_per_request, llm_call_count
@@ -280,7 +280,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
         # Extract performance data directly from workflow output for each issue in package
         for issue_info in issues:
             issue_data = issue_info["data"]
-            tokens, time_per_req, calls = self.extract_performance_metrics_from_issue(issue_data)
+            tokens, time_per_req, calls = self._extract_performance_metrics_from_issue(issue_data)
             package_tokens += tokens
             total_time += time_per_req * calls
             total_calls += calls
