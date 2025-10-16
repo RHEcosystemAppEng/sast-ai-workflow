@@ -28,35 +28,35 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
     def experiment_name(self) -> str:
         return "Judge Llm Analysis"
 
-    def load_run_metrics(self, run_dir: Path) -> Dict[str, any]:
+    def _load_run_metrics(self, run_dir: Path) -> Dict[str, any]:
         """Load judge LLM-specific metrics files."""
         metrics = {}
 
         # Load evaluation metrics
         eval_metrics_file = run_dir / "evaluation_metrics.json"
         if eval_metrics_file.exists():
-            metrics["evaluation"] = self.process_evaluation_metrics(eval_metrics_file)
+            metrics["evaluation"] = self._process_evaluation_metrics(eval_metrics_file)
 
         # Load inference optimization (tokens and timing)
         inference_file = run_dir / "inference_optimization.json"
         if inference_file.exists():
-            metrics["inference"] = self.process_inference_optimization(inference_file)
+            metrics["inference"] = self._process_inference_optimization(inference_file)
 
         # Load judge LLM justification quality evaluation
         justification_quality_file = run_dir / "justification_quality_eval_output.json"
         if justification_quality_file.exists():
-            metrics["justification_quality"] = self.load_json_file(justification_quality_file)
+            metrics["justification_quality"] = self._load_json_file(justification_quality_file)
 
         # Load profiler traces for timing data
         profiler_file = run_dir / "all_requests_profiler_traces.json"
         if profiler_file.exists():
-            metrics["profiler"] = self.load_json_file(profiler_file)
+            metrics["profiler"] = self._load_json_file(profiler_file)
 
         return metrics
 
-    def process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
+    def _process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
         """Process evaluation_metrics.json file."""
-        metrics_data = self.load_json_file(metrics_file)
+        metrics_data = self._load_json_file(metrics_file)
         if not metrics_data or "metrics" not in metrics_data:
             return {}
 
@@ -73,9 +73,9 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
             "false_negatives": metrics.get("false_negatives", 0),
         }
 
-    def process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
+    def _process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
         """Process inference_optimization.json file for token usage and timing."""
-        inference_data = self.load_json_file(inference_file)
+        inference_data = self._load_json_file(inference_file)
         if not inference_data:
             return {}
 
@@ -97,7 +97,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
 
         return metrics
 
-    def log_issue_metrics(self, issue_data: Dict, run_metrics: Dict):
+    def _log_issue_metrics(self, issue_data: Dict, run_metrics: Dict):
         """Log judge LLM-specific issue metrics."""
         if "generated_answer" not in issue_data:
             return
@@ -111,12 +111,12 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
 
             # Get justification quality evaluation data
             justification_quality_data = run_metrics.get("justification_quality")
-            self.log_judge_issue_metrics(answer_data, issue_data["id"], justification_quality_data)
+            self._log_judge_issue_metrics(answer_data, issue_data["id"], justification_quality_data)
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             print(f"Warning: Could not parse generated_answer for issue {issue_data.get('id', 'unknown')}: {e}")
 
-    def log_judge_issue_metrics(self, answer_data: Dict, issue_id: str, justification_quality_data: Dict = None):
+    def _log_judge_issue_metrics(self, answer_data: Dict, issue_id: str, justification_quality_data: Dict = None):
         """Log judge LLM specific metrics optimized for 8-column structure."""
         # Initialize 8-column metrics with defaults
         total_packages = 1  # Issue belongs to 1 package
@@ -195,7 +195,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
                 mlflow.log_metric("justification_length", len(justification_text))
                 mlflow.log_param("short_justifications", justification_text[:500])  # Truncate long outputs
 
-    def aggregate_package_metrics(self, issues: List[dict], run_metrics: Dict) -> Dict[str, float]:
+    def _aggregate_package_metrics(self, issues: List[dict], run_metrics: Dict) -> Dict[str, float]:
         """Aggregate judge LLM metrics across all issues in a package."""
         # Initialize 8-column metrics
         total_packages = 1  # This package
@@ -309,7 +309,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
             "accuracy": filter_recall
         }
 
-    def calculate_run_level_metrics(self, filtered_issues: List[Dict], run_metrics: Dict) -> Tuple[int, float, float]:
+    def _calculate_run_level_metrics(self, filtered_issues: List[Dict], run_metrics: Dict) -> Tuple[int, float, float]:
         """Calculate run-level judge LLM analysis metrics."""
         run_similar_issues_count = 0
         run_filter_precision = 0.0
@@ -374,9 +374,9 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
 
         return run_similar_issues_count, run_filter_precision, run_filter_recall
 
-    def log_additional_run_metrics(self, filtered_issues: List[Dict], run_metrics: Dict):
+    def _log_additional_run_metrics(self, filtered_issues: List[Dict], run_metrics: Dict):
         """Log additional judge LLM-specific run metrics."""
-        similar_issues_count, precision, recall = self.calculate_run_level_metrics(filtered_issues, run_metrics)
+        similar_issues_count, precision, recall = self._calculate_run_level_metrics(filtered_issues, run_metrics)
 
         # Calculate run-level judge quality metrics
         justification_quality_data = run_metrics.get("justification_quality", {})
