@@ -77,3 +77,11 @@ general:
       level: INFO
   front_end:
     type: console
+  telemetry:
+    tracing:
+      galileo:
+        _type: galileo
+        endpoint: galileo_endpoint
+        project: sast-workflow-project-name
+        logstream: default
+        api_key: ${GALILEO_API_KEY}
