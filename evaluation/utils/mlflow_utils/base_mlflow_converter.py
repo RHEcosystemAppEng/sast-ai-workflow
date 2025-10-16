@@ -11,6 +11,7 @@ APPENG-3747: Evaluation Dashboard Creation
 import json
 import os
 import re
+import sys
 import tempfile
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -19,6 +20,10 @@ from typing import Dict, List, Optional, Tuple
 
 import mlflow
 import mlflow.tracking
+
+# Add src directory to path for importing Utils
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
+from Utils.file_utils import load_json_file
 
 
 class BaseMLflowConverter(ABC):
@@ -78,7 +83,7 @@ class BaseMLflowConverter(ABC):
             print(f"  No workflow_output.json found for {run_name}")
             return
 
-        workflow_data = self._load_json_file(workflow_file)
+        workflow_data = load_json_file(str(workflow_file))
         if not workflow_data or not isinstance(workflow_data, list):
             print(f"  Invalid workflow data for {run_name}")
             return
@@ -94,15 +99,6 @@ class BaseMLflowConverter(ABC):
         self._process_single_run_data(run_name, filtered_issues, package_versions, run_dir, run_metrics)
 
         print(f"✓ Logged {self.node_type}/{run_name} with {len(package_versions)} packages and {len(filtered_issues)} issues")
-
-    def _load_json_file(self, file_path: Path) -> Optional[Dict]:
-        """Load JSON file safely."""
-        try:
-            with open(file_path, 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Warning: Could not load {file_path}: {e}")
-            return None
 
     def _filter_valid_issues(self, workflow_data: List[Dict]) -> List[Dict]:
         """Filter out invalid issues (like run IDs) from workflow data."""

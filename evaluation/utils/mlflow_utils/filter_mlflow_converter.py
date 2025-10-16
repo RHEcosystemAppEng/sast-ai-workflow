@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple
 
 import mlflow
 
-from .base_mlflow_converter import BaseMLflowConverter
+from .base_mlflow_converter import BaseMLflowConverter, load_json_file
 
 
 class FilterNodeConverter(BaseMLflowConverter):
@@ -47,18 +47,18 @@ class FilterNodeConverter(BaseMLflowConverter):
         if filter_file.exists():
             metrics["filter"] = self._process_filter_validation_report(filter_file)
             # Also store the full validation data for detailed metrics
-            metrics["filter_validation"] = self._load_json_file(filter_file)
+            metrics["filter_validation"] = load_json_file(filter_file)
 
         # Load profiler traces for timing data
         profiler_file = run_dir / "all_requests_profiler_traces.json"
         if profiler_file.exists():
-            metrics["profiler"] = self._load_json_file(profiler_file)
+            metrics["profiler"] = load_json_file(profiler_file)
 
         return metrics
 
     def _process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
         """Process evaluation_metrics.json file."""
-        metrics_data = self._load_json_file(metrics_file)
+        metrics_data = load_json_file(metrics_file)
         if not metrics_data or "metrics" not in metrics_data:
             return {}
 
@@ -77,7 +77,7 @@ class FilterNodeConverter(BaseMLflowConverter):
 
     def _process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
         """Process inference_optimization.json file for token usage and timing."""
-        inference_data = self._load_json_file(inference_file)
+        inference_data = load_json_file(inference_file)
         if not inference_data:
             return {}
 
@@ -101,7 +101,7 @@ class FilterNodeConverter(BaseMLflowConverter):
 
     def _process_filter_validation_report(self, filter_file: Path) -> Dict[str, float]:
         """Process filter_validation_report.json file."""
-        filter_data = self._load_json_file(filter_file)
+        filter_data = load_json_file(filter_file)
         if not filter_data:
             return {}
 

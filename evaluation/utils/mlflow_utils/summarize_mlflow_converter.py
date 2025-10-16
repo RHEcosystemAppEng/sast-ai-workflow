@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple
 
 import mlflow
 
-from .base_mlflow_converter import BaseMLflowConverter
+from .base_mlflow_converter import BaseMLflowConverter, load_json_file
 
 
 class SummarizeNodeConverter(BaseMLflowConverter):
@@ -45,18 +45,18 @@ class SummarizeNodeConverter(BaseMLflowConverter):
         # Load summarization quality evaluation
         summarization_quality_file = run_dir / "summarization_quality_eval_output.json"
         if summarization_quality_file.exists():
-            metrics["summarization_quality"] = self._load_json_file(summarization_quality_file)
+            metrics["summarization_quality"] = load_json_file(summarization_quality_file)
 
         # Load profiler traces for timing data
         profiler_file = run_dir / "all_requests_profiler_traces.json"
         if profiler_file.exists():
-            metrics["profiler"] = self._load_json_file(profiler_file)
+            metrics["profiler"] = load_json_file(profiler_file)
 
         return metrics
 
     def _process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
         """Process evaluation_metrics.json file."""
-        metrics_data = self._load_json_file(metrics_file)
+        metrics_data = load_json_file(metrics_file)
         if not metrics_data or "metrics" not in metrics_data:
             return {}
 
@@ -75,7 +75,7 @@ class SummarizeNodeConverter(BaseMLflowConverter):
 
     def _process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
         """Process inference_optimization.json file for token usage and timing."""
-        inference_data = self._load_json_file(inference_file)
+        inference_data = load_json_file(inference_file)
         if not inference_data:
             return {}
 
@@ -135,10 +135,10 @@ class SummarizeNodeConverter(BaseMLflowConverter):
                     break
 
         # Extract performance metrics from issue data
-        total_tokens, avg_time_per_request, llm_call_count = self.extract_performance_metrics_from_issue(issue_data)
+        total_tokens, avg_time_per_request, llm_call_count = self._extract_performance_metrics_from_issue(issue_data)
 
         # Log core metrics (consistent across all nodes)
-        self.log_standard_metrics(
+        self._log_standard_metrics(
             total_packages, total_issues, 0,  # similar_issues_count = 0 for summarization
             overall_score, factual_accuracy, total_tokens,
             avg_time_per_request, llm_call_count
@@ -210,7 +210,7 @@ class SummarizeNodeConverter(BaseMLflowConverter):
         # Extract performance data directly from workflow output for each issue in package
         for issue_info in issues:
             issue_data = issue_info["data"]
-            tokens, time_per_req, calls = self.extract_performance_metrics_from_issue(issue_data)
+            tokens, time_per_req, calls = self._extract_performance_metrics_from_issue(issue_data)
             package_tokens += tokens
             total_time += time_per_req * calls
             total_calls += calls
