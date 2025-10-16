@@ -54,7 +54,7 @@ class BaseMLflowConverter(ABC):
         processed_runs = 0
         for run_dir in sorted(run_dirs):
             try:
-                self.process_single_run(run_dir)
+                self._process_single_run(run_dir)
                 processed_runs += 1
             except Exception as e:
                 print(f"Error processing {self.node_type}/{run_dir.name}: {e}")
@@ -67,7 +67,7 @@ class BaseMLflowConverter(ABC):
         mlflow.set_tracking_uri(f"file://{self.mlruns_dir.absolute()}")
         print(f"MLflow tracking URI set to: {mlflow.get_tracking_uri()}")
 
-    def process_single_run(self, run_dir: Path):
+    def _process_single_run(self, run_dir: Path):
         """Process a single evaluation run for this node type."""
         run_name = run_dir.name
         print(f"Processing {self.node_type}/{run_name}")
@@ -78,24 +78,24 @@ class BaseMLflowConverter(ABC):
             print(f"  No workflow_output.json found for {run_name}")
             return
 
-        workflow_data = self.load_json_file(workflow_file)
+        workflow_data = self._load_json_file(workflow_file)
         if not workflow_data or not isinstance(workflow_data, list):
             print(f"  Invalid workflow data for {run_name}")
             return
 
         # Filter valid issues and group by package
-        filtered_issues = self.filter_valid_issues(workflow_data)
-        package_versions = self.group_issues_by_package(filtered_issues)
+        filtered_issues = self._filter_valid_issues(workflow_data)
+        package_versions = self._group_issues_by_package(filtered_issues)
 
         # Load run-specific metrics
-        run_metrics = self.load_run_metrics(run_dir)
+        run_metrics = self._load_run_metrics(run_dir)
 
         # Process the run data
-        self.process_single_run_data(run_name, filtered_issues, package_versions, run_dir, run_metrics)
+        self._process_single_run_data(run_name, filtered_issues, package_versions, run_dir, run_metrics)
 
         print(f"✓ Logged {self.node_type}/{run_name} with {len(package_versions)} packages and {len(filtered_issues)} issues")
 
-    def load_json_file(self, file_path: Path) -> Optional[Dict]:
+    def _load_json_file(self, file_path: Path) -> Optional[Dict]:
         """Load JSON file safely."""
         try:
             with open(file_path, 'r') as f:
@@ -104,7 +104,7 @@ class BaseMLflowConverter(ABC):
             print(f"Warning: Could not load {file_path}: {e}")
             return None
 
-    def filter_valid_issues(self, workflow_data: List[Dict]) -> List[Dict]:
+    def _filter_valid_issues(self, workflow_data: List[Dict]) -> List[Dict]:
         """Filter out invalid issues (like run IDs) from workflow data."""
         filtered_issues = []
         for issue_data in workflow_data:
@@ -119,12 +119,12 @@ class BaseMLflowConverter(ABC):
             filtered_issues.append(issue_data)
         return filtered_issues
 
-    def group_issues_by_package(self, issues: List[Dict]) -> Dict[str, Dict]:
+    def _group_issues_by_package(self, issues: List[Dict]) -> Dict[str, Dict]:
         """Group issues by package-version."""
         package_versions = {}
         for issue_data in issues:
             issue_id = issue_data["id"]
-            package_name, version, clean_issue_id = self.extract_package_info(issue_id)
+            package_name, version, clean_issue_id = self._extract_package_info(issue_id)
             package_version_key = f"{package_name}-{version}"
 
             if package_version_key not in package_versions:
@@ -141,18 +141,18 @@ class BaseMLflowConverter(ABC):
         return package_versions
 
     @abstractmethod
-    def load_run_metrics(self, run_dir: Path) -> Dict[str, any]:
+    def _load_run_metrics(self, run_dir: Path) -> Dict[str, any]:
         """Load metrics files specific to this node type."""
         pass
 
-    def process_single_run_data(self, run_name: str, filtered_issues: List[dict],
+    def _process_single_run_data(self, run_name: str, filtered_issues: List[dict],
                                package_versions: Dict, run_dir: Path, run_metrics: Dict):
         """Process a single evaluation run with hierarchical structure."""
         # Get or create experiment
-        experiment_id = self.get_or_create_experiment()
+        experiment_id = self._get_or_create_experiment()
 
         # Extract run timestamp
-        run_timestamp = self.extract_run_timestamp(run_name)
+        run_timestamp = self._extract_run_timestamp(run_name)
 
         # Level 1: Create evaluation run
         with mlflow.start_run(experiment_id=experiment_id, run_name=run_name) as parent_run:
@@ -168,7 +168,7 @@ class BaseMLflowConverter(ABC):
                 mlflow.set_tag("run_time", run_timestamp.strftime("%H:%M:%S"))
 
             # Calculate and log run-level metrics
-            similar_issues_count, precision, recall = self.calculate_run_level_metrics(filtered_issues, run_metrics)
+            similar_issues_count, precision, recall = self._calculate_run_level_metrics(filtered_issues, run_metrics)
 
             # Calculate run-level performance metrics
             run_total_tokens = 0
@@ -176,7 +176,7 @@ class BaseMLflowConverter(ABC):
             run_llm_call_count = 0
 
             for issue_data in filtered_issues:
-                tokens, time_per_req, calls = self.extract_performance_metrics_from_issue(issue_data)
+                tokens, time_per_req, calls = self._extract_performance_metrics_from_issue(issue_data)
                 run_total_tokens += tokens
                 run_total_time += time_per_req * calls
                 run_llm_call_count += calls
@@ -184,13 +184,13 @@ class BaseMLflowConverter(ABC):
             run_avg_time_per_request = run_total_time / run_llm_call_count if run_llm_call_count > 0 else 0.0
 
             # Log run-level metrics
-            self.log_standard_metrics(
+            self._log_standard_metrics(
                 len(package_versions), len(filtered_issues), similar_issues_count,
                 precision, recall, run_total_tokens, run_avg_time_per_request, run_llm_call_count
             )
 
             # Log additional node-specific run metrics
-            self.log_additional_run_metrics(filtered_issues, run_metrics)
+            self._log_additional_run_metrics(filtered_issues, run_metrics)
 
             # Log run parameters
             mlflow.log_param("total_packages", len(package_versions))
@@ -198,12 +198,12 @@ class BaseMLflowConverter(ABC):
             mlflow.log_param("packages", ", ".join(list(package_versions.keys())))
 
             # Log run artifacts
-            self.log_run_artifacts(run_dir)
+            self._log_run_artifacts(run_dir)
 
             # Level 2: Create package-level nested runs
-            self.process_package_level_runs(experiment_id, package_versions, run_name, run_timestamp, parent_run, run_metrics)
+            self._process_package_level_runs(experiment_id, package_versions, run_name, run_timestamp, parent_run, run_metrics)
 
-    def get_or_create_experiment(self) -> str:
+    def _get_or_create_experiment(self) -> str:
         """Get existing experiment or create new one for this node type."""
         experiment = mlflow.get_experiment_by_name(self.experiment_name)
         if not experiment:
@@ -212,7 +212,7 @@ class BaseMLflowConverter(ABC):
             experiment_id = experiment.experiment_id
         return experiment_id
 
-    def extract_run_timestamp(self, run_name: str) -> Optional[datetime]:
+    def _extract_run_timestamp(self, run_name: str) -> Optional[datetime]:
         """Extract timestamp from run name (e.g., run_20250917_145832)."""
         match = re.search(r'run_(\d{8})_(\d{6})', run_name)
         if match:
@@ -221,11 +221,11 @@ class BaseMLflowConverter(ABC):
         return None
 
     @abstractmethod
-    def calculate_run_level_metrics(self, filtered_issues: List[Dict], run_metrics: Dict) -> Tuple[int, float, float]:
+    def _calculate_run_level_metrics(self, filtered_issues: List[Dict], run_metrics: Dict) -> Tuple[int, float, float]:
         """Calculate run-level metrics specific to this node type."""
         pass
 
-    def extract_performance_metrics_from_issue(self, issue_data: Dict) -> Tuple[int, float, int]:
+    def _extract_performance_metrics_from_issue(self, issue_data: Dict) -> Tuple[int, float, int]:
         """
         Extract performance metrics from issue's intermediate_steps.
 
@@ -265,7 +265,7 @@ class BaseMLflowConverter(ABC):
 
         return total_tokens, avg_time_per_request, llm_call_count
 
-    def log_standard_metrics(self, total_packages: int, total_issues: int, similar_issues_count: int,
+    def _log_standard_metrics(self, total_packages: int, total_issues: int, similar_issues_count: int,
                            precision: float, recall: float, total_tokens: int,
                            avg_time_per_request: float, llm_call_count: int):
         """Log the standardized 8-column metrics structure."""
@@ -279,11 +279,11 @@ class BaseMLflowConverter(ABC):
         mlflow.log_metric("llm_call_count", llm_call_count)
 
     @abstractmethod
-    def log_additional_run_metrics(self, filtered_issues: List[Dict], run_metrics: Dict):
+    def _log_additional_run_metrics(self, filtered_issues: List[Dict], run_metrics: Dict):
         """Log additional run-level metrics specific to this node type."""
         pass
 
-    def log_run_artifacts(self, run_dir: Path, artifact_prefix: str = ""):
+    def _log_run_artifacts(self, run_dir: Path, artifact_prefix: str = ""):
         """Log run artifacts (evaluation files) to MLflow."""
         try:
             # Log key evaluation files as artifacts
@@ -308,11 +308,7 @@ class BaseMLflowConverter(ABC):
         except Exception as e:
             print(f"Warning: Failed to log artifacts for {run_dir}: {e}")
 
-    # ============================================================================
-    # Package-Level Processing (called by process_single_run_data)
-    # ============================================================================
-
-    def process_package_level_runs(self, experiment_id: str, package_versions: Dict, run_name: str,
+    def _process_package_level_runs(self, experiment_id: str, package_versions: Dict, run_name: str,
                                  run_timestamp: Optional[datetime], parent_run, run_metrics: Dict):
         """Process package-level nested runs."""
         for package_version_key, package_info in package_versions.items():
@@ -339,7 +335,7 @@ class BaseMLflowConverter(ABC):
                     mlflow.set_tag("run_time", run_timestamp.strftime("%H:%M:%S"))
 
                 # Log package-level aggregated metrics
-                package_metrics = self.aggregate_package_metrics(issues, run_metrics)
+                package_metrics = self._aggregate_package_metrics(issues, run_metrics)
                 for metric_name, metric_value in package_metrics.items():
                     mlflow.log_metric(metric_name, metric_value)
 
@@ -350,11 +346,11 @@ class BaseMLflowConverter(ABC):
                 mlflow.log_param("issues", ", ".join([issue["clean_issue_id"] for issue in issues]))
 
                 # Level 3: Create issue-level nested runs
-                self.process_issue_level_runs(experiment_id, issues, package_info, package_run,
+                self._process_issue_level_runs(experiment_id, issues, package_info, package_run,
                                             run_name, run_timestamp, run_metrics)
 
     @abstractmethod
-    def aggregate_package_metrics(self, issues: List[dict], run_metrics: Dict) -> Dict[str, float]:
+    def _aggregate_package_metrics(self, issues: List[dict], run_metrics: Dict) -> Dict[str, float]:
         """Aggregate metrics across all issues in a package for this node type."""
         pass
 
@@ -362,7 +358,7 @@ class BaseMLflowConverter(ABC):
     # Issue-Level Processing (called by process_package_level_runs)
     # ============================================================================
 
-    def process_issue_level_runs(self, experiment_id: str, issues: List[dict], package_info: Dict,
+    def _process_issue_level_runs(self, experiment_id: str, issues: List[dict], package_info: Dict,
                                package_run, run_name: str, run_timestamp: Optional[datetime], run_metrics: Dict):
         """Process issue-level nested runs."""
         for issue_info in issues:
@@ -390,20 +386,20 @@ class BaseMLflowConverter(ABC):
                     mlflow.set_tag("run_time", run_timestamp.strftime("%H:%M:%S"))
 
                 # Log issue-specific metrics
-                self.log_issue_metrics(issue_data, run_metrics)
+                self._log_issue_metrics(issue_data, run_metrics)
 
                 # Log issue-specific parameters and results
-                self.log_issue_results(issue_data)
+                self._log_issue_results(issue_data)
 
                 # Log issue data as artifact
-                self.log_issue_artifact(issue_id, run_name, package_info, issue_data)
+                self._log_issue_artifact(issue_id, run_name, package_info, issue_data)
 
     @abstractmethod
-    def log_issue_metrics(self, issue_data: Dict, run_metrics: Dict):
+    def _log_issue_metrics(self, issue_data: Dict, run_metrics: Dict):
         """Log issue-specific metrics for this node type."""
         pass
 
-    def log_issue_results(self, issue_data: Dict):
+    def _log_issue_results(self, issue_data: Dict):
         """Log issue-specific parameters and expected results."""
         # Log expected output if available
         if "expected_output_obj" in issue_data:
@@ -419,7 +415,7 @@ class BaseMLflowConverter(ABC):
             if isinstance(question, str):
                 mlflow.log_param("input_question", question[:1000])
 
-    def log_issue_artifact(self, issue_id: str, run_name: str, package_info: Dict, issue_data: Dict):
+    def _log_issue_artifact(self, issue_id: str, run_name: str, package_info: Dict, issue_data: Dict):
         """Log issue data as MLflow artifact."""
         # Create artifact with full issue context
         issue_artifact = {
@@ -442,11 +438,7 @@ class BaseMLflowConverter(ABC):
             # Clean up temp file
             os.unlink(temp_path)
 
-    # ============================================================================
-    # Utility Methods
-    # ============================================================================
-
-    def extract_package_info(self, issue_id: str) -> Tuple[str, str, str]:
+    def _extract_package_info(self, issue_id: str) -> Tuple[str, str, str]:
         """
         Extract package name, version, and issue ID from naming convention.
 
