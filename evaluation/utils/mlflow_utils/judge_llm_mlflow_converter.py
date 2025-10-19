@@ -97,7 +97,7 @@ class JudgeLLMNodeConverter(BaseMLflowConverter):
             self._log_judge_issue_metrics(answer_data, issue_data["id"], justification_quality_data)
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            print(f"Warning: Could not parse generated_answer for issue {issue_data.get('id', 'unknown')}: {e}")
+            self.logger.warning(f"Could not parse generated_answer for issue {issue_data.get('id', 'unknown')}: {e}")
 
     def _log_judge_issue_metrics(self, answer_data: Dict, issue_id: str, justification_quality_data: Dict = None):
         """Log judge LLM specific metrics optimized for 8-column structure."""

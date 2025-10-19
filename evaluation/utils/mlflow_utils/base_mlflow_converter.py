@@ -9,6 +9,7 @@ APPENG-3747: Evaluation Dashboard Creation
 """
 
 import json
+import logging
 import os
 import re
 import sys
@@ -121,6 +122,7 @@ class BaseMLflowConverter(ABC):
     def __init__(self, reports_dir: str, mlruns_dir: str):
         self.reports_dir = Path(reports_dir)
         self.mlruns_dir = Path(mlruns_dir)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     @property
     @abstractmethod
@@ -138,12 +140,12 @@ class BaseMLflowConverter(ABC):
         """Convert all reports for this node type."""
         node_dir = self.reports_dir / self.node_type
         if not node_dir.exists():
-            print(f"Warning: No reports found for {self.node_type}")
+            self.logger.warning(f"No reports found for {self.node_type}")
             return 0
 
         # Process each run in the node directory
         run_dirs = [d for d in node_dir.iterdir() if d.is_dir() and d.name.startswith(RUN_DIR_PREFIX)]
-        print(f"Found {len(run_dirs)} runs for {self.node_type}")
+        self.logger.info(f"Found {len(run_dirs)} runs for {self.node_type}")
 
         processed_runs = 0
         for run_dir in sorted(run_dirs):
@@ -151,24 +153,24 @@ class BaseMLflowConverter(ABC):
                 self._process_single_run(run_dir)
                 processed_runs += 1
             except Exception as e:
-                print(f"Error processing {self.node_type}/{run_dir.name}: {e}")
+                self.logger.error(f"Error processing {self.node_type}/{run_dir.name}: {e}")
 
         return processed_runs
 
     def _process_single_run(self, run_dir: Path):
         """Process a single evaluation run for this node type."""
         run_name = run_dir.name
-        print(f"Processing {self.node_type}/{run_name}")
+        self.logger.info(f"Processing {self.node_type}/{run_name}")
 
         # Load workflow output to get individual issues
         workflow_file = run_dir / WORKFLOW_OUTPUT_FILE
         if not workflow_file.exists():
-            print(f"  No {WORKFLOW_OUTPUT_FILE} found for {run_name}")
+            self.logger.warning(f"  No {WORKFLOW_OUTPUT_FILE} found for {run_name}")
             return
 
         workflow_data = load_json_file(str(workflow_file))
         if not workflow_data or not isinstance(workflow_data, list):
-            print(f"  Invalid workflow data for {run_name}")
+            self.logger.warning(f"  Invalid workflow data for {run_name}")
             return
 
         # Filter valid issues and group by package
@@ -181,7 +183,7 @@ class BaseMLflowConverter(ABC):
         # Process the run data
         self._process_single_run_data(run_name, filtered_issues, package_versions, run_dir, run_metrics)
 
-        print(f"✓ Logged {self.node_type}/{run_name} with {len(package_versions)} packages and {len(filtered_issues)} issues")
+        self.logger.info(f"✓ Logged {self.node_type}/{run_name} with {len(package_versions)} packages and {len(filtered_issues)} issues")
 
     def _filter_valid_issues(self, workflow_data: List[Dict]) -> List[Dict]:
         """Filter out invalid issues (like run IDs) from workflow data."""
@@ -458,7 +460,7 @@ class BaseMLflowConverter(ABC):
                     mlflow.log_artifact(str(file_path), artifact_path)
 
         except Exception as e:
-            print(f"Warning: Failed to log artifacts for {run_dir}: {e}")
+            self.logger.warning(f"Failed to log artifacts for {run_dir}: {e}")
 
     def _process_package_level_runs(self, experiment_id: str, package_versions: Dict, run_name: str,
                                  run_timestamp: Optional[datetime], parent_run, run_metrics: Dict):
