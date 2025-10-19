@@ -1,8 +1,8 @@
 """
 Evaluation utilities for SAST-AI-Workflow.
 
-This package provides utilities for archiving evaluation results and
-converting SAST AI evaluation reports into MLflow format for dashboard visualization.
+This package provides utilities for converting SAST AI evaluation reports
+into MLflow format for dashboard visualization.
 
 MLflow Components (located in mlflow_utils subpackage):
 - BaseMLflowConverter: Abstract base class with common functionality
@@ -14,7 +14,6 @@ MLflow Components (located in mlflow_utils subpackage):
 APPENG-3747: Evaluation Dashboard Creation
 """
 
-from .archive_results import archive_evaluation_results
 from .mlflow_utils import (
     BaseMLflowConverter,
     FilterNodeConverter,
@@ -24,7 +23,6 @@ from .mlflow_utils import (
 )
 
 __all__ = [
-    'archive_evaluation_results',
     'BaseMLflowConverter',
     'FilterNodeConverter',
     'JudgeLLMNodeConverter',

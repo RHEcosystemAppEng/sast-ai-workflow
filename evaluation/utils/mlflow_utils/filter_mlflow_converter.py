@@ -10,11 +10,28 @@ APPENG-3747: Evaluation Dashboard Creation
 
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import mlflow
 
-from .base_mlflow_converter import BaseMLflowConverter, load_json_file
+from .base_mlflow_converter import BaseMLflowConverter, load_json_file, PackageMetrics
+from .mlflow_constants import (
+    AVG_TIME_PER_REQUEST_KEY,
+    DEFAULT_COUNT_VALUE,
+    DEFAULT_METRIC_VALUE,
+    EVALUATION_KEY,
+    EVALUATION_METRICS_FILE,
+    FILTER_RESULT_PARAM,
+    FILTER_VALIDATION_FILE,
+    INFERENCE_KEY,
+    INFERENCE_OPTIMIZATION_FILE,
+    LLM_CALL_COUNT_KEY,
+    PROFILER_TRACES_FILE,
+    SIMILAR_ISSUES_COUNT_KEY,
+    SINGLE_ISSUE_COUNT,
+    SINGLE_PACKAGE_COUNT,
+    TOTAL_TOKENS_KEY,
+)
 
 
 class FilterNodeConverter(BaseMLflowConverter):
@@ -28,80 +45,37 @@ class FilterNodeConverter(BaseMLflowConverter):
     def experiment_name(self) -> str:
         return "Filter"
 
-    def _load_run_metrics(self, run_dir: Path) -> Dict[str, any]:
+    def _load_run_metrics(self, run_dir: Path) -> Dict[str, Any]:
         """Load filter-specific metrics files."""
         metrics = {}
 
         # Load evaluation metrics
-        eval_metrics_file = run_dir / "evaluation_metrics.json"
+        eval_metrics_file = run_dir / EVALUATION_METRICS_FILE
         if eval_metrics_file.exists():
-            metrics["evaluation"] = self._process_evaluation_metrics(eval_metrics_file)
+            metrics[EVALUATION_KEY] = self._process_evaluation_metrics(eval_metrics_file)
 
         # Load inference optimization (tokens and timing)
-        inference_file = run_dir / "inference_optimization.json"
+        inference_file = run_dir / INFERENCE_OPTIMIZATION_FILE
         if inference_file.exists():
-            metrics["inference"] = self._process_inference_optimization(inference_file)
+            metrics[INFERENCE_KEY] = self._process_inference_optimization(inference_file)
 
         # Load filter validation report
-        filter_file = run_dir / "filter_validation_report.json"
+        filter_file = run_dir / FILTER_VALIDATION_FILE
         if filter_file.exists():
             metrics["filter"] = self._process_filter_validation_report(filter_file)
             # Also store the full validation data for detailed metrics
-            metrics["filter_validation"] = load_json_file(filter_file)
+            metrics["filter_validation"] = load_json_file(str(filter_file))
 
         # Load profiler traces for timing data
-        profiler_file = run_dir / "all_requests_profiler_traces.json"
+        profiler_file = run_dir / PROFILER_TRACES_FILE
         if profiler_file.exists():
-            metrics["profiler"] = load_json_file(profiler_file)
-
-        return metrics
-
-    def _process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
-        """Process evaluation_metrics.json file."""
-        metrics_data = load_json_file(metrics_file)
-        if not metrics_data or "metrics" not in metrics_data:
-            return {}
-
-        metrics = metrics_data["metrics"]
-        return {
-            "precision": metrics.get("precision", 0.0),
-            "recall": metrics.get("recall", 0.0),
-            "f1_score": metrics.get("f1_score", 0.0),
-            "accuracy": metrics.get("accuracy", 0.0),
-            "total_items": metrics.get("total_items", 0),
-            "true_positives": metrics.get("true_positives", 0),
-            "false_positives": metrics.get("false_positives", 0),
-            "true_negatives": metrics.get("true_negatives", 0),
-            "false_negatives": metrics.get("false_negatives", 0),
-        }
-
-    def _process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
-        """Process inference_optimization.json file for token usage and timing."""
-        inference_data = load_json_file(inference_file)
-        if not inference_data:
-            return {}
-
-        metrics = {}
-
-        # Extract token usage metrics
-        if "total_tokens" in inference_data:
-            metrics["total_tokens"] = inference_data["total_tokens"]
-        if "prompt_tokens" in inference_data:
-            metrics["prompt_tokens"] = inference_data["prompt_tokens"]
-        if "completion_tokens" in inference_data:
-            metrics["completion_tokens"] = inference_data["completion_tokens"]
-
-        # Extract timing metrics
-        if "total_time_seconds" in inference_data:
-            metrics["total_time_seconds"] = inference_data["total_time_seconds"]
-        if "average_time_per_request" in inference_data:
-            metrics["average_time_per_request"] = inference_data["average_time_per_request"]
+            metrics["profiler"] = load_json_file(str(profiler_file))
 
         return metrics
 
     def _process_filter_validation_report(self, filter_file: Path) -> Dict[str, float]:
         """Process filter_validation_report.json file."""
-        filter_data = load_json_file(filter_file)
+        filter_data = load_json_file(str(filter_file))
         if not filter_data:
             return {}
 
@@ -144,19 +118,23 @@ class FilterNodeConverter(BaseMLflowConverter):
     def _log_filter_issue_metrics(self, answer_data: Dict, issue_id: str, filter_validation_data: Dict = None):
         """Log filter-specific metrics optimized for 8-column structure."""
         # Initialize 8-column metrics with defaults
-        total_packages = 1  # Issue belongs to 1 package
-        total_issues = 1    # This is 1 issue
-        similar_issues_count = 0
-        filter_precision = 0.0
-        filter_recall = 0.0
-        total_tokens = 0
-        avg_time_per_request = 0.0
-        llm_call_count = 0
+        total_packages = SINGLE_PACKAGE_COUNT
+        total_issues = SINGLE_ISSUE_COUNT
+        similar_issues_count = DEFAULT_COUNT_VALUE
+        filter_precision = DEFAULT_METRIC_VALUE
+        filter_recall = DEFAULT_METRIC_VALUE
+        total_tokens = DEFAULT_COUNT_VALUE
+        avg_time_per_request = DEFAULT_METRIC_VALUE
+        llm_call_count = DEFAULT_COUNT_VALUE
 
         # Extract similar issues count from FAISS validation data (authoritative source)
         if filter_validation_data and "detailed_results" in filter_validation_data:
             issue_validation = filter_validation_data["detailed_results"].get(issue_id, {})
             issues_data = issue_validation.get("issues", {})
+
+            # Handle single-entry invariant defensively
+            if len(issues_data) > 1:
+                print(f"Warning: Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
             for issue_name, issue_detail in issues_data.items():
                 faiss_matching = issue_detail.get("faiss_matching", {})
@@ -186,26 +164,26 @@ class FilterNodeConverter(BaseMLflowConverter):
 
         # Keep essential classification info as parameters
         if "filter_result" in answer_data:
-            mlflow.log_param("filter_result", answer_data["filter_result"])
+            self._log_param_truncated(FILTER_RESULT_PARAM, answer_data["filter_result"])
 
     def _aggregate_package_metrics(self, issues: List[dict], run_metrics: Dict) -> Dict[str, float]:
         """Aggregate filter metrics across all issues in a package."""
         # Initialize 8-column metrics
-        total_packages = 1  # This package
+        total_packages = SINGLE_PACKAGE_COUNT
         total_issues = len(issues)
-        similar_issues_count = 0
-        filter_precision = 0.0
-        filter_recall = 0.0
-        total_tokens = 0
-        avg_time_per_request = 0.0
-        llm_call_count = 0
+        similar_issues_count = DEFAULT_COUNT_VALUE
+        filter_precision = DEFAULT_METRIC_VALUE
+        filter_recall = DEFAULT_METRIC_VALUE
+        total_tokens = DEFAULT_COUNT_VALUE
+        avg_time_per_request = DEFAULT_METRIC_VALUE
+        llm_call_count = DEFAULT_COUNT_VALUE
 
         # Get filter validation data for detailed metrics
         filter_validation_data = run_metrics.get("filter_validation", {})
 
         # Collect metrics from all issues in this package
-        correct_classifications = 0
-        total_similar_matches = 0
+        correct_classifications = DEFAULT_COUNT_VALUE
+        total_similar_matches = DEFAULT_COUNT_VALUE
 
         for issue_info in issues:
             issue_data = issue_info["data"]
@@ -215,6 +193,10 @@ class FilterNodeConverter(BaseMLflowConverter):
             if filter_validation_data and "detailed_results" in filter_validation_data:
                 issue_validation = filter_validation_data["detailed_results"].get(issue_id, {})
                 issues_data = issue_validation.get("issues", {})
+
+                # Handle single-entry invariant defensively
+                if len(issues_data) > 1:
+                    print(f"Warning: Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
                 for issue_name, issue_detail in issues_data.items():
                     # Count correct classifications
@@ -254,9 +236,9 @@ class FilterNodeConverter(BaseMLflowConverter):
         similar_issues_count = total_similar_matches
 
         # Aggregate performance metrics for this package
-        total_time = 0
-        total_calls = 0
-        package_tokens = 0
+        total_time = DEFAULT_COUNT_VALUE
+        total_calls = DEFAULT_COUNT_VALUE
+        package_tokens = DEFAULT_COUNT_VALUE
 
         # Extract performance data directly from workflow output for each issue in package
         for issue_info in issues:
@@ -267,21 +249,24 @@ class FilterNodeConverter(BaseMLflowConverter):
             total_calls += calls
 
         # Calculate package averages
-        avg_time_per_request = total_time / total_calls if total_calls > 0 else 0.0
+        avg_time_per_request = total_time / total_calls if total_calls > 0 else DEFAULT_METRIC_VALUE
         llm_call_count = total_calls
         total_tokens = package_tokens
 
-        # Return metrics with filter-specific names
-        return {
-            "total_packages": total_packages,
-            "total_issues": total_issues,
-            "similar_issues_count": similar_issues_count,
-            "filter_precision": filter_precision,
-            "filter_recall": filter_recall,
-            "total_tokens": total_tokens,
-            "avg_time_per_request": avg_time_per_request,
-            "llm_call_count": llm_call_count
-        }
+        # Create base metrics using PackageMetrics dataclass
+        package_metrics = PackageMetrics(
+            total_packages=total_packages,
+            total_issues=total_issues,
+            similar_issues_count=similar_issues_count,
+            precision=filter_precision,
+            recall=filter_recall,
+            total_tokens=total_tokens,
+            avg_time_per_request=avg_time_per_request,
+            llm_call_count=llm_call_count
+        )
+
+        # Convert to dictionary with filter-specific prefix
+        return package_metrics.to_dict_with_prefix("filter")
 
     def _calculate_run_level_metrics(self, filtered_issues: List[Dict], run_metrics: Dict) -> Tuple[int, float, float]:
         """Calculate run-level filter metrics."""
@@ -298,6 +283,10 @@ class FilterNodeConverter(BaseMLflowConverter):
                 if "detailed_results" in filter_validation_data:
                     issue_validation = filter_validation_data["detailed_results"].get(issue_id, {})
                     issues_data = issue_validation.get("issues", {})
+
+                    # Handle single-entry invariant defensively
+                    if len(issues_data) > 1:
+                        print(f"Warning: Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
                     for issue_name, issue_detail in issues_data.items():
                         faiss_matching = issue_detail.get("faiss_matching", {})
@@ -316,8 +305,6 @@ class FilterNodeConverter(BaseMLflowConverter):
 
     def _log_additional_run_metrics(self, filtered_issues: List[Dict], run_metrics: Dict):
         """Log additional filter-specific run metrics."""
-        similar_issues_count, precision, recall = self._calculate_run_level_metrics(filtered_issues, run_metrics)
-
-        mlflow.log_metric("similar_issues_count", similar_issues_count)
-        mlflow.log_metric("filter_precision", precision)
-        mlflow.log_metric("filter_recall", recall)
+        # Base class already logs filter_precision/filter_recall via _log_standard_metrics
+        # No additional metrics needed for filter node
+        pass
