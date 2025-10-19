@@ -113,7 +113,7 @@ class FilterNodeConverter(BaseMLflowConverter):
             self._log_filter_issue_metrics(answer_data, issue_data["id"], filter_validation_data)
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            print(f"Warning: Could not parse generated_answer for issue {issue_data.get('id', 'unknown')}: {e}")
+            self.logger.warning(f"Could not parse generated_answer for issue {issue_data.get('id', 'unknown')}: {e}")
 
     def _log_filter_issue_metrics(self, answer_data: Dict, issue_id: str, filter_validation_data: Dict = None):
         """Log filter-specific metrics optimized for 8-column structure."""
@@ -134,7 +134,7 @@ class FilterNodeConverter(BaseMLflowConverter):
 
             # Handle single-entry invariant defensively
             if len(issues_data) > 1:
-                print(f"Warning: Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
+                self.logger.warning(f"Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
             for issue_name, issue_detail in issues_data.items():
                 faiss_matching = issue_detail.get("faiss_matching", {})
@@ -196,7 +196,7 @@ class FilterNodeConverter(BaseMLflowConverter):
 
                 # Handle single-entry invariant defensively
                 if len(issues_data) > 1:
-                    print(f"Warning: Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
+                    self.logger.warning(f"Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
                 for issue_name, issue_detail in issues_data.items():
                     # Count correct classifications
@@ -286,7 +286,7 @@ class FilterNodeConverter(BaseMLflowConverter):
 
                     # Handle single-entry invariant defensively
                     if len(issues_data) > 1:
-                        print(f"Warning: Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
+                        self.logger.warning(f"Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
                     for issue_name, issue_detail in issues_data.items():
                         faiss_matching = issue_detail.get("faiss_matching", {})
