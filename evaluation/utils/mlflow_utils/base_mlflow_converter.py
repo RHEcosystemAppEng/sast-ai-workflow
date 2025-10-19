@@ -14,9 +14,10 @@ import re
 import sys
 import tempfile
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import mlflow
 import mlflow.tracking
@@ -24,6 +25,94 @@ import mlflow.tracking
 # Add src directory to path for importing Utils
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 from Utils.file_utils import load_json_file
+
+# Re-export load_json_file for use by child classes
+__all__ = ['BaseMLflowConverter', 'load_json_file', 'PackageMetrics']
+
+from .mlflow_constants import (
+    ACCURACY_KEY,
+    AVG_TIME_PER_REQUEST_KEY,
+    COMPLETION_TOKENS_KEY,
+    EVALUATION_METRICS_FILE,
+    EXPECTED_OUTPUT_PARAM,
+    F1_SCORE_KEY,
+    FALSE_NEGATIVES_KEY,
+    FALSE_POSITIVES_KEY,
+    FILTER_VALIDATION_FILE,
+    INFERENCE_OPTIMIZATION_FILE,
+    INPUT_QUESTION_PARAM,
+    ISSUE_COUNT_PARAM,
+    ISSUES_PARAM,
+    JUSTIFICATION_QUALITY_FILE,
+    LEVEL_EVALUATION_RUN,
+    LEVEL_ISSUE,
+    LEVEL_PACKAGE,
+    LLM_CALL_COUNT_KEY,
+    METRICS_KEY,
+    PACKAGE_NAME_PARAM,
+    PACKAGES_PARAM,
+    PRECISION_KEY,
+    PROFILER_TRACES_FILE,
+    PROMPT_TOKENS_KEY,
+    RECALL_KEY,
+    RUN_DIR_PREFIX,
+    RUN_ID_PREFIX,
+    SIMILAR_ISSUES_COUNT_KEY,
+    SUMMARIZATION_QUALITY_FILE,
+    TAG_EVALUATION_RUN,
+    TAG_ISSUE_COUNT,
+    TAG_ISSUE_ID,
+    TAG_LEVEL,
+    TAG_NODE_TYPE,
+    TAG_ORIGINAL_ISSUE_ID,
+    TAG_PACKAGE,
+    TAG_PACKAGE_VERSION,
+    TAG_PARENT_RUN_ID,
+    TAG_RUN_DATE,
+    TAG_RUN_TIME,
+    TAG_RUN_TIMESTAMP,
+    TAG_TOTAL_ISSUES,
+    TAG_TOTAL_PACKAGES,
+    TAG_VERSION,
+    TOTAL_ITEMS_KEY,
+    TOTAL_PACKAGES_PARAM,
+    TOTAL_ISSUES_PARAM,
+    TOTAL_TOKENS_KEY,
+    TOTAL_TIME_SECONDS_KEY,
+    TRUE_NEGATIVES_KEY,
+    TRUE_POSITIVES_KEY,
+    VERSION_PARAM,
+    WORKFLOW_OUTPUT_FILE,
+)
+
+
+# ============================================================================
+# Data Classes
+# ============================================================================
+@dataclass
+class PackageMetrics:
+    """Standard metrics structure for package-level aggregation."""
+    total_packages: int
+    total_issues: int
+    similar_issues_count: int
+    precision: float
+    recall: float
+    total_tokens: int
+    avg_time_per_request: float
+    llm_call_count: int
+
+    def to_dict_with_prefix(self, prefix: str) -> dict:
+        """Convert to dictionary with node-specific precision/recall naming."""
+        return {
+            "total_packages": self.total_packages,
+            "total_issues": self.total_issues,
+            SIMILAR_ISSUES_COUNT_KEY: self.similar_issues_count,
+            f"{prefix}_precision": self.precision,
+            f"{prefix}_recall": self.recall,
+            TOTAL_TOKENS_KEY: self.total_tokens,
+            AVG_TIME_PER_REQUEST_KEY: self.avg_time_per_request,
+            LLM_CALL_COUNT_KEY: self.llm_call_count,
+        }
 
 
 class BaseMLflowConverter(ABC):
@@ -53,7 +142,7 @@ class BaseMLflowConverter(ABC):
             return 0
 
         # Process each run in the node directory
-        run_dirs = [d for d in node_dir.iterdir() if d.is_dir() and d.name.startswith("run_")]
+        run_dirs = [d for d in node_dir.iterdir() if d.is_dir() and d.name.startswith(RUN_DIR_PREFIX)]
         print(f"Found {len(run_dirs)} runs for {self.node_type}")
 
         processed_runs = 0
@@ -66,21 +155,15 @@ class BaseMLflowConverter(ABC):
 
         return processed_runs
 
-    def setup_mlflow_tracking(self):
-        """Set up MLflow tracking URI and create mlruns directory."""
-        self.mlruns_dir.mkdir(exist_ok=True)
-        mlflow.set_tracking_uri(f"file://{self.mlruns_dir.absolute()}")
-        print(f"MLflow tracking URI set to: {mlflow.get_tracking_uri()}")
-
     def _process_single_run(self, run_dir: Path):
         """Process a single evaluation run for this node type."""
         run_name = run_dir.name
         print(f"Processing {self.node_type}/{run_name}")
 
         # Load workflow output to get individual issues
-        workflow_file = run_dir / "workflow_output.json"
+        workflow_file = run_dir / WORKFLOW_OUTPUT_FILE
         if not workflow_file.exists():
-            print(f"  No workflow_output.json found for {run_name}")
+            print(f"  No {WORKFLOW_OUTPUT_FILE} found for {run_name}")
             return
 
         workflow_data = load_json_file(str(workflow_file))
@@ -108,8 +191,8 @@ class BaseMLflowConverter(ABC):
                 continue
 
             issue_id = issue_data["id"]
-            # Skip run IDs (they start with "run--")
-            if issue_id.startswith("run--"):
+            # Skip run IDs (they start with RUN_ID_PREFIX)
+            if issue_id.startswith(RUN_ID_PREFIX):
                 continue
 
             filtered_issues.append(issue_data)
@@ -137,9 +220,52 @@ class BaseMLflowConverter(ABC):
         return package_versions
 
     @abstractmethod
-    def _load_run_metrics(self, run_dir: Path) -> Dict[str, any]:
+    def _load_run_metrics(self, run_dir: Path) -> Dict[str, Any]:
         """Load metrics files specific to this node type."""
         pass
+
+    def _process_evaluation_metrics(self, metrics_file: Path) -> Dict[str, float]:
+        """Process evaluation_metrics.json file."""
+        metrics_data = load_json_file(str(metrics_file))
+        if not metrics_data or METRICS_KEY not in metrics_data:
+            return {}
+
+        metrics = metrics_data[METRICS_KEY]
+        return {
+            PRECISION_KEY: metrics.get(PRECISION_KEY, 0.0),
+            RECALL_KEY: metrics.get(RECALL_KEY, 0.0),
+            F1_SCORE_KEY: metrics.get(F1_SCORE_KEY, 0.0),
+            ACCURACY_KEY: metrics.get(ACCURACY_KEY, 0.0),
+            TOTAL_ITEMS_KEY: metrics.get(TOTAL_ITEMS_KEY, 0),
+            TRUE_POSITIVES_KEY: metrics.get(TRUE_POSITIVES_KEY, 0),
+            FALSE_POSITIVES_KEY: metrics.get(FALSE_POSITIVES_KEY, 0),
+            TRUE_NEGATIVES_KEY: metrics.get(TRUE_NEGATIVES_KEY, 0),
+            FALSE_NEGATIVES_KEY: metrics.get(FALSE_NEGATIVES_KEY, 0),
+        }
+
+    def _process_inference_optimization(self, inference_file: Path) -> Dict[str, float]:
+        """Process inference_optimization.json file for token usage and timing."""
+        inference_data = load_json_file(str(inference_file))
+        if not inference_data:
+            return {}
+
+        metrics = {}
+
+        # Extract token usage metrics
+        if TOTAL_TOKENS_KEY in inference_data:
+            metrics[TOTAL_TOKENS_KEY] = inference_data[TOTAL_TOKENS_KEY]
+        if PROMPT_TOKENS_KEY in inference_data:
+            metrics[PROMPT_TOKENS_KEY] = inference_data[PROMPT_TOKENS_KEY]
+        if COMPLETION_TOKENS_KEY in inference_data:
+            metrics[COMPLETION_TOKENS_KEY] = inference_data[COMPLETION_TOKENS_KEY]
+
+        # Extract timing metrics
+        if TOTAL_TIME_SECONDS_KEY in inference_data:
+            metrics[TOTAL_TIME_SECONDS_KEY] = inference_data[TOTAL_TIME_SECONDS_KEY]
+        if AVG_TIME_PER_REQUEST_KEY in inference_data:
+            metrics[AVG_TIME_PER_REQUEST_KEY] = inference_data[AVG_TIME_PER_REQUEST_KEY]
+
+        return metrics
 
     def _process_single_run_data(self, run_name: str, filtered_issues: List[dict],
                                package_versions: Dict, run_dir: Path, run_metrics: Dict):
@@ -152,16 +278,16 @@ class BaseMLflowConverter(ABC):
 
         # Level 1: Create evaluation run
         with mlflow.start_run(experiment_id=experiment_id, run_name=run_name) as parent_run:
-            mlflow.set_tag("node_type", self.node_type)
-            mlflow.set_tag("level", "evaluation_run")
-            mlflow.set_tag("evaluation_run", run_name)
-            mlflow.set_tag("total_packages", len(package_versions))
-            mlflow.set_tag("total_issues", len(filtered_issues))
+            mlflow.set_tag(TAG_NODE_TYPE, self.node_type)
+            mlflow.set_tag(TAG_LEVEL, LEVEL_EVALUATION_RUN)
+            mlflow.set_tag(TAG_EVALUATION_RUN, run_name)
+            mlflow.set_tag(TAG_TOTAL_PACKAGES, len(package_versions))
+            mlflow.set_tag(TAG_TOTAL_ISSUES, len(filtered_issues))
 
             if run_timestamp:
-                mlflow.set_tag("run_timestamp", run_timestamp.isoformat())
-                mlflow.set_tag("run_date", run_timestamp.strftime("%Y-%m-%d"))
-                mlflow.set_tag("run_time", run_timestamp.strftime("%H:%M:%S"))
+                mlflow.set_tag(TAG_RUN_TIMESTAMP, run_timestamp.isoformat())
+                mlflow.set_tag(TAG_RUN_DATE, run_timestamp.strftime("%Y-%m-%d"))
+                mlflow.set_tag(TAG_RUN_TIME, run_timestamp.strftime("%H:%M:%S"))
 
             # Calculate and log run-level metrics
             similar_issues_count, precision, recall = self._calculate_run_level_metrics(filtered_issues, run_metrics)
@@ -189,9 +315,9 @@ class BaseMLflowConverter(ABC):
             self._log_additional_run_metrics(filtered_issues, run_metrics)
 
             # Log run parameters
-            mlflow.log_param("total_packages", len(package_versions))
-            mlflow.log_param("total_issues", len(filtered_issues))
-            mlflow.log_param("packages", ", ".join(list(package_versions.keys())))
+            self._log_param_truncated(TOTAL_PACKAGES_PARAM, len(package_versions))
+            self._log_param_truncated(TOTAL_ISSUES_PARAM, len(filtered_issues))
+            self._log_param_truncated(PACKAGES_PARAM, ", ".join(list(package_versions.keys())))
 
             # Log run artifacts
             self._log_run_artifacts(run_dir)
@@ -225,8 +351,18 @@ class BaseMLflowConverter(ABC):
         """
         Extract performance metrics from issue's intermediate_steps.
 
+        Time units: Timing is calculated from payload timestamps
+        (event_timestamp - span_event_timestamp). These timestamps are
+        derived from the tracing framework and represent time in seconds.
+        The calculation assumes both timestamps use the same time base and unit.
+
+        IMPORTANT: If the framework timestamps are not in seconds, this method
+        will produce incorrect timing values. The returned avg_time_per_request
+        is always in seconds based on the assumption that input timestamps are
+        in seconds.
+
         Returns:
-            Tuple of (total_tokens, avg_time_per_request, llm_call_count)
+            Tuple of (total_tokens, avg_time_per_request_in_seconds, llm_call_count)
         """
         total_tokens = 0
         avg_time_per_request = 0.0
@@ -274,6 +410,26 @@ class BaseMLflowConverter(ABC):
         mlflow.log_metric("avg_time_per_request", avg_time_per_request)
         mlflow.log_metric("llm_call_count", llm_call_count)
 
+    def _log_param_truncated(self, param_name: str, param_value: Any, max_length: int = None):
+        """
+        Log parameter with automatic truncation.
+
+        Args:
+            param_name: Name of the parameter
+            param_value: Value to log (will be converted to string if needed)
+            max_length: Maximum length (defaults to MAX_PARAM_LENGTH)
+        """
+        from .mlflow_constants import MAX_PARAM_LENGTH
+        if max_length is None:
+            max_length = MAX_PARAM_LENGTH
+
+        if isinstance(param_value, str):
+            truncated_value = param_value[:max_length]
+        else:
+            truncated_value = str(param_value)[:max_length]
+
+        mlflow.log_param(param_name, truncated_value)
+
     @abstractmethod
     def _log_additional_run_metrics(self, filtered_issues: List[Dict], run_metrics: Dict):
         """Log additional run-level metrics specific to this node type."""
@@ -284,13 +440,13 @@ class BaseMLflowConverter(ABC):
         try:
             # Log key evaluation files as artifacts
             artifact_files = [
-                ("evaluation_metrics.json", "metrics"),
-                ("inference_optimization.json", "optimization"),
-                ("workflow_output.json", "workflow"),
-                ("filter_validation_report.json", "validation"),
-                ("justification_quality_eval_output.json", "quality"),
-                ("summarization_quality_eval_output.json", "quality"),
-                ("all_requests_profiler_traces.json", "profiler")
+                (EVALUATION_METRICS_FILE, "metrics"),
+                (INFERENCE_OPTIMIZATION_FILE, "optimization"),
+                (WORKFLOW_OUTPUT_FILE, "workflow"),
+                (FILTER_VALIDATION_FILE, "validation"),
+                (JUSTIFICATION_QUALITY_FILE, "quality"),
+                (SUMMARIZATION_QUALITY_FILE, "quality"),
+                (PROFILER_TRACES_FILE, "profiler")
             ]
 
             for filename, artifact_type in artifact_files:
@@ -313,22 +469,22 @@ class BaseMLflowConverter(ABC):
             issues = package_info["issues"]
 
             with mlflow.start_run(experiment_id=experiment_id,
-                                run_name=f"📦 {package_name} {version}",
+                                run_name=f"{package_name} {version}",
                                 nested=True) as package_run:
 
-                mlflow.set_tag("node_type", self.node_type)
-                mlflow.set_tag("level", "package")
-                mlflow.set_tag("evaluation_run", run_name)
-                mlflow.set_tag("parent_run_id", parent_run.info.run_id)
-                mlflow.set_tag("package", package_name)
-                mlflow.set_tag("version", version)
-                mlflow.set_tag("package_version", package_version_key)
-                mlflow.set_tag("issue_count", len(issues))
+                mlflow.set_tag(TAG_NODE_TYPE, self.node_type)
+                mlflow.set_tag(TAG_LEVEL, LEVEL_PACKAGE)
+                mlflow.set_tag(TAG_EVALUATION_RUN, run_name)
+                mlflow.set_tag(TAG_PARENT_RUN_ID, parent_run.info.run_id)
+                mlflow.set_tag(TAG_PACKAGE, package_name)
+                mlflow.set_tag(TAG_VERSION, version)
+                mlflow.set_tag(TAG_PACKAGE_VERSION, package_version_key)
+                mlflow.set_tag(TAG_ISSUE_COUNT, len(issues))
 
                 if run_timestamp:
-                    mlflow.set_tag("run_timestamp", run_timestamp.isoformat())
-                    mlflow.set_tag("run_date", run_timestamp.strftime("%Y-%m-%d"))
-                    mlflow.set_tag("run_time", run_timestamp.strftime("%H:%M:%S"))
+                    mlflow.set_tag(TAG_RUN_TIMESTAMP, run_timestamp.isoformat())
+                    mlflow.set_tag(TAG_RUN_DATE, run_timestamp.strftime("%Y-%m-%d"))
+                    mlflow.set_tag(TAG_RUN_TIME, run_timestamp.strftime("%H:%M:%S"))
 
                 # Log package-level aggregated metrics
                 package_metrics = self._aggregate_package_metrics(issues, run_metrics)
@@ -336,10 +492,10 @@ class BaseMLflowConverter(ABC):
                     mlflow.log_metric(metric_name, metric_value)
 
                 # Log package parameters
-                mlflow.log_param("package_name", package_name)
-                mlflow.log_param("version", version)
-                mlflow.log_param("issue_count", len(issues))
-                mlflow.log_param("issues", ", ".join([issue["clean_issue_id"] for issue in issues]))
+                self._log_param_truncated(PACKAGE_NAME_PARAM, package_name)
+                self._log_param_truncated(VERSION_PARAM, version)
+                self._log_param_truncated(ISSUE_COUNT_PARAM, len(issues))
+                self._log_param_truncated(ISSUES_PARAM, ", ".join([issue["clean_issue_id"] for issue in issues]))
 
                 # Level 3: Create issue-level nested runs
                 self._process_issue_level_runs(experiment_id, issues, package_info, package_run,
@@ -363,23 +519,23 @@ class BaseMLflowConverter(ABC):
             issue_data = issue_info["data"]
 
             with mlflow.start_run(experiment_id=experiment_id,
-                                run_name=f"🐛 {clean_issue_id}",
+                                run_name=clean_issue_id,
                                 nested=True):
 
-                mlflow.set_tag("node_type", self.node_type)
-                mlflow.set_tag("level", "issue")
-                mlflow.set_tag("evaluation_run", run_name)
-                mlflow.set_tag("parent_run_id", package_run.info.run_id)
-                mlflow.set_tag("package", package_info["package"])
-                mlflow.set_tag("version", package_info["version"])
-                mlflow.set_tag("package_version", f"{package_info['package']}-{package_info['version']}")
-                mlflow.set_tag("issue_id", clean_issue_id)
-                mlflow.set_tag("original_issue_id", issue_id)
+                mlflow.set_tag(TAG_NODE_TYPE, self.node_type)
+                mlflow.set_tag(TAG_LEVEL, LEVEL_ISSUE)
+                mlflow.set_tag(TAG_EVALUATION_RUN, run_name)
+                mlflow.set_tag(TAG_PARENT_RUN_ID, package_run.info.run_id)
+                mlflow.set_tag(TAG_PACKAGE, package_info["package"])
+                mlflow.set_tag(TAG_VERSION, package_info["version"])
+                mlflow.set_tag(TAG_PACKAGE_VERSION, f"{package_info['package']}-{package_info['version']}")
+                mlflow.set_tag(TAG_ISSUE_ID, clean_issue_id)
+                mlflow.set_tag(TAG_ORIGINAL_ISSUE_ID, issue_id)
 
                 if run_timestamp:
-                    mlflow.set_tag("run_timestamp", run_timestamp.isoformat())
-                    mlflow.set_tag("run_date", run_timestamp.strftime("%Y-%m-%d"))
-                    mlflow.set_tag("run_time", run_timestamp.strftime("%H:%M:%S"))
+                    mlflow.set_tag(TAG_RUN_TIMESTAMP, run_timestamp.isoformat())
+                    mlflow.set_tag(TAG_RUN_DATE, run_timestamp.strftime("%Y-%m-%d"))
+                    mlflow.set_tag(TAG_RUN_TIME, run_timestamp.strftime("%H:%M:%S"))
 
                 # Log issue-specific metrics
                 self._log_issue_metrics(issue_data, run_metrics)
@@ -400,16 +556,12 @@ class BaseMLflowConverter(ABC):
         # Log expected output if available
         if "expected_output_obj" in issue_data:
             expected = issue_data["expected_output_obj"]
-            if isinstance(expected, str):
-                mlflow.log_param("expected_output", expected[:1000])  # Truncate long outputs
-            else:
-                mlflow.log_param("expected_output", str(expected)[:1000])
+            self._log_param_truncated(EXPECTED_OUTPUT_PARAM, expected)
 
         # Log question/input if available
         if "question" in issue_data:
             question = issue_data["question"]
-            if isinstance(question, str):
-                mlflow.log_param("input_question", question[:1000])
+            self._log_param_truncated(INPUT_QUESTION_PARAM, question)
 
     def _log_issue_artifact(self, issue_id: str, run_name: str, package_info: Dict, issue_data: Dict):
         """Log issue data as MLflow artifact."""
