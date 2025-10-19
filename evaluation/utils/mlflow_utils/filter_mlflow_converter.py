@@ -3,7 +3,7 @@
 Filter Node MLflow Converter for SAST AI Workflow Evaluation Dashboard
 
 This module handles the conversion of filter node evaluation reports
-into MLflow format with FAISS similarity matching and classification metrics.
+into MLflow format with FAISS similarity matching metrics.
 
 APPENG-3747: Evaluation Dashboard Creation
 """
@@ -81,18 +81,10 @@ class FilterNodeConverter(BaseMLflowConverter):
 
         metrics = {}
 
-        # Extract summary metrics
+        # Extract summary metrics - focus on FAISS matching accuracy
         summary = filter_data.get("summary", {})
-        if "classification_accuracy" in summary:
-            metrics["classification_accuracy"] = summary["classification_accuracy"]
         if "faiss_matching_accuracy" in summary and summary["faiss_matching_accuracy"] is not None:
             metrics["faiss_matching_accuracy"] = summary["faiss_matching_accuracy"]
-
-        # Extract classification metrics
-        classification_metrics = filter_data.get("classification_metrics", {})
-        for key in ["precision", "recall", "f1_score", "true_positives", "false_positives", "true_negatives", "false_negatives"]:
-            if key in classification_metrics:
-                metrics[f"filter_{key}"] = classification_metrics[key]
 
         return metrics
 
@@ -141,13 +133,6 @@ class FilterNodeConverter(BaseMLflowConverter):
                 if faiss_matching:
                     actual_matches = faiss_matching.get("actual_matches", [])
                     similar_issues_count = len(actual_matches)
-
-                # Calculate issue-level precision/recall (1.0 if correct, 0.0 if not)
-                classification = issue_detail.get("classification", {})
-                if classification:
-                    is_correct = classification.get("correct", False)
-                    filter_precision = 1.0 if is_correct else 0.0
-                    filter_recall = 1.0 if is_correct else 0.0
                 break  # Use first (and only) issue's data
 
         # Fallback to workflow output if no FAISS data
@@ -181,15 +166,14 @@ class FilterNodeConverter(BaseMLflowConverter):
         # Get filter validation data for detailed metrics
         filter_validation_data = run_metrics.get("filter_validation", {})
 
-        # Collect metrics from all issues in this package
-        correct_classifications = DEFAULT_COUNT_VALUE
+        # Collect FAISS match counts from all issues in this package
         total_similar_matches = DEFAULT_COUNT_VALUE
 
         for issue_info in issues:
             issue_data = issue_info["data"]
             issue_id = issue_info["original_id"]
 
-            # Extract accuracy from validation report (authoritative source)
+            # Extract FAISS matches from validation report (authoritative source)
             if filter_validation_data and "detailed_results" in filter_validation_data:
                 issue_validation = filter_validation_data["detailed_results"].get(issue_id, {})
                 issues_data = issue_validation.get("issues", {})
@@ -199,11 +183,6 @@ class FilterNodeConverter(BaseMLflowConverter):
                     self.logger.warning(f"Expected at most 1 nested issue entry, found {len(issues_data)} for {issue_id}. Using first entry.")
 
                 for issue_name, issue_detail in issues_data.items():
-                    # Count correct classifications
-                    classification = issue_detail.get("classification", {})
-                    if classification.get("correct", False):
-                        correct_classifications += 1
-
                     # Use FAISS matches count as authoritative source
                     faiss_matching = issue_detail.get("faiss_matching", {})
                     if faiss_matching:
@@ -226,11 +205,6 @@ class FilterNodeConverter(BaseMLflowConverter):
                             total_similar_matches += len(similar_issues)
                 except:
                     pass
-
-        # Calculate package-level precision and recall
-        if total_issues > 0:
-            filter_precision = correct_classifications / total_issues
-            filter_recall = correct_classifications / total_issues  # For this context, precision = recall
 
         # Sum all similar issues from this package
         similar_issues_count = total_similar_matches
@@ -294,12 +268,6 @@ class FilterNodeConverter(BaseMLflowConverter):
                             actual_matches = faiss_matching.get("actual_matches", [])
                             run_similar_issues_count += len(actual_matches)
                         break  # Use first (and only) issue's data
-
-            # Use classification metrics for precision/recall
-            classification_metrics = filter_validation_data.get("classification_metrics", {})
-            if classification_metrics:
-                run_filter_precision = classification_metrics.get("precision", 0.0)
-                run_filter_recall = classification_metrics.get("recall", 0.0)
 
         return run_similar_issues_count, run_filter_precision, run_filter_recall
 
