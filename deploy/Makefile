@@ -35,6 +35,12 @@ AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 GDRIVE_FOLDER_ID				 ?= ""
 GDRIVE_SA_FILE_NAME			     ?= service_account.json
 
+# Container Image Configuration
+IMAGE_REGISTRY                   ?= quay.io/ecosystem-appeng
+IMAGE_NAME                       ?= sast-ai-workflow
+IMAGE_VERSION                    ?= 
+CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
@@ -48,9 +54,41 @@ EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy argocd-clean
+.PHONY: deploy-dev deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
 
-deploy: setup scripts tasks pipeline prompts configmaps argocd-deploy
+deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-dev:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Development Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Development"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
+
+deploy-prod:
+	@if [ -z "$(IMAGE_VERSION)" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "❌ ERROR: IMAGE_VERSION is required for production deployment"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "Usage: make deploy-prod IMAGE_VERSION=1.2.3"; \
+		echo ""; \
+		echo "Available versions can be found at:"; \
+		echo "https://quay.io/repository/ecosystem-appeng/sast-ai-workflow?tab=tags"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@$(MAKE) --no-print-directory CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) deploy-prod-internal
+
+deploy-prod-internal:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Production Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Production"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-prod
 
 setup: 
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -62,9 +100,14 @@ setup:
 	@$(MAKE) --no-print-directory secrets
 
 tasks:
-	@echo "📋 Setting up Tekton Task..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml > /dev/null 2>&1
-	@echo "   ✓ Consolidated task deployed successfully"
+	@echo "📋 Setting up Tekton Resources..."
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) > /dev/null 2>&1; \
+		echo "   ✓ Tekton resources deployed (production overlay)"; \
+	else \
+		$(CO) apply -k tekton/base -n $(NAMESPACE) > /dev/null 2>&1; \
+		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
+	fi
 
 secrets:
 	@echo "🔐 Configuring Secrets..."
@@ -140,9 +183,8 @@ secrets:
 	@echo "   ✓ Service account configured"
 
 pipeline:
-	@echo "🔧 Deploying Pipeline..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/pipeline.yaml > /dev/null 2>&1
-	@echo "   ✓ Pipeline definition deployed"
+	@echo "🔧 Pipeline..."
+	@echo "   ✓ Pipeline deployed with Tekton resources (via kustomize)"
 
 scripts:
 	@echo "📜 Setting up Scripts..."
@@ -178,6 +220,7 @@ configmaps:
 run:
 	@echo ""
 	@echo "🏃 Starting Pipeline Execution..."
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
 	# remove any old run
 	@$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
@@ -197,6 +240,7 @@ run:
 		-e 's|AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER|$(AGGREGATE_RESULTS_G_SHEET)|g' \
 		-e 's|GDRIVE_FOLDER_ID_PLACEHOLDER|$(GDRIVE_FOLDER_ID)|g' \
 		-e 's|GDRIVE_SA_FILE_NAME_PLACEHOLDER|$(GDRIVE_SA_FILE_NAME)|g' \
+		-e 's|CONTAINER_IMAGE_PLACEHOLDER|$(CONTAINER_IMAGE)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml > /dev/null 2>&1
 	@rm -f tekton/pipelinerun-temp.yaml
@@ -204,25 +248,41 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
-argocd-deploy:
-	@echo "🔄 Deploying ArgoCD Application..."
+argocd-deploy-dev:
+	@echo "🔄 Deploying ArgoCD Application (Development)..."
 	@# Create a temporary file with placeholders replaced
 	@sed \
 		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
-		-e 's|GITHUB_REPO_URL_PLACEHOLDER|https://github.com/RHEcosystemAppEng/sast-ai-workflow.git|g' \
+		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
-		argocd/argocd-application.yaml > argocd/argocd-application-temp.yaml
-	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-temp.yaml > /dev/null 2>&1
-	@rm -f argocd/argocd-application-temp.yaml
-	@echo "   ✓ ArgoCD Application deployed to $(NAMESPACE) namespace"
-	@echo "   ✓ Syncing from: https://github.com/RHEcosystemAppEng/sast-ai-workflow.git"
-	@echo "   ✓ Target namespace: $(NAMESPACE)"
+		argocd/argocd-application-dev.yaml > argocd/argocd-application-dev-temp.yaml
+	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml > /dev/null 2>&1
+	@rm -f argocd/argocd-application-dev-temp.yaml
+	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
+	@echo "   ✓ Watching: deploy/tekton/base (uses latest tag)"
+	@echo "   ✓ Auto-sync: enabled"
+
+argocd-deploy-prod:
+	@echo "🔄 Deploying ArgoCD Application (Production)..."
+	@# Create a temporary file with placeholders replaced
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-application-prod.yaml > argocd/argocd-application-prod-temp.yaml
+	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-prod-temp.yaml > /dev/null 2>&1
+	@rm -f argocd/argocd-application-prod-temp.yaml
+	@echo "   ✓ ArgoCD Application (prod) deployed to $(NAMESPACE) namespace"
+	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
+	@echo "   ✓ Auto-sync: enabled (self-heal disabled for production safety)"
 
 argocd-clean:
-	@echo "🧹 Removing ArgoCD Application..."
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@echo "   ✓ ArgoCD Application removed"
+	@echo "🧹 Removing ArgoCD Applications..."
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer-dev -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+	$(CO) patch application sast-ai-tekton-pipeline-syncer-dev -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer-prod -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+	$(CO) patch application sast-ai-tekton-pipeline-syncer-prod -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
+	@echo "   ✓ ArgoCD Applications removed"
 
 clean:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -241,22 +301,15 @@ clean:
 	@echo "   ✓ Task runs removed"
 	# Remove ArgoCD Application early to prevent GitOps interference
 	@$(MAKE) --no-print-directory argocd-clean
-	# Delete Tekton resources
+	# Delete Tekton resources using kustomize (matching deployment method)
 	@echo "🔧 Removing Pipeline Resources..."
-	@if [ -f "tekton/pipeline.yaml" ]; then \
-		PIPELINE_NAME=$$(grep "^  name:" tekton/pipeline.yaml | head -1 | awk '{print $$2}' || echo ""); \
-		if [ -n "$$PIPELINE_NAME" ]; then \
-			$(CO) delete pipeline $$PIPELINE_NAME -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
-		fi; \
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(CO) delete -k tekton/overlays/prod -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		echo "   ✓ Production Tekton resources removed (kustomize overlay)"; \
+	else \
+		$(CO) delete -k tekton/base -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		echo "   ✓ Base Tekton resources removed (kustomize base)"; \
 	fi
-	@if ls tekton/tasks/*.yaml >/dev/null 2>&1; then \
-		TASK_NAMES=$$(grep "^  name:" tekton/tasks/*.yaml | awk -F: '{print $$3}' | awk '{print $$1}' | tr '\n' ' ' || echo ""); \
-		if [ -n "$$TASK_NAMES" ]; then \
-			$(CO) delete task $$TASK_NAMES -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
-		fi; \
-	fi
-	@echo "   ✓ Pipeline definitions removed"
-	@echo "   ✓ Task definitions removed"
 	@echo "💾 Cleaning Storage..."
 	@DYNAMIC_PVCS=$$($(CO) get pvc -n $(NAMESPACE) --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep "sast-ai-workflow-pipeline" || true); \
 	if [ -n "$$DYNAMIC_PVCS" ]; then \
