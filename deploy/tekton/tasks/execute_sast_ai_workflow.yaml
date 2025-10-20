@@ -75,12 +75,37 @@ spec:
       type: string
       description: "Optional GDrive SA file name"
       default: "service_account.json"
+
+    # S3/MinIO storage configuration parameters
+    - name: STORAGE_TYPE
+      type: string
+      description: "Storage type for fetching data: 'filesystem' for URL-based fetching or 's3' for S3/MinIO"
+      default: "filesystem"
+    - name: S3_ENDPOINT_URL
+      type: string
+      description: "S3/MinIO endpoint URL (used when STORAGE_TYPE=s3)"
+      default: "http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com"
+    - name: S3_BUCKET_NAME
+      type: string
+      description: "S3 bucket name for datasets (used when STORAGE_TYPE=s3)"
+      default: "test"
+    - name: S3_REPORT_OBJECT_KEY
+      type: string
+      description: "S3 object key for SAST report file (used when STORAGE_TYPE=s3)"
+      default: ""
+    - name: S3_FALSE_POSITIVES_OBJECT_KEY
+      type: string
+      description: "S3 object key for false positives file (used when STORAGE_TYPE=s3)"
+      default: ""
   workspaces:
     - name: gitlab-token-ws
       description: "Optional secret mount for GitLab token (if needed)"
       optional: true
     - name: google-sa-json-ws
       description: "Google service account JSON file"
+    - name: minio-credentials-ws
+      description: "MinIO/S3 credentials for data fetching (contains aws_access_key_id and aws_secret_access_key files)"
+      optional: true
   volumes:
     - name: shared-data
       emptyDir:
@@ -378,8 +403,16 @@ spec:
     - name: fetch-false-positives
       image: registry.access.redhat.com/ubi9/ubi:latest
       env:
+        - name: STORAGE_TYPE
+          value: "$(params.STORAGE_TYPE)"
         - name: FP_URL
           value: "$(params.FALSE_POSITIVES_URL)"
+        - name: S3_ENDPOINT_URL
+          value: "$(params.S3_ENDPOINT_URL)"
+        - name: S3_BUCKET_NAME
+          value: "$(params.S3_BUCKET_NAME)"
+        - name: S3_FALSE_POSITIVES_OBJECT_KEY
+          value: "$(params.S3_FALSE_POSITIVES_OBJECT_KEY)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -391,34 +424,81 @@ spec:
         # Create false positives directory
         mkdir -p /shared-data/false-positives
 
-        if [ -z "$FP_URL" ]; then
-          echo "No falsePositivesUrl provided; skipping fetch..."
-          echo "Creating empty ignore.err file"
-          touch /shared-data/false-positives/ignore.err
-          exit 0
-        fi
+        if [ "$STORAGE_TYPE" = "s3" ]; then
+          echo "Using S3 storage mode for false positives..."
 
-        # Install curl
-        dnf install -y curl --allowerasing >/dev/null 2>&1
+          # Check if S3 object key is provided
+          if [ -z "$S3_FALSE_POSITIVES_OBJECT_KEY" ]; then
+            echo "No S3 object key provided; creating empty ignore.err file"
+            touch /shared-data/false-positives/ignore.err
+            exit 0
+          fi
 
-        # If a token is needed for private repos, read it from the secret (if present)
-        TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
-        if [ -f "$TOKEN_FILE" ]; then
-            GITLAB_TOKEN=$(cat "$TOKEN_FILE")
-            echo "GitLab token found. Fetching file with authentication..."
-            curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
-              || (echo "Error: Could not fetch false positives file with token." && exit 1)
+          # Install AWS CLI
+          echo "Installing AWS CLI..."
+          dnf install -y unzip >/dev/null 2>&1
+          curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          /tmp/aws/install >/dev/null 2>&1
+          rm -rf /tmp/awscliv2.zip /tmp/aws
+
+          # Export S3 credentials from workspace
+          if [ -f "$(workspaces.minio-credentials-ws.path)/aws_access_key_id" ] && [ -f "$(workspaces.minio-credentials-ws.path)/aws_secret_access_key" ]; then
+            export AWS_ACCESS_KEY_ID=$(cat $(workspaces.minio-credentials-ws.path)/aws_access_key_id)
+            export AWS_SECRET_ACCESS_KEY=$(cat $(workspaces.minio-credentials-ws.path)/aws_secret_access_key)
+            echo "S3 credentials loaded from workspace"
+          else
+            echo "Error: S3 credentials not found in workspace"
+            exit 1
+          fi
+
+          # Fetch file from S3
+          echo "Fetching false positives from S3: s3://${S3_BUCKET_NAME}/${S3_FALSE_POSITIVES_OBJECT_KEY}"
+          aws s3 cp "s3://${S3_BUCKET_NAME}/${S3_FALSE_POSITIVES_OBJECT_KEY}" \
+            "/shared-data/false-positives/ignore.err" \
+            --endpoint-url "${S3_ENDPOINT_URL}" \
+            --no-verify-ssl || (echo "Error: Could not fetch false positives from S3" && exit 1)
+
+          if [ -f "/shared-data/false-positives/ignore.err" ]; then
+            echo "False positives file downloaded successfully from S3"
+            echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
+          else
+            echo "Error: Failed to download false positives from S3"
+            exit 1
+          fi
+
         else
-            echo "No GitLab token file found; attempting unauthenticated fetch..."
-            curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
-              || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
-        fi
-        if [ -f "/shared-data/false-positives/ignore.err" ]; then
-          echo "False positives file downloaded successfully"
-          echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
-        else
-          echo "Creating empty ignore.err file as fallback"
-          touch /shared-data/false-positives/ignore.err
+          echo "Using filesystem storage mode for false positives..."
+
+          if [ -z "$FP_URL" ]; then
+            echo "No falsePositivesUrl provided; skipping fetch..."
+            echo "Creating empty ignore.err file"
+            touch /shared-data/false-positives/ignore.err
+            exit 0
+          fi
+
+          # Install curl
+          dnf install -y curl --allowerasing >/dev/null 2>&1
+
+          # If a token is needed for private repos, read it from the secret (if present)
+          TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
+          if [ -f "$TOKEN_FILE" ]; then
+              GITLAB_TOKEN=$(cat "$TOKEN_FILE")
+              echo "GitLab token found. Fetching file with authentication..."
+              curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
+                || (echo "Error: Could not fetch false positives file with token." && exit 1)
+          else
+              echo "No GitLab token file found; attempting unauthenticated fetch..."
+              curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
+                || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+          fi
+          if [ -f "/shared-data/false-positives/ignore.err" ]; then
+            echo "False positives file downloaded successfully"
+            echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
+          else
+            echo "Creating empty ignore.err file as fallback"
+            touch /shared-data/false-positives/ignore.err
+          fi
         fi
 
     # STEP 6: Execute SAST AI Analysis
