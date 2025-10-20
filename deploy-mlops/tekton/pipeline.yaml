@@ -1,0 +1,105 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: sast-ai-workflow-mlops-pipeline
+spec:
+  params:
+    - name: PROJECT_NAME
+      type: string
+      default: "project-name"
+    - name: PROJECT_VERSION
+      type: string
+      default: "project-version"
+    - name: REPO_REMOTE_URL
+      type: string
+      description: "Source code URL (RPM package or Git repository URL)"
+    - name: FALSE_POSITIVES_URL
+      type: string
+      description: "GitLab repository URL for known false positives (optional)"
+    - name: INPUT_REPORT_FILE_PATH
+      type: string
+      description: "Google Spreadsheet URL or OSH report .html file path"
+      default: "input-report"
+    - name: HUMAN_VERIFIED_FILE_PATH
+      type: string
+      description: "Path to human verified file for validation"
+      default: ""
+    - name: LLM_URL
+      type: string
+      default: "http://<<please-set-llm-url>>"
+    - name: LLM_MODEL_NAME
+      type: string
+      default: "llm-model"
+    - name: LLM_API_TYPE
+      type: string
+      description: "LLM API type"
+      default: "nim"
+    - name: EMBEDDINGS_LLM_URL
+      type: string
+      default: "http://<<please-set-embedding-llm-url>>"
+    - name: EMBEDDINGS_LLM_MODEL_NAME
+      type: string
+      default: "embedding-llm-model"
+    - name: AGGREGATE_RESULTS_G_SHEET
+      type: string
+      default: "" 
+    - name: GDRIVE_FOLDER_ID
+      type: string
+      description: "Google Drive folder ID for uploading SAST results (optional)"
+      default: ""
+    - name: GDRIVE_SA_FILE_NAME
+      type: string
+      description: "Optional GDrive SA file name"
+      default: "service_account.json"
+    - name: USE_KNOWN_FALSE_POSITIVE_FILE
+      type: string
+      description: "Whether to use known false positive file for filtering (true/false)"
+      default: "true"
+  workspaces:
+    - name: gitlab-token-ws
+      optional: true
+    - name: google-sa-json-ws
+  tasks:
+    - name: execute-ai-analysis
+      taskRef:
+        name: execute-ai-analysis-mlops
+      params:
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+        - name: REPO_REMOTE_URL
+          value: "$(params.REPO_REMOTE_URL)"
+        - name: FALSE_POSITIVES_URL
+          value: "$(params.FALSE_POSITIVES_URL)"
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: HUMAN_VERIFIED_FILE_PATH
+          value: "$(params.HUMAN_VERIFIED_FILE_PATH)"
+        - name: LLM_URL
+          value: "$(params.LLM_URL)"
+        - name: LLM_MODEL_NAME
+          value: "$(params.LLM_MODEL_NAME)"
+        - name: LLM_API_TYPE
+          value: "$(params.LLM_API_TYPE)"
+        - name: EMBEDDINGS_LLM_URL
+          value: "$(params.EMBEDDINGS_LLM_URL)"
+        - name: EMBEDDINGS_LLM_MODEL_NAME
+          value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
+        - name: USE_KNOWN_FALSE_POSITIVE_FILE
+          value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        - name: GIT_COMMIT_HASH
+          value: ""
+        - name: GIT_BRANCH
+          value: ""
+        - name: REPO_URL
+          value: ""
+        - name: GDRIVE_FOLDER_ID
+          value: "$(params.GDRIVE_FOLDER_ID)"
+        - name: GDRIVE_SA_FILE_NAME
+          value: "$(params.GDRIVE_SA_FILE_NAME)"
+      workspaces:
+        - name: gitlab-token-ws
+          workspace: gitlab-token-ws
+        - name: google-sa-json-ws
+          workspace: google-sa-json-ws
