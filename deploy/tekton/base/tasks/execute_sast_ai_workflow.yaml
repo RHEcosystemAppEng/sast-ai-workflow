@@ -55,6 +55,18 @@ spec:
       type: string
       description: "Whether to use known false positive file for filtering (true/false)"
       default: "true"
+    - name: GIT_COMMIT_HASH
+      type: string
+      description: "Git commit hash from prepare-source task"
+      default: ""
+    - name: GIT_BRANCH
+      type: string
+      description: "Git branch from prepare-source task"
+      default: ""
+    - name: REPO_URL
+      type: string
+      description: "Source repository URL"
+      default: ""
     - name: GDRIVE_FOLDER_ID
       type: string
       description: "Google Drive folder ID for uploading SAST results (optional)"
@@ -73,13 +85,7 @@ spec:
       description: "Optional secret mount for GitLab token (if needed)"
       optional: true
     - name: google-sa-json-ws
-
-  results:
-    - name: repo-local-path
-      description: "Local path to the prepared source code directory"
-    - name: report-file-path
-      description: "Final path to the report file (converted to SARIF if needed)"
-
+      description: "Google service account JSON file"
   volumes:
     - name: shared-data
       emptyDir:
@@ -89,9 +95,19 @@ spec:
         sizeLimit: "5Gi"
     - name: gdrive-scripts
       configMap:
-        name: sast-ai-gdrive-upload-scripts
+        name: gdrive-upload-scripts
         defaultMode: 0755
-
+  results:
+    - name: repo-local-path
+      description: "Local path to the prepared source code directory"
+    - name: report-file-path
+      description: "Final path to the report file (converted to SARIF if needed)"
+    - name: dvc-data-version
+      description: "Generated DVC data version tag for this execution"
+    - name: dvc-commit-hash
+      description: "Git commit hash for DVC metadata"
+    - name: dvc-pipeline-stage
+      description: "DVC pipeline stage identifier"
   steps:
     # STEP 1: Validate Input URLs
     - name: validate-input-urls
@@ -507,6 +523,12 @@ spec:
           value: "/shared-data/output/sast_ai_output.xlsx"
         - name: LIBCLANG_PATH
           value: "/usr/lib64/libclang.so.19.1.7"
+        - name: DVC_GIT_COMMIT_HASH
+          value: "$(params.GIT_COMMIT_HASH)"
+        - name: DVC_REPO_BRANCH
+          value: "$(params.GIT_BRANCH)"
+        - name: DVC_REPO_URL
+          value: "$(params.REPO_URL)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
