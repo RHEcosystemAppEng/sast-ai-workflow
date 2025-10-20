@@ -14,11 +14,7 @@ spec:
   source:
     repoURL: GITHUB_REPO_URL_PLACEHOLDER
     targetRevision: HEAD
-    path: deploy/tekton
-    directory:
-      recurse: true
-      include: '*.yaml'
-      exclude: 'pipelinerun.yaml'
+    path: deploy/tekton/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: TARGET_NAMESPACE_PLACEHOLDER

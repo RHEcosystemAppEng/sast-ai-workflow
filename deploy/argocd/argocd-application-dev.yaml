@@ -7,6 +7,12 @@ metadata:
     app.kubernetes.io/name: sast-ai-workflow
     app.kubernetes.io/part-of: sast-ai-workflow
     app.kubernetes.io/environment: dev
+  annotations:
+    # ArgoCD Image Updater - watches for new 'latest' tag in registry
+    argocd-image-updater.argoproj.io/image-list: sast-workflow=quay.io/ecosystem-appeng/sast-ai-workflow:latest
+    argocd-image-updater.argoproj.io/sast-workflow.update-strategy: latest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+    argocd-image-updater.argoproj.io/sast-workflow.allow-tags: regexp:^latest$
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -14,11 +20,7 @@ spec:
   source:
     repoURL: GITHUB_REPO_URL_PLACEHOLDER
     targetRevision: HEAD
-    path: deploy/tekton
-    directory:
-      recurse: true
-      include: '*.yaml'
-      exclude: 'pipelinerun.yaml'
+    path: deploy/tekton/base
   destination:
     server: https://kubernetes.default.svc
     namespace: TARGET_NAMESPACE_PLACEHOLDER

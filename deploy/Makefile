@@ -100,9 +100,14 @@ setup:
 	@$(MAKE) --no-print-directory secrets
 
 tasks:
-	@echo "📋 Setting up Tekton Task..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/tasks/execute_sast_ai_workflow.yaml > /dev/null 2>&1
-	@echo "   ✓ Consolidated task deployed successfully"
+	@echo "📋 Setting up Tekton Resources..."
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) > /dev/null 2>&1; \
+		echo "   ✓ Tekton resources deployed (production overlay)"; \
+	else \
+		$(CO) apply -k tekton/base -n $(NAMESPACE) > /dev/null 2>&1; \
+		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
+	fi
 
 secrets:
 	@echo "🔐 Configuring Secrets..."
@@ -178,9 +183,8 @@ secrets:
 	@echo "   ✓ Service account configured"
 
 pipeline:
-	@echo "🔧 Deploying Pipeline..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/pipeline.yaml > /dev/null 2>&1
-	@echo "   ✓ Pipeline definition deployed"
+	@echo "🔧 Pipeline..."
+	@echo "   ✓ Pipeline deployed with Tekton resources (via kustomize)"
 
 scripts:
 	@echo "📜 Setting up Scripts..."
@@ -255,8 +259,7 @@ argocd-deploy-dev:
 	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml > /dev/null 2>&1
 	@rm -f argocd/argocd-application-dev-temp.yaml
 	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
-	@echo "   ✓ Syncing from: $(GITHUB_REPO_URL)"
-	@echo "   ✓ Target namespace: $(NAMESPACE)"
+	@echo "   ✓ Watching: deploy/tekton/base (uses latest tag)"
 	@echo "   ✓ Auto-sync: enabled"
 
 argocd-deploy-prod:
@@ -270,8 +273,7 @@ argocd-deploy-prod:
 	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-prod-temp.yaml > /dev/null 2>&1
 	@rm -f argocd/argocd-application-prod-temp.yaml
 	@echo "   ✓ ArgoCD Application (prod) deployed to $(NAMESPACE) namespace"
-	@echo "   ✓ Syncing from: $(GITHUB_REPO_URL)"
-	@echo "   ✓ Target namespace: $(NAMESPACE)"
+	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
 	@echo "   ✓ Auto-sync: enabled (self-heal disabled for production safety)"
 
 argocd-clean:
@@ -299,22 +301,15 @@ clean:
 	@echo "   ✓ Task runs removed"
 	# Remove ArgoCD Application early to prevent GitOps interference
 	@$(MAKE) --no-print-directory argocd-clean
-	# Delete Tekton resources
+	# Delete Tekton resources using kustomize (matching deployment method)
 	@echo "🔧 Removing Pipeline Resources..."
-	@if [ -f "tekton/pipeline.yaml" ]; then \
-		PIPELINE_NAME=$$(grep "^  name:" tekton/pipeline.yaml | head -1 | awk '{print $$2}' || echo ""); \
-		if [ -n "$$PIPELINE_NAME" ]; then \
-			$(CO) delete pipeline $$PIPELINE_NAME -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
-		fi; \
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(CO) delete -k tekton/overlays/prod -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		echo "   ✓ Production Tekton resources removed (kustomize overlay)"; \
+	else \
+		$(CO) delete -k tekton/base -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		echo "   ✓ Base Tekton resources removed (kustomize base)"; \
 	fi
-	@if ls tekton/tasks/*.yaml >/dev/null 2>&1; then \
-		TASK_NAMES=$$(grep "^  name:" tekton/tasks/*.yaml | awk -F: '{print $$3}' | awk '{print $$1}' | tr '\n' ' ' || echo ""); \
-		if [ -n "$$TASK_NAMES" ]; then \
-			$(CO) delete task $$TASK_NAMES -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
-		fi; \
-	fi
-	@echo "   ✓ Pipeline definitions removed"
-	@echo "   ✓ Task definitions removed"
 	@echo "💾 Cleaning Storage..."
 	@DYNAMIC_PVCS=$$($(CO) get pvc -n $(NAMESPACE) --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep "sast-ai-workflow-pipeline" || true); \
 	if [ -n "$$DYNAMIC_PVCS" ]; then \

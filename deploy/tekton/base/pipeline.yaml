@@ -55,10 +55,6 @@ spec:
       type: string
       description: "Whether to use known false positive file for filtering (true/false)"
       default: "true"
-    - name: CONTAINER_IMAGE
-      type: string
-      description: "Container image to use for SAST AI analysis"
-      default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
   workspaces:
     - name: gitlab-token-ws
       optional: true
@@ -96,8 +92,6 @@ spec:
           value: "$(params.GDRIVE_FOLDER_ID)"
         - name: GDRIVE_SA_FILE_NAME
           value: "$(params.GDRIVE_SA_FILE_NAME)"
-        - name: CONTAINER_IMAGE
-          value: "$(params.CONTAINER_IMAGE)"
       workspaces:
         - name: gitlab-token-ws
           workspace: gitlab-token-ws

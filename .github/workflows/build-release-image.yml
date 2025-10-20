@@ -46,11 +46,21 @@ jobs:
         echo "Updated pyproject.toml version:"
         grep '^version = ' pyproject.toml
 
+    - name: Update production overlay with release version
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        
+        # Update prod overlay task patch
+        sed -i "s|default: \"quay.io/ecosystem-appeng/sast-ai-workflow:.*\"|default: \"quay.io/ecosystem-appeng/sast-ai-workflow:$VERSION\"|g" \
+          deploy/tekton/overlays/prod/task-patch.yaml
+        
+        echo "Updated production overlay to version: $VERSION"
+
     - name: Commit version updates
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add pyproject.toml
+        git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
@@ -59,8 +69,8 @@ jobs:
           git checkout $DEFAULT_BRANCH
           git pull origin $DEFAULT_BRANCH
           # Re-add and commit the changes
-          git add pyproject.toml
-          git commit -m "Update version to ${{ steps.version.outputs.version }} for release"
+          git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml
+          git commit -m "Release v${{ steps.version.outputs.version }}: Update production overlay"
           git push origin $DEFAULT_BRANCH
         fi
 
