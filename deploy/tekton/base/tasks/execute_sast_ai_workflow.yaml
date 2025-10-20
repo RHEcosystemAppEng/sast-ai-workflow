@@ -75,6 +75,11 @@ spec:
       type: string
       description: "Optional GDrive SA file name"
       default: "service_account.json"
+    - name: CONTAINER_IMAGE
+      type: string
+      description: "Container image to use for SAST AI analysis"
+      default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
+
   workspaces:
     - name: gitlab-token-ws
       description: "Optional secret mount for GitLab token (if needed)"
@@ -413,6 +418,7 @@ spec:
             curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
               || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
         fi
+
         if [ -f "/shared-data/false-positives/ignore.err" ]; then
           echo "False positives file downloaded successfully"
           echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
@@ -423,7 +429,7 @@ spec:
 
     # STEP 6: Execute SAST AI Analysis
     - name: run-analysis
-      image: quay.io/ecosystem-appeng/sast-ai-workflow:latest-dev
+      image: $(params.CONTAINER_IMAGE)
       env:
         - name: PROJECT_NAME
           value: "$(params.PROJECT_NAME)"

@@ -44,7 +44,7 @@ jobs:
         images: ${{ env.IMAGE_NAME }}
         tags: |
           # For main branch pushes only
-          type=raw,value=latest-dev
+          type=raw,value=latest
           type=raw,value=main-{{sha}}
         labels: |
           org.opencontainers.image.title=SAST AI Workflow (Development)
@@ -72,7 +72,7 @@ jobs:
         echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.IMAGE_NAME }}:latest-dev\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "- \`${{ env.IMAGE_NAME }}:main-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)" >> $GITHUB_STEP_SUMMARY

@@ -32,6 +32,8 @@ spec:
       value: "USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER"
     - name: GDRIVE_FOLDER_ID
       value: "GDRIVE_FOLDER_ID_PLACEHOLDER"
+    - name: CONTAINER_IMAGE
+      value: "CONTAINER_IMAGE_PLACEHOLDER"
   workspaces:
     - name: gitlab-token-ws
       secret:
