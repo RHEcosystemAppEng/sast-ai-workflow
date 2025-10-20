@@ -1,0 +1,11 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: execute-ai-analysis
+spec:
+  params:
+    - name: CONTAINER_IMAGE
+      type: string
+      description: "Container image to use for SAST AI analysis"
+      default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
+
