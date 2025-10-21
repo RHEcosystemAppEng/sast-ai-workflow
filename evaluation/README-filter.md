@@ -6,7 +6,7 @@ Evaluates SAST filter performance using NAT framework to test false positive det
 ## Usage
 ```bash
 export LLM_API_KEY=your_nvidia_api_key
-export EMBEDDING_API_KEY=your_embedding_api_key
+export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key
 python evaluation/runners/run_filter_evaluation.py
 ```
 

@@ -85,9 +85,8 @@ class BaseEvaluationRunner(ABC):
                 print(f"Error: {var_name} environment variable not set")
                 if var_name == 'LLM_API_KEY':
                     print("Please set it with: export LLM_API_KEY=your_nvidia_api_key")
-                elif var_name in ['EMBEDDING_API_KEY', 'EMBEDDINGS_LLM_API_KEY']:
-                    print("Please set it with: export EMBEDDING_API_KEY=your_embedding_api_key")
-                    print("Or: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
+                elif var_name == 'EMBEDDINGS_LLM_API_KEY':
+                    print("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
                 return False
 
         # Check config file
@@ -252,8 +251,8 @@ class BaseEvaluationRunner(ABC):
         for var in required_vars:
             if var == 'LLM_API_KEY':
                 print("  export LLM_API_KEY=your_nvidia_api_key")
-            elif var in ['EMBEDDING_API_KEY', 'EMBEDDINGS_LLM_API_KEY']:
-                print("  export EMBEDDING_API_KEY=your_embedding_api_key")
+            elif var == 'EMBEDDINGS_LLM_API_KEY':
+                print("  export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
         print(f"  python evaluation/runners/run_{self.evaluation_name}_evaluation.py")
         print("\\nFor PyCharm debugging with breakpoints:")
         print(f"  python evaluation/runners/run_{self.evaluation_name}_evaluation.py --debug")
