@@ -21,6 +21,26 @@ from FilterKnownIssues import (
     is_known_false_positive,
     convert_similar_issues_to_examples_context_string
 )
+import sys
+import os
+
+# Import evaluation converters for NAT integration
+try:
+    # Add project root to path for evaluation imports
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    from evaluation.converter_tools.filter_converters import (
+        convert_str_to_sast_tracker,
+        convert_sast_tracker_to_str
+    )
+    _filter_converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+    _filter_converters_available = True
+except ImportError as e:
+    _filter_converters = None
+    _filter_converters_available = False
+    _filter_converters_error = str(e)
 
 logger = logging.getLogger(__name__)
 
@@ -153,31 +173,18 @@ async def filter(
         logger.info(f"Filter node completed. Known false positives: {known_fps}/{len(tracker.issues)}")
         return tracker
 
-    # Import evaluation converters for NAT integration
-    try:
-        import sys
-        import os
-        # Add project root to path for evaluation imports
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
-
-        from evaluation.converter_tools.filter_converters import (
-            convert_str_to_sast_tracker,
-            convert_sast_tracker_to_str
-        )
-        converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+    # Use module-level converters
+    if _filter_converters_available:
         logger.info("NAT evaluation converters loaded successfully")
-    except ImportError as e:
-        logger.info(f"NAT evaluation converters not available: {e}")
-        converters = None
+    else:
+        logger.info(f"NAT evaluation converters not available: {_filter_converters_error}")
 
     try:
         yield FunctionInfo.create(
             single_fn=_filter_fn,
             description=config.description,
             input_schema=SASTWorkflowTracker,
-            converters=converters
+            converters=_filter_converters
         )
     except GeneratorExit:
         logger.info("Filter function exited early!")
