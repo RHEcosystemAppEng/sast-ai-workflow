@@ -151,8 +151,13 @@ def get_header_row(filename):
 
 
 def load_json_file(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Load JSON file safely with error handling."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.warning(f"Could not load {file_path}: {e}")
+        return None
 
 
 @retry(
