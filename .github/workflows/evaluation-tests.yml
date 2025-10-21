@@ -28,15 +28,11 @@ jobs:
         with:
           filters: |
             filter:
-              - 'src/sast_agent_workflow/tools/filter.py'
-              - 'src/FilterKnownIssues.py'
-              - 'src/services/vector_store_service.py'
+              - 'put/actual/file/path.py'
             judge_llm:
-              - 'src/sast_agent_workflow/tools/judge_llm_analysis.py'
-              - 'src/services/issue_analysis_service.py'
+              - 'put/actual/file/path.py'
             summarize:
-              - 'src/services/issue_analysis_service.py'
-              - 'src/sast_agent_workflow/tools/summarize_justifications.py'
+              - 'put/actual/file/path.py'
 
   filter-evaluation:
     name: Filter Evaluation
