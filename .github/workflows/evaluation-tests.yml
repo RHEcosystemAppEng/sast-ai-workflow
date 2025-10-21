@@ -67,7 +67,7 @@ jobs:
       - name: Run filter evaluation
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDINGS_LLM_API_KEY: ${{ secrets.EMBEDDINGS_LLM_API_KEY }}
         run: |
           python evaluation/runners/run_filter_evaluation.py
 

@@ -4,7 +4,7 @@ Run evaluation for filter node using NAT.
 
 Usage:
     export LLM_API_KEY=your_nvidia_api_key
-    export EMBEDDING_API_KEY=your_embedding_api_key
+    export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key
     python evaluation/runners/run_filter_evaluation.py
 
 Or run directly:
@@ -31,7 +31,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
 
     def get_required_env_vars(self) -> List[str]:
         """Get required environment variables for filter evaluation."""
-        return ['LLM_API_KEY', 'EMBEDDING_API_KEY']
+        return ['LLM_API_KEY', 'EMBEDDINGS_LLM_API_KEY']
 
     def get_default_env_vars(self) -> Dict[str, str]:
         """Get default environment variables for filter evaluation."""
@@ -41,7 +41,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
             'INPUT_REPORT_FILE_PATH': '/dev/null',
             'OUTPUT_FILE_PATH': '/dev/null',
             'REPO_LOCAL_PATH': str(self.project_root),
-            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDING_API_KEY', os.getenv('EMBEDDINGS_LLM_API_KEY', ''))
+            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDINGS_LLM_API_KEY', '')
         }
 
     def get_reports_dir(self) -> Path:
@@ -61,12 +61,11 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         import os
 
         # Check for embedding API key with multiple possible names
-        embedding_api_key = os.getenv('EMBEDDING_API_KEY') or os.getenv('EMBEDDINGS_LLM_API_KEY')
+        embedding_api_key = os.getenv('EMBEDDINGS_LLM_API_KEY')
 
         if not embedding_api_key:
-            print("Error: EMBEDDING_API_KEY or EMBEDDINGS_LLM_API_KEY environment variable not set")
-            print("Please set it with: export EMBEDDING_API_KEY=your_embedding_api_key")
-            print("Or: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
+            print("Error: EMBEDDINGS_LLM_API_KEY environment variable not set")
+            print("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
             return False
 
         return True
