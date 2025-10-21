@@ -14,7 +14,26 @@ from services.vector_store_service import VectorStoreService
 from common.constants import DEFAULT_FIELD_VALUE
 
 logger = logging.getLogger(__name__)
+import sys
+import os
 
+# Import evaluation converters for NAT integration
+try:
+    # Add project root to path for evaluation imports
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    from evaluation.converter_tools.summarize_converters import (
+        convert_str_to_sast_tracker,
+        convert_sast_tracker_to_str
+    )
+    _summarize_converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+    _summarize_converters_available = True
+except ImportError as e:
+    _summarize_converters = None
+    _summarize_converters_available = False
+    _summarize_converters_error = str(e)
 
 class SummarizeJustificationsConfig(FunctionBaseConfig, name="summarize_justifications"):
     """
@@ -74,31 +93,18 @@ async def summarize_justifications(
         logger.info("Summarize_Justifications node completed")
         return tracker
 
-    # Import evaluation converters for NAT integration
-    try:
-        import sys
-        import os
-        # Add project root to path for evaluation imports
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
-
-        from evaluation.converter_tools.summarize_converters import (
-            convert_str_to_sast_tracker,
-            convert_sast_tracker_to_str
-        )
-        converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+    # Use module-level converters
+    if _summarize_converters_available:
         logger.info("NAT evaluation converters loaded successfully")
-    except ImportError as e:
-        logger.info(f"NAT evaluation converters not available: {e}")
-        converters = None
+    else:
+        logger.info(f"NAT evaluation converters not available: {_summarize_converters_error}")
 
     try:
         yield FunctionInfo.create(
             single_fn=_summarize_justifications_fn,
             description=config.description,
             input_schema=SASTWorkflowTracker,
-            converters=converters
+            converters=_summarize_converters
         )
     except GeneratorExit:
         logger.info("Summarize_Justifications function exited early!")
