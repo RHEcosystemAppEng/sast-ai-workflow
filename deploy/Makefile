@@ -41,6 +41,10 @@ IMAGE_NAME                       ?= sast-ai-workflow
 IMAGE_VERSION                    ?= 
 CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 
+# GCS Bucket Configuration
+GCS_BUCKET_NAME                  ?= ""
+GCS_SA_FILE_NAME                 := gcs_service_account.json
+
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
@@ -52,6 +56,7 @@ GITLAB_TOKEN                     ?= ""
 LLM_API_KEY                      ?= ""
 EMBEDDINGS_LLM_API_KEY           ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
+GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 .PHONY: deploy-dev deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
@@ -142,17 +147,29 @@ secrets:
 		--from-literal=embedding_llm_model_name="$(EMBEDDINGS_LLM_MODEL_NAME)" \
 		-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
 	echo "   ✓ LLM credentials secret"
-	# Create Google Service Account secret
+	# Create Google Service Account secrets
+	@echo "   🔍 Checking Google service account (REQUIRED)..."
 	@if [ ! -f "$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" ]; then \
-		echo "   ❌ Google service account not found - required for spreadsheet access"; \
+		echo "   ❌ Google service account not found - REQUIRED for pipeline execution"; \
 		echo "   💡 Place service account JSON file at: $(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)"; \
 		exit 1; \
 	else \
 		$(CO) create secret generic sast-ai-google-service-account \
-			--from-file=service_account.json="$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
-		echo "   ✓ Google service account secret"; \
-	fi
+            --from-file=service_account.json="$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" \
+            -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+        echo "   ✓ Google service account secret"; \
+    fi
+	@echo "   🔍 Checking GCS service account (OPTIONAL)..."
+	@if [ ! -f "$(GCS_SERVICE_ACCOUNT_JSON_PATH)" ]; then \
+		echo "   ⚠️  GCS service account not found at: $(GCS_SERVICE_ACCOUNT_JSON_PATH)"; \
+		echo "   💡 GCS uploads will be skipped - this is optional"; \
+	else \
+		echo "   ✓ GCS service account found"; \
+		$(CO) create secret generic sast-ai-gcs-service-account \
+            --from-file=$(GCS_SA_FILE_NAME)="$(GCS_SERVICE_ACCOUNT_JSON_PATH)" \
+            -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+        echo "   ✓ GCS service account secret"; \
+    fi
 	# Create Quay pull secret
 	@DOCKER_AUTH_FILE=""; \
 	if [ -f "$(DOCKER_CONFIG_PATH)" ]; then \
@@ -189,6 +206,7 @@ pipeline:
 scripts:
 	@echo "📜 Setting up Scripts..."
 	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml > /dev/null 2>&1
+	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml > /dev/null 2>&1
 	@echo "   ✓ Upload scripts configured"
 
 generate-prompts:
@@ -221,19 +239,19 @@ run:
 	@echo ""
 	@echo "🏃 Starting Pipeline Execution..."
 	@echo "   Container Image: $(CONTAINER_IMAGE)"
-	# remove any old run
+	@echo "   🔄 Removing old pipeline runs..."
 	@$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
-		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
+				-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
 	# Create PipelineRun with current parameters
 	@sed \
 		-e 's|PROJECT_NAME_PLACEHOLDER|$(PROJECT_NAME)|g' \
 		-e 's|PROJECT_VERSION_PLACEHOLDER|$(PROJECT_VERSION)|g' \
 		-e 's|REPO_REMOTE_URL_PLACEHOLDER|$(REPO_REMOTE_URL)|g' \
 		-e 's|FALSE_POSITIVES_URL_PLACEHOLDER|$(FALSE_POSITIVES_URL)|g' \
-		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
-		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
 		-e 's|EMBEDDINGS_LLM_URL_PLACEHOLDER|$(EMBEDDINGS_LLM_URL)|g' \
 		-e 's|EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER|$(EMBEDDINGS_LLM_MODEL_NAME)|g' \
+		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
+		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
 		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
 		-e 's|HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER|$(HUMAN_VERIFIED_FILE_PATH)|g' \
 		-e 's|USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER|$(USE_KNOWN_FALSE_POSITIVE_FILE)|g' \
@@ -241,6 +259,8 @@ run:
 		-e 's|GDRIVE_FOLDER_ID_PLACEHOLDER|$(GDRIVE_FOLDER_ID)|g' \
 		-e 's|GDRIVE_SA_FILE_NAME_PLACEHOLDER|$(GDRIVE_SA_FILE_NAME)|g' \
 		-e 's|CONTAINER_IMAGE_PLACEHOLDER|$(CONTAINER_IMAGE)|g' \
+		-e 's|GCS_BUCKET_NAME_PLACEHOLDER|$(GCS_BUCKET_NAME)|g' \
+		-e 's|GCS_SA_FILE_NAME_PLACEHOLDER|$(GCS_SA_FILE_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml > /dev/null 2>&1
 	@rm -f tekton/pipelinerun-temp.yaml
@@ -354,8 +374,9 @@ clean:
 	@echo "   ✓ Prompt templates removed"
 	@echo "📜 Cleaning Scripts..."
 	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \
+		sast-ai-gcs-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
-	@echo "   ✓ Google Drive upload scripts removed"
+	@echo "   ✓ Upload scripts removed"
 	@echo "🗂️  Cleaning Optional ConfigMaps..."
 	@$(CO) delete configmap sast-ai-gdrive-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
@@ -363,7 +384,8 @@ clean:
 	@echo "🔐 Removing Secrets..."
 	@$(CO) delete secret sast-ai-gitlab-token \
 		sast-ai-default-llm-creds \
-		sast-ai-google-service-account \
+		sast-ai-google-drive-service-account \
+		sast-ai-gcs-service-account \
 		sast-ai-quay-registry-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ All secrets removed"
