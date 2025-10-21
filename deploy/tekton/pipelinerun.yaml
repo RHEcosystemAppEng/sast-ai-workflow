@@ -38,8 +38,6 @@ spec:
       value: "GDRIVE_SA_FILE_NAME_PLACEHOLDER"
     - name: GCS_BUCKET_NAME
       value: "GCS_BUCKET_NAME_PLACEHOLDER"
-    - name: GCS_BUCKET_UPLOAD_ENABLED
-      value: "GCS_BUCKET_UPLOAD_ENABLED_PLACEHOLDER"
     - name: GCS_SA_FILE_NAME
       value: "GCS_SA_FILE_NAME_PLACEHOLDER"
   workspaces:

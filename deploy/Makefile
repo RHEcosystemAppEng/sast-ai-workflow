@@ -43,7 +43,6 @@ CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 
 # GCS Bucket Configuration
 GCS_BUCKET_NAME                  ?= ""
-GCS_BUCKET_UPLOAD_ENABLED        ?= false
 GCS_SA_FILE_NAME                 := gcs_service_account.json
 
 # GitOps Configuration
@@ -261,7 +260,6 @@ run:
 		-e 's|GDRIVE_SA_FILE_NAME_PLACEHOLDER|$(GDRIVE_SA_FILE_NAME)|g' \
 		-e 's|CONTAINER_IMAGE_PLACEHOLDER|$(CONTAINER_IMAGE)|g' \
 		-e 's|GCS_BUCKET_NAME_PLACEHOLDER|$(GCS_BUCKET_NAME)|g' \
-		-e 's|GCS_BUCKET_UPLOAD_ENABLED_PLACEHOLDER|$(GCS_BUCKET_UPLOAD_ENABLED)|g' \
 		-e 's|GCS_SA_FILE_NAME_PLACEHOLDER|$(GCS_SA_FILE_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml > /dev/null 2>&1

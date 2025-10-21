@@ -59,10 +59,6 @@ spec:
       type: string
       description: "GCS bucket name for uploading SARIF reports (optional)"
       default: ""
-    - name: GCS_BUCKET_UPLOAD_ENABLED
-      type: string
-      description: "Enable GCS bucket upload for SARIF reports (true/false)"
-      default: "false"
     - name: GCS_SA_FILE_NAME
       type: string
       description: "GCS service account file name (constant)"
@@ -114,8 +110,6 @@ spec:
           value: "$(params.GDRIVE_SA_FILE_NAME)"
         - name: GCS_BUCKET_NAME
           value: "$(params.GCS_BUCKET_NAME)"
-        - name: GCS_BUCKET_UPLOAD_ENABLED
-          value: "$(params.GCS_BUCKET_UPLOAD_ENABLED)"
         - name: GCS_SA_FILE_NAME
           value: "$(params.GCS_SA_FILE_NAME)"
       workspaces:
