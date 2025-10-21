@@ -19,9 +19,9 @@ import os
 # Import evaluation converters for NAT integration
 try:
     # Add project root to path for evaluation imports
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
+    from . import PROJECT_ROOT
+    if PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, PROJECT_ROOT)
 
     from evaluation.converter_tools.judge_llm_converters import (
         convert_str_to_sast_tracker,
