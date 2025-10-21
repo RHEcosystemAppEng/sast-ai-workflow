@@ -77,7 +77,7 @@ def load_ground_truth_dataset(dataset_path: Path) -> List[Dict[str, Any]]:
     try:
         with open(dataset_path, 'r') as f:
             dataset = json.load(f)
-        logger.info(f"Loaded ground truth dataset with {len(dataset)} test cases")
+        logger.debug(f"Loaded ground truth dataset with {len(dataset)} test cases")
         return dataset
     except Exception as e:
         logger.error(f"Failed to load ground truth dataset: {e}")
@@ -91,7 +91,7 @@ def load_evaluation_results(results_dir: Path) -> Dict[str, Any]:
     try:
         with open(workflow_output_path, 'r') as f:
             results = json.load(f)
-        logger.info(f"Loaded evaluation results from {workflow_output_path}")
+        logger.debug(f"Loaded evaluation results from {workflow_output_path}")
         return results
     except Exception as e:
         logger.error(f"Failed to load evaluation results: {e}")
@@ -179,7 +179,7 @@ def analyze_test_case(
 ) -> None:
     """Analyze a single test case and update the validation report."""
     test_id = test_case.get("id", "unknown")
-    logger.info(f"Analyzing test case: {test_id}")
+    logger.debug(f"Analyzing test case: {test_id}")
 
     eval_result = None
     if isinstance(evaluation_results, list):
@@ -331,7 +331,7 @@ def analyze_test_case(
             test_case_results["faiss_accuracy"] = None
 
     report.detailed_results[test_id] = test_case_results
-    logger.info(f"Test case {test_id}: {correct_classifications}/{total_issues} correct classifications, "
+    logger.debug(f"Test case {test_id}: {correct_classifications}/{total_issues} correct classifications, "
                f"{correct_faiss_results}/{total_issues} correct FAISS results")
 
 
@@ -385,11 +385,11 @@ def main():
     else:
         dataset_file = project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset_individual_issues.json"
 
-    logger.info("=" * 80)
-    logger.info("Filter Evaluation Validation Report")
-    logger.info("=" * 80)
-    logger.info(f"Results directory: {results_dir}")
-    logger.info(f"Dataset file: {dataset_file}")
+    logger.debug("=" * 80)
+    logger.debug("Filter Evaluation Validation Report")
+    logger.debug("=" * 80)
+    logger.debug(f"Results directory: {results_dir}")
+    logger.debug(f"Dataset file: {dataset_file}")
 
     if not results_dir.exists():
         logger.error(f"Results directory does not exist: {results_dir}")
@@ -417,34 +417,34 @@ def main():
 
     calculate_final_metrics(report)
 
-    logger.info("\n" + "=" * 80)
-    logger.info("VALIDATION SUMMARY")
-    logger.info("=" * 80)
-    logger.info(f"Total test cases analyzed: {report.summary['total_test_cases']}")
-    logger.info(f"Total issues analyzed: {report.summary['total_issues']}")
-    logger.info(f"Classification accuracy: {report.summary['classification_accuracy']:.3f}")
+    logger.debug("\n" + "=" * 80)
+    logger.debug("VALIDATION SUMMARY")
+    logger.debug("=" * 80)
+    logger.debug(f"Total test cases analyzed: {report.summary['total_test_cases']}")
+    logger.debug(f"Total issues analyzed: {report.summary['total_issues']}")
+    logger.debug(f"Classification accuracy: {report.summary['classification_accuracy']:.3f}")
     faiss_acc = report.summary['faiss_matching_accuracy']
     if faiss_acc is not None:
-        logger.info(f"FAISS matching accuracy: {faiss_acc:.3f}")
+        logger.debug(f"FAISS matching accuracy: {faiss_acc:.3f}")
     else:
-        logger.info(f"FAISS matching accuracy: N/A (no expected matches to evaluate)")
+        logger.debug(f"FAISS matching accuracy: N/A (no expected matches to evaluate)")
 
     cm = report.classification_metrics
-    logger.info(f"\nClassification Metrics:")
-    logger.info(f"  True Positives: {cm['true_positives']}")
-    logger.info(f"  True Negatives: {cm['true_negatives']}")
-    logger.info(f"  False Positives: {cm['false_positives']}")
-    logger.info(f"  False Negatives: {cm['false_negatives']}")
-    logger.info(f"  Precision: {cm['precision']:.3f}")
-    logger.info(f"  Recall: {cm['recall']:.3f}")
-    logger.info(f"  F1 Score: {cm['f1_score']:.3f}")
+    logger.debug(f"\nClassification Metrics:")
+    logger.debug(f"  True Positives: {cm['true_positives']}")
+    logger.debug(f"  True Negatives: {cm['true_negatives']}")
+    logger.debug(f"  False Positives: {cm['false_positives']}")
+    logger.debug(f"  False Negatives: {cm['false_negatives']}")
+    logger.debug(f"  Precision: {cm['precision']:.3f}")
+    logger.debug(f"  Recall: {cm['recall']:.3f}")
+    logger.debug(f"  F1 Score: {cm['f1_score']:.3f}")
 
     fv = report.faiss_validation
-    logger.info(f"\nFAISS Matching Metrics:")
-    logger.info(f"  Expected matches found: {fv['correct_matches_found']}/{fv['total_expected_matches']}")
-    logger.info(f"  Correct no-matches: {fv['correct_no_matches']}/{fv['total_no_match_items']}")
-    logger.info(f"  Missing expected matches: {fv['missing_expected_matches']}")
-    logger.info(f"  Unexpected matches: {fv['unexpected_matches']}")
+    logger.debug(f"\nFAISS Matching Metrics:")
+    logger.debug(f"  Expected matches found: {fv['correct_matches_found']}/{fv['total_expected_matches']}")
+    logger.debug(f"  Correct no-matches: {fv['correct_no_matches']}/{fv['total_no_match_items']}")
+    logger.debug(f"  Missing expected matches: {fv['missing_expected_matches']}")
+    logger.debug(f"  Unexpected matches: {fv['unexpected_matches']}")
 
     if report.errors:
         logger.warning(f"\nErrors encountered: {len(report.errors)}")
@@ -455,12 +455,12 @@ def main():
     try:
         with open(report_path, 'w') as f:
             json.dump(report.to_dict(), f, indent=2)
-        logger.info(f"\nValidation report saved to: {report_path}")
+        logger.debug(f"\nValidation report saved to: {report_path}")
     except Exception as e:
         logger.error(f"Failed to save validation report: {e}")
         sys.exit(1)
 
-    logger.info("Validation completed successfully!")
+    logger.debug("Validation completed successfully!")
     return report
 
 
