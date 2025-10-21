@@ -736,10 +736,10 @@ spec:
         SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
         
         if [ -z "$SARIF_FILE" ]; then
-          echo "No SARIF file found in output directory - skipping GCS upload"
+          echo "ERROR: No SARIF file found in output directory"
           echo "Available files in output directory:"
           ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
-          exit 0
+          exit 1
         fi
         
         echo "Found SARIF file: $SARIF_FILE"
