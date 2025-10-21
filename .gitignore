@@ -164,3 +164,10 @@ cython_debug/
 
 # Cursor
 .cursor/
+
+# DVC - Data Version Control
+/dvc.lock
+.dvc/config
+.dvc/cache
+.dvc/tmp
+.dvc/.gitignore

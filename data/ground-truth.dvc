@@ -1,5 +1,6 @@
 outs:
-- md5: null
-  size: null
-  nfiles: null
+- md5: 8103126ce2f68b1a888b8e32b02f5925.dir
+  size: 3154237
+  nfiles: 260
+  hash: md5
   path: ground-truth
