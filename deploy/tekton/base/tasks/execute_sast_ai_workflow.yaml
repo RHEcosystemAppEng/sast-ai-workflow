@@ -757,7 +757,7 @@ spec:
         echo "Dependencies installed successfully"
         
         # Generate timestamp for folder organization
-        TIMESTAMP=$(date +"%Y-%m-%dT%H-%M-%S")
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%S")
         
         # Upload the SARIF file
         SCAN_FILENAME=$(basename "$SARIF_FILE")
