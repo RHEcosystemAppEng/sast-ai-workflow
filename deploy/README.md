@@ -83,12 +83,14 @@ All SAST AI Workflow resources use the `sast-ai-` prefix for easy identification
 **Secrets:**
 - `sast-ai-gitlab-token` - GitLab access token
 - `sast-ai-default-llm-creds` - LLM and embeddings API credentials
-- `sast-ai-google-service-account` - Google service account JSON
+- `sast-ai-google-service-account` - Google service account JSON for spreadsheet access
+- `sast-ai-gcs-service-account` - GCS service account JSON for uploading SARIF reports to GCS bucket (optional)
 - `sast-ai-quay-registry-config` - Container registry pull credentials
 
 **ConfigMaps:**
 - `sast-ai-prompt-templates` - LLM prompt templates
 - `sast-ai-gdrive-upload-scripts` - Google Drive upload scripts
+- `sast-ai-gcs-upload-scripts` - GCS bucket upload scripts for SARIF reports
 - `sast-ai-gdrive-config` - Google Drive folder ID (optional)
 
 

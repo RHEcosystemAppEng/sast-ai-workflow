@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sast-ai-gcs-upload-scripts
+data:
+  gcs_upload.py: |
+    import sys
+    import os
+    import json
+    import time
+    import traceback
+    from datetime import datetime
+    from google.cloud import storage
+    from google.cloud.exceptions import GoogleCloudError
+    from google.oauth2.service_account import Credentials
+    
+    def upload_to_gcs_bucket(bucket_name, source_file_path, destination_blob_name, service_account_path, max_retries=3):
+        """Upload a file to GCS bucket with retry logic."""
+        print(f"Uploading {source_file_path} to gs://{bucket_name}/{destination_blob_name}")
+        
+        try:
+            # Initialize client with service account
+            if service_account_path and os.path.exists(service_account_path):
+                print(f"Using service account: {service_account_path}")
+                credentials = Credentials.from_service_account_file(service_account_path)
+                client = storage.Client(credentials=credentials)
+            else:
+                print("Error: Service account credentials are required for GCS upload")
+                if service_account_path:
+                    print(f"Service account path not found: {service_account_path}")
+                else:
+                    print("GOOGLE_APPLICATION_CREDENTIALS environment variable not set")
+                return False
+            
+            bucket = client.bucket(bucket_name)
+            blob = bucket.blob(destination_blob_name)
+            
+            # Upload with retry logic
+            for attempt in range(max_retries):
+                try:
+                    # Get environment variables for additional context
+                    project_name = os.getenv('PROJECT_NAME', 'unknown')
+                    project_version = os.getenv('PROJECT_VERSION', 'unknown')
+                    
+                    # Get SARIF file modification time
+                    file_mtime = os.path.getmtime(source_file_path)
+                    analysis_completion_time = datetime.fromtimestamp(file_mtime).isoformat()
+                    
+                    # Add comprehensive metadata
+                    blob.metadata = {
+                        # Upload tracking
+                        'uploaded_by': 'sast-ai-workflow',
+                        'analysis_completion_time': analysis_completion_time,
+                        
+                        # Project context
+                        'project_name': project_name,
+                        'project_version': project_version,
+                    }
+                    
+                    blob.upload_from_filename(source_file_path)
+                    print(f"Successfully uploaded to gs://{bucket_name}/{destination_blob_name}")
+                    return True
+                    
+                except GoogleCloudError as e:
+                    if attempt == max_retries - 1:
+                        print(f"Failed to upload after {max_retries} attempts: {e}")
+                        raise e
+                    
+                    wait_time = 2 ** attempt  # Exponential backoff
+                    print(f"Upload attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
+                    time.sleep(wait_time)
+            
+        except Exception as e:
+            print(f"Unexpected error uploading to GCS: {e}")
+            print(traceback.format_exc())
+            return False
+    
+    def main():
+        if len(sys.argv) != 4:
+            print("Usage: python gcs_upload.py <source_file> <bucket_name> <destination_path>")
+            sys.exit(1)
+        
+        source_file = sys.argv[1]
+        bucket_name = sys.argv[2]
+        destination_path = sys.argv[3]
+        
+        # Get service account path from environment
+        service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        if not os.path.exists(source_file):
+            print(f"Error: Source file not found: {source_file}")
+            sys.exit(1)
+        
+        success = upload_to_gcs_bucket(bucket_name, source_file, destination_path, service_account_path)
+        
+        sys.exit(0 if success else 1)
+    
+    if __name__ == "__main__":
+        main()
