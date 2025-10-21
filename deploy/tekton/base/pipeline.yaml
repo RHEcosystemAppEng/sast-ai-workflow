@@ -65,7 +65,7 @@ spec:
       default: "false"
     - name: GCS_SA_FILE_NAME
       type: string
-      description: "GCS service account file name"
+      description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
   workspaces:
     - name: gitlab-token-ws

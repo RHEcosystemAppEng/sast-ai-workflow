@@ -44,7 +44,7 @@ CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 # GCS Bucket Configuration
 GCS_BUCKET_NAME                  ?= ""
 GCS_BUCKET_UPLOAD_ENABLED        ?= false
-GCS_SA_FILE_NAME                 ?= gcs_service_account.json
+GCS_SA_FILE_NAME                 := gcs_service_account.json
 
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
@@ -167,7 +167,7 @@ secrets:
 	else \
 		echo "   ✓ GCS service account found"; \
 		$(CO) create secret generic sast-ai-gcs-service-account \
-            --from-file=gcs_service_account.json="$(GCS_SERVICE_ACCOUNT_JSON_PATH)" \
+            --from-file=$(GCS_SA_FILE_NAME)="$(GCS_SERVICE_ACCOUNT_JSON_PATH)" \
             -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
         echo "   ✓ GCS service account secret"; \
     fi
