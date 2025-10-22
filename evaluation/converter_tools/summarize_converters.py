@@ -22,6 +22,12 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse
 from evaluation.converter_tools.base_converter import BaseEvaluationConverter
+from evaluation.constants import (
+    SUMMARIZATION_DATASET_FILENAME,
+    PROMPTS_DIR,
+    JUSTIFICATION_SUMMARY_SYSTEM_PROMPT_FILENAME,
+    JUSTIFICATION_SUMMARY_HUMAN_PROMPT_FILENAME
+)
 from common.constants import DEFAULT_FIELD_VALUE
 
 try:
@@ -39,7 +45,7 @@ class SummarizeConverter(BaseEvaluationConverter):
     """Summarize evaluation converter that inherits from BaseEvaluationConverter."""
 
     def __init__(self):
-        super().__init__("summarize_justifications", "summarize_eval_dataset.json")
+        super().__init__("summarize_justifications", SUMMARIZATION_DATASET_FILENAME)
 
     def parse_input_data(self, input_str: str) -> Dict[str, Any]:
         """Parse input string for summarize evaluation."""
@@ -124,15 +130,15 @@ class SummarizeConverter(BaseEvaluationConverter):
         """Get summarize-specific minimal config."""
         class MinimalConfig:
             def __init__(self):
-                prompts_dir = os.path.join(os.path.dirname(__file__), "../../src/templates/prompts")
+                prompts_dir = os.path.join(os.path.dirname(__file__), f"../../{PROMPTS_DIR}")
 
                 try:
-                    system_prompt_file = os.path.join(prompts_dir, "justification_summary_system_prompt.yaml")
+                    system_prompt_file = os.path.join(prompts_dir, JUSTIFICATION_SUMMARY_SYSTEM_PROMPT_FILENAME)
                     with open(system_prompt_file, "r", encoding="utf-8") as f:
                         system_prompt_data = yaml.safe_load(f)
                         self.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = system_prompt_data.get("template", "")
 
-                    human_prompt_file = os.path.join(prompts_dir, "justification_summary_human_prompt.yaml")
+                    human_prompt_file = os.path.join(prompts_dir, JUSTIFICATION_SUMMARY_HUMAN_PROMPT_FILENAME)
                     with open(human_prompt_file, "r", encoding="utf-8") as f:
                         human_prompt_data = yaml.safe_load(f)
                         self.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = human_prompt_data.get("template", "")

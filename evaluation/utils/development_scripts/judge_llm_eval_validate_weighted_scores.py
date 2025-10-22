@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Script to validate that final scores in the evaluation output match the weighted scoring formula.
-Formula: (clarity_score * 0.35) + (completeness_score * 0.30) + (technical_accuracy_score * 0.25) + (logical_flow_score * 0.10)
 """
 
 import json
@@ -9,6 +8,23 @@ import sys
 from pathlib import Path
 import glob
 import os
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from evaluation.constants import (
+    JUDGE_METRIC_CLARITY,
+    JUDGE_METRIC_COMPLETENESS,
+    JUDGE_METRIC_TECHNICAL_ACCURACY,
+    JUDGE_METRIC_LOGICAL_FLOW,
+    JUDGE_WEIGHT_CLARITY,
+    JUDGE_WEIGHT_COMPLETENESS,
+    JUDGE_WEIGHT_TECHNICAL_ACCURACY,
+    JUDGE_WEIGHT_LOGICAL_FLOW,
+    JUSTIFICATION_QUALITY_OUTPUT_FILENAME,
+    REPORTS_JUDGE_LLM_DIR
+)
 
 
 def calculate_weighted_score(reasoning):
@@ -24,12 +40,12 @@ def calculate_weighted_score(reasoning):
     if isinstance(nested_reasoning, str):
         return 0
 
-    clarity = nested_reasoning.get("CLARITY", 0)
-    completeness = nested_reasoning.get("COMPLETENESS", 0)
-    technical_accuracy = nested_reasoning.get("TECHNICAL_ACCURACY", 0)
-    logical_flow = nested_reasoning.get("LOGICAL_FLOW", 0)
+    clarity = nested_reasoning.get(JUDGE_METRIC_CLARITY, 0)
+    completeness = nested_reasoning.get(JUDGE_METRIC_COMPLETENESS, 0)
+    technical_accuracy = nested_reasoning.get(JUDGE_METRIC_TECHNICAL_ACCURACY, 0)
+    logical_flow = nested_reasoning.get(JUDGE_METRIC_LOGICAL_FLOW, 0)
 
-    weighted_score = (clarity * 0.35) + (completeness * 0.30) + (technical_accuracy * 0.25) + (logical_flow * 0.10)
+    weighted_score = (clarity * JUDGE_WEIGHT_CLARITY) + (completeness * JUDGE_WEIGHT_COMPLETENESS) + (technical_accuracy * JUDGE_WEIGHT_TECHNICAL_ACCURACY) + (logical_flow * JUDGE_WEIGHT_LOGICAL_FLOW)
     return weighted_score
 
 
@@ -71,10 +87,10 @@ def validate_scores(file_path):
             print(f"   Difference: {difference:.6f}")
             nested_reasoning = reasoning.get("reasoning", {})
             print(f"   Component scores:")
-            print(f"     CLARITY: {nested_reasoning.get('CLARITY', 'N/A')}")
-            print(f"     COMPLETENESS: {nested_reasoning.get('COMPLETENESS', 'N/A')}")
-            print(f"     TECHNICAL_ACCURACY: {nested_reasoning.get('TECHNICAL_ACCURACY', 'N/A')}")
-            print(f"     LOGICAL_FLOW: {nested_reasoning.get('LOGICAL_FLOW', 'N/A')}")
+            print(f"     {JUDGE_METRIC_CLARITY}: {nested_reasoning.get(JUDGE_METRIC_CLARITY, 'N/A')}")
+            print(f"     {JUDGE_METRIC_COMPLETENESS}: {nested_reasoning.get(JUDGE_METRIC_COMPLETENESS, 'N/A')}")
+            print(f"     {JUDGE_METRIC_TECHNICAL_ACCURACY}: {nested_reasoning.get(JUDGE_METRIC_TECHNICAL_ACCURACY, 'N/A')}")
+            print(f"     {JUDGE_METRIC_LOGICAL_FLOW}: {nested_reasoning.get(JUDGE_METRIC_LOGICAL_FLOW, 'N/A')}")
             print()
             all_valid = False
         else:
@@ -102,7 +118,7 @@ def validate_scores(file_path):
 
 def find_latest_run_folder():
     """Find the latest timestamped run folder that contains evaluation output."""
-    base_dir = "evaluation/reports/judge_llm_analysis"
+    base_dir = REPORTS_JUDGE_LLM_DIR
     pattern = os.path.join(base_dir, "run_*")
     run_folders = glob.glob(pattern)
 
@@ -111,7 +127,7 @@ def find_latest_run_folder():
 
     # Sort by folder name (which includes timestamp) and check for evaluation output
     for folder in sorted(run_folders, reverse=True):
-        eval_file = os.path.join(folder, "summarization_quality_eval_output.json")
+        eval_file = os.path.join(folder, JUSTIFICATION_QUALITY_OUTPUT_FILENAME)
         if os.path.exists(eval_file):
             return folder
 
@@ -124,13 +140,13 @@ def main():
         # Try to find the latest run folder first
         latest_folder = find_latest_run_folder()
         if latest_folder:
-            file_path = os.path.join(latest_folder, "justification_quality_eval_output.json")
+            file_path = os.path.join(latest_folder, JUSTIFICATION_QUALITY_OUTPUT_FILENAME)
         else:
-            # Fallback to default path
-            file_path = "evaluation/reports/judge_llm_analysis/run_20250917_120835/justification_quality_eval_output.json"
+            # Fallback to reports dir
+            file_path = os.path.join(REPORTS_JUDGE_LLM_DIR, JUSTIFICATION_QUALITY_OUTPUT_FILENAME)
 
     print(f"Validating weighted scores in: {file_path}")
-    print(f"Using formula: (CLARITY * 0.35) + (COMPLETENESS * 0.30) + (TECHNICAL_ACCURACY * 0.25) + (LOGICAL_FLOW * 0.10)")
+    print(f"Using formula: ({JUDGE_METRIC_CLARITY} * {JUDGE_WEIGHT_CLARITY}) + ({JUDGE_METRIC_COMPLETENESS} * {JUDGE_WEIGHT_COMPLETENESS}) + ({JUDGE_METRIC_TECHNICAL_ACCURACY} * {JUDGE_WEIGHT_TECHNICAL_ACCURACY}) + ({JUDGE_METRIC_LOGICAL_FLOW} * {JUDGE_WEIGHT_LOGICAL_FLOW})")
     print()
 
     is_valid = validate_scores(file_path)

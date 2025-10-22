@@ -9,6 +9,16 @@ import os
 import sys
 from typing import Dict, List, Any
 from collections import defaultdict
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from evaluation.constants import (
+    CLASSIFICATION_TRUE_POSITIVE,
+    CLASSIFICATION_FALSE_POSITIVE
+)
 
 
 def extract_investigation_result(generated_answer: str) -> str:
@@ -52,13 +62,13 @@ def calculate_metrics(predictions: List[str], ground_truth: List[str]) -> Dict[s
         raise ValueError("Predictions and ground truth must have the same length")
 
     tp = sum(1 for p, g in zip(predictions, ground_truth)
-             if p == "TRUE POSITIVE" and g == "TRUE POSITIVE")
+             if p == CLASSIFICATION_TRUE_POSITIVE and g == CLASSIFICATION_TRUE_POSITIVE)
     fp = sum(1 for p, g in zip(predictions, ground_truth)
-             if p == "TRUE POSITIVE" and g == "FALSE POSITIVE")
+             if p == CLASSIFICATION_TRUE_POSITIVE and g == CLASSIFICATION_FALSE_POSITIVE)
     tn = sum(1 for p, g in zip(predictions, ground_truth)
-             if p == "FALSE POSITIVE" and g == "FALSE POSITIVE")
+             if p == CLASSIFICATION_FALSE_POSITIVE and g == CLASSIFICATION_FALSE_POSITIVE)
     fn = sum(1 for p, g in zip(predictions, ground_truth)
-             if p == "FALSE POSITIVE" and g == "TRUE POSITIVE")
+             if p == CLASSIFICATION_FALSE_POSITIVE and g == CLASSIFICATION_TRUE_POSITIVE)
 
     total = len(predictions)
 
@@ -114,7 +124,7 @@ def process_workflow_output(file_path: str) -> Dict[str, Any]:
 
         predicted_result = extract_investigation_result(generated_answer)
 
-        if predicted_result and predicted_result in ["TRUE POSITIVE", "FALSE POSITIVE"]:
+        if predicted_result and predicted_result in [CLASSIFICATION_TRUE_POSITIVE, CLASSIFICATION_FALSE_POSITIVE]:
             predictions.append(predicted_result)
             ground_truth.append(expected_result)
             item_ids.append(item_id)

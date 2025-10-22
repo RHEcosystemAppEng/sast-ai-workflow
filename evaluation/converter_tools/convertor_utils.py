@@ -7,6 +7,14 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from evaluation.constants import (
+    DATASET_BASE_DIR,
+    DATASET_FILTER_DIR,
+    DATASET_SUMMARIZATION_DIR,
+    DATASET_JUDGE_LLM_DIR,
+    OUTPUT_DIR
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,9 +40,10 @@ def load_evaluation_dataset(dataset_name: str = "summarize_eval_dataset.json") -
     dataset_paths = []
     for base in base_paths:
         dataset_paths.extend([
-            base / "evaluation" / "dataset" / "summarize_eval" / dataset_name,  # Add summarize_eval subdir
-            base / "evaluation" / "dataset" / "filter_eval" / dataset_name,  # Add filter_eval subdir
-            base / "evaluation" / "dataset" / dataset_name,
+            base / DATASET_SUMMARIZATION_DIR / dataset_name,
+            base / DATASET_FILTER_DIR / dataset_name,
+            base / DATASET_JUDGE_LLM_DIR / dataset_name,
+            base / DATASET_BASE_DIR / dataset_name,
             base / "dataset" / dataset_name,
             base / dataset_name
         ])
@@ -82,17 +91,20 @@ def find_dataset_entry(dataset: List[Dict[str, Any]],
     return None
 
 
-def create_results_directory(output_dir: str = "./evaluation/results") -> Path:
+def create_results_directory(output_dir: str = None) -> Path:
     """
     Create results directory with timestamp.
 
     Args:
-        output_dir: Base output directory
+        output_dir: Base output directory (defaults to OUTPUT_DIR constant)
 
     Returns:
         Path to the created results directory
     """
     from datetime import datetime
+
+    if output_dir is None:
+        output_dir = OUTPUT_DIR
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     results_dir = Path(output_dir) / f"run_{timestamp}"

@@ -20,13 +20,14 @@ from typing import List, Dict
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import REPORTS_SUMMARIZATION_DIR, DATASET_SUMMARIZATION_DIR, SUMMARIZATION_DATASET_FILENAME, SUMMARIZATION_CONFIG_FILENAME
 from evaluation.runners.base_runner import BaseEvaluationRunner
 
 class SummarizeEvaluationRunner(BaseEvaluationRunner):
     """Summarize justifications evaluation runner."""
 
     def __init__(self):
-        super().__init__("summarize_justifications", "summarize_justifications_eval.yml")
+        super().__init__("summarize_justifications", SUMMARIZATION_CONFIG_FILENAME)
 
     def get_required_env_vars(self) -> List[str]:
         """Get required environment variables for summarize evaluation."""
@@ -44,11 +45,11 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
 
     def get_reports_dir(self) -> Path:
         """Get the reports directory for summarize evaluation."""
-        return self.project_root / "evaluation" / "reports" / "summarize_justifications"
+        return self.project_root / REPORTS_SUMMARIZATION_DIR
 
     def additional_environment_checks(self) -> bool:
         """Additional checks for summarize evaluation."""
-        dataset_path = self.project_root / "evaluation" / "dataset" / "summarize_eval" / "summarize_eval_dataset.json"
+        dataset_path = self.project_root / DATASET_SUMMARIZATION_DIR / SUMMARIZATION_DATASET_FILENAME
         if not dataset_path.exists():
             print(f"Error: Dataset file not found: {dataset_path}")
             return False

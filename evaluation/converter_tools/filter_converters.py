@@ -15,6 +15,17 @@ import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import (
+    MAX_FILTER_ITERATIONS,
+    FILTER_DATASET_FILENAME,
+    OUTPUT_DIR,
+    KNOWN_NON_ISSUES_DIR,
+    KNOWN_NON_ISSUES_FILENAME,
+    KNOWN_NON_ISSUES_VECTOR_STORE_DIR,
+    CLASSIFICATION_TRUE_POSITIVE,
+    CLASSIFICATION_FALSE_POSITIVE,
+)
+
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
@@ -27,7 +38,7 @@ class FilterConverter(BaseEvaluationConverter):
     """Filter evaluation converter that inherits from BaseEvaluationConverter."""
 
     def __init__(self):
-        super().__init__("filter", "filter_eval_dataset_individual_issues.json")
+        super().__init__("filter", FILTER_DATASET_FILENAME)
 
     def parse_input_data(self, input_str: str) -> Dict[str, Any]:
         """Parse input string for filter evaluation."""
@@ -103,7 +114,11 @@ class FilterConverter(BaseEvaluationConverter):
         analysis = per_issue_data.analysis_response
 
         # Determine if issue was filtered as false positive based on analysis.is_final
-        filter_result = "FALSE_POSITIVE" if analysis.is_final == FinalStatus.TRUE.value else "TRUE_POSITIVE"
+        filter_result = (
+            CLASSIFICATION_FALSE_POSITIVE
+            if analysis.is_final == FinalStatus.TRUE.value
+            else CLASSIFICATION_TRUE_POSITIVE
+        )
 
         # Use default confidence - let the evaluation system compare with expected values
         confidence = None
@@ -159,10 +174,10 @@ class FilterConverter(BaseEvaluationConverter):
         class MinimalConfig:
             def __init__(self):
                 self.USE_KNOWN_FALSE_POSITIVE_FILE = True
-                self.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / "evaluation/known_non_issues_data/known_non_issues.txt")
-                self.OUTPUT_DIR = "evaluation/output"
-                self.MAX_ITERATIONS = 1
-                self.VECTOR_STORE_PATH = "evaluation/known_non_issues_data/faiss_vector_store"
+                self.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
+                self.OUTPUT_DIR = OUTPUT_DIR
+                self.MAX_ITERATIONS = MAX_FILTER_ITERATIONS
+                self.VECTOR_STORE_PATH = KNOWN_NON_ISSUES_VECTOR_STORE_DIR
                 self.SIMILARITY_ERROR_THRESHOLD = 5
                 self.USE_VECTOR_SIMILARITY = True
                 self.FILTER_SYSTEM_PROMPT = """You're an expert at identifying similar error stack traces.
@@ -207,7 +222,7 @@ user_error_trace: {user_error_trace}"""
     def setup_environment(self, **kwargs):
         """Setup filter-specific environment variables."""
         filter_kwargs = {
-            'KNOWN_FALSE_POSITIVE_FILE_PATH': str(project_root / "evaluation/known_non_issues_data/known_non_issues.txt")
+            'KNOWN_FALSE_POSITIVE_FILE_PATH': str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
         }
         filter_kwargs.update(kwargs)
         super().setup_environment(**filter_kwargs)
@@ -219,10 +234,10 @@ user_error_trace: {user_error_trace}"""
         # Add filter-specific config if we have the real Config object
         if hasattr(config, 'USE_KNOWN_FALSE_POSITIVE_FILE'):
             config.USE_KNOWN_FALSE_POSITIVE_FILE = True
-            config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / "evaluation/known_non_issues_data/known_non_issues.txt")
-            config.OUTPUT_DIR = "evaluation/output"
-            config.MAX_ITERATIONS = 1
-            config.VECTOR_STORE_PATH = "evaluation/known_non_issues_data/faiss_vector_store"
+            config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
+            config.OUTPUT_DIR = OUTPUT_DIR
+            config.MAX_ITERATIONS = MAX_FILTER_ITERATIONS
+            config.VECTOR_STORE_PATH = KNOWN_NON_ISSUES_VECTOR_STORE_DIR
             config.SIMILARITY_ERROR_THRESHOLD = 5
 
         return config

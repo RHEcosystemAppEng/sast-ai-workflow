@@ -24,6 +24,16 @@ from typing import Dict, List, Any, Tuple, Optional
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import (
+    CLASSIFICATION_TRUE_POSITIVE,
+    CLASSIFICATION_FALSE_POSITIVE,
+    WORKFLOW_OUTPUT_FILENAME,
+    FILTER_VALIDATION_REPORT_FILENAME,
+    REPORTS_FILTER_DIR,
+    DATASET_FILTER_DIR,
+    FILTER_DATASET_FILENAME
+)
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -86,7 +96,7 @@ def load_ground_truth_dataset(dataset_path: Path) -> List[Dict[str, Any]]:
 
 def load_evaluation_results(results_dir: Path) -> Dict[str, Any]:
     """Load evaluation results from workflow output."""
-    workflow_output_path = results_dir / "workflow_output.json"
+    workflow_output_path = results_dir / WORKFLOW_OUTPUT_FILENAME
 
     try:
         with open(workflow_output_path, 'r') as f:
@@ -378,12 +388,12 @@ def main():
     if len(sys.argv) >= 2:
         results_dir = Path(sys.argv[1])
     else:
-        results_dir = project_root / "evaluation" / "reports" / "filter"
+        results_dir = project_root / REPORTS_FILTER_DIR
 
     if len(sys.argv) >= 3:
         dataset_file = Path(sys.argv[2])
     else:
-        dataset_file = project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset_individual_issues.json"
+        dataset_file = project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
 
     logger.debug("=" * 80)
     logger.debug("Filter Evaluation Validation Report")
@@ -451,7 +461,7 @@ def main():
         for error in report.errors:
             logger.warning(f"  - {error}")
 
-    report_path = results_dir / "filter_validation_report.json"
+    report_path = results_dir / FILTER_VALIDATION_REPORT_FILENAME
     try:
         with open(report_path, 'w') as f:
             json.dump(report.to_dict(), f, indent=2)

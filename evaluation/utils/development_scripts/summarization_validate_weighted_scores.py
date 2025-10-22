@@ -11,6 +11,23 @@ import glob
 import os
 import statistics
 
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from evaluation.constants import (
+    SUMMARY_METRIC_SEMANTIC_SIMILARITY,
+    SUMMARY_METRIC_FACTUAL_ACCURACY,
+    SUMMARY_METRIC_CONCISENESS,
+    SUMMARY_METRIC_PROFESSIONAL_TONE,
+    SUMMARY_WEIGHT_SEMANTIC_SIMILARITY,
+    SUMMARY_WEIGHT_FACTUAL_ACCURACY,
+    SUMMARY_WEIGHT_CONCISENESS,
+    SUMMARY_WEIGHT_PROFESSIONAL_TONE,
+    SUMMARIZATION_QUALITY_OUTPUT_FILENAME,
+    REPORTS_SUMMARIZATION_DIR
+)
+
 
 def calculate_weighted_score(reasoning):
     """Calculate the weighted score based on the formula from the summarization config."""
@@ -25,12 +42,12 @@ def calculate_weighted_score(reasoning):
     if isinstance(nested_reasoning, str):
         return 0
 
-    semantic_similarity = nested_reasoning.get("SEMANTIC_SIMILARITY", 0)
-    factual_accuracy = nested_reasoning.get("FACTUAL_ACCURACY", 0)
-    conciseness = nested_reasoning.get("CONCISENESS", 0)
-    professional_tone = nested_reasoning.get("PROFESSIONAL_TONE", 0)
+    semantic_similarity = nested_reasoning.get(SUMMARY_METRIC_SEMANTIC_SIMILARITY, 0)
+    factual_accuracy = nested_reasoning.get(SUMMARY_METRIC_FACTUAL_ACCURACY, 0)
+    conciseness = nested_reasoning.get(SUMMARY_METRIC_CONCISENESS, 0)
+    professional_tone = nested_reasoning.get(SUMMARY_METRIC_PROFESSIONAL_TONE, 0)
 
-    weighted_score = (semantic_similarity * 0.35) + (factual_accuracy * 0.30) + (conciseness * 0.20) + (professional_tone * 0.15)
+    weighted_score = (semantic_similarity * SUMMARY_WEIGHT_SEMANTIC_SIMILARITY) + (factual_accuracy * SUMMARY_WEIGHT_FACTUAL_ACCURACY) + (conciseness * SUMMARY_WEIGHT_CONCISENESS) + (professional_tone * SUMMARY_WEIGHT_PROFESSIONAL_TONE)
     return weighted_score
 
 
@@ -72,10 +89,10 @@ def validate_scores(file_path):
             print(f"   Difference: {difference:.6f}")
             nested_reasoning = reasoning.get("reasoning", {})
             print(f"   Component scores:")
-            print(f"     SEMANTIC_SIMILARITY: {nested_reasoning.get('SEMANTIC_SIMILARITY', 'N/A')}")
-            print(f"     FACTUAL_ACCURACY: {nested_reasoning.get('FACTUAL_ACCURACY', 'N/A')}")
-            print(f"     CONCISENESS: {nested_reasoning.get('CONCISENESS', 'N/A')}")
-            print(f"     PROFESSIONAL_TONE: {nested_reasoning.get('PROFESSIONAL_TONE', 'N/A')}")
+            print(f"     {SUMMARY_METRIC_SEMANTIC_SIMILARITY}: {nested_reasoning.get(SUMMARY_METRIC_SEMANTIC_SIMILARITY, 'N/A')}")
+            print(f"     {SUMMARY_METRIC_FACTUAL_ACCURACY}: {nested_reasoning.get(SUMMARY_METRIC_FACTUAL_ACCURACY, 'N/A')}")
+            print(f"     {SUMMARY_METRIC_CONCISENESS}: {nested_reasoning.get(SUMMARY_METRIC_CONCISENESS, 'N/A')}")
+            print(f"     {SUMMARY_METRIC_PROFESSIONAL_TONE}: {nested_reasoning.get(SUMMARY_METRIC_PROFESSIONAL_TONE, 'N/A')}")
             print()
             all_valid = False
         else:
@@ -92,10 +109,10 @@ def validate_scores(file_path):
         reasoning = item.get("reasoning", {})
         nested_reasoning = reasoning.get("reasoning", {})
         if isinstance(nested_reasoning, dict):
-            semantic_scores.append(nested_reasoning.get("SEMANTIC_SIMILARITY", 0))
-            factual_scores.append(nested_reasoning.get("FACTUAL_ACCURACY", 0))
-            conciseness_scores.append(nested_reasoning.get("CONCISENESS", 0))
-            tone_scores.append(nested_reasoning.get("PROFESSIONAL_TONE", 0))
+            semantic_scores.append(nested_reasoning.get(SUMMARY_METRIC_SEMANTIC_SIMILARITY, 0))
+            factual_scores.append(nested_reasoning.get(SUMMARY_METRIC_FACTUAL_ACCURACY, 0))
+            conciseness_scores.append(nested_reasoning.get(SUMMARY_METRIC_CONCISENESS, 0))
+            tone_scores.append(nested_reasoning.get(SUMMARY_METRIC_PROFESSIONAL_TONE, 0))
 
     print("=" * 80)
     print("\n📊 SCORING STATISTICS:")
@@ -141,7 +158,7 @@ def validate_scores(file_path):
 
 def find_latest_run_folder():
     """Find the latest timestamped run folder that contains evaluation output."""
-    base_dir = "evaluation/reports/summarize_justifications"
+    base_dir = REPORTS_SUMMARIZATION_DIR
     pattern = os.path.join(base_dir, "run_*")
     run_folders = glob.glob(pattern)
 
@@ -150,7 +167,7 @@ def find_latest_run_folder():
 
     # Sort by folder name (which includes timestamp) and check for evaluation output
     for folder in sorted(run_folders, reverse=True):
-        eval_file = os.path.join(folder, "summarization_quality_eval_output.json")
+        eval_file = os.path.join(folder, SUMMARIZATION_QUALITY_OUTPUT_FILENAME)
         if os.path.exists(eval_file):
             return folder
 
@@ -163,13 +180,14 @@ def main():
         # Try to find the latest run folder first
         latest_folder = find_latest_run_folder()
         if latest_folder:
-            file_path = os.path.join(latest_folder, "summarization_quality_eval_output.json")
+            file_path = os.path.join(latest_folder, SUMMARIZATION_QUALITY_OUTPUT_FILENAME)
         else:
-            # Fallback to default path
-            file_path = "evaluation/reports/summarize_justifications/run_20250917_150720/summarization_quality_eval_output.json"
+            # Fallback: use reports dir (user needs to provide specific run folder)
+            file_path = os.path.join(REPORTS_SUMMARIZATION_DIR, SUMMARIZATION_QUALITY_OUTPUT_FILENAME)
+            print(f"Warning: No run folders found. Please provide a specific file path.")
 
     print(f"Validating weighted scores in: {file_path}")
-    print(f"Using formula: (SEMANTIC_SIMILARITY * 0.35) + (FACTUAL_ACCURACY * 0.30) + (CONCISENESS * 0.20) + (PROFESSIONAL_TONE * 0.15)")
+    print(f"Using formula: ({SUMMARY_METRIC_SEMANTIC_SIMILARITY} * {SUMMARY_WEIGHT_SEMANTIC_SIMILARITY}) + ({SUMMARY_METRIC_FACTUAL_ACCURACY} * {SUMMARY_WEIGHT_FACTUAL_ACCURACY}) + ({SUMMARY_METRIC_CONCISENESS} * {SUMMARY_WEIGHT_CONCISENESS}) + ({SUMMARY_METRIC_PROFESSIONAL_TONE} * {SUMMARY_WEIGHT_PROFESSIONAL_TONE})")
     print()
 
     is_valid = validate_scores(file_path)

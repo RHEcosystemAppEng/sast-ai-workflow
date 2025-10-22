@@ -20,6 +20,11 @@ from typing import List, Dict
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import (
+    REPORTS_FILTER_DIR, DATASET_FILTER_DIR, FILTER_DATASET_FILENAME,
+    FILTER_VALIDATION_REPORT_FILENAME, UTILS_DIR, FILTER_VALIDATION_SCRIPT,
+    FILTER_CONFIG_FILENAME
+)
 from evaluation.runners.base_runner import BaseEvaluationRunner
 
 
@@ -27,7 +32,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
     """Filter evaluation runner."""
 
     def __init__(self):
-        super().__init__("filter", "filter_eval.yml")
+        super().__init__("filter", FILTER_CONFIG_FILENAME)
 
     def get_required_env_vars(self) -> List[str]:
         """Get required environment variables for filter evaluation."""
@@ -46,7 +51,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
 
     def get_reports_dir(self) -> Path:
         """Get the reports directory for filter evaluation."""
-        return self.project_root / "evaluation" / "reports" / "filter"
+        return self.project_root / REPORTS_FILTER_DIR
 
     def get_debug_hints(self) -> List[str]:
         """Get debug hints for filter evaluation."""
@@ -76,8 +81,8 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         print("Running Filter Validation Analysis")
         print("=" * 60)
 
-        validation_script = self.project_root / "evaluation" / "utils" / "filter_validation.py"
-        dataset_file = self.project_root / "evaluation" / "dataset" / "filter_eval" / "filter_eval_dataset_individual_issues.json"
+        validation_script = self.project_root / UTILS_DIR / FILTER_VALIDATION_SCRIPT
+        dataset_file = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
         reports_dir = self.get_reports_dir()
 
         try:
@@ -91,7 +96,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
                 print("Validation Output:")
                 print(result.stdout)
 
-            print("  - evaluation/reports/filter/filter_validation_report.json")
+            print(f"  - {REPORTS_FILTER_DIR}/{FILTER_VALIDATION_REPORT_FILENAME}")
             return True
 
         except subprocess.CalledProcessError as e:
