@@ -48,6 +48,9 @@ async def extended_openai_langchain(embedder_config: ExtendedOpenAIEmbedderConfi
         else:
             config_dict["http_client"] = httpx.Client(verify=False)
 
+    # Force tiktoken_enabled to False for non-OpenAI embedders (e.g., sentence-transformers)
+    # tiktoken is designed for OpenAI models and uses GPT tokenization, not BERT-based tokenization
+    # To allow config override, change to: if "tiktoken_enabled" not in config_dict:
     if "tiktoken_enabled" not in config_dict or config_dict["tiktoken_enabled"]:
         config_dict["tiktoken_enabled"] = False
 
