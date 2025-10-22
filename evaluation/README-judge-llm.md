@@ -1,13 +1,79 @@
 # Judge LLM Evaluation
 
 ## Overview
-Evaluates Judge LLM analysis performance using AIQ framework to test vulnerability classification and justification quality.
+Evaluates Judge LLM analysis performance using NAT framework to test vulnerability classification and justification quality.
 
 ## Usage
 ```bash
 export LLM_API_KEY=your_nvidia_api_key
 python evaluation/runners/run_judge_llm_evaluation.py
 ```
+
+## Dataset Configuration
+
+### Local Dataset (Default)
+The default configuration uses a local dataset file. The dataset path is specified in `evaluation/configs/judge_llm_analysis_eval.yml`:
+
+```yaml
+eval:
+  general:
+    dataset:
+      _type: json
+      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/judge_llm_eval/judge_llm_eval_dataset_6.json
+      structure:
+        question_key: "question"
+        answer_key: "answer"
+```
+
+**Update the `file_path`** to match your local system's absolute path, or use a path relative to the project root.
+
+### Remote Dataset (S3)
+To use a dataset stored in Amazon S3:
+
+```yaml
+eval:
+  general:
+    dataset:
+      _type: json
+      file_path: s3://your-bucket-name/evaluation/datasets/judge_llm_eval_dataset_6.json
+      structure:
+        question_key: "question"
+        answer_key: "answer"
+```
+
+**Requirements for S3:**
+- Set AWS credentials via environment variables:
+  ```bash
+  export AWS_ACCESS_KEY_ID=your_access_key
+  export AWS_SECRET_ACCESS_KEY=your_secret_key
+  export AWS_DEFAULT_REGION=us-east-1  # Optional
+  ```
+- OR configure `~/.aws/credentials` file
+- OR use IAM roles if running on AWS infrastructure
+- Ensure the S3 bucket has appropriate read permissions
+
+### Remote Dataset (HTTP/HTTPS)
+To use a dataset from a web server:
+
+```yaml
+eval:
+  general:
+    dataset:
+      _type: json
+      file_path: https://example.com/datasets/judge_llm_eval_dataset.json
+      structure:
+        question_key: "question"
+        answer_key: "answer"
+```
+
+**Note:** The URL must be publicly accessible or properly authenticated via NAT configuration.
+
+### Dataset Path Best Practices
+1. **Use absolute paths** for local datasets to avoid path resolution issues
+2. **Test accessibility** before running evaluations (especially for remote URLs)
+3. **Keep datasets version-controlled** or in a reliable storage location
+4. **Update the config file** when changing dataset locations
+5. **Use constants** from `evaluation/constants.py` for standard dataset locations in code
 
 ## Flow Steps
 1. **Environment Setup** - Configures evaluation environment variables
