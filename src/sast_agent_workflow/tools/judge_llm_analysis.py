@@ -13,16 +13,8 @@ from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
 from dto.LLMResponse import FinalStatus, AnalysisResponse
 from Utils.workflow_utils import build_analysis_context
-import sys
-import os
-
 # Import evaluation converters for NAT integration
 try:
-    # Add project root to path for evaluation imports
-    from . import PROJECT_ROOT
-    if PROJECT_ROOT not in sys.path:
-        sys.path.insert(0, PROJECT_ROOT)
-
     from evaluation.converter_tools.judge_llm_converters import (
         convert_str_to_sast_tracker,
         convert_sast_tracker_to_str
