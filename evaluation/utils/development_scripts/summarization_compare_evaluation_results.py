@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to compare all summarization_quality_eval_output.json files under
-/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/summarize_justifications
+the reports summarization directory.
 
 This script aggregates scores and component scores for each item ID across all evaluation runs.
 """
@@ -9,15 +9,29 @@ This script aggregates scores and component scores for each item ID across all e
 import json
 import glob
 import os
+import sys
 from pathlib import Path
 from collections import defaultdict
 import statistics
 
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from evaluation.constants import (
+    REPORTS_SUMMARIZATION_DIR,
+    SUMMARIZATION_QUALITY_OUTPUT_FILENAME,
+    SUMMARY_METRIC_SEMANTIC_SIMILARITY,
+    SUMMARY_METRIC_FACTUAL_ACCURACY,
+    SUMMARY_METRIC_CONCISENESS,
+    SUMMARY_METRIC_PROFESSIONAL_TONE
+)
+
 
 def find_all_eval_files():
     """Find all summarization_quality_eval_output.json files."""
-    base_dir = "/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/summarize_justifications"
-    pattern = os.path.join(base_dir, "**/summarization_quality_eval_output.json")
+    base_dir = REPORTS_SUMMARIZATION_DIR
+    pattern = os.path.join(base_dir, f"**/{SUMMARIZATION_QUALITY_OUTPUT_FILENAME}")
     files = glob.glob(pattern, recursive=True)
     return sorted(files)
 
@@ -32,10 +46,10 @@ def extract_component_scores(reasoning):
         return None
 
     return {
-        "semantic_similarity": nested_reasoning.get("SEMANTIC_SIMILARITY", None),
-        "factual_accuracy": nested_reasoning.get("FACTUAL_ACCURACY", None),
-        "conciseness": nested_reasoning.get("CONCISENESS", None),
-        "professional_tone": nested_reasoning.get("PROFESSIONAL_TONE", None)
+        "semantic_similarity": nested_reasoning.get(SUMMARY_METRIC_SEMANTIC_SIMILARITY, None),
+        "factual_accuracy": nested_reasoning.get(SUMMARY_METRIC_FACTUAL_ACCURACY, None),
+        "conciseness": nested_reasoning.get(SUMMARY_METRIC_CONCISENESS, None),
+        "professional_tone": nested_reasoning.get(SUMMARY_METRIC_PROFESSIONAL_TONE, None)
     }
 
 
@@ -77,7 +91,7 @@ def compare_all_evaluations():
 
     print(f"Found {len(eval_files)} evaluation files:")
     for file_path in eval_files:
-        rel_path = os.path.relpath(file_path, "/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/summarize_justifications")
+        rel_path = os.path.relpath(file_path, REPORTS_SUMMARIZATION_DIR)
         print(f"  - {rel_path}")
 
     # Aggregate data across all files
@@ -91,7 +105,7 @@ def compare_all_evaluations():
     })
 
     for file_path in eval_files:
-        rel_path = os.path.relpath(file_path, "/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/summarize_justifications")
+        rel_path = os.path.relpath(file_path, REPORTS_SUMMARIZATION_DIR)
         file_results = process_eval_file(file_path)
 
         for item_id, item_data in file_results.items():
