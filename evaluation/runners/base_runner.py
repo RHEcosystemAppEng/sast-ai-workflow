@@ -4,6 +4,146 @@ Base class for NAT evaluation runners.
 
 This class provides common functionality for all evaluation runners,
 including environment checking, NAT execution, and result archiving.
+
+Dataset Configuration
+---------------------
+Evaluation datasets can be configured in NAT config YAML files to use local filesystem,
+S3, or HTTP/HTTPS locations. The NAT framework automatically detects the location type
+based on the file_path prefix.
+
+LOCAL DATASET (Default - Recommended):
+    Use relative paths from project root for datasets in the repository:
+
+    Configuration:
+        eval:
+          general:
+            dataset:
+              _type: json
+              file_path: evaluation/dataset/filter_eval/filter_eval_dataset_individual_issues.json
+              structure:
+                question_key: "question"
+                answer_key: "expected_output_obj"
+
+    When to use:
+        - Default setup with datasets in the repo
+        - Local development and testing
+        - CI/CD pipelines with checked-out code
+        - Version-controlled datasets
+
+    Path formats:
+        - Relative (recommended): evaluation/dataset/filter_eval/dataset.json
+        - Absolute (if needed): /full/path/to/sast-ai-workflow/evaluation/dataset/dataset.json
+
+    No additional configuration needed - works out of the box.
+
+REMOTE DATASET (S3):
+    Use S3 URLs for datasets stored in Amazon S3 buckets:
+
+    Configuration:
+        eval:
+          general:
+            dataset:
+              _type: json
+              file_path: s3://sast-ai-datasets/evaluation/filter_eval_dataset_individual_issues.json
+              structure:
+                question_key: "question"
+                answer_key: "expected_output_obj"
+
+    When to use:
+        - Large datasets not suitable for git
+        - Shared datasets across teams
+        - Production deployments on AWS
+        - Datasets that change frequently
+
+    Setup requirements:
+        1. Configure AWS credentials (choose one):
+           - Environment variables:
+             export AWS_ACCESS_KEY_ID=AKIA...
+             export AWS_SECRET_ACCESS_KEY=your_secret_key
+             export AWS_DEFAULT_REGION=us-east-1  # Optional
+
+           - AWS credentials file (~/.aws/credentials):
+             [default]
+             aws_access_key_id = AKIA...
+             aws_secret_access_key = your_secret_key
+
+           - IAM role (for EC2/ECS - no config needed)
+
+        2. Verify S3 access:
+           aws s3 ls s3://sast-ai-datasets/evaluation/
+           aws s3 cp s3://sast-ai-datasets/evaluation/dataset.json /tmp/test.json
+
+        3. Ensure bucket permissions:
+           - Bucket must allow s3:GetObject permission
+           - Check bucket policy or IAM user/role permissions
+
+    Common issues:
+        - NoCredentialsError: AWS credentials not configured
+        - AccessDenied: Check IAM permissions on bucket
+        - NoSuchBucket: Verify bucket name and region
+
+REMOTE DATASET (HTTP/HTTPS):
+    Use HTTP/HTTPS URLs for datasets hosted on web servers:
+
+    Configuration:
+        eval:
+          general:
+            dataset:
+              _type: json
+              file_path: https://datasets.example.com/sast-ai/filter_eval_dataset.json
+              structure:
+                question_key: "question"
+                answer_key: "expected_output_obj"
+
+    When to use:
+        - Publicly hosted datasets
+        - Datasets behind CDN
+        - Third-party dataset sources
+
+    Requirements:
+        - URL must be publicly accessible OR
+        - Configure authentication in NAT config (if required)
+        - HTTPS is recommended for security
+
+    Verification:
+        curl -I https://datasets.example.com/sast-ai/filter_eval_dataset.json
+
+SWITCHING BETWEEN LOCATIONS:
+    Simply change the file_path in your config YAML:
+
+    Local:  file_path: evaluation/dataset/filter_eval/dataset.json
+    S3:     file_path: s3://sast-ai-datasets/evaluation/dataset.json
+    HTTP:   file_path: https://datasets.example.com/sast-ai/dataset.json
+
+    The NAT framework automatically detects and handles each location type.
+
+Dataset Structure Requirements:
+    All evaluation datasets must follow the NAT format:
+        - question_key: Field containing input data
+        - answer_key: Field containing expected output
+
+    Example dataset entry:
+        {
+          "id": "test_case_1",
+          "question": "{...input data...}",
+          "expected_output_obj": {...expected output...}
+        }
+
+File Path Best Practices:
+    1. Use relative paths in configs for portability across environments
+    2. Use constants from evaluation.constants for standard dataset locations in Python code
+    3. Ensure remote URLs/S3 buckets are accessible before running evaluations
+    4. Test dataset accessibility:
+       - Local: ls -l evaluation/dataset/filter_eval/dataset.json
+       - S3: aws s3 ls s3://bucket/path/dataset.json
+       - HTTP: curl -I https://url/dataset.json
+    5. For S3, verify bucket permissions and credentials are properly configured
+
+See individual evaluation README files for dataset format specifications:
+    - evaluation/README-filter.md
+    - evaluation/README-judge-llm.md
+    - evaluation/README-summarize.md
+    - evaluation/dataset/README.md
 """
 
 import os
