@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to compare all justification_quality_eval_output.json files under
-/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/judge_llm_analysis
+the reports judge_llm_analysis directory.
 
 This script aggregates scores and component scores for each item ID across all evaluation runs.
 """
@@ -9,15 +9,29 @@ This script aggregates scores and component scores for each item ID across all e
 import json
 import glob
 import os
+import sys
 from pathlib import Path
 from collections import defaultdict
 import statistics
 
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from evaluation.constants import (
+    REPORTS_JUDGE_LLM_DIR,
+    JUSTIFICATION_QUALITY_OUTPUT_FILENAME,
+    JUDGE_METRIC_CLARITY,
+    JUDGE_METRIC_COMPLETENESS,
+    JUDGE_METRIC_TECHNICAL_ACCURACY,
+    JUDGE_METRIC_LOGICAL_FLOW
+)
+
 
 def find_all_eval_files():
     """Find all justification_quality_eval_output.json files."""
-    base_dir = "/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/judge_llm_analysis"
-    pattern = os.path.join(base_dir, "**/justification_quality_eval_output.json")
+    base_dir = REPORTS_JUDGE_LLM_DIR
+    pattern = os.path.join(base_dir, f"**/{JUSTIFICATION_QUALITY_OUTPUT_FILENAME}")
     files = glob.glob(pattern, recursive=True)
     return sorted(files)
 
@@ -32,10 +46,10 @@ def extract_component_scores(reasoning):
         return None
 
     return {
-        "clarity": nested_reasoning.get("CLARITY", None),
-        "completeness": nested_reasoning.get("COMPLETENESS", None),
-        "technical_accuracy": nested_reasoning.get("TECHNICAL_ACCURACY", None),
-        "logical_flow": nested_reasoning.get("LOGICAL_FLOW", None)
+        "clarity": nested_reasoning.get(JUDGE_METRIC_CLARITY, None),
+        "completeness": nested_reasoning.get(JUDGE_METRIC_COMPLETENESS, None),
+        "technical_accuracy": nested_reasoning.get(JUDGE_METRIC_TECHNICAL_ACCURACY, None),
+        "logical_flow": nested_reasoning.get(JUDGE_METRIC_LOGICAL_FLOW, None)
     }
 
 
@@ -77,7 +91,7 @@ def compare_all_evaluations():
 
     print(f"Found {len(eval_files)} evaluation files:")
     for file_path in eval_files:
-        rel_path = os.path.relpath(file_path, "/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/judge_llm_analysis")
+        rel_path = os.path.relpath(file_path, REPORTS_JUDGE_LLM_DIR)
         print(f"  - {rel_path}")
 
     # Aggregate data across all files
@@ -91,7 +105,7 @@ def compare_all_evaluations():
     })
 
     for file_path in eval_files:
-        rel_path = os.path.relpath(file_path, "/Users/gziv/Dev/sast-ai-workflow/evaluation/reports/judge_llm_analysis")
+        rel_path = os.path.relpath(file_path, REPORTS_JUDGE_LLM_DIR)
         file_results = process_eval_file(file_path)
 
         for item_id, item_data in file_results.items():

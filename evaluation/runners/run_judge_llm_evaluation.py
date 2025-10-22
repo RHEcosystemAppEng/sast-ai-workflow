@@ -21,6 +21,7 @@ from typing import List, Dict
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import REPORTS_JUDGE_LLM_DIR, WORKFLOW_OUTPUT_FILENAME, EVALUATION_METRICS_FILENAME, JUDGE_LLM_CONFIG_FILENAME
 from evaluation.runners.base_runner import BaseEvaluationRunner
 from evaluation.utils.calculate_eval_metrics import calculate_metrics_from_workflow
 
@@ -28,7 +29,7 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
     """Judge LLM analysis evaluation runner."""
 
     def __init__(self):
-        super().__init__("judge_llm_analysis", "judge_llm_analysis_eval.yml")
+        super().__init__("judge_llm_analysis", JUDGE_LLM_CONFIG_FILENAME)
 
     def get_required_env_vars(self) -> List[str]:
         """Get required environment variables for judge LLM evaluation."""
@@ -47,7 +48,7 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
 
     def get_reports_dir(self) -> Path:
         """Get the reports directory for judge LLM evaluation."""
-        return self.project_root / "evaluation" / "reports" / "judge_llm_analysis"
+        return self.project_root / REPORTS_JUDGE_LLM_DIR
 
     def get_debug_hints(self) -> List[str]:
         """Get debug hints for judge LLM evaluation."""
@@ -59,7 +60,7 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
 
     def run_post_evaluation_tasks(self):
         """Calculate evaluation metrics for judge LLM evaluation."""
-        workflow_output_path = self.get_reports_dir() / "workflow_output.json"
+        workflow_output_path = self.get_reports_dir() / WORKFLOW_OUTPUT_FILENAME
         if workflow_output_path.exists():
             print("\\nCalculating evaluation metrics...")
             try:
@@ -68,7 +69,7 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
                 if "error" in metrics_results:
                     print(f"Warning: Could not calculate metrics - {metrics_results['error']}")
                 else:
-                    metrics_file = self.get_reports_dir() / "evaluation_metrics.json"
+                    metrics_file = self.get_reports_dir() / EVALUATION_METRICS_FILENAME
                     with open(metrics_file, 'w') as f:
                         json.dump(metrics_results, f, indent=2)
 
@@ -80,11 +81,11 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
                     print(f"  Precision: {metrics['precision']:.4f}")
                     print(f"  Recall:    {metrics['recall']:.4f}")
                     print(f"  F1 Score:  {metrics['f1_score']:.4f}")
-                    print(f"  Metrics saved to: evaluation_metrics.json")
+                    print(f"  Metrics saved to: {EVALUATION_METRICS_FILENAME}")
             except Exception as e:
                 print(f"Warning: Error calculating metrics - {e}")
         else:
-            print("\\nWarning: workflow_output.json not found, skipping metrics calculation")
+            print(f"\\nWarning: {WORKFLOW_OUTPUT_FILENAME} not found, skipping metrics calculation")
 
 def main():
     """Main evaluation runner."""

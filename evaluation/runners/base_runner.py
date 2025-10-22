@@ -16,6 +16,14 @@ from typing import Optional, List, Dict, Any
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import (
+    REPORTS_BASE_DIR,
+    CONFIGS_DIR,
+    WORKFLOW_OUTPUT_FILENAME,
+    STANDARDIZED_DATA_FILENAME,
+    PROFILER_TRACES_FILENAME,
+    RUNNERS_DIR
+)
 from evaluation.utils import archive_evaluation_results
 from nat.cli.main import run_cli
 
@@ -93,7 +101,7 @@ class BaseEvaluationRunner(ABC):
         if config_file:
             config_path = Path(config_file)
         else:
-            config_path = self.project_root / "evaluation" / "configs" / self.config_filename
+            config_path = self.project_root / CONFIGS_DIR / self.config_filename
 
         if not config_path.exists():
             print(f"Error: Config file not found: {config_path}")
@@ -128,7 +136,7 @@ class BaseEvaluationRunner(ABC):
         if self.config_file:
             return Path(self.config_file)
         else:
-            return self.project_root / "evaluation" / "configs" / self.config_filename
+            return self.project_root / CONFIGS_DIR / self.config_filename
 
     def run_nat_evaluation(self, config_file: Optional[str] = None, debug_mode: bool = False):
         """Run NAT evaluation with automatic metrics collection."""
@@ -222,13 +230,13 @@ class BaseEvaluationRunner(ABC):
         print("\\nEvaluation completed!")
         print("Results saved to:")
         reports_dir = self.get_reports_dir()
-        print(f"  - {reports_dir}/workflow_output.json")
-        print(f"  - {reports_dir}/standardized_data_all.csv")
-        print(f"  - {reports_dir}/all_requests_profiler_traces.json")
+        print(f"  - {reports_dir}/{WORKFLOW_OUTPUT_FILENAME}")
+        print(f"  - {reports_dir}/{STANDARDIZED_DATA_FILENAME}")
+        print(f"  - {reports_dir}/{PROFILER_TRACES_FILENAME}")
 
     def archive_results(self) -> Optional[str]:
         """Archive evaluation results."""
-        reports_dir = self.project_root / "evaluation" / "reports"
+        reports_dir = self.project_root / REPORTS_BASE_DIR
         archived_path = archive_evaluation_results(str(reports_dir), self.evaluation_name)
         if archived_path:
             print(f"\\nResults archived to: {archived_path}")
@@ -253,9 +261,9 @@ class BaseEvaluationRunner(ABC):
                 print("  export LLM_API_KEY=your_nvidia_api_key")
             elif var == 'EMBEDDINGS_LLM_API_KEY':
                 print("  export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
-        print(f"  python evaluation/runners/run_{self.evaluation_name}_evaluation.py")
+        print(f"  python {RUNNERS_DIR}/run_{self.evaluation_name}_evaluation.py")
         print("\\nFor PyCharm debugging with breakpoints:")
-        print(f"  python evaluation/runners/run_{self.evaluation_name}_evaluation.py --debug")
+        print(f"  python {RUNNERS_DIR}/run_{self.evaluation_name}_evaluation.py --debug")
 
     def run(self):
         """Main runner method."""

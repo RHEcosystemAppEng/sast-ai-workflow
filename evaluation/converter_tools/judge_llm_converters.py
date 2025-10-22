@@ -18,6 +18,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from evaluation.constants import MAX_ANALYSIS_ITERATIONS, JUDGE_LLM_DATASET_FILENAME
+
 from dto.SASTWorkflowModels import SASTWorkflowTracker, PerIssueData
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, FinalStatus
@@ -37,7 +39,7 @@ class JudgeLLMConverter(BaseEvaluationConverter):
     """Judge LLM evaluation converter that inherits from BaseEvaluationConverter."""
 
     def __init__(self):
-        super().__init__("judge_llm_analysis", "judge_llm_eval_dataset_6.json")
+        super().__init__("judge_llm_analysis", JUDGE_LLM_DATASET_FILENAME)
 
     def parse_input_data(self, input_str: str) -> Dict[str, Any]:
         """Parse input string for judge LLM evaluation."""
@@ -137,7 +139,7 @@ class JudgeLLMConverter(BaseEvaluationConverter):
         """Get judge LLM-specific minimal config."""
         class MinimalConfig:
             def __init__(self):
-                self.MAX_ANALYSIS_ITERATIONS = 3
+                self.MAX_ANALYSIS_ITERATIONS = MAX_ANALYSIS_ITERATIONS
                 self.project_name = "judge-llm-eval"
                 self.project_version = "1.0.0"
 
