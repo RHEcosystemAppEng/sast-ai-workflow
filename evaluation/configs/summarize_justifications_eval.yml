@@ -36,10 +36,10 @@ workflow:
 # Evaluation configuration
 eval:
   general:
-    output_dir: /Users/gziv/Dev/sast-ai-workflow/evaluation/reports/summarize_justifications
+    output_dir: evaluation/reports/summarize_justifications
     dataset:
       _type: json
-      file_path: /Users/gziv/Dev/sast-ai-workflow/evaluation/dataset/summarize_eval/summarize_eval_dataset.json
+      file_path: evaluation/dataset/summarize_eval/summarize_eval_dataset.json
       structure:
         question_key: "question"
         answer_key: "expected_output_obj"
