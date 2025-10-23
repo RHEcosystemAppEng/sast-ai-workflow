@@ -21,6 +21,18 @@ from FilterKnownIssues import (
     is_known_false_positive,
     convert_similar_issues_to_examples_context_string
 )
+# Import evaluation converters for NAT integration
+try:
+    from evaluation.converter_tools.filter_converters import (
+        convert_str_to_sast_tracker,
+        convert_sast_tracker_to_str
+    )
+    _filter_converters = [convert_str_to_sast_tracker, convert_sast_tracker_to_str]
+    _filter_converters_available = True
+except ImportError as e:
+    _filter_converters = None
+    _filter_converters_available = False
+    _filter_converters_error = str(e)
 
 logger = logging.getLogger(__name__)
 
@@ -153,11 +165,18 @@ async def filter(
         logger.info(f"Filter node completed. Known false positives: {known_fps}/{len(tracker.issues)}")
         return tracker
 
+    # Use module-level converters
+    if _filter_converters_available:
+        logger.info("NAT evaluation converters loaded successfully")
+    else:
+        logger.info(f"NAT evaluation converters not available: {_filter_converters_error}")
+
     try:
         yield FunctionInfo.create(
             single_fn=_filter_fn,
             description=config.description,
-            input_schema=SASTWorkflowTracker
+            input_schema=SASTWorkflowTracker,
+            converters=_filter_converters
         )
     except GeneratorExit:
         logger.info("Filter function exited early!")
