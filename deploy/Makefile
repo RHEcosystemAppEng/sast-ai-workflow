@@ -32,6 +32,7 @@ USE_KNOWN_FALSE_POSITIVE_FILE    ?= true
 
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
+# Optional Google Drive configuration
 GDRIVE_FOLDER_ID				 ?= ""
 GDRIVE_SA_FILE_NAME			     ?= service_account.json
 
@@ -42,14 +43,12 @@ IMAGE_VERSION                    ?=
 CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 
 # GCS Bucket Configuration
-GCS_BUCKET_NAME                  ?= ""
+GCS_BUCKET_NAME                  ?= 
 GCS_SA_FILE_NAME                 := gcs_service_account.json
 
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
-# Optional Google Drive configuration
-GDRIVE_FOLDER_ID                 ?= ""
 
 # Secret configuration (loaded from .env file)
 GITLAB_TOKEN                     ?= ""
@@ -107,10 +106,10 @@ setup:
 tasks:
 	@echo "📋 Setting up Tekton Resources..."
 	@if [ "$(ENV)" = "prod" ]; then \
-		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) > /dev/null 2>&1; \
+		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) && \
 		echo "   ✓ Tekton resources deployed (production overlay)"; \
 	else \
-		$(CO) apply -k tekton/base -n $(NAMESPACE) > /dev/null 2>&1; \
+		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
 		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
 	fi
 
@@ -124,7 +123,8 @@ secrets:
 	else \
 		$(CO) create secret generic sast-ai-gitlab-token \
 			--from-literal=gitlab_token="$(GITLAB_TOKEN)" \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - || \
+		{ echo "   ❌ Failed to create GitLab token secret"; exit 1; }; \
 		echo "   ✓ GitLab token secret"; \
 	fi
 	# Create consolidated LLM credentials secret
@@ -145,7 +145,8 @@ secrets:
 		--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
 		--from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
 		--from-literal=embedding_llm_model_name="$(EMBEDDINGS_LLM_MODEL_NAME)" \
-		-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - || \
+		{ echo "   ❌ Failed to create LLM credentials secret"; exit 1; }; \
 	echo "   ✓ LLM credentials secret"
 	# Create Google Service Account secrets
 	@echo "   🔍 Checking Google service account (REQUIRED)..."
@@ -156,7 +157,8 @@ secrets:
 	else \
 		$(CO) create secret generic sast-ai-google-service-account \
             --from-file=service_account.json="$(GOOGLE_SERVICE_ACCOUNT_JSON_PATH)" \
-            -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+            -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - || \
+		{ echo "   ❌ Failed to create Google service account secret"; exit 1; }; \
         echo "   ✓ Google service account secret"; \
     fi
 	@echo "   🔍 Checking GCS service account (OPTIONAL)..."
@@ -189,14 +191,16 @@ secrets:
 		$(CO) create secret generic sast-ai-quay-registry-config \
 			--from-file=.dockerconfigjson="$$DOCKER_AUTH_FILE" \
 			--type=kubernetes.io/dockerconfigjson \
-			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+			-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - || \
+		{ echo "   ❌ Failed to create container registry pull secret"; exit 1; }; \
 		echo "   ✓ Container registry pull secret"; \
 	fi
 	# Patch pipeline service account to use Quay pull secret
 	@$(CO) patch serviceaccount pipeline \
 		-n $(NAMESPACE) \
 		-p '{"imagePullSecrets": [{"name": "sast-ai-quay-registry-config"}]}' \
-		--type=merge > /dev/null 2>&1
+		--type=merge || \
+		{ echo "   ❌ Failed to patch pipeline service account"; exit 1; }
 	@echo "   ✓ Service account configured"
 
 pipeline:
@@ -205,8 +209,10 @@ pipeline:
 
 scripts:
 	@echo "📜 Setting up Scripts..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml > /dev/null 2>&1
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml > /dev/null 2>&1
+	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml || \
+		{ echo "   ❌ Failed to apply Google Drive upload script"; exit 1; }
+	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml || \
+		{ echo "   ❌ Failed to apply GCS upload script"; exit 1; }
 	@echo "   ✓ Upload scripts configured"
 
 generate-prompts:
@@ -262,7 +268,7 @@ run:
 		-e 's|GCS_BUCKET_NAME_PLACEHOLDER|$(GCS_BUCKET_NAME)|g' \
 		-e 's|GCS_SA_FILE_NAME_PLACEHOLDER|$(GCS_SA_FILE_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
-	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml > /dev/null 2>&1
+	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml
 	@rm -f tekton/pipelinerun-temp.yaml
 	@echo "   ✓ Pipeline execution started"
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
@@ -276,7 +282,7 @@ argocd-deploy-dev:
 		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
 		argocd/argocd-application-dev.yaml > argocd/argocd-application-dev-temp.yaml
-	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml > /dev/null 2>&1
+	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml
 	@rm -f argocd/argocd-application-dev-temp.yaml
 	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
 	@echo "   ✓ Watching: deploy/tekton/base (uses latest tag)"
@@ -290,7 +296,7 @@ argocd-deploy-prod:
 		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
 		argocd/argocd-application-prod.yaml > argocd/argocd-application-prod-temp.yaml
-	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-prod-temp.yaml > /dev/null 2>&1
+	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-prod-temp.yaml
 	@rm -f argocd/argocd-application-prod-temp.yaml
 	@echo "   ✓ ArgoCD Application (prod) deployed to $(NAMESPACE) namespace"
 	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
