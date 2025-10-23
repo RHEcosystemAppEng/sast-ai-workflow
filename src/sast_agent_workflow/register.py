@@ -129,7 +129,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         return empty_state
     
     def convert_sast_tracker_to_str(tracker: SASTWorkflowTracker) -> str:
-        """Convert SASTWorkflowTracker to summary statistics string"""
+        """Convert SASTWorkflowTracker to summary statistics string including metrics"""
         logger.debug("Converting SASTWorkflowTracker to summary stats")
         try:
             # For debug, print the tracker to the console
@@ -140,14 +140,43 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
             # Calculate summary statistics
             counter = categorize_issues_by_status(tracker.issues)
 
-            return json.dumps(counter, indent=2)
-            
+            # Include metrics if available (only accuracy, recall, precision, f1_score)
+            output = dict(counter)
+            if tracker.metrics:
+                # Filter to only show key performance metrics
+                filtered_metrics = {
+                    "accuracy": tracker.metrics.get("accuracy"),
+                    "recall": tracker.metrics.get("recall"),
+                    "precision": tracker.metrics.get("precision"),
+                    "f1_score": tracker.metrics.get("f1_score")
+                }
+                output["metrics"] = _make_json_serializable(filtered_metrics)
+
+            return json.dumps(output, indent=2)
+
         except Exception as e:
             logger.error("Failed to convert SASTWorkflowTracker to summary stats: %s", e)
             raise e
+
+    def _make_json_serializable(obj):
+        """Recursively convert sets to lists and numpy types to native Python types for JSON serialization"""
+        import numpy as np
+
+        if isinstance(obj, dict):
+            return {k: _make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [_make_json_serializable(item) for item in obj]
+        elif isinstance(obj, set):
+            return list(obj)
+        elif isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        else:
+            return obj
     
     async def _response_fn(input_message: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """Main response function that runs the LangGraph workflow""" 
+        """Main response function that runs the LangGraph workflow"""
         results = await graph.ainvoke(input_message)
         graph_output = SASTWorkflowTracker(**results)
         return graph_output

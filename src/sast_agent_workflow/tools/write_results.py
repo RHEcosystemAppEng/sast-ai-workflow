@@ -163,8 +163,12 @@ def _create_mock_evaluation_summary(summary_data, config, metrics):
         mock_summary.tn = confusion_matrix.get(METRICS_FIELD_TRUE_NEGATIVES, 0)
         mock_summary.fp = confusion_matrix.get(METRICS_FIELD_FALSE_POSITIVES, 0)
         mock_summary.fn = confusion_matrix.get(METRICS_FIELD_FALSE_NEGATIVES, 0)
+        # CRITICAL: Set ground_truth to non-None if we have confusion matrix metrics
+        # This signals to Excel writer that GT comparison was performed
+        mock_summary.ground_truth = "calculated"
     else:
         mock_summary.tp = mock_summary.tn = mock_summary.fp = mock_summary.fn = 0
+        mock_summary.ground_truth = None
 
     # ExcelWriter expects these to be collections that support len()
     # Map from our stored sets/lists back to the expected attributes
