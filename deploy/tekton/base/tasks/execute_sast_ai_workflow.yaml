@@ -108,7 +108,7 @@ spec:
         sizeLimit: "5Gi"
     - name: gdrive-scripts
       configMap:
-        name: gdrive-upload-scripts
+        name: sast-ai-gdrive-upload-scripts
         defaultMode: 0755
     - name: gcs-scripts
       configMap:

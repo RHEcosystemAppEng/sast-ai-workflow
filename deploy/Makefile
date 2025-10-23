@@ -32,6 +32,7 @@ USE_KNOWN_FALSE_POSITIVE_FILE    ?= true
 
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
+# Optional Google Drive configuration
 GDRIVE_FOLDER_ID				 ?= ""
 GDRIVE_SA_FILE_NAME			     ?= service_account.json
 
@@ -42,14 +43,12 @@ IMAGE_VERSION                    ?=
 CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 
 # GCS Bucket Configuration
-GCS_BUCKET_NAME                  ?= ""
+GCS_BUCKET_NAME                  ?= 
 GCS_SA_FILE_NAME                 := gcs_service_account.json
 
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
-# Optional Google Drive configuration
-GDRIVE_FOLDER_ID                 ?= ""
 
 # Secret configuration (loaded from .env file)
 GITLAB_TOKEN                     ?= ""
