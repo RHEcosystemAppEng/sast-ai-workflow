@@ -1,6 +1,0 @@
-outs:
-- md5: 6870ff254b3a4c1e728a59c5140c392c.dir
-  size: 224201
-  nfiles: 1
-  hash: md5
-  path: sast-reports

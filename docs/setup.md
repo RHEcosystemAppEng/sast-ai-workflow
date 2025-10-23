@@ -170,10 +170,6 @@ environment variables.
 | CRITIQUE_LLM_URL               | LLM_URL                                   |               | https://integrate.api.nvidia.com/v1        | URL of the critique language model endpoint (if applicable). Default to LLM_URL if not provided.                                 |
 | CRITIQUE_LLM_MODEL_NAME        | LLM_MODEL_NAME                            |               | deepseek-ai/deepseek-r1                    | Identifier of the language model to use for critique phase (if applicable). Must be set if Critique is enabled.                  |
 | USE_CRITIQUE_AS_FINAL_RESULTS  | false                                     |               | true                                       | Flag indicating whether to use critique for metrics calculation.                                                                 |               |
-| DVC_GIT_COMMIT_HASH            | ""                                        |               | abc123def456                               | Git commit hash for DVC metadata tracking and data versioning. Automatically set by Tekton pipeline.                            |
-| DVC_REPO_BRANCH                | main                                      |               | feature/dvc-integration                    | Repository branch for DVC tracking and reproducibility. Defaults to 'main' if not specified.                                   |
-| DVC_REPO_URL                   | ""                                        |               | https://github.com/example/repo.git       | Source repository URL for DVC metadata tracking and data lineage. Used for reproducibility and version control.                |
-
 
 > **Note:**  
 > The values set in the [configuration file](../config/default_config.yaml) serve as defaults. Environment variables 
