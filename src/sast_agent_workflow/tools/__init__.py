@@ -5,6 +5,16 @@ This package contains individual function implementations for the SAST agent wor
 Each function should be in its own file for better organization and maintainability.
 """
 
+import os
+import sys
+
+# Calculate project root once at module level for use across all tools
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+# Add project root to sys.path once at module level to avoid redundant manipulations
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 # All tool functions are imported and exposed below for package-level access.
 from .pre_process import pre_process
 from .filter import filter

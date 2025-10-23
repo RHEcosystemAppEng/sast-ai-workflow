@@ -1,0 +1,66 @@
+# Evaluation Configuration for SAST-AI-Workflow Filter Node
+# Basic token counting and profiling via NAT/AIQ automation
+
+general:
+  use_uvloop: true
+
+# LLM configuration
+llms:
+  eval_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+    api_key: ${LLM_API_KEY}
+    # Force token counting - add specific parameters that might enable usage tracking
+    stream_usage: true
+    include_usage: true
+  judge_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    temperature: 0.5
+    max_tokens: 2048
+    api_key: ${LLM_API_KEY}
+
+# Embedder configuration - using real sentence-transformers endpoint for FAISS
+embedders:
+  filter_embedding:
+    _type: extended_openai
+    model_name: sentence-transformers/all-mpnet-base-v2
+    base_url: https://all-mpnet-base-v2-sast-ai-embedding.apps.ai-dev03.kni.syseng.devcluster.openshift.com/v1
+    api_key: ${EMBEDDINGS_LLM_API_KEY}
+
+# Workflow configuration - use filter function directly
+workflow:
+  _type: filter
+  llm_name: eval_llm
+  embedder_llm_name: filter_embedding
+  input_converter: evaluation.converter_tools.filter_converters.convert_str_to_sast_tracker
+  output_converter: evaluation.converter_tools.filter_converters.convert_sast_tracker_to_str
+
+# Evaluation configuration - Simplified for validation reports only
+eval:
+  general:
+    output_dir: evaluation/reports/filter
+    dataset:
+      _type: json
+      file_path: evaluation/dataset/filter_eval/filter_eval_dataset_individual_issues.json
+      structure:
+        question_key: "question"
+        answer_key: "expected_output_obj"
+        generated_answer_key: "generated_answer"
+        trajectory_key: "intermediate_steps"
+        expected_trajectory_key: "expected_intermediate_steps"
+
+    # Profiler configuration - automatic token counting and timing via NAT/AIQ
+    profiler:
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+      include_token_usage: true
+      track_nvidia_usage: true
+      enable_telemetry: true
+      bottleneck_analysis:
+        enable_nested_stack: false
+
+  # Generate validation reports instead of complex LLM evaluation
+  validation_reports_only: true

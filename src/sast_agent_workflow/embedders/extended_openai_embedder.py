@@ -40,11 +40,18 @@ async def extended_openai_langchain(embedder_config: ExtendedOpenAIEmbedderConfi
     """
     from langchain_openai import OpenAIEmbeddings
 
-    # Create config dict and handle http_client properly
     config_dict = embedder_config.model_dump(exclude={"type"}, by_alias=True)
-    
-    # If http_client parameters are provided, create the actual client
-    if config_dict.get("http_client"):
-        config_dict["http_client"] = httpx.Client(**config_dict["http_client"])
+
+    if "http_client" in config_dict:
+        if config_dict["http_client"]:
+            config_dict["http_client"] = httpx.Client(**config_dict["http_client"])
+        else:
+            config_dict["http_client"] = httpx.Client(verify=False)
+
+    # Force tiktoken_enabled to False for non-OpenAI embedders (e.g., sentence-transformers)
+    # tiktoken is designed for OpenAI models and uses GPT tokenization, not BERT-based tokenization
+    # To allow config override, change to: if "tiktoken_enabled" not in config_dict:
+    if "tiktoken_enabled" not in config_dict or config_dict["tiktoken_enabled"]:
+        config_dict["tiktoken_enabled"] = False
 
     yield OpenAIEmbeddings(**config_dict)

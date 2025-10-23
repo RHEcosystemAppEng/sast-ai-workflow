@@ -1,0 +1,152 @@
+# Evaluation Configuration for SAST-AI-Workflow
+# Basic token counting and profiling via NAT/AIQ automation
+
+general:
+  use_uvloop: true
+
+# Function configuration for summarize_justifications
+functions:
+  summarize_justifications:
+    _type: summarize_justifications
+    llm_name: eval_llm
+
+# LLM configuration
+llms:
+  eval_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    temperature: 0.0
+    max_tokens: 1024
+    api_key: ${LLM_API_KEY}
+    # Force token counting - add specific parameters that might enable usage tracking
+    stream_usage: true
+    include_usage: true
+  judge_llm:
+    _type: nim
+    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    temperature: 0.5
+    max_tokens: 2048
+    api_key: ${LLM_API_KEY}
+
+# Workflow configuration
+workflow:
+  _type: summarize_justifications
+  llm_name: eval_llm
+
+# Evaluation configuration
+eval:
+  general:
+    output_dir: evaluation/reports/summarize_justifications
+    dataset:
+      _type: json
+      file_path: evaluation/dataset/summarize_eval/summarize_eval_dataset.json
+      structure:
+        question_key: "question"
+        answer_key: "expected_output_obj"
+        generated_answer_key: "generated_answer"
+        trajectory_key: "intermediate_steps"
+        expected_trajectory_key: "expected_intermediate_steps"
+
+    # Profiler configuration - automatic token counting and timing via NAT/AIQ
+    profiler:
+      compute_llm_metrics: true
+      csv_exclude_io_text: true
+      include_token_usage: true
+      track_nvidia_usage: true
+      enable_telemetry: true
+      bottleneck_analysis:
+        enable_nested_stack: false
+
+  # Custom LLM-as-Judge Evaluation Metrics for Summarization
+  evaluators:
+    summarization_quality_eval:
+      _type: tunable_rag_evaluator
+      llm_name: judge_llm
+      # Retry control for rate limiting
+      llm_retry_control_params:
+        stop_after_attempt: 3
+        initial_backoff_delay_seconds: 5
+        has_exponential_jitter: true
+      # Use custom scoring instead of default
+      default_scoring: false
+      # Custom prompt for summarization quality evaluation
+      judge_llm_prompt: >
+        You are an expert software engineer evaluating security vulnerability summary quality.
+
+        **CRITICAL SCORING INSTRUCTIONS - READ CAREFULLY:**
+
+        SEVERELY PENALIZE summaries that exhibit ANY of the following quality issues:
+        - **IRRELEVANT CONTENT**: Summaries that discuss topics unrelated to security analysis (travel, cooking, sports, weather, etc.)
+        - **CONTRADICTORY ANALYSIS**: When the summary contradicts the provided vulnerability description or expected content
+        - **MISSING SECURITY CONTEXT**: Failing to address the security implications or vulnerability aspects when expected
+        - **DAMAGED/INCOMPLETE INFORMATION**: Partial, truncated, or corrupted summary content
+        - **NONSENSICAL CONTENT**: Logic that doesn't follow or makes no technical sense
+        - **OFF-TOPIC EXPLANATIONS**: Any content that strays from security vulnerability summarization
+
+        For summaries with these issues, assign very low scores (0.0-0.3) across ALL dimensions.
+
+        CRITICAL INSTRUCTION: Compare the generated summary STRICTLY against the provided expected answer.
+        Do NOT evaluate based on your own security knowledge - only compare similarity to the expected answer.
+
+        **SPECIAL CASE - MISSING EXPECTED ANSWER**: If the expected answer is empty, none, null, string with length zero, corrupted or missing entirely,
+        severally punish the score.
+
+        If the expected answer contains nonsensical content (like "blah blah blah", "cats instead of security",
+        empty strings, or irrelevant repetition), the generated summary should receive very low scores
+        regardless of its technical quality, because it fails to match the expected nonsensical output.
+
+        If the expected answer contains valid security information, evaluate how well the generated summary matches it:
+
+        SEMANTIC SIMILARITY (35%): Does the generated summary convey the same core security meaning as expected?
+        - Same vulnerability type identification (buffer overflow, uninitialized variable, etc.)
+        - Same severity assessment conclusion (true positive vs false positive)
+        - Same key technical elements mentioned in expected answer
+        - Score 1.0 for perfect semantic match, 0.0 for completely different meaning
+
+        FACTUAL ACCURACY (30%): Does the generated summary match the technical facts in the expected answer?
+        - Same file paths, line numbers, function names as expected
+        - Same variable names and code references as expected
+        - Same technical concepts and mechanisms as expected
+        - Score 1.0 for perfect factual alignment, 0.0 for contradictory facts
+
+        CONCISENESS (20%): Does the generated summary have similar brevity/detail level as expected?
+        - Similar length and information density as expected
+        - Avoids unnecessary verbosity compared to expected level
+        - Captures essential points without over-elaboration like expected
+        - Score 1.0 for optimal length match, 0.0 for severely mismatched verbosity
+
+        PROFESSIONAL TONE (15%): Does the generated summary match the engineering style of expected answer?
+        - Similar technical terminology usage as expected
+        - Similar formality level as expected
+        - Similar structure and presentation as expected
+        - Score 1.0 for perfect tone match, 0.0 for completely inappropriate tone
+
+        SCORING REQUIREMENTS:
+        - MANDATORY: You MUST calculate the exact final weighted score using this EXACT formula: (semantic_similarity * 0.35) + (factual_accuracy * 0.30) + (conciseness * 0.20) + (professional_tone * 0.15)
+        - CRITICAL: Use EXACTLY these decimal weights: 0.35, 0.30, 0.20, 0.15
+        - STEP-BY-STEP CALCULATION REQUIRED:
+          1. First assign individual scores: SEMANTIC_SIMILARITY (0.0-1.0), FACTUAL_ACCURACY (0.0-1.0), CONCISENESS (0.0-1.0), PROFESSIONAL_TONE (0.0-1.0)
+          2. Then calculate: (SEMANTIC_SIMILARITY × 0.35) + (FACTUAL_ACCURACY × 0.30) + (CONCISENESS × 0.20) + (PROFESSIONAL_TONE × 0.15)
+          3. Use the EXACT result of this calculation as your final score - do NOT round or modify it
+        - The final score must be a float between 0.0 and 1.0
+        - VERIFICATION: Double-check your arithmetic calculation before submitting
+        - The reasoning must be 1-2 concise sentences explaining the score based on summary quality and contain the scoring components
+
+        **CRITICAL RETURN FORMAT REQUIREMENTS**:
+
+        1. You MUST return ONLY valid JSON - no additional text before or after
+        2. Do NOT use markdown formatting, code blocks, or backticks (```json)
+        3. Do NOT include explanatory text outside the JSON
+        4. Your response must start with { and end with }
+        5. All float values must be between 0.0 and 1
+        6. Inside reasoning return the score's components as dict i.e. "SEMANTIC_SIMILARITY": semantic_similarity_score,
+                                                      "FACTUAL_ACCURACY": factual_accuracy_score,
+                                                      "CONCISENESS": conciseness_score,
+                                                      "PROFESSIONAL_TONE": professional_tone_score,
+                                                      "Reasoning": "explanation string"
+        7. CRITICAL: You MUST verify your final score calculation is exactly: (SEMANTIC_SIMILARITY * 0.35) + (FACTUAL_ACCURACY * 0.30) + (CONCISENESS * 0.20) + (PROFESSIONAL_TONE * 0.15)
+        8. MANDATORY: The "score" field in your JSON response must be the EXACT mathematical result of the weighted formula calculation - no rounding, no approximation
+
+        IMPORTANT: Your entire response must be valid JSON that can be parsed by json.loads() in Python.
+
+        Focus on SIMILARITY to expected answer and summary quality, not just correctness of the final decision.
