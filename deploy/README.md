@@ -61,6 +61,12 @@ EMBEDDINGS_LLM_MODEL_NAME=your-embeddings-model-name
 
 # Google Service Account
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./service_account.json
+
+# S3/Minio Configuration (Optional - for MLOps environment)
+AWS_ACCESS_KEY_ID=your_s3_access_key_id
+AWS_SECRET_ACCESS_KEY=your_s3_secret_access_key
+S3_ENDPOINT_URL=https://your-minio-endpoint.com
+S3_BUCKET_NAME=your-bucket-name
 ```
 
 #### 3.2. Prepare Prerequisites
@@ -85,12 +91,14 @@ All SAST AI Workflow resources use the `sast-ai-` prefix for easy identification
 - `sast-ai-default-llm-creds` - LLM and embeddings API credentials
 - `sast-ai-google-service-account` - Google service account JSON for spreadsheet access
 - `sast-ai-gcs-service-account` - GCS service account JSON for uploading SARIF reports to GCS bucket (optional)
+- `sast-ai-s3-credentials` - S3/Minio access credentials for MLOps environment (optional)
 - `sast-ai-quay-registry-config` - Container registry pull credentials
 
 **ConfigMaps:**
 - `sast-ai-prompt-templates` - LLM prompt templates
 - `sast-ai-gdrive-upload-scripts` - Google Drive upload scripts
 - `sast-ai-gcs-upload-scripts` - GCS bucket upload scripts for SARIF reports
+- `s3-upload-scripts` - S3/Minio upload scripts
 - `sast-ai-gdrive-config` - Google Drive folder ID (optional)
 
 
@@ -293,11 +301,90 @@ grep -c "prompt:" tekton/sast-ai-prompt-templates.yaml  # Should show 8
 
 This ensures all template files are valid and the ConfigMap generation works correctly.
 
-### 11. Troubleshooting
+### 11. Storage Backend Configuration (S3/Minio vs Google Drive)
+
+The SAST AI Workflow supports two storage backends for analysis results:
+- **Google Drive** (default for development environments)
+- **S3/Minio** (for MLOps environment)
+
+#### 11.1. How It Works
+
+The pipeline uses a `STORAGE_TYPE` parameter to determine which upload step runs:
+- `STORAGE_TYPE=gdrive` → Runs Google Drive upload step
+- `STORAGE_TYPE=s3` → Runs S3/Minio upload step
+
+This is controlled via Kustomize overlays:
+
+```
+deploy/tekton/overlays/
+├── dev/          # Development: uses Google Drive (STORAGE_TYPE=gdrive)
+├── mlops/        # MLOps: uses S3/Minio (STORAGE_TYPE=s3)
+└── prod/         # Production: uses specific container version
+```
+
+#### 11.2. Deploying with Different Storage Backends
+
+**Development (Google Drive):**
+```bash
+# Uses base configuration with Google Drive
+make deploy-dev
+# Or manually:
+oc apply -k deploy/tekton/overlays/dev
+```
+
+**MLOps (S3/Minio):**
+```bash
+# First, configure S3 credentials
+# Then deploy:
+oc apply -k deploy/tekton/overlays/mlops
+```
+
+#### 11.3. S3/Minio Configuration
+
+To use S3/Minio storage:
+```env
+# Required
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+S3_BUCKET_NAME=your-bucket-name
+S3_ENDPOINT_URL=https://minio.example.com
+```
+
+**Notes:**
+- `S3_ENDPOINT_URL` is only needed for Minio or non-AWS S3-compatible storage
+- For AWS S3, leave `S3_ENDPOINT_URL` empty
+- The Makefile will create the `sast-ai-s3-credentials` secret automatically when you run `make secrets`
+
+#### 11.4. File Organization in S3
+
+Files uploaded to S3 follow this structure:
+```
+{pipeline-id}/{repo-name}/sast_ai_output.xlsx
+```
+
+Example:
+```
+20251021-143025/systemd/sast_ai_output.xlsx
+```
+
+Where:
+- `pipeline-id`: Timestamp when pipeline runs (format: YYYYMMDD-HHMMSS)
+- `repo-name`: Project name from `PROJECT_NAME` parameter
+
+### 12. Troubleshooting
 
 #### General Issues
 - **View logs:** `oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -f`
 - **Clean environment:** `make clean` (⚠️ deletes everything)
 - **Check secrets:** `oc get secrets`
 - **Manual pipeline execution:** Use `make run` or execute via OpenShift console
+
+#### S3/Minio Issues
+- **Check S3 credentials secret exists:** `oc get secret sast-ai-s3-credentials`
+- **Verify secret contents:** `oc get secret sast-ai-s3-credentials -o yaml`
+- **Test S3 connectivity:** Check upload-to-s3 step logs in pipeline run
+- **Common issues:**
+  - Missing endpoint URL for Minio (add `S3_ENDPOINT_URL` to `.env`)
+  - Incorrect bucket permissions (ensure write access to bucket)
+  - Network connectivity to S3/Minio endpoint
 

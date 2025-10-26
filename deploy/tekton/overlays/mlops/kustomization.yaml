@@ -5,6 +5,7 @@ resources:
   - ../../base
 
 patches:
+<<<<<<< HEAD
   # Task patches
   - target:
       kind: Task
@@ -36,3 +37,6 @@ patches:
       kind: Pipeline
       name: sast-ai-workflow-pipeline
     path: pipeline-workspaces-patch.yaml
+=======
+  - path: pipelinerun-patch.yaml
+>>>>>>> ec72c4c (Add S3/Minio storage for MLOps while maintaining Google Drive for dev. Uses STORAGE_TYPE parameter with Tekton when conditions to control which upload step runs. Includes Kustomize overlays for environment-specific configuration.)

@@ -88,6 +88,14 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
+    - name: STORAGE_TYPE
+      type: string
+      description: "Storage backend for analysis results (gdrive or s3)"
+      default: "gdrive"
+    - name: S3_BUCKET_NAME
+      type: string
+      description: "S3/Minio bucket name for uploading analysis results (optional)"
+      default: ""
 
   workspaces:
     - name: gitlab-token-ws
@@ -113,6 +121,10 @@ spec:
     - name: gcs-scripts
       configMap:
         name: sast-ai-gcs-upload-scripts
+        defaultMode: 0755
+    - name: s3-scripts
+      configMap:
+        name: s3-upload-scripts
         defaultMode: 0755
   results:
     - name: repo-local-path
@@ -696,6 +708,103 @@ spec:
           echo "=== Google Drive upload failed ==="
           exit 1
         fi
+      when:
+        - input: "$(params.STORAGE_TYPE)"
+          operator: in
+          values: ["gdrive"]
+
+    # STEP 7b: Upload to S3/Minio
+    - name: upload-to-s3
+      image: python:3.11-slim
+      env:
+        - name: S3_BUCKET_NAME
+          value: "$(params.S3_BUCKET_NAME)"
+        - name: PROJECT_NAME
+          value: "$(params.PROJECT_NAME)"
+        - name: PROJECT_VERSION
+          value: "$(params.PROJECT_VERSION)"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: sast-ai-s3-credentials
+              key: access_key_id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sast-ai-s3-credentials
+              key: secret_access_key
+        - name: S3_ENDPOINT_URL
+          valueFrom:
+            secretKeyRef:
+              name: sast-ai-s3-credentials
+              key: endpoint_url
+              optional: true
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+        - name: s3-scripts
+          mountPath: /scripts
+      script: |
+        #!/bin/bash
+        set -e
+        echo "=== STEP 7b: UPLOAD TO S3/MINIO ==="
+
+        # Check if we have required parameters
+        if [ -z "$S3_BUCKET_NAME" ]; then
+          echo "Skipping S3 upload - no bucket name provided"
+          echo "This is not an error - pipeline continues gracefully"
+          exit 0
+        fi
+
+        # Check if credentials are available
+        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "Skipping S3 upload - credentials not available"
+          echo "This is not an error - pipeline continues gracefully"
+          exit 0
+        fi
+
+        # Check if output file exists
+        EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
+        if [ ! -f "$EXCEL_FILE" ]; then
+          echo "ERROR: Excel file not found at $EXCEL_FILE"
+          echo "Available files in output directory:"
+          ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
+          exit 1
+        fi
+
+        # Install required packages
+        echo "Installing required packages..."
+        pip install --quiet boto3 >/dev/null 2>&1
+        echo "Dependencies installed successfully"
+
+        # Construct S3 key using pipeline-id and repo-name pattern
+        # Using PROJECT_NAME as repo-name and current timestamp as pipeline-id
+        PIPELINE_ID=$(date -u +"%Y%m%d-%H%M%S")
+        REPO_NAME="${PROJECT_NAME}"
+        S3_KEY="${PIPELINE_ID}/${REPO_NAME}/sast_ai_output.xlsx"
+
+        echo "File to upload: $EXCEL_FILE"
+        echo "S3 Bucket: $S3_BUCKET_NAME"
+        echo "S3 Key: $S3_KEY"
+
+        # Upload to S3
+        echo "Executing S3 upload..."
+        if [ -n "$S3_ENDPOINT_URL" ]; then
+          python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_BUCKET_NAME" "$S3_KEY" "$S3_ENDPOINT_URL"
+        else
+          python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_BUCKET_NAME" "$S3_KEY"
+        fi
+
+        if [ $? -eq 0 ]; then
+          echo "=== S3 upload completed successfully! ==="
+        else
+          echo "=== S3 upload failed ==="
+          exit 1
+        fi
+      when:
+        - input: "$(params.STORAGE_TYPE)"
+          operator: in
+          values: ["s3"]
 
     # STEP 8: Upload SARIF to GCS Bucket
     - name: upload-sarif-to-gcs

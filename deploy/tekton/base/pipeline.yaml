@@ -63,6 +63,14 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
+    - name: STORAGE_TYPE
+      type: string
+      description: "Storage backend for analysis results (gdrive or s3)"
+      default: "gdrive"
+    - name: S3_BUCKET_NAME
+      type: string
+      description: "S3/Minio bucket name for uploading analysis results (optional)"
+      default: ""
   workspaces:
     - name: gitlab-token-ws
       optional: true
@@ -106,6 +114,10 @@ spec:
           value: "$(params.GCS_BUCKET_NAME)"
         - name: GCS_SA_FILE_NAME
           value: "$(params.GCS_SA_FILE_NAME)"
+        - name: STORAGE_TYPE
+          value: "$(params.STORAGE_TYPE)"
+        - name: S3_BUCKET_NAME
+          value: "$(params.S3_BUCKET_NAME)"
       workspaces:
         - name: gitlab-token-ws
           workspace: gitlab-token-ws
