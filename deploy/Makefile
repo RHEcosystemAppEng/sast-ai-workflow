@@ -70,17 +70,31 @@ AWS_ACCESS_KEY_ID                ?= ""
 AWS_SECRET_ACCESS_KEY            ?= ""
 S3_ENDPOINT_URL                  ?= ""
 
-.PHONY: deploy-dev deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
+.PHONY: deploy-dev deploy-mlops deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
 
 deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-dev: ENV = dev
 deploy-dev:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🚀 SAST AI Workflow - Development Deployment"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "   Environment: Development"
+	@echo "   Storage Backend: Google Drive"
 	@echo "   Container Image: $(CONTAINER_IMAGE)"
 	@echo ""
-	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
+	@$(MAKE) --no-print-directory ENV=$(ENV) setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
+
+deploy-mlops: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-mlops: ENV = mlops
+deploy-mlops:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - MLOps Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: MLOps"
+	@echo "   Storage Backend: S3/Minio"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@$(MAKE) --no-print-directory ENV=$(ENV) setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
 
 deploy-prod:
 	@if [ -z "$(IMAGE_VERSION)" ]; then \
@@ -122,10 +136,10 @@ tasks:
 		echo "   ✓ Tekton resources deployed (production overlay)"; \
 	elif [ "$(ENV)" = "mlops" ]; then \
 		$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (mlops overlay - MinIO/S3 support)"; \
+		echo "   ✓ Tekton resources deployed (mlops overlay - S3 storage)"; \
 	else \
-		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
+		$(CO) apply -k tekton/overlays/dev -n $(NAMESPACE) && \
+		echo "   ✓ Tekton resources deployed (dev overlay - GDrive storage)"; \
 	fi
 
 secrets:
@@ -309,7 +323,6 @@ run:
 		-e 's|DVC_DATA_VERSION_PLACEHOLDER|$(DVC_DATA_VERSION)|g' \
 		-e 's|S3_ENDPOINT_URL_PLACEHOLDER|$(S3_ENDPOINT_URL)|g' \
 		-e 's|S3_INPUT_BUCKET_NAME_PLACEHOLDER|$(S3_INPUT_BUCKET_NAME)|g' \
-		-e 's|STORAGE_TYPE_PLACEHOLDER|gdrive|g' \
 		-e 's|S3_BUCKET_NAME_PLACEHOLDER|$(S3_BUCKET_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml

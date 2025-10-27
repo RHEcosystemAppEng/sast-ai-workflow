@@ -5,7 +5,7 @@ metadata:
 spec:
   description: >-
     Complete SAST AI workflow that prepares source, fetches false positives,
-    runs AI analysis, uploads results to Google Drive, and cleans up resources.
+    runs AI analysis, and cleans up resources.
     Uses emptyDir volumes for efficient resource management.
   params:
     # Parameters from prepare-source
@@ -67,14 +67,6 @@ spec:
       type: string
       description: "Source repository URL"
       default: ""
-    - name: GDRIVE_FOLDER_ID
-      type: string
-      description: "Google Drive folder ID for uploading SAST results (optional)"
-      default: ""
-    - name: GDRIVE_SA_FILE_NAME
-      type: string
-      description: "Optional GDrive SA file name"
-      default: "service_account.json"
     - name: CONTAINER_IMAGE
       type: string
       description: "Container image to use for SAST AI analysis"
@@ -88,14 +80,6 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
-    - name: STORAGE_TYPE
-      type: string
-      description: "Storage backend for analysis results (gdrive or s3)"
-      default: "gdrive"
-    - name: S3_BUCKET_NAME
-      type: string
-      description: "S3/Minio bucket name for uploading analysis results (optional)"
-      default: ""
 
   workspaces:
     - name: gitlab-token-ws
@@ -114,17 +98,9 @@ spec:
     - name: cache-data
       emptyDir:
         sizeLimit: "5Gi"
-    - name: gdrive-scripts
-      configMap:
-        name: sast-ai-gdrive-upload-scripts
-        defaultMode: 0755
     - name: gcs-scripts
       configMap:
         name: sast-ai-gcs-upload-scripts
-        defaultMode: 0755
-    - name: s3-scripts
-      configMap:
-        name: s3-upload-scripts
         defaultMode: 0755
   results:
     - name: repo-local-path
@@ -618,195 +594,9 @@ spec:
           exit 1
         fi
 
-    # STEP 7: Upload to Google Drive
-    - name: upload-to-gdrive
-      image: google/cloud-sdk:slim
-      env:
-        - name: GDRIVE_FOLDER_ID
-          value: "$(params.GDRIVE_FOLDER_ID)"
-        - name: GOOGLE_APPLICATION_CREDENTIALS
-          value: "$(workspaces.google-sa-json-ws.path)/$(params.GDRIVE_SA_FILE_NAME)"
-        - name: PROJECT_NAME
-          value: "$(params.PROJECT_NAME)"
-        - name: PROJECT_VERSION
-          value: "$(params.PROJECT_VERSION)"
-        - name: GDRIVE_FOLDER_ID_FROM_CM
-          valueFrom:
-            configMapKeyRef:
-              name: gdrive-config
-              key: folder-id
-              optional: true
-      volumeMounts:
-        - name: shared-data
-          mountPath: /shared-data
-        - name: gdrive-scripts
-          mountPath: /scripts
-      script: |
-        #!/bin/bash
-        set -e
-        echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
-        
-        # Check if we have required parameters
-        if [ -z "$GDRIVE_FOLDER_ID" ]; then
-          # Try ConfigMap environment variable
-          if [ -n "$GDRIVE_FOLDER_ID_FROM_CM" ]; then
-            GDRIVE_FOLDER_ID="$GDRIVE_FOLDER_ID_FROM_CM"
-            echo "Using Google Drive folder ID from ConfigMap: $GDRIVE_FOLDER_ID"
-          else
-            echo "Skipping Google Drive upload - no folder ID available"
-            echo "This is not an error - pipeline continues gracefully"
-            exit 0
-          fi
-        else
-          echo "Using Google Drive folder ID from parameter: $GDRIVE_FOLDER_ID"
-        fi
-        
-        # Check service account
-        if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-          echo "Skipping Google Drive upload - service account not available"
-          echo "This is not an error - pipeline continues gracefully"
-          exit 0
-        fi
-        
-        # Check if output file exists
-        EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
-        if [ ! -f "$EXCEL_FILE" ]; then
-          echo "ERROR: Excel file not found at $EXCEL_FILE"
-          echo "Available files in output directory:"
-          ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
-          exit 1
-        fi
-        
-        # Install required packages
-        echo "Installing required packages..."
-        apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq curl jq python3-pip python3-venv >/dev/null 2>&1
-        
-        # Create virtual environment
-        python3 -m venv /tmp/venv >/dev/null 2>&1
-        source /tmp/venv/bin/activate
-        
-        # Install Python packages
-        pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
-        echo "Dependencies installed successfully"
-        
-        # Set filename
-        EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
-        if [ -z "$EXCEL_FILENAME" ] || [ "$EXCEL_FILENAME" = "-" ]; then
-          EXCEL_FILENAME="sast_ai_output"
-        fi
-        
-        echo "File to upload: $EXCEL_FILE"
-        echo "Remote filename: $EXCEL_FILENAME"
-        echo "Target folder ID: $GDRIVE_FOLDER_ID"
-        
-        echo "Executing Google Drive upload..."
-        python /scripts/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE_FOLDER_ID"
-        
-        if [ $? -eq 0 ]; then
-          echo "=== Google Drive upload completed successfully! ==="
-        else
-          echo "=== Google Drive upload failed ==="
-          exit 1
-        fi
-      when:
-        - input: "$(params.STORAGE_TYPE)"
-          operator: in
-          values: ["gdrive"]
+    # Environment-specific upload steps will be inserted here by Kustomize patches
 
-    # STEP 7b: Upload to S3/Minio
-    - name: upload-to-s3
-      image: python:3.11-slim
-      env:
-        - name: S3_BUCKET_NAME
-          value: "$(params.S3_BUCKET_NAME)"
-        - name: PROJECT_NAME
-          value: "$(params.PROJECT_NAME)"
-        - name: PROJECT_VERSION
-          value: "$(params.PROJECT_VERSION)"
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: sast-ai-s3-credentials
-              key: access_key_id
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: sast-ai-s3-credentials
-              key: secret_access_key
-        - name: S3_ENDPOINT_URL
-          valueFrom:
-            secretKeyRef:
-              name: sast-ai-s3-credentials
-              key: endpoint_url
-              optional: true
-      volumeMounts:
-        - name: shared-data
-          mountPath: /shared-data
-        - name: s3-scripts
-          mountPath: /scripts
-      script: |
-        #!/bin/bash
-        set -e
-        echo "=== STEP 7b: UPLOAD TO S3/MINIO ==="
-
-        # Check if we have required parameters
-        if [ -z "$S3_BUCKET_NAME" ]; then
-          echo "Skipping S3 upload - no bucket name provided"
-          echo "This is not an error - pipeline continues gracefully"
-          exit 0
-        fi
-
-        # Check if credentials are available
-        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-          echo "Skipping S3 upload - credentials not available"
-          echo "This is not an error - pipeline continues gracefully"
-          exit 0
-        fi
-
-        # Check if output file exists
-        EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
-        if [ ! -f "$EXCEL_FILE" ]; then
-          echo "ERROR: Excel file not found at $EXCEL_FILE"
-          echo "Available files in output directory:"
-          ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
-          exit 1
-        fi
-
-        # Install required packages
-        echo "Installing required packages..."
-        pip install --quiet boto3 >/dev/null 2>&1
-        echo "Dependencies installed successfully"
-
-        # Construct S3 key using pipeline-id and repo-name pattern
-        # Using PROJECT_NAME as repo-name and current timestamp as pipeline-id
-        PIPELINE_ID=$(date -u +"%Y%m%d-%H%M%S")
-        REPO_NAME="${PROJECT_NAME}"
-        S3_KEY="${PIPELINE_ID}/${REPO_NAME}/sast_ai_output.xlsx"
-
-        echo "File to upload: $EXCEL_FILE"
-        echo "S3 Bucket: $S3_BUCKET_NAME"
-        echo "S3 Key: $S3_KEY"
-
-        # Upload to S3
-        echo "Executing S3 upload..."
-        if [ -n "$S3_ENDPOINT_URL" ]; then
-          python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_BUCKET_NAME" "$S3_KEY" "$S3_ENDPOINT_URL"
-        else
-          python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_BUCKET_NAME" "$S3_KEY"
-        fi
-
-        if [ $? -eq 0 ]; then
-          echo "=== S3 upload completed successfully! ==="
-        else
-          echo "=== S3 upload failed ==="
-          exit 1
-        fi
-      when:
-        - input: "$(params.STORAGE_TYPE)"
-          operator: in
-          values: ["s3"]
-
-    # STEP 8: Upload SARIF to GCS Bucket
+    # STEP 7: Upload SARIF to GCS Bucket
     - name: upload-sarif-to-gcs
       image: google/cloud-sdk:slim
       env:
@@ -885,7 +675,7 @@ spec:
           # Don't fail the pipeline for upload issues
         fi
 
-    # STEP 9: Cleanup (Always runs)
+    # STEP 8: Cleanup (Always runs)
     - name: cleanup
       image: registry.access.redhat.com/ubi9/ubi-minimal:latest
       volumeMounts:
@@ -895,7 +685,7 @@ spec:
           mountPath: /cache-data
       script: |
         #!/usr/bin/env sh
-        echo "=== STEP 9: CLEANUP ==="
+        echo "=== STEP 8: CLEANUP ==="
         
         CLEANED_ITEMS=""
         

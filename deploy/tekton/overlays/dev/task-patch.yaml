@@ -1,0 +1,113 @@
+- op: add
+  path: /spec/params/-
+  value:
+    name: GDRIVE_FOLDER_ID
+    type: string
+    description: "Google Drive folder ID for uploading SAST results"
+    default: ""
+- op: add
+  path: /spec/params/-
+  value:
+    name: GDRIVE_SA_FILE_NAME
+    type: string
+    description: "GDrive service account file name"
+    default: "service_account.json"
+- op: add
+  path: /spec/volumes/-
+  value:
+    name: gdrive-scripts
+    configMap:
+      name: sast-ai-gdrive-upload-scripts
+      defaultMode: 0755
+- op: add
+  path: /spec/steps/6
+  value:
+    name: upload-to-gdrive
+    image: google/cloud-sdk:slim
+    env:
+      - name: GDRIVE_FOLDER_ID
+        value: "$(params.GDRIVE_FOLDER_ID)"
+      - name: GOOGLE_APPLICATION_CREDENTIALS
+        value: "$(workspaces.google-sa-json-ws.path)/$(params.GDRIVE_SA_FILE_NAME)"
+      - name: PROJECT_NAME
+        value: "$(params.PROJECT_NAME)"
+      - name: PROJECT_VERSION
+        value: "$(params.PROJECT_VERSION)"
+      - name: GDRIVE_FOLDER_ID_FROM_CM
+        valueFrom:
+          configMapKeyRef:
+            name: gdrive-config
+            key: folder-id
+            optional: true
+    volumeMounts:
+      - name: shared-data
+        mountPath: /shared-data
+      - name: gdrive-scripts
+        mountPath: /scripts
+    script: |
+      #!/bin/bash
+      set -e
+      echo "=== UPLOAD TO GOOGLE DRIVE ==="
+
+      # Check if we have required parameters
+      if [ -z "$GDRIVE_FOLDER_ID" ]; then
+        # Try ConfigMap environment variable
+        if [ -n "$GDRIVE_FOLDER_ID_FROM_CM" ]; then
+          GDRIVE_FOLDER_ID="$GDRIVE_FOLDER_ID_FROM_CM"
+          echo "Using Google Drive folder ID from ConfigMap: $GDRIVE_FOLDER_ID"
+        else
+          echo "Skipping Google Drive upload - no folder ID available"
+          echo "This is not an error - pipeline continues gracefully"
+          exit 0
+        fi
+      else
+        echo "Using Google Drive folder ID from parameter: $GDRIVE_FOLDER_ID"
+      fi
+
+      # Check service account
+      if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+        echo "Skipping Google Drive upload - service account not available"
+        echo "This is not an error - pipeline continues gracefully"
+        exit 0
+      fi
+
+      # Check if output file exists
+      EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
+      if [ ! -f "$EXCEL_FILE" ]; then
+        echo "ERROR: Excel file not found at $EXCEL_FILE"
+        echo "Available files in output directory:"
+        ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
+        exit 1
+      fi
+
+      # Install required packages
+      echo "Installing required packages..."
+      apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq curl jq python3-pip python3-venv >/dev/null 2>&1
+
+      # Create virtual environment
+      python3 -m venv /tmp/venv >/dev/null 2>&1
+      source /tmp/venv/bin/activate
+
+      # Install Python packages
+      pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
+      echo "Dependencies installed successfully"
+
+      # Set filename
+      EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
+      if [ -z "$EXCEL_FILENAME" ] || [ "$EXCEL_FILENAME" = "-" ]; then
+        EXCEL_FILENAME="sast_ai_output"
+      fi
+
+      echo "File to upload: $EXCEL_FILE"
+      echo "Remote filename: $EXCEL_FILENAME"
+      echo "Target folder ID: $GDRIVE_FOLDER_ID"
+
+      echo "Executing Google Drive upload..."
+      python /scripts/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE_FOLDER_ID"
+
+      if [ $? -eq 0 ]; then
+        echo "=== Google Drive upload completed successfully! ==="
+      else
+        echo "=== Google Drive upload failed ==="
+        exit 1
+      fi

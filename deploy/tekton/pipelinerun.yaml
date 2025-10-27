@@ -48,8 +48,6 @@ spec:
       value: "S3_ENDPOINT_URL_PLACEHOLDER"
     - name: S3_INPUT_BUCKET_NAME
       value: "S3_INPUT_BUCKET_NAME_PLACEHOLDER"
-    - name: STORAGE_TYPE
-      value: "STORAGE_TYPE_PLACEHOLDER"
     - name: S3_BUCKET_NAME
       value: "S3_BUCKET_NAME_PLACEHOLDER"
   workspaces:

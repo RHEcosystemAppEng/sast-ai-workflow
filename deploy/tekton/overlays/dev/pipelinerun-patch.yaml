@@ -1,8 +1,0 @@
-apiVersion: tekton.dev/v1
-kind: PipelineRun
-metadata:
-  name: sast-ai-workflow-pipelinerun
-spec:
-  params:
-    - name: STORAGE_TYPE
-      value: "gdrive"

@@ -118,19 +118,27 @@ oc get secrets | grep sast-ai
 
 | Command | Description |
 |---------|-------------|
-| `deploy` | Complete deployment: setup + tasks + pipeline + prompts + argocd-deploy |
-| `setup` | Create PVCs and secrets |
+| **Deployment** | |
+| `deploy-dev` | Deploy development environment with Google Drive storage |
+| `deploy-mlops` | Deploy MLOps environment with S3/Minio storage |
+| `deploy-prod` | Deploy production environment (requires IMAGE_VERSION) |
+| **Infrastructure** | |
+| `setup` | Create secrets and configure service account |
 | `secrets` | Create secrets from .env file |
-| `tasks` | Apply consolidated Tekton task definition |
+| `tasks` | Apply Tekton task definitions (uses ENV variable) |
+| `pipeline` | Apply pipeline definition |
+| `scripts` | Deploy upload scripts ConfigMaps |
+| `configmaps` | Create optional ConfigMaps (e.g., Google Drive config) |
+| **Prompts** | |
 | `generate-prompts` | Generate ConfigMap from prompt template files |
 | `prompts` | Generate and apply prompts ConfigMap to cluster |
-| `pipeline` | Apply pipeline definition |
+| **Execution** | |
 | `run` | Execute pipeline using oc apply with PipelineRun |
-| `logs` | View pipeline logs (requires tkn CLI or shows manual command) |
 | `clean` | **⚠️ Deletes ALL resources in namespace** |
 | **ArgoCD GitOps** | |
-| `argocd-deploy` | Deploy ArgoCD Application for automated GitOps |
-| `argocd-clean` | Remove ArgoCD Application |
+| `argocd-deploy-dev` | Deploy ArgoCD Application for dev environment |
+| `argocd-deploy-prod` | Deploy ArgoCD Application for prod environment |
+| `argocd-clean` | Remove ArgoCD Applications |
 
 ### 6. Quick Start
 
@@ -304,40 +312,37 @@ This ensures all template files are valid and the ConfigMap generation works cor
 ### 11. Storage Backend Configuration (S3/Minio vs Google Drive)
 
 The SAST AI Workflow supports two storage backends for analysis results:
-- **Google Drive** (default for development environments)
-- **S3/Minio** (for MLOps environment)
+- **Google Drive** (development environment)
+- **S3/Minio** (MLOps environment)
 
 #### 11.1. How It Works
 
-The pipeline uses a `STORAGE_TYPE` parameter to determine which upload step runs:
-- `STORAGE_TYPE=gdrive` → Runs Google Drive upload step
-- `STORAGE_TYPE=s3` → Runs S3/Minio upload step
-
-This is controlled via Kustomize overlays:
+Storage backend is selected **automatically at deployment time** by choosing which deployment target to run. Each target deploys a different Kustomize overlay:
 
 ```
 deploy/tekton/overlays/
-├── dev/          # Development: uses Google Drive (STORAGE_TYPE=gdrive)
-├── mlops/        # MLOps: uses S3/Minio (STORAGE_TYPE=s3)
+├── dev/          # Development: includes Google Drive upload step
+├── mlops/        # MLOps: includes S3/Minio upload step
 └── prod/         # Production: uses specific container version
 ```
+
+The base pipeline contains no storage-specific logic. Each overlay uses JSON 6902 patches to inject its environment-specific upload step at deployment time.
 
 #### 11.2. Deploying with Different Storage Backends
 
 **Development (Google Drive):**
 ```bash
-# Uses base configuration with Google Drive
 make deploy-dev
-# Or manually:
-oc apply -k deploy/tekton/overlays/dev
 ```
+This automatically deploys the dev overlay with Google Drive support.
 
 **MLOps (S3/Minio):**
 ```bash
-# First, configure S3 credentials
-# Then deploy:
-oc apply -k deploy/tekton/overlays/mlops
+make deploy-mlops
 ```
+This automatically deploys the mlops overlay with S3/Minio support.
+
+**Important:** You cannot switch storage backends at runtime. To change storage backends, you must redeploy using a different target (e.g., from `deploy-dev` to `deploy-mlops`).
 
 #### 11.3. S3/Minio Configuration
 
