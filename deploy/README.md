@@ -78,10 +78,8 @@ All SAST AI Workflow resources use the `sast-ai-` prefix for easy identification
 
 **ConfigMaps:**
 - `sast-ai-prompt-templates` - LLM prompt templates
-- `sast-ai-gdrive-upload-scripts` - Google Drive upload scripts
 - `sast-ai-gcs-upload-scripts` - GCS bucket upload scripts for SARIF reports
-- `s3-output-upload-scripts` - S3/Minio output upload scripts
-- `sast-ai-gdrive-config` - Google Drive folder ID (optional)
+- `s3-output-upload-scripts` - S3/Minio output upload scripts (for mlops overlay)
 
 
 **PVCs:**
@@ -101,7 +99,7 @@ oc get secrets | grep sast-ai
 | Command | Description |
 |---------|-------------|
 | **Deployment** | |
-| `deploy-mlops` | Deploy MLOps environment with S3/Minio output storage (replaces GDrive) |
+| `deploy-mlops` | Deploy MLOps environment with S3/Minio output upload capability |
 | `deploy-prod` | Deploy production environment (requires IMAGE_VERSION) |
 | **Infrastructure** | |
 | `setup` | Create secrets and configure service account |
@@ -109,7 +107,7 @@ oc get secrets | grep sast-ai
 | `tasks` | Apply Tekton task definitions (uses ENV variable) |
 | `pipeline` | Apply pipeline definition |
 | `scripts` | Deploy upload scripts ConfigMaps |
-| `configmaps` | Create optional ConfigMaps (e.g., Google Drive config) |
+| `configmaps` | Create optional ConfigMaps |
 | **Prompts** | |
 | `generate-prompts` | Generate ConfigMap from prompt template files |
 | `prompts` | Generate and apply prompts ConfigMap to cluster |
@@ -117,7 +115,7 @@ oc get secrets | grep sast-ai
 | `run` | Execute pipeline using oc apply with PipelineRun |
 | `clean` | **⚠️ Deletes ALL resources in namespace** |
 | **ArgoCD GitOps** | |
-| `argocd-deploy-dev` | Deploy ArgoCD Application for dev environment |
+| `argocd-deploy-mlops` | Deploy ArgoCD Application for mlops environment |
 | `argocd-deploy-prod` | Deploy ArgoCD Application for prod environment |
 | `argocd-clean` | Remove ArgoCD Applications |
 
@@ -130,36 +128,34 @@ oc new-project sast-ai-workflow
 oc project sast-ai-workflow
 ```
 
-#### 6.2. Deploy Base Environment (Google Drive - Default)
+#### 6.2. Deploy Base Environment (No Output Upload)
 
 ```bash
-make setup scripts tasks pipeline prompts configmaps
+kubectl apply -k deploy/tekton/base
 ```
 
-This deploys the base infrastructure with Google Drive storage (default). To run the pipeline, use `make run` separately.
+This deploys the base pipeline without output upload functionality. To run the pipeline, use `kubectl apply -f` with a PipelineRun YAML.
 
-#### 6.3. Deploy MLOps Environment (S3/Minio Output)
+#### 6.3. Deploy MLOps Environment (S3/Minio Output Upload)
 
 ```bash
-make deploy-mlops
+kubectl apply -k deploy/tekton/overlays/mlops
 ```
 
-This deploys the MLOps infrastructure with S3/Minio output storage (replaces Google Drive), including ArgoCD GitOps. To run the pipeline, use `make run` separately.
+This deploys the mlops overlay with S3/Minio output upload capability. To run the pipeline, use `kubectl apply -f` with a PipelineRun YAML that includes `S3_OUTPUT_BUCKET_NAME` parameter.
 
 #### 6.4. Run Pipeline with Custom Parameters
 
 ```bash
-make run PROJECT_NAME="systemd" \
- PROJECT_VERSION="257-9" \
- REPO_REMOTE_URL="https://download.devel.redhat.com/brewroot/vol/rhel-10/packages/systemd/257/9.el10/src/systemd-257-9.el10.src.rpm" \
- INPUT_REPORT_FILE_PATH="https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY/export?format=csv" \
- FALSE_POSITIVES_URL="https://gitlab.cee.redhat.com/osh/known-false-positives/-/raw/master/systemd/ignore.err" \
- S3_OUTPUT_BUCKET_NAME="my-bucket"  # For mlops deployment
- # OR
- # GDRIVE_FOLDER_ID="your-folder-id"  # For base deployment
+# For base deployment (no output upload)
+kubectl apply -f your-pipelinerun.yaml
+
+# For mlops deployment (with S3 output upload)
+# Ensure your PipelineRun includes S3_OUTPUT_BUCKET_NAME parameter
+kubectl apply -f your-pipelinerun.yaml
 ```
 
-**Note:** Use storage parameters that match your deployment (S3_OUTPUT_BUCKET_NAME for mlops, GDRIVE_FOLDER_ID for base).
+**Note:** When using the mlops overlay, include `S3_OUTPUT_BUCKET_NAME` parameter in your PipelineRun spec. If not provided, the upload step gracefully skips.
 
 ### 7. Step-by-Step Alternative
 
@@ -303,52 +299,39 @@ grep -c "prompt:" tekton/sast-ai-prompt-templates.yaml  # Should show 8
 
 This ensures all template files are valid and the ConfigMap generation works correctly.
 
-### 11. Storage Backend Configuration (S3/Minio vs Google Drive)
+### 11. Optional S3 Output Upload Configuration
 
-The SAST AI Workflow supports two storage backends for analysis results:
-- **Google Drive** (development environment)
-- **S3/Minio** (MLOps environment)
+The SAST AI Workflow supports optional S3/Minio output upload for the final Excel analysis results.
 
 #### 11.1. How It Works
 
-Storage backend is selected **automatically at deployment time** by choosing which deployment target to run. Each target deploys a different Kustomize overlay:
+The pipeline has two deployment options:
+
+1. **Base Pipeline** - No output upload functionality
+2. **MLOps Overlay** - Adds S3/Minio output upload capability
+
+The base pipeline (`deploy/tekton/base/`) contains no storage-specific logic. The mlops overlay (`deploy/tekton/overlays/mlops/`) uses JSON 6902 patches to inject the S3 output upload parameter and step:
 
 ```
-deploy/tekton/overlays/
-├── dev/                        # Development: includes Google Drive upload step
-│   ├── kustomization.yaml      # Overlay configuration
-│   ├── pipeline-patch.yaml     # Adds GDRIVE_FOLDER_ID parameter
-│   └── task-patch.yaml         # Adds upload-to-gdrive step
-├── mlops/                      # MLOps: includes S3/Minio upload step
-│   ├── kustomization.yaml      # Overlay configuration
-│   ├── pipeline-patch.yaml     # Adds S3_OUTPUT_BUCKET_NAME parameter
-│   └── task-patch.yaml         # Adds upload-to-s3-output step
-└── prod/                       # Production: uses specific container version
-    ├── kustomization.yaml
-    └── task-patch.yaml         # Sets container image version
+deploy/tekton/overlays/mlops/
+├── kustomization.yaml          # Overlay configuration
+├── pipeline-patch.yaml         # Adds S3_OUTPUT_BUCKET_NAME parameter
+└── task-patch.yaml             # Adds upload-to-s3-output step
 ```
 
-The base pipeline (`deploy/tekton/base/`) contains no storage-specific logic. Each overlay uses JSON 6902 patches (defined in separate `pipeline-patch.yaml` and `task-patch.yaml` files) to inject its environment-specific parameters and upload step at deployment time.
+#### 11.2. Deployment Options
 
-#### 11.2. Deploying with Different Storage Backends
-
-**Base (no output upload):**
+**Base Pipeline (no output upload):**
 ```bash
 kubectl apply -k deploy/tekton/base
 ```
-This deploys the base pipeline without any output upload functionality.
+Deploys the pipeline without any output upload functionality.
 
-**MLOps (S3/Minio output):**
+**MLOps Overlay (S3/Minio output upload):**
 ```bash
 kubectl apply -k deploy/tekton/overlays/mlops
 ```
-This deploys the mlops overlay with S3/Minio output upload support.
-
-Alternatively, you can use the Makefile commands:
-- `make deploy-dev` - Deploy dev overlay with Google Drive support
-- `make deploy-mlops` - Deploy mlops overlay with S3/Minio support
-
-**Important:** You cannot switch storage backends at runtime. To change storage backends, you must redeploy using a different target (e.g., from `deploy-dev` to `deploy-mlops`).
+Deploys the pipeline with S3/Minio output upload support. The upload step gracefully skips if `S3_OUTPUT_BUCKET_NAME` is not provided.
 
 #### 11.3. S3/Minio Configuration
 
