@@ -7,17 +7,35 @@ This guide covers deployment on a local OpenShift cluster using CodeReady Contai
 ```
 deploy/
 ├── Makefile                    # Main deployment automation
-├── README.md                   # This documentation  
+├── README.md                   # This documentation
 ├── argocd/                     # GitOps configuration
-│   └── argocd-application.yaml # ArgoCD Application definition
+│   ├── argocd-application-dev.yaml  # ArgoCD Application for dev
+│   └── argocd-application-prod.yaml # ArgoCD Application for prod
 ├── scripts/                    # Deployment utility scripts
 │   └── generate_prompts.py     # ConfigMap generation from templates
 └── tekton/                     # Kubernetes/Tekton resources
-    ├── tasks/                  # Consolidated pipeline task
-    │   └── execute_sast_ai_workflow.yaml # Single task with multiple steps
-    ├── scripts/                # ConfigMaps for pipeline scripts  
-    ├── sast-ai-prompt-templates.yaml # Generated prompt templates
-    └── *.yaml                  # Other pipeline resources
+    ├── base/                   # Base Tekton resources (no storage logic)
+    │   ├── kustomization.yaml
+    │   ├── pipeline.yaml       # Pipeline definition
+    │   └── task.yaml           # Task definition
+    ├── overlays/               # Environment-specific configurations
+    │   ├── dev/                # Development overlay (Google Drive)
+    │   │   ├── kustomization.yaml
+    │   │   ├── pipeline-patch.yaml  # Adds GDRIVE parameters
+    │   │   └── task-patch.yaml      # Adds upload-to-gdrive step
+    │   ├── mlops/              # MLOps overlay (S3/Minio)
+    │   │   ├── kustomization.yaml
+    │   │   ├── pipeline-patch.yaml  # Adds S3 parameters
+    │   │   └── task-patch.yaml      # Adds upload-to-s3 step
+    │   └── prod/               # Production overlay
+    │       ├── kustomization.yaml
+    │       └── task-patch.yaml      # Sets container image version
+    ├── scripts/                # ConfigMaps for pipeline scripts
+    │   ├── upload_to_drive_cm.yaml  # Google Drive upload script
+    │   ├── upload_to_gcs_cm.yaml    # GCS upload script
+    │   └── upload_to_s3_cm.yaml     # S3/Minio upload script
+    ├── pipelinerun.yaml        # PipelineRun template
+    └── sast-ai-prompt-templates.yaml # Generated prompt templates
 ```
 
 ### 1. Install CRC (Local Development)
@@ -149,23 +167,36 @@ oc new-project sast-ai-workflow
 oc project sast-ai-workflow
 ```
 
-#### 6.2. Run Everything
+#### 6.2. Deploy Development Environment (Google Drive)
 
 ```bash
-make deploy
+make deploy-dev
 ```
 
-**Note:** This sets up the complete infrastructure including ArgoCD GitOps but does not execute the pipeline. To run the pipeline, use `make run` separately.
+This deploys the complete infrastructure with Google Drive storage support, including ArgoCD GitOps. To run the pipeline, use `make run` separately.
 
-#### 6.3. Run with Custom Parameters
+#### 6.3. Deploy MLOps Environment (S3/Minio)
 
 ```bash
-make deploy PROJECT_NAME="systemd" \
+make deploy-mlops
+```
+
+This deploys the complete infrastructure with S3/Minio storage support, including ArgoCD GitOps. To run the pipeline, use `make run` separately.
+
+#### 6.4. Run Pipeline with Custom Parameters
+
+```bash
+make run PROJECT_NAME="systemd" \
  PROJECT_VERSION="257-9" \
  REPO_REMOTE_URL="https://download.devel.redhat.com/brewroot/vol/rhel-10/packages/systemd/257/9.el10/src/systemd-257-9.el10.src.rpm" \
  INPUT_REPORT_FILE_PATH="https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY/export?format=csv" \
- FALSE_POSITIVES_URL="https://gitlab.cee.redhat.com/osh/known-false-positives/-/raw/master/systemd/ignore.err"
+ FALSE_POSITIVES_URL="https://gitlab.cee.redhat.com/osh/known-false-positives/-/raw/master/systemd/ignore.err" \
+ S3_BUCKET_NAME="my-bucket"  # For mlops deployment
+ # OR
+ # GDRIVE_FOLDER_ID="your-folder-id"  # For dev deployment
 ```
+
+**Note:** Use storage parameters that match your deployed overlay (S3_BUCKET_NAME for mlops, GDRIVE_FOLDER_ID for dev).
 
 ### 7. Step-by-Step Alternative
 
@@ -321,12 +352,20 @@ Storage backend is selected **automatically at deployment time** by choosing whi
 
 ```
 deploy/tekton/overlays/
-├── dev/          # Development: includes Google Drive upload step
-├── mlops/        # MLOps: includes S3/Minio upload step
-└── prod/         # Production: uses specific container version
+├── dev/                        # Development: includes Google Drive upload step
+│   ├── kustomization.yaml      # Overlay configuration
+│   ├── pipeline-patch.yaml     # Adds GDRIVE_FOLDER_ID parameter
+│   └── task-patch.yaml         # Adds upload-to-gdrive step
+├── mlops/                      # MLOps: includes S3/Minio upload step
+│   ├── kustomization.yaml      # Overlay configuration
+│   ├── pipeline-patch.yaml     # Adds S3_BUCKET_NAME parameter
+│   └── task-patch.yaml         # Adds upload-to-s3 step
+└── prod/                       # Production: uses specific container version
+    ├── kustomization.yaml
+    └── task-patch.yaml         # Sets container image version
 ```
 
-The base pipeline contains no storage-specific logic. Each overlay uses JSON 6902 patches to inject its environment-specific upload step at deployment time.
+The base pipeline (`deploy/tekton/base/`) contains no storage-specific logic. Each overlay uses JSON 6902 patches (defined in separate `pipeline-patch.yaml` and `task-patch.yaml` files) to inject its environment-specific parameters and upload step at deployment time.
 
 #### 11.2. Deploying with Different Storage Backends
 
