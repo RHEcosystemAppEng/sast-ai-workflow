@@ -19,8 +19,20 @@ ENV SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
 RUN pip install -e .
 
 RUN chown -R 1001:1001 /app && \
-    chmod +x /app/deploy/tekton/scripts/*.sh
-USER 1001 
+    chmod +x /app/deploy/tekton/scripts/*.sh && \
+    mkdir -p /app/.cache/huggingface && \
+    chown -R 1001:1001 /app/.cache
+USER 1001
+
+# Set version for setuptools-scm since .git folder is not available in container
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
+
+# Set Hugging Face cache directories to writable location
+ENV HF_HOME=/app/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
+ENV HF_DATASETS_CACHE=/app/.cache/huggingface/datasets
+
+RUN pip install -e . 
 
 VOLUME ["/etc/secrets"]
 
