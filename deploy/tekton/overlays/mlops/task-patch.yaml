@@ -1,25 +1,25 @@
 - op: add
   path: /spec/params/-
   value:
-    name: S3_BUCKET_NAME
+    name: S3_OUTPUT_BUCKET_NAME
     type: string
     description: "S3/Minio bucket name for uploading analysis results"
     default: ""
 - op: add
   path: /spec/volumes/-
   value:
-    name: s3-scripts
+    name: s3-output-scripts
     configMap:
-      name: s3-upload-scripts
+      name: s3-output-upload-scripts
       defaultMode: 0755
-- op: add
+- op: replace
   path: /spec/steps/6
   value:
-    name: upload-to-s3
+    name: upload-to-s3-output
     image: python:3.11-slim
     env:
-      - name: S3_BUCKET_NAME
-        value: "$(params.S3_BUCKET_NAME)"
+      - name: S3_OUTPUT_BUCKET_NAME
+        value: "$(params.S3_OUTPUT_BUCKET_NAME)"
       - name: PROJECT_NAME
         value: "$(params.PROJECT_NAME)"
       - name: PROJECT_VERSION
@@ -27,32 +27,32 @@
       - name: AWS_ACCESS_KEY_ID
         valueFrom:
           secretKeyRef:
-            name: sast-ai-s3-credentials
+            name: sast-ai-s3-output-credentials
             key: access_key_id
       - name: AWS_SECRET_ACCESS_KEY
         valueFrom:
           secretKeyRef:
-            name: sast-ai-s3-credentials
+            name: sast-ai-s3-output-credentials
             key: secret_access_key
       - name: S3_ENDPOINT_URL
         valueFrom:
           secretKeyRef:
-            name: sast-ai-s3-credentials
+            name: sast-ai-s3-output-credentials
             key: endpoint_url
             optional: true
     volumeMounts:
       - name: shared-data
         mountPath: /shared-data
-      - name: s3-scripts
+      - name: s3-output-scripts
         mountPath: /scripts
     script: |
       #!/bin/bash
       set -e
-      echo "=== UPLOAD TO S3/MINIO ==="
+      echo "=== UPLOAD TO S3/MINIO OUTPUT ==="
 
       # Check if we have required parameters
-      if [ -z "$S3_BUCKET_NAME" ]; then
-        echo "Skipping S3 upload - no bucket name provided"
+      if [ -z "$S3_OUTPUT_BUCKET_NAME" ]; then
+        echo "Skipping S3 output upload - no bucket name provided"
         echo "This is not an error - pipeline continues gracefully"
         exit 0
       fi
@@ -85,15 +85,15 @@
       S3_KEY="${PIPELINE_ID}/${REPO_NAME}/sast_ai_output.xlsx"
 
       echo "File to upload: $EXCEL_FILE"
-      echo "S3 Bucket: $S3_BUCKET_NAME"
+      echo "S3 Output Bucket: $S3_OUTPUT_BUCKET_NAME"
       echo "S3 Key: $S3_KEY"
 
       # Upload to S3
-      echo "Executing S3 upload..."
+      echo "Executing S3 output upload..."
       if [ -n "$S3_ENDPOINT_URL" ]; then
-        python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_BUCKET_NAME" "$S3_KEY" "$S3_ENDPOINT_URL"
+        python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_OUTPUT_BUCKET_NAME" "$S3_KEY" "$S3_ENDPOINT_URL"
       else
-        python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_BUCKET_NAME" "$S3_KEY"
+        python /scripts/s3_upload.py "$EXCEL_FILE" "$S3_OUTPUT_BUCKET_NAME" "$S3_KEY"
       fi
 
       if [ $? -eq 0 ]; then

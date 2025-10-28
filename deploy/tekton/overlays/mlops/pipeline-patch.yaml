@@ -1,12 +1,12 @@
 - op: add
   path: /spec/params/-
   value:
-    name: S3_BUCKET_NAME
+    name: S3_OUTPUT_BUCKET_NAME
     type: string
     description: "S3/Minio bucket name for uploading analysis results"
     default: ""
 - op: add
   path: /spec/tasks/0/params/-
   value:
-    name: S3_BUCKET_NAME
-    value: "$(params.S3_BUCKET_NAME)"
+    name: S3_OUTPUT_BUCKET_NAME
+    value: "$(params.S3_OUTPUT_BUCKET_NAME)"

@@ -42,7 +42,15 @@ spec:
       default: "embedding-llm-model"
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
+      default: "" 
+    - name: GDRIVE_FOLDER_ID
+      type: string
+      description: "Google Drive folder ID for uploading SAST results (optional)"
       default: ""
+    - name: GDRIVE_SA_FILE_NAME
+      type: string
+      description: "Optional GDrive SA file name"
+      default: "service_account.json"
     - name: USE_KNOWN_FALSE_POSITIVE_FILE
       type: string
       description: "Whether to use known false positive file for filtering (true/false)"
@@ -90,6 +98,10 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: USE_KNOWN_FALSE_POSITIVE_FILE
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+        - name: GDRIVE_FOLDER_ID
+          value: "$(params.GDRIVE_FOLDER_ID)"
+        - name: GDRIVE_SA_FILE_NAME
+          value: "$(params.GDRIVE_SA_FILE_NAME)"
         - name: GCS_BUCKET_NAME
           value: "$(params.GCS_BUCKET_NAME)"
         - name: GCS_SA_FILE_NAME

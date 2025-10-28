@@ -2,42 +2,6 @@
 
 This guide covers deployment on a local OpenShift cluster using CodeReady Containers (CRC) or an existing OpenShift cluster.
 
-### Directory Structure
-
-```
-deploy/
-├── Makefile                    # Main deployment automation
-├── README.md                   # This documentation
-├── argocd/                     # GitOps configuration
-│   ├── argocd-application-dev.yaml  # ArgoCD Application for dev
-│   └── argocd-application-prod.yaml # ArgoCD Application for prod
-├── scripts/                    # Deployment utility scripts
-│   └── generate_prompts.py     # ConfigMap generation from templates
-└── tekton/                     # Kubernetes/Tekton resources
-    ├── base/                   # Base Tekton resources (no storage logic)
-    │   ├── kustomization.yaml
-    │   ├── pipeline.yaml       # Pipeline definition
-    │   └── task.yaml           # Task definition
-    ├── overlays/               # Environment-specific configurations
-    │   ├── dev/                # Development overlay (Google Drive)
-    │   │   ├── kustomization.yaml
-    │   │   ├── pipeline-patch.yaml  # Adds GDRIVE parameters
-    │   │   └── task-patch.yaml      # Adds upload-to-gdrive step
-    │   ├── mlops/              # MLOps overlay (S3/Minio)
-    │   │   ├── kustomization.yaml
-    │   │   ├── pipeline-patch.yaml  # Adds S3 parameters
-    │   │   └── task-patch.yaml      # Adds upload-to-s3 step
-    │   └── prod/               # Production overlay
-    │       ├── kustomization.yaml
-    │       └── task-patch.yaml      # Sets container image version
-    ├── scripts/                # ConfigMaps for pipeline scripts
-    │   ├── upload_to_drive_cm.yaml  # Google Drive upload script
-    │   ├── upload_to_gcs_cm.yaml    # GCS upload script
-    │   └── upload_to_s3_cm.yaml     # S3/Minio upload script
-    ├── pipelinerun.yaml        # PipelineRun template
-    └── sast-ai-prompt-templates.yaml # Generated prompt templates
-```
-
 ### 1. Install CRC (Local Development)
 
 **For existing OpenShift clusters, skip to step 2.**
@@ -84,7 +48,7 @@ GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./service_account.json
 AWS_ACCESS_KEY_ID=your_s3_access_key_id
 AWS_SECRET_ACCESS_KEY=your_s3_secret_access_key
 S3_ENDPOINT_URL=https://your-minio-endpoint.com
-S3_BUCKET_NAME=your-bucket-name
+S3_OUTPUT_BUCKET_NAME=your-bucket-name
 ```
 
 #### 3.2. Prepare Prerequisites
@@ -109,14 +73,14 @@ All SAST AI Workflow resources use the `sast-ai-` prefix for easy identification
 - `sast-ai-default-llm-creds` - LLM and embeddings API credentials
 - `sast-ai-google-service-account` - Google service account JSON for spreadsheet access
 - `sast-ai-gcs-service-account` - GCS service account JSON for uploading SARIF reports to GCS bucket (optional)
-- `sast-ai-s3-credentials` - S3/Minio access credentials for MLOps environment (optional)
+- `sast-ai-s3-output-credentials` - S3/Minio output access credentials for MLOps environment (optional)
 - `sast-ai-quay-registry-config` - Container registry pull credentials
 
 **ConfigMaps:**
 - `sast-ai-prompt-templates` - LLM prompt templates
 - `sast-ai-gdrive-upload-scripts` - Google Drive upload scripts
 - `sast-ai-gcs-upload-scripts` - GCS bucket upload scripts for SARIF reports
-- `s3-upload-scripts` - S3/Minio upload scripts
+- `s3-output-upload-scripts` - S3/Minio output upload scripts
 - `sast-ai-gdrive-config` - Google Drive folder ID (optional)
 
 
@@ -137,8 +101,7 @@ oc get secrets | grep sast-ai
 | Command | Description |
 |---------|-------------|
 | **Deployment** | |
-| `deploy-dev` | Deploy development environment with Google Drive storage |
-| `deploy-mlops` | Deploy MLOps environment with S3/Minio storage |
+| `deploy-mlops` | Deploy MLOps environment with S3/Minio output storage (replaces GDrive) |
 | `deploy-prod` | Deploy production environment (requires IMAGE_VERSION) |
 | **Infrastructure** | |
 | `setup` | Create secrets and configure service account |
@@ -167,21 +130,21 @@ oc new-project sast-ai-workflow
 oc project sast-ai-workflow
 ```
 
-#### 6.2. Deploy Development Environment (Google Drive)
+#### 6.2. Deploy Base Environment (Google Drive - Default)
 
 ```bash
-make deploy-dev
+make setup scripts tasks pipeline prompts configmaps
 ```
 
-This deploys the complete infrastructure with Google Drive storage support, including ArgoCD GitOps. To run the pipeline, use `make run` separately.
+This deploys the base infrastructure with Google Drive storage (default). To run the pipeline, use `make run` separately.
 
-#### 6.3. Deploy MLOps Environment (S3/Minio)
+#### 6.3. Deploy MLOps Environment (S3/Minio Output)
 
 ```bash
 make deploy-mlops
 ```
 
-This deploys the complete infrastructure with S3/Minio storage support, including ArgoCD GitOps. To run the pipeline, use `make run` separately.
+This deploys the MLOps infrastructure with S3/Minio output storage (replaces Google Drive), including ArgoCD GitOps. To run the pipeline, use `make run` separately.
 
 #### 6.4. Run Pipeline with Custom Parameters
 
@@ -191,12 +154,12 @@ make run PROJECT_NAME="systemd" \
  REPO_REMOTE_URL="https://download.devel.redhat.com/brewroot/vol/rhel-10/packages/systemd/257/9.el10/src/systemd-257-9.el10.src.rpm" \
  INPUT_REPORT_FILE_PATH="https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY/export?format=csv" \
  FALSE_POSITIVES_URL="https://gitlab.cee.redhat.com/osh/known-false-positives/-/raw/master/systemd/ignore.err" \
- S3_BUCKET_NAME="my-bucket"  # For mlops deployment
+ S3_OUTPUT_BUCKET_NAME="my-bucket"  # For mlops deployment
  # OR
- # GDRIVE_FOLDER_ID="your-folder-id"  # For dev deployment
+ # GDRIVE_FOLDER_ID="your-folder-id"  # For base deployment
 ```
 
-**Note:** Use storage parameters that match your deployed overlay (S3_BUCKET_NAME for mlops, GDRIVE_FOLDER_ID for dev).
+**Note:** Use storage parameters that match your deployment (S3_OUTPUT_BUCKET_NAME for mlops, GDRIVE_FOLDER_ID for base).
 
 ### 7. Step-by-Step Alternative
 
@@ -358,8 +321,8 @@ deploy/tekton/overlays/
 │   └── task-patch.yaml         # Adds upload-to-gdrive step
 ├── mlops/                      # MLOps: includes S3/Minio upload step
 │   ├── kustomization.yaml      # Overlay configuration
-│   ├── pipeline-patch.yaml     # Adds S3_BUCKET_NAME parameter
-│   └── task-patch.yaml         # Adds upload-to-s3 step
+│   ├── pipeline-patch.yaml     # Adds S3_OUTPUT_BUCKET_NAME parameter
+│   └── task-patch.yaml         # Adds upload-to-s3-output step
 └── prod/                       # Production: uses specific container version
     ├── kustomization.yaml
     └── task-patch.yaml         # Sets container image version
@@ -369,17 +332,21 @@ The base pipeline (`deploy/tekton/base/`) contains no storage-specific logic. Ea
 
 #### 11.2. Deploying with Different Storage Backends
 
-**Development (Google Drive):**
+**Base (no output upload):**
 ```bash
-make deploy-dev
+kubectl apply -k deploy/tekton/base
 ```
-This automatically deploys the dev overlay with Google Drive support.
+This deploys the base pipeline without any output upload functionality.
 
-**MLOps (S3/Minio):**
+**MLOps (S3/Minio output):**
 ```bash
-make deploy-mlops
+kubectl apply -k deploy/tekton/overlays/mlops
 ```
-This automatically deploys the mlops overlay with S3/Minio support.
+This deploys the mlops overlay with S3/Minio output upload support.
+
+Alternatively, you can use the Makefile commands:
+- `make deploy-dev` - Deploy dev overlay with Google Drive support
+- `make deploy-mlops` - Deploy mlops overlay with S3/Minio support
 
 **Important:** You cannot switch storage backends at runtime. To change storage backends, you must redeploy using a different target (e.g., from `deploy-dev` to `deploy-mlops`).
 
@@ -390,7 +357,7 @@ To use S3/Minio storage:
 # Required
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
-S3_BUCKET_NAME=your-bucket-name
+S3_OUTPUT_BUCKET_NAME=your-bucket-name
 S3_ENDPOINT_URL=https://minio.example.com
 ```
 

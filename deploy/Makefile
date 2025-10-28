@@ -65,24 +65,12 @@ GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 # S3/Minio Configuration
-S3_BUCKET_NAME                   ?= ""
+S3_OUTPUT_BUCKET_NAME            ?= ""
 AWS_ACCESS_KEY_ID                ?= ""
 AWS_SECRET_ACCESS_KEY            ?= ""
 S3_ENDPOINT_URL                  ?= ""
 
-.PHONY: deploy-dev deploy-mlops deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
-
-deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-deploy-dev: ENV = dev
-deploy-dev:
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Development Deployment"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "   Environment: Development"
-	@echo "   Storage Backend: Google Drive"
-	@echo "   Container Image: $(CONTAINER_IMAGE)"
-	@echo ""
-	@$(MAKE) --no-print-directory ENV=$(ENV) setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
+.PHONY: deploy-mlops deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
 
 deploy-mlops: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 deploy-mlops: ENV = mlops
@@ -136,10 +124,10 @@ tasks:
 		echo "   ✓ Tekton resources deployed (production overlay)"; \
 	elif [ "$(ENV)" = "mlops" ]; then \
 		$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (mlops overlay - S3 storage)"; \
+		echo "   ✓ Tekton resources deployed (mlops overlay - S3 output storage)"; \
 	else \
-		$(CO) apply -k tekton/overlays/dev -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (dev overlay - GDrive storage)"; \
+		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
+		echo "   ✓ Tekton resources deployed (base - Google Drive storage)"; \
 	fi
 
 secrets:
@@ -201,26 +189,26 @@ secrets:
             -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
         echo "   ✓ GCS service account secret"; \
     fi
-	# Create S3/Minio credentials secret (OPTIONAL)
-	@echo "   🔍 Checking S3/Minio credentials (OPTIONAL)..."
+	# Create S3/Minio output credentials secret (OPTIONAL)
+	@echo "   🔍 Checking S3/Minio output credentials (OPTIONAL)..."
 	@if [ -z "$(AWS_ACCESS_KEY_ID)" ] || [ -z "$(AWS_SECRET_ACCESS_KEY)" ]; then \
-		echo "   ⚠️  S3/Minio credentials not configured"; \
-		echo "   💡 S3 uploads will be skipped - this is optional"; \
+		echo "   ⚠️  S3/Minio output credentials not configured"; \
+		echo "   💡 S3 output uploads will be skipped - this is optional"; \
 	else \
-		echo "   ✓ S3/Minio credentials found"; \
+		echo "   ✓ S3/Minio output credentials found"; \
 		if [ -n "$(S3_ENDPOINT_URL)" ]; then \
-			$(CO) create secret generic sast-ai-s3-credentials \
+			$(CO) create secret generic sast-ai-s3-output-credentials \
 				--from-literal=access_key_id="$(AWS_ACCESS_KEY_ID)" \
 				--from-literal=secret_access_key="$(AWS_SECRET_ACCESS_KEY)" \
 				--from-literal=endpoint_url="$(S3_ENDPOINT_URL)" \
 				-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
 		else \
-			$(CO) create secret generic sast-ai-s3-credentials \
+			$(CO) create secret generic sast-ai-s3-output-credentials \
 				--from-literal=access_key_id="$(AWS_ACCESS_KEY_ID)" \
 				--from-literal=secret_access_key="$(AWS_SECRET_ACCESS_KEY)" \
 				-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
 		fi; \
-		echo "   ✓ S3/Minio credentials secret"; \
+		echo "   ✓ S3/Minio output credentials secret"; \
 	fi
 	# Create Quay pull secret
 	@DOCKER_AUTH_FILE=""; \
@@ -263,8 +251,8 @@ scripts:
 		{ echo "   ❌ Failed to apply Google Drive upload script"; exit 1; }
 	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml || \
 		{ echo "   ❌ Failed to apply GCS upload script"; exit 1; }
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_s3_cm.yaml || \
-		{ echo "   ❌ Failed to apply S3 upload script"; exit 1; }
+	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_s3_output_cm.yaml || \
+		{ echo "   ❌ Failed to apply S3 output upload script"; exit 1; }
 	@echo "   ✓ Upload scripts configured"
 
 generate-prompts:
@@ -323,7 +311,7 @@ run:
 		-e 's|DVC_DATA_VERSION_PLACEHOLDER|$(DVC_DATA_VERSION)|g' \
 		-e 's|S3_ENDPOINT_URL_PLACEHOLDER|$(S3_ENDPOINT_URL)|g' \
 		-e 's|S3_INPUT_BUCKET_NAME_PLACEHOLDER|$(S3_INPUT_BUCKET_NAME)|g' \
-		-e 's|S3_BUCKET_NAME_PLACEHOLDER|$(S3_BUCKET_NAME)|g' \
+		-e 's|S3_OUTPUT_BUCKET_NAME_PLACEHOLDER|$(S3_OUTPUT_BUCKET_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml
 	@rm -f tekton/pipelinerun-temp.yaml
@@ -438,7 +426,7 @@ clean:
 	@echo "📜 Cleaning Scripts..."
 	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \
 		sast-ai-gcs-upload-scripts \
-		s3-upload-scripts \
+		s3-output-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Upload scripts removed"
 	@echo "🗂️  Cleaning Optional ConfigMaps..."
@@ -450,7 +438,7 @@ clean:
 		sast-ai-default-llm-creds \
 		sast-ai-google-drive-service-account \
 		sast-ai-gcs-service-account \
-		sast-ai-s3-credentials \
+		sast-ai-s3-output-credentials \
 		sast-ai-quay-registry-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ All secrets removed"

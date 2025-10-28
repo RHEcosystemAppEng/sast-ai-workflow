@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: s3-upload-scripts
+  name: s3-output-upload-scripts
 data:
   s3_upload.py: |
     import sys
@@ -17,7 +17,7 @@ data:
         Args:
             file_path: Local path to the file to upload
             bucket_name: Name of the S3 bucket
-            s3_key: S3 object key (path in bucket)
+            s3_key: S3 object key (path in bucket)1
             endpoint_url: Optional S3 endpoint URL for non-AWS S3 (e.g., Minio)
             max_retries: Maximum number of upload attempts (default: 3)
 
