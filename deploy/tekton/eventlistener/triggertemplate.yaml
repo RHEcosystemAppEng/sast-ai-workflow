@@ -1,0 +1,90 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: benchmark-mlop-template
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  params:
+    # Parameters from TriggerBinding
+    - name: batch-sheet-url
+      description: "Google Sheet URL with package list"
+      default: ""
+
+    - name: submitted-by
+      description: "Trigger source"
+      default: "eventlistener-webhook"
+
+    - name: trigger-source
+      description: "Source of the trigger (argocd, webhook, etc.)"
+      default: "webhook"
+
+    # MLOps-specific parameters
+    - name: dvc-repo-url
+      description: "DVC repository URL for data versioning"
+      default: ""
+    
+    - name: dvc-data-version
+      description: "DVC data version tag"
+      default: ""
+    
+    - name: s3-endpoint-url
+      description: "S3 endpoint URL for MLOps data"
+      default: ""
+    
+    - name: s3-input-bucket-name
+      description: "S3 bucket name for input data"
+      default: ""
+    
+    - name: image-version
+      description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
+      default: ""
+  
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        # Use generateName for unique PipelineRun names
+        # Kubernetes will append random suffix: benchmark-mlop-pipeline-abc123
+        generateName: benchmark-mlop-pipeline-
+        labels:
+          app.kubernetes.io/name: sast-ai-workflow
+          app.kubernetes.io/component: benchmark-mlop
+          sast-ai.redhat.com/trigger-type: webhook
+          tekton.dev/pipeline: benchmark-mlop-pipeline
+      spec:
+        pipelineRef:
+          name: benchmark-mlop-pipeline
+        
+        params:
+          # Pass parameters to pipeline
+          - name: batch-sheet-url
+            value: $(tt.params.batch-sheet-url)
+
+          - name: submitted-by
+            value: $(tt.params.submitted-by)
+
+          - name: trigger-source
+            value: $(tt.params.trigger-source)
+
+          - name: dvc-repo-url
+            value: $(tt.params.dvc-repo-url)
+          
+          - name: dvc-data-version
+            value: $(tt.params.dvc-data-version)
+          
+          - name: s3-endpoint-url
+            value: $(tt.params.s3-endpoint-url)
+          
+          - name: s3-input-bucket-name
+            value: $(tt.params.s3-input-bucket-name)
+          
+          - name: image-version
+            value: $(tt.params.image-version)
+        
+        # Timeout for the entire pipeline
+        timeouts:
+          pipeline: "4h"
+
