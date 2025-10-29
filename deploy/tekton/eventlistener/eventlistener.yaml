@@ -1,0 +1,38 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: benchmark-mlop-listener
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: benchmark-mlop-trigger
+      bindings:
+        - ref: benchmark-mlop-binding
+      template:
+        ref: benchmark-mlop-template
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: el-benchmark-mlop-listener
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+    eventlistener: benchmark-mlop-listener
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    # Only use the eventlistener label that Tekton guarantees
+    # Kustomization commonLabels would override other labels
+    eventlistener: benchmark-mlop-listener
+
