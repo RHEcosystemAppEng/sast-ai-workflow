@@ -3,6 +3,7 @@ from typing import List, Type
 
 from common.config import Config
 from report_readers.base_reader import BaseReportReader
+from report_readers.excel_reader import ExcelReportReader
 from report_readers.google_sheets_reader import GoogleSheetsReportReader
 from report_readers.html_reader import HtmlReportReader
 from report_readers.sarif_reader import SarifReportReader
@@ -20,6 +21,7 @@ class ReportReaderFactory:
         self._readers: List[Type[BaseReportReader]] = [
             SarifReportReader,
             GoogleSheetsReportReader,
+            ExcelReportReader,
             HtmlReportReader,
         ]
 
