@@ -40,6 +40,14 @@ spec:
       value: "GCS_BUCKET_NAME_PLACEHOLDER"
     - name: GCS_SA_FILE_NAME
       value: "GCS_SA_FILE_NAME_PLACEHOLDER"
+    - name: DVC_REPO_URL
+      value: "DVC_REPO_URL_PLACEHOLDER"
+    - name: DVC_DATA_VERSION
+      value: "DVC_DATA_VERSION_PLACEHOLDER"
+    - name: S3_ENDPOINT_URL
+      value: "S3_ENDPOINT_URL_PLACEHOLDER"
+    - name: S3_INPUT_BUCKET_NAME
+      value: "S3_INPUT_BUCKET_NAME_PLACEHOLDER"
   workspaces:
     - name: gitlab-token-ws
       secret:
@@ -63,4 +71,12 @@ spec:
           - key: gcs_service_account.json
             path: gcs_service_account.json
         optional: true
-        
+    - name: s3-input-creds-ws
+      secret:
+        secretName: sast-ai-s3-input-creds
+        items:
+          - key: aws_access_key_id
+            path: aws_access_key_id
+          - key: aws_secret_access_key
+            path: aws_secret_access_key
+        optional: true

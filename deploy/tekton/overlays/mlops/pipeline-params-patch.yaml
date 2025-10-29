@@ -1,0 +1,48 @@
+- op: add
+  path: /spec/params/-
+  value:
+    name: DVC_REPO_URL
+    type: string
+    description: "DVC Git repository URL for data versioning"
+    default: "https://github.com/RHEcosystemAppEng/sast-ai-dvc"
+- op: add
+  path: /spec/params/-
+  value:
+    name: DVC_DATA_VERSION
+    type: string
+    description: "DVC data version tag (e.g., v1.0)"
+    default: "v1.0"
+- op: add
+  path: /spec/params/-
+  value:
+    name: S3_ENDPOINT_URL
+    type: string
+    description: "MinIO/S3 endpoint URL for DVC remote storage"
+    default: "http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com"
+- op: add
+  path: /spec/params/-
+  value:
+    name: S3_INPUT_BUCKET_NAME
+    type: string
+    description: "S3/MinIO bucket name for input data"
+    default: "test"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: DVC_REPO_URL
+    value: "$(params.DVC_REPO_URL)"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: DVC_DATA_VERSION
+    value: "$(params.DVC_DATA_VERSION)"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: S3_ENDPOINT_URL
+    value: "$(params.S3_ENDPOINT_URL)"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: S3_INPUT_BUCKET_NAME
+    value: "$(params.S3_INPUT_BUCKET_NAME)"

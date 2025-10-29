@@ -1,0 +1,6 @@
+- op: add
+  path: /spec/workspaces/-
+  value:
+    name: s3-input-creds-ws
+    description: "Optional secret mount for S3/MinIO input data credentials"
+    optional: true

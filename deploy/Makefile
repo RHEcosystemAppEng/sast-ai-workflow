@@ -43,8 +43,14 @@ IMAGE_VERSION                    ?=
 CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 
 # GCS Bucket Configuration
-GCS_BUCKET_NAME                  ?= 
+GCS_BUCKET_NAME                  ?=
 GCS_SA_FILE_NAME                 := gcs_service_account.json
+
+# DVC and S3/MinIO Configuration
+DVC_REPO_URL                     ?= https://github.com/RHEcosystemAppEng/sast-ai-dvc
+DVC_DATA_VERSION                 ?= v1.0
+S3_ENDPOINT_URL                  ?= http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com
+S3_INPUT_BUCKET_NAME             ?= test
 
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
@@ -108,6 +114,9 @@ tasks:
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) && \
 		echo "   ✓ Tekton resources deployed (production overlay)"; \
+	elif [ "$(ENV)" = "mlops" ]; then \
+		$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE) && \
+		echo "   ✓ Tekton resources deployed (mlops overlay - MinIO/S3 support)"; \
 	else \
 		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
 		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
@@ -267,6 +276,10 @@ run:
 		-e 's|CONTAINER_IMAGE_PLACEHOLDER|$(CONTAINER_IMAGE)|g' \
 		-e 's|GCS_BUCKET_NAME_PLACEHOLDER|$(GCS_BUCKET_NAME)|g' \
 		-e 's|GCS_SA_FILE_NAME_PLACEHOLDER|$(GCS_SA_FILE_NAME)|g' \
+		-e 's|DVC_REPO_URL_PLACEHOLDER|$(DVC_REPO_URL)|g' \
+		-e 's|DVC_DATA_VERSION_PLACEHOLDER|$(DVC_DATA_VERSION)|g' \
+		-e 's|S3_ENDPOINT_URL_PLACEHOLDER|$(S3_ENDPOINT_URL)|g' \
+		-e 's|S3_INPUT_BUCKET_NAME_PLACEHOLDER|$(S3_INPUT_BUCKET_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml
 	@rm -f tekton/pipelinerun-temp.yaml
