@@ -1,0 +1,10 @@
+- op: add
+  path: /spec/workspaces/-
+  value:
+    name: s3-input-creds-ws
+    optional: true
+- op: add
+  path: /spec/tasks/0/workspaces/-
+  value:
+    name: s3-input-creds-ws
+    workspace: s3-input-creds-ws
