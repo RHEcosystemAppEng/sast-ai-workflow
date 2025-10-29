@@ -1,0 +1,32 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace (can be overridden via kubectl -n or kustomize)
+# namespace: sast-ai
+
+# Common labels applied to all resources
+# Note: Don't use app.kubernetes.io/part-of as commonLabel
+# because it conflicts with Tekton-managed labels on EventListener pods
+commonLabels:
+  app.kubernetes.io/component: benchmark-mlop
+
+# Resources to deploy
+resources:
+  - benchmark-config.yaml
+  - call-orchestrator-api.yaml
+  - poll-batch-status.yaml
+  - benchmark-pipeline.yaml
+  - triggerbinding.yaml
+  - triggertemplate.yaml
+  - eventlistener.yaml
+
+# ConfigMap generator (alternative to static file)
+# Uncomment to generate ConfigMap from properties
+# configMapGenerator:
+#   - name: benchmark-config
+#     literals:
+#       - orchestrator-api-url=http://sast-ai-orchestrator.sast-ai.svc.cluster.local:8080
+#       - default-batch-sheet-url=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit
+#       - api-batch-endpoint=/api/v1/job-batches
+

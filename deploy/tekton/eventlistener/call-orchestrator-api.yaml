@@ -1,0 +1,185 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: call-orchestrator-api-mlop
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  description: >-
+    Calls the sast-ai-orchestrator MLOps batch API to trigger batch SAST
+    analysis jobs with DVC and S3 integration. Used for MLOps performance
+    testing and benchmark automation.
+  
+  params:
+    - name: batch-sheet-url
+      type: string
+      description: "Google Sheet URL containing the list of packages to analyze"
+    
+    - name: submitted-by
+      type: string
+      description: "Identifier of who/what triggered this batch"
+      default: "tekton-eventlistener-mlop"
+    
+    # MLOps-specific parameters
+    - name: dvc-data-version
+      type: string
+      description: "DVC data version tag"
+      default: ""
+    
+    - name: prompts-version
+      type: string
+      description: "Prompts version tag"
+      default: ""
+    
+    - name: known-non-issues-version
+      type: string
+      description: "Known non-issues version tag"
+      default: ""
+    
+    - name: image-version
+      type: string
+      description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
+      default: ""
+    
+    - name: use-known-false-positive-file
+      type: string
+      description: "Whether to use known false positive file"
+      default: "true"
+  
+  results:
+    - name: batch-id
+      description: "Batch job ID returned by the orchestrator"
+    
+    - name: status
+      description: "Status of the API call (success/failed)"
+  
+  steps:
+    - name: call-orchestrator-api
+      image: quay.io/curl/curl:latest
+      env:
+        # Read orchestrator URL from ConfigMap
+        - name: ORCHESTRATOR_URL
+          valueFrom:
+            configMapKeyRef:
+              name: benchmark-config
+              key: orchestrator-api-url
+        
+        # Read API endpoint from ConfigMap
+        - name: API_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: benchmark-config
+              key: api-batch-endpoint
+      
+      script: |
+        #!/bin/sh
+        set -e
+        
+        echo "========================================="
+        echo "Calling Orchestrator MLOps Batch API"
+        echo "========================================="
+        echo ""
+        
+        # Display configuration
+        echo "Configuration:"
+        echo "  Orchestrator URL: $ORCHESTRATOR_URL"
+        echo "  API Endpoint: $API_ENDPOINT"
+        echo "  Batch Sheet URL: $(params.batch-sheet-url)"
+        echo "  Submitted By: $(params.submitted-by)"
+        echo "  DVC Version: $(params.dvc-data-version)"
+        echo "  Prompts Version: $(params.prompts-version)"
+        echo "  Known Non-Issues Version: $(params.known-non-issues-version)"
+        echo "  Image Version: $(params.image-version)"
+        echo "  Use Known False Positive File: $(params.use-known-false-positive-file)"
+        echo ""
+        
+        # Construct full API URL by concatenating base URL with endpoint
+        FULL_API_URL="${ORCHESTRATOR_URL}${API_ENDPOINT}"
+        echo "Full API URL: $FULL_API_URL"
+        echo ""
+        
+        # Prepare JSON payload for MLOps endpoint
+        # Note: API expects camelCase field names
+        PAYLOAD=$(cat <<EOF
+        {
+          "submittedBy": "$(params.submitted-by)",
+          "testingDataNvrsVersion": "$(params.dvc-data-version)",
+          "promptsVersion": "$(params.prompts-version)",
+          "knownNonIssuesVersion": "$(params.known-non-issues-version)",
+          "sastAiImage": "$(params.image-version)"
+          "jobSettings": {
+            "useKnownFalsePositiveFile": "$(params.use-known-false-positive-file)"
+  }
+        }
+        EOF
+        )
+        
+        echo "Request Payload:"
+        echo "$PAYLOAD" | sed 's/^/  /'
+        echo ""
+        
+        # Call orchestrator API
+        echo "Sending POST request to orchestrator..."
+        RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$FULL_API_URL" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" 2>&1) || {
+          echo "ERROR: curl command failed"
+          echo "This could mean:"
+          echo "  - Orchestrator service is not reachable"
+          echo "  - Network policy blocking connection"
+          echo "  - Orchestrator URL is incorrect in ConfigMap"
+          echo ""
+          echo "Response: $RESPONSE"
+          echo -n "failed" > $(results.status.path)
+          echo -n "error" > $(results.batch-id.path)
+          exit 1
+        }
+        
+        # Extract HTTP status and body
+        HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+        BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+        
+        echo "HTTP Status: $HTTP_STATUS"
+        echo "Response Body:"
+        echo "$BODY" | sed 's/^/  /'
+        echo ""
+        
+        # Check if request was successful
+        if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+          echo "✓ API call successful!"
+          
+          # Extract batchId from response
+          # API returns: {"batchId":1, ...}
+          if echo "$BODY" | grep -q "batchId"; then
+            # Extract batchId using grep and cut (works without jq)
+            BATCH_ID=$(echo "$BODY" | grep -o '"batchId":[0-9]*' | cut -d':' -f2 || echo "unknown")
+            echo "Batch ID: $BATCH_ID"
+            echo -n "$BATCH_ID" > $(results.batch-id.path)
+          else
+            echo "Warning: Could not extract batchId from response"
+            echo -n "unknown" > $(results.batch-id.path)
+          fi
+          
+          echo -n "success" > $(results.status.path)
+          
+        else
+          echo "✗ API call failed with HTTP status: $HTTP_STATUS"
+          echo ""
+          echo "Possible issues:"
+          echo "  - Orchestrator service returned an error"
+          echo "  - Invalid payload format"
+          echo "  - Batch sheet URL not accessible"
+          echo "  - Missing required parameters"
+          echo ""
+          echo -n "failed" > $(results.status.path)
+          echo -n "error" > $(results.batch-id.path)
+          exit 1
+        fi
+        
+        echo ""
+        echo "========================================="
+        echo "Orchestrator API call completed"
+        echo "========================================="
+
