@@ -1,0 +1,61 @@
+- op: replace
+  path: /spec/steps/4
+  value:
+    name: fetch-false-positives
+    image: python:3.11-slim
+    volumeMounts:
+      - name: shared-data
+        mountPath: /shared-data
+    env:
+      - name: PROJECT_NAME
+        value: "$(params.PROJECT_NAME)"
+      - name: DVC_REPO_URL
+        value: "$(params.DVC_REPO_URL)"
+      - name: DVC_DATA_VERSION
+        value: "$(params.DVC_DATA_VERSION)"
+      - name: S3_ENDPOINT_URL
+        value: "$(params.S3_ENDPOINT_URL)"
+      - name: S3_INPUT_BUCKET_NAME
+        value: "$(params.S3_INPUT_BUCKET_NAME)"
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: sast-ai-s3-input-creds
+            key: aws_access_key_id
+            optional: true
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: sast-ai-s3-input-creds
+            key: aws_secret_access_key
+            optional: true
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      echo "=== STEP 5: FETCH FALSE POSITIVES FROM DVC ==="
+
+      # Constants for DVC paths
+      readonly DVC_FP_BASE_DIR="known-non-issues-el10"
+      readonly FP_FILENAME="ignore.err"
+
+      # Create false positives directory
+      mkdir -p /shared-data/false-positives
+
+      # Install DVC with S3 support
+      echo "Installing DVC..."
+      pip install --quiet dvc dvc-s3 >/dev/null 2>&1
+
+      # Construct DVC path: Known-non-issues-el10/$PROJECT_NAME/ignore.err
+      DVC_PATH="${DVC_FP_BASE_DIR}/${PROJECT_NAME}/${FP_FILENAME}"
+
+      echo "DVC Repository: $DVC_REPO_URL"
+      echo "DVC Path: $DVC_PATH"
+      echo "DVC Version: $DVC_DATA_VERSION"
+      echo "S3 Endpoint: $S3_ENDPOINT_URL"
+
+      # Use DVC to fetch the file
+      dvc get "$DVC_REPO_URL" "$DVC_PATH" --rev "$DVC_DATA_VERSION" -o "/shared-data/false-positives/${FP_FILENAME}" \
+        || (echo "Error: Could not fetch false positives file from DVC/MinIO" && exit 1)
+
+      echo "False positives file downloaded successfully via DVC"
+      echo "File size: $(du -h /shared-data/false-positives/${FP_FILENAME} | cut -f1)"
