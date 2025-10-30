@@ -6,6 +6,13 @@
     description: "S3/Minio bucket name for uploading analysis results"
     default: ""
 - op: add
+  path: /spec/params/-
+  value:
+    name: PIPELINE_RUN_ID
+    type: string
+    description: "Unique PipelineRun ID for S3 object key"
+    default: ""
+- op: add
   path: /spec/volumes/-
   value:
     name: s3-output-scripts
@@ -20,6 +27,8 @@
     env:
       - name: S3_OUTPUT_BUCKET_NAME
         value: "$(params.S3_OUTPUT_BUCKET_NAME)"
+      - name: PIPELINE_RUN_ID
+        value: "$(params.PIPELINE_RUN_ID)"
       - name: PROJECT_NAME
         value: "$(params.PROJECT_NAME)"
       - name: PROJECT_VERSION
@@ -78,11 +87,17 @@
       pip install --quiet boto3 >/dev/null 2>&1
       echo "Dependencies installed successfully"
 
-      # Construct S3 key using pipeline-id and repo-name pattern
-      # Using PROJECT_NAME as repo-name and current timestamp as pipeline-id
-      PIPELINE_ID=$(date -u +"%Y%m%d-%H%M%S")
+      # Construct S3 key using unique pipeline run ID
+      # Use PIPELINE_RUN_ID if provided, otherwise fallback to timestamp
+      if [ -n "$PIPELINE_RUN_ID" ]; then
+        PIPELINE_ID="$PIPELINE_RUN_ID"
+      else
+        PIPELINE_ID=$(date -u +"%Y%m%d-%H%M%S")
+      fi
+
+      # Structure: {pipeline-id}/{repo-name}_sast_ai_output.xlsx
       REPO_NAME="${PROJECT_NAME}"
-      S3_KEY="${PIPELINE_ID}/${REPO_NAME}/sast_ai_output.xlsx"
+      S3_KEY="${PIPELINE_ID}/${REPO_NAME}_sast_ai_output.xlsx"
 
       echo "File to upload: $EXCEL_FILE"
       echo "S3 Output Bucket: $S3_OUTPUT_BUCKET_NAME"
