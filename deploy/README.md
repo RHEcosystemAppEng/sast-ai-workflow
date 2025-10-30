@@ -315,9 +315,9 @@ The base pipeline (`deploy/tekton/base/`) contains no storage-specific logic. Th
 
 ```
 deploy/tekton/overlays/mlops/
-├── kustomization.yaml          # Overlay configuration
-├── pipeline-patch.yaml         # Adds S3_OUTPUT_BUCKET_NAME parameter
-└── task-patch.yaml             # Adds upload-to-s3-output step
+├── kustomization.yaml           # Overlay configuration
+├── pipeline-params-patch.yaml   # Adds S3 output parameters (S3_OUTPUT_BUCKET_NAME)
+└── task-s3-output-patch.yaml    # Replaces upload-to-gdrive with upload-to-s3-output step
 ```
 
 #### 11.2. Deployment Options
