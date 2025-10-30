@@ -70,43 +70,50 @@ AWS_ACCESS_KEY_ID                ?= ""
 AWS_SECRET_ACCESS_KEY            ?= ""
 S3_ENDPOINT_URL                  ?= ""
 
-.PHONY: deploy-mlops deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
+.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-mlops argocd-deploy-prod argocd-clean
 
-deploy-mlops: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-deploy-mlops: ENV = mlops
-deploy-mlops:
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - MLOps Deployment"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "   Environment: MLOps"
-	@echo "   Storage Backend: S3/Minio"
-	@echo "   Container Image: $(CONTAINER_IMAGE)"
-	@echo ""
-	@$(MAKE) --no-print-directory ENV=$(ENV) setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
-
-deploy-prod:
-	@if [ -z "$(IMAGE_VERSION)" ]; then \
+# Unified deploy command
+# Usage:
+#   make deploy                     # Deploy base (Google Drive, :latest)
+#   make deploy ENV=mlops           # Deploy MLOps (S3/Minio, :latest)
+#   make deploy ENV=prod IMAGE_VERSION=1.2.3  # Deploy prod (Google Drive, versioned)
+deploy:
+	@if [ "$(ENV)" = "prod" ] && [ -z "$(IMAGE_VERSION)" ]; then \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo "❌ ERROR: IMAGE_VERSION is required for production deployment"; \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo ""; \
-		echo "Usage: make deploy-prod IMAGE_VERSION=1.2.3"; \
+		echo "Usage: make deploy ENV=prod IMAGE_VERSION=1.2.3"; \
 		echo ""; \
 		echo "Available versions can be found at:"; \
 		echo "https://quay.io/repository/ecosystem-appeng/sast-ai-workflow?tab=tags"; \
 		echo ""; \
 		exit 1; \
 	fi
-	@$(MAKE) --no-print-directory CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) deploy-prod-internal
-
-deploy-prod-internal:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Production Deployment"
+	@echo "🚀 SAST AI Workflow - Deployment"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "   Environment: Production"
-	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@if [ "$(ENV)" = "mlops" ]; then \
+		echo "   Environment: MLOps"; \
+		echo "   Storage: S3/Minio output upload"; \
+		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
+	elif [ "$(ENV)" = "prod" ]; then \
+		echo "   Environment: Production"; \
+		echo "   Storage: Google Drive upload"; \
+		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)"; \
+	else \
+		echo "   Environment: Base"; \
+		echo "   Storage: Google Drive upload"; \
+		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
+	fi
 	@echo ""
-	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-prod
+	@if [ "$(ENV)" = "mlops" ]; then \
+		$(MAKE) --no-print-directory ENV=mlops setup scripts tasks prompts configmaps argocd-deploy-mlops; \
+	elif [ "$(ENV)" = "prod" ]; then \
+		$(MAKE) --no-print-directory ENV=prod CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) setup scripts tasks prompts configmaps argocd-deploy-prod; \
+	else \
+		$(MAKE) --no-print-directory setup scripts tasks prompts configmaps; \
+	fi
 
 setup: 
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -319,8 +326,8 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
-argocd-deploy-dev:
-	@echo "🔄 Deploying ArgoCD Application (Development)..."
+argocd-deploy-mlops:
+	@echo "🔄 Deploying ArgoCD Application (MLOps)..."
 	@# Create a temporary file with placeholders replaced
 	@sed \
 		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
@@ -329,8 +336,8 @@ argocd-deploy-dev:
 		argocd/argocd-application-dev.yaml > argocd/argocd-application-dev-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml
 	@rm -f argocd/argocd-application-dev-temp.yaml
-	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
-	@echo "   ✓ Watching: deploy/tekton/base (uses latest tag)"
+	@echo "   ✓ ArgoCD Application (mlops) deployed to $(NAMESPACE) namespace"
+	@echo "   ✓ Watching: deploy/tekton/overlays/mlops (S3 output storage)"
 	@echo "   ✓ Auto-sync: enabled"
 
 argocd-deploy-prod:

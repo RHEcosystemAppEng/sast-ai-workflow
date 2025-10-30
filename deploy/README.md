@@ -99,8 +99,9 @@ oc get secrets | grep sast-ai
 | Command | Description |
 |---------|-------------|
 | **Deployment** | |
-| `deploy-mlops` | Deploy MLOps environment with S3/Minio output upload capability |
-| `deploy-prod` | Deploy production environment (requires IMAGE_VERSION) |
+| `deploy` | Deploy base environment (Google Drive, :latest tag) |
+| `deploy ENV=mlops` | Deploy MLOps environment (S3/Minio output, :latest tag) |
+| `deploy ENV=prod IMAGE_VERSION=x.y.z` | Deploy production environment (Google Drive, versioned tag) |
 | **Infrastructure** | |
 | `setup` | Create secrets and configure service account |
 | `secrets` | Create secrets from .env file |
@@ -351,19 +352,20 @@ S3_ENDPOINT_URL=https://minio.example.com
 
 #### 11.4. File Organization in S3
 
-Files uploaded to S3 follow this structure:
+Files uploaded to S3 follow this directory and naming pattern:
 ```
-{pipeline-id}/{repo-name}/sast_ai_output.xlsx
+{pipeline-run-id}/{repo-name}_sast_ai_output.xlsx
 ```
 
 Example:
 ```
-20251021-143025/systemd/sast_ai_output.xlsx
+87270e71-8fcf-4d1c-9ae0-b50299df5112/systemd_sast_ai_output.xlsx
 ```
 
 Where:
-- `pipeline-id`: Timestamp when pipeline runs (format: YYYYMMDD-HHMMSS)
-- `repo-name`: Project name from `PROJECT_NAME` parameter
+- `pipeline-run-id`: The unique Tekton PipelineRun UID (automatically injected via `$(context.pipelineRun.uid)`)
+- `repo-name`: The project name (from `PROJECT_NAME` parameter)
+- The pipeline run ID is automatically provided by Tekton, ensuring each run has a unique S3 directory
 
 ### 12. Troubleshooting
 
