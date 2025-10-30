@@ -26,3 +26,17 @@
     type: string
     description: "S3/MinIO bucket name for input data"
     default: "test"
+- op: add
+  path: /spec/params/-
+  value:
+    name: S3_OUTPUT_BUCKET_NAME
+    type: string
+    description: "S3/Minio bucket name for uploading analysis results"
+    default: ""
+- op: add
+  path: /spec/params/-
+  value:
+    name: PIPELINE_RUN_ID
+    type: string
+    description: "Unique PipelineRun ID for S3 object key"
+    default: ""
