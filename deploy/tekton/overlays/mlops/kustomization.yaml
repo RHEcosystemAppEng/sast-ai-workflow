@@ -29,7 +29,7 @@ patches:
   - target:
       kind: Task
       name: execute-ai-analysis
-    path: upload-to-s3-output-patch.yaml
+    path: task-s3-output-patch.yaml
 
   # Pipeline patches
   - target:
