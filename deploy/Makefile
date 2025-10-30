@@ -64,43 +64,58 @@ GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-.PHONY: deploy-dev deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
+# S3/Minio Configuration
+S3_OUTPUT_BUCKET_NAME            ?= ""
+AWS_ACCESS_KEY_ID                ?= ""
+AWS_SECRET_ACCESS_KEY            ?= ""
+S3_ENDPOINT_URL                  ?= ""
 
-deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-deploy-dev:
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Development Deployment"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "   Environment: Development"
-	@echo "   Container Image: $(CONTAINER_IMAGE)"
-	@echo ""
-	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
+.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-mlops argocd-deploy-prod argocd-clean
 
-deploy-prod:
-	@if [ -z "$(IMAGE_VERSION)" ]; then \
+# Unified deploy command
+# Usage:
+#   make deploy                     # Deploy base (Google Drive, :latest)
+#   make deploy ENV=mlops           # Deploy MLOps (S3/Minio, :latest)
+#   make deploy ENV=prod IMAGE_VERSION=1.2.3  # Deploy prod (Google Drive, versioned)
+deploy:
+	@if [ "$(ENV)" = "prod" ] && [ -z "$(IMAGE_VERSION)" ]; then \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo "❌ ERROR: IMAGE_VERSION is required for production deployment"; \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo ""; \
-		echo "Usage: make deploy-prod IMAGE_VERSION=1.2.3"; \
+		echo "Usage: make deploy ENV=prod IMAGE_VERSION=1.2.3"; \
 		echo ""; \
 		echo "Available versions can be found at:"; \
 		echo "https://quay.io/repository/ecosystem-appeng/sast-ai-workflow?tab=tags"; \
 		echo ""; \
 		exit 1; \
 	fi
-	@$(MAKE) --no-print-directory CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) deploy-prod-internal
-
-deploy-prod-internal:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Production Deployment"
+	@echo "🚀 SAST AI Workflow - Deployment"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "   Environment: Production"
-	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@if [ "$(ENV)" = "mlops" ]; then \
+		echo "   Environment: MLOps"; \
+		echo "   Storage: S3/Minio output upload"; \
+		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
+	elif [ "$(ENV)" = "prod" ]; then \
+		echo "   Environment: Production"; \
+		echo "   Storage: Google Drive upload"; \
+		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)"; \
+	else \
+		echo "   Environment: Base"; \
+		echo "   Storage: Google Drive upload"; \
+		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
+	fi
 	@echo ""
-	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-prod
+	@if [ "$(ENV)" = "mlops" ]; then \
+		$(MAKE) --no-print-directory ENV=mlops setup scripts tasks prompts configmaps argocd-deploy-mlops; \
+	elif [ "$(ENV)" = "prod" ]; then \
+		$(MAKE) --no-print-directory ENV=prod CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) setup scripts tasks prompts configmaps argocd-deploy-prod; \
+	else \
+		$(MAKE) --no-print-directory setup scripts tasks prompts configmaps; \
+	fi
 
-setup: 
+setup:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🚀 SAST AI Workflow - Infrastructure Setup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -116,10 +131,10 @@ tasks:
 		echo "   ✓ Tekton resources deployed (production overlay)"; \
 	elif [ "$(ENV)" = "mlops" ]; then \
 		$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (mlops overlay - MinIO/S3 support)"; \
+		echo "   ✓ Tekton resources deployed (mlops overlay - S3 output storage)"; \
 	else \
 		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
+		echo "   ✓ Tekton resources deployed (base - Google Drive storage)"; \
 	fi
 
 secrets:
@@ -181,6 +196,27 @@ secrets:
             -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
         echo "   ✓ GCS service account secret"; \
     fi
+	# Create S3/Minio output credentials secret (OPTIONAL)
+	@echo "   🔍 Checking S3/Minio output credentials (OPTIONAL)..."
+	@if [ -z "$(AWS_ACCESS_KEY_ID)" ] || [ -z "$(AWS_SECRET_ACCESS_KEY)" ]; then \
+		echo "   ⚠️  S3/Minio output credentials not configured"; \
+		echo "   💡 S3 output uploads will be skipped - this is optional"; \
+	else \
+		echo "   ✓ S3/Minio output credentials found"; \
+		if [ -n "$(S3_ENDPOINT_URL)" ]; then \
+			$(CO) create secret generic sast-ai-s3-output-credentials \
+				--from-literal=access_key_id="$(AWS_ACCESS_KEY_ID)" \
+				--from-literal=secret_access_key="$(AWS_SECRET_ACCESS_KEY)" \
+				--from-literal=endpoint_url="$(S3_ENDPOINT_URL)" \
+				-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		else \
+			$(CO) create secret generic sast-ai-s3-output-credentials \
+				--from-literal=access_key_id="$(AWS_ACCESS_KEY_ID)" \
+				--from-literal=secret_access_key="$(AWS_SECRET_ACCESS_KEY)" \
+				-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
+		fi; \
+		echo "   ✓ S3/Minio output credentials secret"; \
+	fi
 	# Create Quay pull secret
 	@DOCKER_AUTH_FILE=""; \
 	if [ -f "$(DOCKER_CONFIG_PATH)" ]; then \
@@ -222,6 +258,8 @@ scripts:
 		{ echo "   ❌ Failed to apply Google Drive upload script"; exit 1; }
 	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml || \
 		{ echo "   ❌ Failed to apply GCS upload script"; exit 1; }
+	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_s3_output_cm.yaml || \
+		{ echo "   ❌ Failed to apply S3 output upload script"; exit 1; }
 	@echo "   ✓ Upload scripts configured"
 
 generate-prompts:
@@ -229,7 +267,7 @@ generate-prompts:
 	@python3 scripts/generate_prompts.py > /dev/null 2>&1 || { echo "   ❌ Failed to generate prompts"; exit 1; }
 	@echo "   ✓ Prompts generated successfully"
 
-prompts: 
+prompts:
 	@echo "💬 Configuring Prompts..."
 	@$(MAKE) --no-print-directory generate-prompts
 	@echo "   🔄 Applying prompts ConfigMap to cluster..."
@@ -280,6 +318,7 @@ run:
 		-e 's|DVC_DATA_VERSION_PLACEHOLDER|$(DVC_DATA_VERSION)|g' \
 		-e 's|S3_ENDPOINT_URL_PLACEHOLDER|$(S3_ENDPOINT_URL)|g' \
 		-e 's|S3_INPUT_BUCKET_NAME_PLACEHOLDER|$(S3_INPUT_BUCKET_NAME)|g' \
+		-e 's|S3_OUTPUT_BUCKET_NAME_PLACEHOLDER|$(S3_OUTPUT_BUCKET_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml
 	@rm -f tekton/pipelinerun-temp.yaml
@@ -287,8 +326,8 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
-argocd-deploy-dev:
-	@echo "🔄 Deploying ArgoCD Application (Development)..."
+argocd-deploy-mlops:
+	@echo "🔄 Deploying ArgoCD Application (MLOps)..."
 	@# Create a temporary file with placeholders replaced
 	@sed \
 		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
@@ -297,8 +336,8 @@ argocd-deploy-dev:
 		argocd/argocd-application-dev.yaml > argocd/argocd-application-dev-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml
 	@rm -f argocd/argocd-application-dev-temp.yaml
-	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
-	@echo "   ✓ Watching: deploy/tekton/base (uses latest tag)"
+	@echo "   ✓ ArgoCD Application (mlops) deployed to $(NAMESPACE) namespace"
+	@echo "   ✓ Watching: deploy/tekton/overlays/mlops (S3 output storage)"
 	@echo "   ✓ Auto-sync: enabled"
 
 argocd-deploy-prod:
@@ -394,6 +433,7 @@ clean:
 	@echo "📜 Cleaning Scripts..."
 	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \
 		sast-ai-gcs-upload-scripts \
+		s3-output-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Upload scripts removed"
 	@echo "🗂️  Cleaning Optional ConfigMaps..."
@@ -405,6 +445,7 @@ clean:
 		sast-ai-default-llm-creds \
 		sast-ai-google-drive-service-account \
 		sast-ai-gcs-service-account \
+		sast-ai-s3-output-credentials \
 		sast-ai-quay-registry-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ All secrets removed"
