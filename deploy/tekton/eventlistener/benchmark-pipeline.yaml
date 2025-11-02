@@ -13,61 +13,51 @@ spec:
     batch completion. Designed for performance testing and MLOps workflows.
   
   params:
-    - name: batch-sheet-url
-      type: string
-      description: "Google Sheet URL with package list"
-      default: ""
-    
     - name: submitted-by
       type: string
       description: "Trigger source identifier"
       default: "eventlistener-webhook"
     
-    # MLOps-specific parameters
-    - name: dvc-repo-url
-      type: string
-      description: "DVC repository URL for data versioning"
-      default: ""
-    
-    - name: dvc-data-version
-      type: string
-      description: "DVC data version tag"
-      default: ""
-    
-    - name: s3-endpoint-url
-      type: string
-      description: "S3 endpoint URL for MLOps data"
-      default: ""
-    
-    - name: s3-input-bucket-name
-      type: string
-      description: "S3 bucket name for input data"
-      default: ""
-    
     - name: image-version
       type: string
       description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
       default: "latest"
+    
+    # DVC version parameters (required)
+    - name: dvc-nvr-version
+      type: string
+      description: "DVC NVR resource version"
+    
+    - name: dvc-prompts-version
+      type: string
+      description: "DVC prompts resource version"
+    
+    - name: dvc-known-false-positives-version
+      type: string
+      description: "DVC known false positives resource version"
+    
+    - name: use-known-false-positive-file
+      type: string
+      description: "Whether to use known false positive file"
+      default: "true"
   
   tasks:
     - name: call-orchestrator-api
       taskRef:
         name: call-orchestrator-api-mlop
       params:
-        - name: batch-sheet-url
-          value: $(params.batch-sheet-url)
         - name: submitted-by
           value: $(params.submitted-by)
-        - name: dvc-repo-url
-          value: $(params.dvc-repo-url)
-        - name: dvc-data-version
-          value: $(params.dvc-data-version)
-        - name: s3-endpoint-url
-          value: $(params.s3-endpoint-url)
-        - name: s3-input-bucket-name
-          value: $(params.s3-input-bucket-name)
         - name: image-version
           value: $(params.image-version)
+        - name: dvc-nvr-version
+          value: $(params.dvc-nvr-version)
+        - name: dvc-prompts-version
+          value: $(params.dvc-prompts-version)
+        - name: dvc-known-false-positives-version
+          value: $(params.dvc-known-false-positives-version)
+        - name: use-known-false-positive-file
+          value: $(params.use-known-false-positive-file)
     
     - name: poll-batch-status
       taskRef:

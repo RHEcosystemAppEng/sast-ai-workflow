@@ -10,7 +10,6 @@ NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
 CO := oc  --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
-REPO_REMOTE_URL                  ?= source/code/url
 HUMAN_VERIFIED_FILE_PATH         ?= ""
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
@@ -22,7 +21,8 @@ PROJECT_NAME					 ?= project-name
 PROJECT_VERSION					 ?= project-version
 
 DOWNLOAD_REPO					 ?= false
-REPO_REMOTE_URL					 ?= ""
+REPO_REMOTE_URL					 ?= source/code/url
+REPO_REMOTE_URL					 ?= source/code/url
 REPO_LOCAL_PATH					 ?= /path/to/repo
 
 INPUT_REPORT_FILE_PATH			 ?= http://<<please-set-google-spreadsheet-url>>
@@ -58,6 +58,10 @@ ARGOCD_NAMESPACE                 ?= sast-ai
 
 # EventListener Configuration
 ORCHESTRATOR_API_URL             ?=
+MLOPS_ORCHESTRATOR_API_URL       ?=
+
+# EventListener Configuration
+ORCHESTRATOR_API_URL             ?=
 
 # Secret configuration (loaded from .env file)
 GITLAB_TOKEN                     ?= ""
@@ -67,21 +71,51 @@ GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
+
 # S3/Minio Configuration
-S3_OUTPUT_BUCKET_NAME            ?= ""
+S3_OUTPUT_BUCKET_NAME            ?= bucket-name
 AWS_ACCESS_KEY_ID                ?= ""
 AWS_SECRET_ACCESS_KEY            ?= ""
 S3_ENDPOINT_URL                  ?= ""
+.PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean eventlistener eventlistener-clean
 
-.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-mlops argocd-deploy-prod argocd-clean
+.PHONY: deploy setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-prod argocd-clean eventlistener eventlistener-clean
 
 # Unified deploy command
 # Usage:
 #   make deploy                     # Deploy base (Google Drive, :latest)
 #   make deploy ENV=mlops           # Deploy MLOps (S3/Minio, :latest)
 #   make deploy ENV=prod IMAGE_VERSION=1.2.3  # Deploy prod (Google Drive, versioned)
-deploy:
-	@if [ "$(ENV)" = "prod" ] && [ -z "$(IMAGE_VERSION)" ]; then \
+deploy: deploy-$(ENV)
+
+deploy-dev: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-dev: setup-common tasks-dev argocd-deploy-dev
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Development Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Development"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@echo "✅ Development deployment completed successfully!"
+
+deploy-prod: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
+deploy-prod: setup tasks-prod argocd-deploy-prod
+	@if [ -z "$(IMAGE_VERSION)" ]; then \
+deploy: deploy-$(ENV)
+
+deploy-dev: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-dev: setup tasks-dev
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Development Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Development"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@echo "✅ Development deployment completed successfully!"
+
+deploy-prod: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
+deploy-prod: setup tasks-prod argocd-deploy-prod
+	@if [ -z "$(IMAGE_VERSION)" ]; then \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo "❌ ERROR: IMAGE_VERSION is required for production deployment"; \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
@@ -90,55 +124,100 @@ deploy:
 		echo ""; \
 		echo "Available versions can be found at:"; \
 		echo "https://quay.io/repository/ecosystem-appeng/sast-ai-workflow?tab=tags"; \
+		exit 1; \
+	fi
+
+deploy-mlops: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-mlops: setup tasks-mlops argocd-deploy-mlops
+	@if [ -z "$(MLOPS_ORCHESTRATOR_API_URL)" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "❌ ERROR: MLOPS_ORCHESTRATOR_API_URL is required for MLOps deployment"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo ""; \
+		echo "Usage: make deploy-mlops MLOPS_ORCHESTRATOR_API_URL=<url>"; \
+		exit 1; \
+	fi
+
+deploy-mlops: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-mlops: setup tasks-mlops argocd-deploy-mlops
+	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "❌ ERROR: ORCHESTRATOR_API_URL is required for MLOps deployment"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "Usage: make deploy-mlops ORCHESTRATOR_API_URL=<url>"; \
+		echo ""; \
+		echo "Example:"; \
+		echo "  make deploy-mlops MLOPS_ORCHESTRATOR_API_URL=http://orchestrator.sast-ai.svc.cluster.local:8080"; \
+		echo "Example:"; \
+		echo "  make deploy-mlops ORCHESTRATOR_API_URL=http://orchestrator.sast-ai.svc.cluster.local:8080"; \
 		exit 1; \
 	fi
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Deployment"
+	@echo "🤖 SAST AI Workflow - MLOps Benchmarking Deployment"
+	@echo "🤖 SAST AI Workflow - MLOps Benchmarking Deployment"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@if [ "$(ENV)" = "mlops" ]; then \
-		echo "   Environment: MLOps"; \
-		echo "   Storage: S3/Minio output upload"; \
-		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
-	elif [ "$(ENV)" = "prod" ]; then \
-		echo "   Environment: Production"; \
-		echo "   Storage: Google Drive upload"; \
-		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)"; \
-	else \
-		echo "   Environment: Base"; \
-		echo "   Storage: Google Drive upload"; \
-		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
-	fi
+	@echo "   Environment: MLOps (Benchmarking)"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo "   Orchestrator URL: $(MLOPS_ORCHESTRATOR_API_URL)"
 	@echo ""
-	@if [ "$(ENV)" = "mlops" ]; then \
-		$(MAKE) --no-print-directory ENV=mlops setup scripts tasks prompts configmaps argocd-deploy-mlops; \
-	elif [ "$(ENV)" = "prod" ]; then \
-		$(MAKE) --no-print-directory ENV=prod CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) setup scripts tasks prompts configmaps argocd-deploy-prod; \
-	else \
-		$(MAKE) --no-print-directory setup scripts tasks prompts configmaps; \
-	fi
+	@echo "🎯 Deploying EventListener..."
+	@sed -e 's|ORCHESTRATOR_API_URL_PLACEHOLDER|$(MLOPS_ORCHESTRATOR_API_URL)|g' \
+		tekton/eventlistener/benchmark-config.yaml.example > tekton/eventlistener/benchmark-config.yaml
+	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE) || \
+		{ echo "   ❌ Failed to deploy EventListener resources"; exit 1; }
+	@echo "   ✓ EventListener deployed"
+	@echo "   Environment: MLOps (Benchmarking)"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo "   Orchestrator URL: $(ORCHESTRATOR_API_URL)"
+	@echo ""
+	@echo "🎯 Deploying EventListener..."
+	@sed -e 's|ORCHESTRATOR_API_URL_PLACEHOLDER|$(ORCHESTRATOR_API_URL)|g' \
+		tekton/eventlistener/benchmark-config.yaml.example > tekton/eventlistener/benchmark-config.yaml
+	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE) || \
+		{ echo "   ❌ Failed to deploy EventListener resources"; exit 1; }
+	@echo "   ✓ EventListener deployed"
+	@echo ""
+	@echo "✅ MLOps deployment completed successfully!"
 
-setup:
+setup: secrets scripts prompts configmaps
+	@echo "✅ MLOps deployment completed successfully!"
+
+setup: secrets scripts prompts configmaps
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Infrastructure Setup"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 Common Infrastructure Ready"
+	@echo "🚀 Common Infrastructure Ready"
 	@echo "   Context: $(CONTEXT)"
 	@echo "   Namespace: $(NAMESPACE)"
-	@echo ""
-	@$(MAKE) --no-print-directory secrets
 
-tasks:
-	@echo "📋 Setting up Tekton Resources..."
-	@if [ "$(ENV)" = "prod" ]; then \
-		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (production overlay)"; \
-	elif [ "$(ENV)" = "mlops" ]; then \
-		$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (mlops overlay - S3 output storage)"; \
-	else \
-		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (base - Google Drive storage)"; \
-	fi
+tasks-dev:
+	@echo "📋 Deploying Tekton resources (dev)..."
+	@$(CO) apply -k tekton/base -n $(NAMESPACE)
+	@echo "   ✓ Base Tekton resources (base - Google Drive storage)"
+
+tasks-prod:
+	@echo "📋 Deploying Tekton resources (prod)..."
+	@$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE)
+	@echo "   ✓ Production Tekton resources (versioned)"
+
+tasks-mlops:
+	@echo "📋 Deploying Tekton resources (mlops)..."
+	@$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE)
+	@echo "   ✓ MLOps Tekton resources (MinIO/S3)"
+tasks-dev:
+	@echo "📋 Deploying Tekton resources (dev)..."
+	@$(CO) apply -k tekton/base -n $(NAMESPACE)
+	@echo "   ✓ Base Tekton resources (base - Google Drive storage)"
+
+tasks-prod:
+	@echo "📋 Deploying Tekton resources (prod)..."
+	@$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE)
+	@echo "   ✓ Production Tekton resources (versioned)"
+
+tasks-mlops:
+	@echo "📋 Deploying Tekton resources (mlops)..."
+	@$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE)
+	@echo "   ✓ MLOps Tekton resources (MinIO/S3)"
 
 secrets:
 	@echo "🔐 Configuring Secrets..."
@@ -251,10 +330,6 @@ secrets:
 		{ echo "   ❌ Failed to patch pipeline service account"; exit 1; }
 	@echo "   ✓ Service account configured"
 
-pipeline:
-	@echo "🔧 Pipeline..."
-	@echo "   ✓ Pipeline deployed with Tekton resources (via kustomize)"
-
 scripts:
 	@echo "📜 Setting up Scripts..."
 	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml || \
@@ -297,6 +372,7 @@ run:
 	@echo "   Container Image: $(CONTAINER_IMAGE)"
 	@echo "   🔄 Removing old pipeline runs..."
 	@$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
+				-n $(NAMESPACE) --ignore-not-found
 				-n $(NAMESPACE) --ignore-not-found
 	# Create PipelineRun with current parameters
 	@sed \
@@ -367,68 +443,81 @@ argocd-clean:
 
 eventlistener:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🎯 SAST AI Workflow - EventListener for MLOps Benchmarking"
+	@echo "🎯 EventListener Standalone Update"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "   Context: $(CONTEXT)"
-	@echo "   Namespace: $(NAMESPACE)"
+	@echo "   ⚠️  Use 'make deploy-mlops' for full deployment"
 	@echo ""
-	@echo "📋 Validating EventListener configuration..."
 	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
-		echo "   ❌ ORCHESTRATOR_API_URL is required"; \
+		echo "❌ ERROR: ORCHESTRATOR_API_URL is required"; \
 		echo ""; \
 		echo "Usage:"; \
-		echo "  make eventlistener ORCHESTRATOR_API_URL=<url> NAMESPACE=<namespace>"; \
+		echo "  make eventlistener ORCHESTRATOR_API_URL=<url>"; \
 		echo ""; \
 		echo "Example:"; \
-		echo "  make eventlistener \\"; \
-		echo "    ORCHESTRATOR_API_URL=http://sast-ai-orchestrator.sast-ai.svc.cluster.local:8080 \\"; \
-		echo "    NAMESPACE=sast-ai"; \
-		echo ""; \
-		echo "Tip: Find your orchestrator URL with:"; \
-		echo "  oc get svc -l app=sast-ai-orchestrator"; \
-		echo ""; \
+		echo "  make eventlistener ORCHESTRATOR_API_URL=http://orchestrator.sast-ai.svc.cluster.local:8080"; \
 		exit 1; \
 	fi
-	@echo "   ✓ Configuration validated"
-	@echo "   • Orchestrator URL: $(ORCHESTRATOR_API_URL)"
-	@echo ""
-	@echo "🔧 Generating benchmark-config.yaml..."
-	@cat > tekton/eventlistener/benchmark-config.yaml <<EOF
-# EventListener Configuration for MLOps Benchmarking
-# Generated by: make eventlistener
-# Timestamp: $$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: benchmark-config
-  labels:
-    app.kubernetes.io/name: sast-ai-workflow
-    app.kubernetes.io/component: benchmark-mlop
-data:
-  # Orchestrator API base URL (cluster-internal service)
-  orchestrator-api-url: "$(ORCHESTRATOR_API_URL)"
-  
-  # API endpoint path for MLOps batches
-  api-batch-endpoint: "/api/v1/mlops-batches"
-EOF
-	@echo "   ✓ Configuration file generated"
-	@echo ""
-	@echo "🚀 Deploying EventListener resources..."
+	@echo "🎯 Deploying EventListener..."
+	@sed -e 's|ORCHESTRATOR_API_URL_PLACEHOLDER|$(ORCHESTRATOR_API_URL)|g' \
+		tekton/eventlistener/benchmark-config.yaml.example > tekton/eventlistener/benchmark-config.yaml
 	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE) || \
 		{ echo "   ❌ Failed to deploy EventListener resources"; exit 1; }
-	@echo "   ✓ EventListener deployed"
 	@echo ""
-	@echo "✅ EventListener deployment completed!"
+	@echo "✅ EventListener updated"
 	@echo ""
-	@echo "📊 Verify deployment:"
-	@echo "   oc get eventlistener,task,pipeline,cm -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE)"
-	@echo ""
-	@echo "🧪 Test EventListener:"
-	@echo "   cd tekton/eventlistener && ./test-eventlistener.sh"
+	@echo "📊 Verify: oc get eventlistener,task,pipeline -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE)"
+	@echo "🧪 Test: cd tekton/eventlistener && ./test-eventlistener.sh"
 	@echo ""
 
 eventlistener-clean:
 	@echo "🧹 Removing EventListener resources..."
+	@echo "   🏃 Cleaning benchmark PipelineRuns..."
+	@$(CO) delete pipelinerun -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Benchmark PipelineRuns removed"
+	@echo "   📋 Cleaning benchmark TaskRuns..."
+	@$(CO) delete taskrun -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Benchmark TaskRuns removed"
+	@echo "   🗑️  Removing EventListener infrastructure..."
+	@$(CO) delete -k tekton/eventlistener/ -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ EventListener resources removed"
+
+eventlistener:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🎯 EventListener Standalone Update"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   ⚠️  Use 'make deploy-mlops' for full deployment"
+	@echo ""
+	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
+		echo "❌ ERROR: ORCHESTRATOR_API_URL is required"; \
+		echo ""; \
+		echo "Usage:"; \
+		echo "  make eventlistener ORCHESTRATOR_API_URL=<url>"; \
+		echo ""; \
+		echo "Example:"; \
+		echo "  make eventlistener ORCHESTRATOR_API_URL=http://orchestrator.sast-ai.svc.cluster.local:8080"; \
+		exit 1; \
+	fi
+	@echo "🎯 Deploying EventListener..."
+	@sed -e 's|ORCHESTRATOR_API_URL_PLACEHOLDER|$(ORCHESTRATOR_API_URL)|g' \
+		tekton/eventlistener/benchmark-config.yaml.example > tekton/eventlistener/benchmark-config.yaml
+	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE) || \
+		{ echo "   ❌ Failed to deploy EventListener resources"; exit 1; }
+	@echo ""
+	@echo "✅ EventListener updated"
+	@echo ""
+	@echo "📊 Verify: oc get eventlistener,task,pipeline -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE)"
+	@echo "🧪 Test: cd tekton/eventlistener && ./test-eventlistener.sh"
+	@echo ""
+
+eventlistener-clean:
+	@echo "🧹 Removing EventListener resources..."
+	@echo "   🏃 Cleaning benchmark PipelineRuns..."
+	@$(CO) delete pipelinerun -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Benchmark PipelineRuns removed"
+	@echo "   📋 Cleaning benchmark TaskRuns..."
+	@$(CO) delete taskrun -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Benchmark TaskRuns removed"
+	@echo "   🗑️  Removing EventListener infrastructure..."
 	@$(CO) delete -k tekton/eventlistener/ -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ EventListener resources removed"
 
@@ -454,6 +543,9 @@ clean:
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(CO) delete -k tekton/overlays/prod -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
 		echo "   ✓ Production Tekton resources removed (kustomize overlay)"; \
+	elif [ "$(ENV)" = "mlop" ]; then \
+		$(CO) delete -k tekton/overlays/mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		echo "   ✓ MLOp Tekton resources removed (kustomize overlay)"; \
 	elif [ "$(ENV)" = "mlop" ]; then \
 		$(CO) delete -k tekton/overlays/mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
 		echo "   ✓ MLOp Tekton resources removed (kustomize overlay)"; \
@@ -516,7 +608,8 @@ clean:
 	@echo "🔐 Removing Secrets..."
 	@$(CO) delete secret sast-ai-gitlab-token \
 		sast-ai-default-llm-creds \
-		sast-ai-google-drive-service-account \
+		sast-ai-google-service-account \
+		sast-ai-google-service-account \
 		sast-ai-gcs-service-account \
 		sast-ai-s3-output-credentials \
 		sast-ai-quay-registry-config \
