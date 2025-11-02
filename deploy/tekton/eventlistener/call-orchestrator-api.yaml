@@ -13,40 +13,33 @@ spec:
     testing and benchmark automation.
   
   params:
-    - name: batch-sheet-url
-      type: string
-      description: "Google Sheet URL containing the list of packages to analyze"
-    
     - name: submitted-by
       type: string
       description: "Identifier of who/what triggered this batch"
       default: "tekton-eventlistener-mlop"
     
-    # MLOps-specific parameters
-    - name: dvc-repo-url
-      type: string
-      description: "DVC repository URL for data versioning"
-      default: ""
-    
-    - name: dvc-data-version
-      type: string
-      description: "DVC data version tag"
-      default: ""
-    
-    - name: s3-endpoint-url
-      type: string
-      description: "S3 endpoint URL for MLOps data"
-      default: ""
-    
-    - name: s3-input-bucket-name
-      type: string
-      description: "S3 input bucket name"
-      default: ""
-    
     - name: image-version
       type: string
       description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
-      default: ""
+      default: "latest"
+    
+    # DVC version parameters (required)
+    - name: dvc-nvr-version
+      type: string
+      description: "DVC NVR resource version"
+    
+    - name: dvc-prompts-version
+      type: string
+      description: "DVC prompts resource version"
+    
+    - name: dvc-known-false-positives-version
+      type: string
+      description: "DVC known false positives resource version"
+    
+    - name: use-known-false-positive-file
+      type: string
+      description: "Whether to use known false positive file"
+      default: "true"
   
   results:
     - name: batch-id
@@ -86,13 +79,12 @@ spec:
         echo "Configuration:"
         echo "  Orchestrator URL: $ORCHESTRATOR_URL"
         echo "  API Endpoint: $API_ENDPOINT"
-        echo "  Batch Sheet URL: $(params.batch-sheet-url)"
         echo "  Submitted By: $(params.submitted-by)"
-        echo "  DVC Repo: $(params.dvc-repo-url)"
-        echo "  DVC Version: $(params.dvc-data-version)"
-        echo "  S3 Endpoint: $(params.s3-endpoint-url)"
-        echo "  S3 Bucket: $(params.s3-input-bucket-name)"
         echo "  Image Version: $(params.image-version)"
+        echo "  DVC NVR Version: $(params.dvc-nvr-version)"
+        echo "  DVC Prompts Version: $(params.dvc-prompts-version)"
+        echo "  DVC Known False Positives Version: $(params.dvc-known-false-positives-version)"
+        echo "  Use Known False Positive File: $(params.use-known-false-positive-file)"
         echo ""
         
         # Construct full API URL by concatenating base URL with endpoint
@@ -104,14 +96,12 @@ spec:
         # Note: API expects camelCase field names
         PAYLOAD=$(cat <<EOF
         {
-          "batchGoogleSheetUrl": "$(params.batch-sheet-url)",
           "submittedBy": "$(params.submitted-by)",
-          "useKnownFalsePositiveFile": true,
-          "dvcRepoUrl": "$(params.dvc-repo-url)",
-          "dvcDataVersion": "$(params.dvc-data-version)",
-          "s3EndpointUrl": "$(params.s3-endpoint-url)",
-          "s3InputBucketName": "$(params.s3-input-bucket-name)",
-          "imageVersion": "$(params.image-version)"
+          "imageVersion": "$(params.image-version)",
+          "dvcNvrVersion": "$(params.dvc-nvr-version)",
+          "dvcPromptsVersion": "$(params.dvc-prompts-version)",
+          "dvcKnownFalsePositivesVersion": "$(params.dvc-known-false-positives-version)",
+          "useKnownFalsePositiveFile": $(params.use-known-false-positive-file)
         }
         EOF
         )
