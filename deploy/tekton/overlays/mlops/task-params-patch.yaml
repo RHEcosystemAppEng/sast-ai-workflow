@@ -26,3 +26,10 @@
     type: string
     description: "S3/MinIO bucket name for input data"
     default: "test"
+- op: add
+  path: /spec/params/-
+  value:
+    name: EVALUATE_SPECIFIC_NODE
+    type: string
+    description: "Comma-separated list of evaluation nodes to run: 'filter', 'summary', 'judge', 'all'. Default 'all' runs normal workflow."
+    default: "all"

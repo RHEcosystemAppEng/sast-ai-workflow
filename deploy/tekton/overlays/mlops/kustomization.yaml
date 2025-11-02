@@ -30,6 +30,10 @@ patches:
       kind: Task
       name: execute-ai-analysis
     path: task-s3-output-patch.yaml
+  - target:
+      kind: Task
+      name: execute-ai-analysis
+    path: run-analysis-eval-patch.yaml
 
   # Pipeline patches
   - target:

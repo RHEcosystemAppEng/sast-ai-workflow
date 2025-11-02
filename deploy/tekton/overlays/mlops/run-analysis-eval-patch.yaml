@@ -1,0 +1,104 @@
+- op: replace
+  path: /spec/steps/5/script
+  value: |
+    #!/usr/bin/env sh
+    set -ex
+    echo "=== STEP 6: RUN SAST AI ANALYSIS OR EVALUATION ==="
+
+    # Load the repo path from step 4
+    if [ -f "/shared-data/env.txt" ]; then
+      source /shared-data/env.txt
+      export REPO_LOCAL_PATH
+    else
+      echo "Error: No environment file found from prepare-source step" >&2
+      exit 1
+    fi
+
+    # Use the transformed report file path if available
+    if [ -f "/shared-data/report-file-path.txt" ]; then
+      TRANSFORMED_REPORT_PATH=$(cat /shared-data/report-file-path.txt)
+      export INPUT_REPORT_FILE_PATH="$TRANSFORMED_REPORT_PATH"
+      echo "Using transformed report file path: $INPUT_REPORT_FILE_PATH"
+    else
+      echo "Using original report file path: $INPUT_REPORT_FILE_PATH"
+    fi
+
+    # Create directories
+    mkdir -p "/cache-data/tmp" "/shared-data/output"
+
+    # Parse EVALUATE_SPECIFIC_NODE parameter
+    EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
+    echo "Evaluation mode: $EVAL_NODES"
+
+    # Check if running normal workflow or evaluation
+    if [ "$EVAL_NODES" = "all" ]; then
+      echo "Running normal SAST-AI-Workflow with aiq..."
+      aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+
+      # Verify output file was created
+      if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+        echo "Analysis completed successfully"
+      else
+        echo "Error: Output file not found!" >&2
+        exit 1
+      fi
+    else
+      echo "Running evaluation mode for nodes: $EVAL_NODES"
+
+      # Parse comma-separated list and run each evaluation runner
+      echo "$EVAL_NODES" | tr ',' '\n' | while read -r node; do
+        node=$(echo "$node" | xargs)  # trim whitespace
+
+        # Parse ground truth XLSX file if needed for this evaluation node
+        if [ -f "/shared-data/report-file-path.txt" ]; then
+          GROUND_TRUTH_PATH=$(cat /shared-data/report-file-path.txt)
+
+          # Check if it's an XLSX file that needs parsing
+          if [[ "$GROUND_TRUTH_PATH" =~ \.xlsx$ ]]; then
+            echo "Parsing XLSX for $node evaluation..."
+
+            # Create evaluation dataset directory
+            mkdir -p /shared-data/evaluation_dataset
+
+            # Construct package NVR
+            NVR="${PROJECT_NAME}-${PROJECT_VERSION}"
+
+            # Parse XLSX to JSON using the unified parser
+            python /app/evaluation/utils/parse_excel_to_json.py \
+              --node-type "$node" \
+              single \
+              --excel-file "$GROUND_TRUTH_PATH" \
+              --package-name "$NVR" \
+              --output-file "/shared-data/evaluation_dataset/parsed_dataset.json"
+
+            if [ $? -eq 0 ]; then
+              echo "XLSX parsing completed successfully for $node"
+              export EVALUATION_DATASET_PATH="/shared-data/evaluation_dataset/parsed_dataset.json"
+            else
+              echo "Error: XLSX parsing failed for $node"
+              exit 1
+            fi
+          fi
+        fi
+
+        case "$node" in
+          filter)
+            echo "Running filter evaluation..."
+            python /app/evaluation/runners/run_filter_evaluation.py
+            ;;
+          summary)
+            echo "Running summary evaluation..."
+            python /app/evaluation/runners/run_summarize_evaluation.py
+            ;;
+          judge)
+            echo "Running judge LLM evaluation..."
+            python /app/evaluation/runners/run_judge_llm_evaluation.py
+            ;;
+          *)
+            echo "Warning: Unknown evaluation node '$node', skipping..."
+            ;;
+        esac
+      done
+
+      echo "Evaluation completed successfully"
+    fi

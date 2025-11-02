@@ -11,6 +11,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY config ./config/
 COPY src ./src/
+COPY evaluation ./evaluation/
 COPY pyproject.toml .
 
 USER 0

@@ -13,15 +13,23 @@ Or run directly:
     LLM_API_KEY=your_key python evaluation/runners/run_summarize_evaluation.py
 """
 
+import os
 import sys
+import yaml
 from pathlib import Path
 from typing import List, Dict
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from evaluation.constants import REPORTS_SUMMARIZATION_DIR, DATASET_SUMMARIZATION_DIR, SUMMARIZATION_DATASET_FILENAME, SUMMARIZATION_CONFIG_FILENAME
+from evaluation.constants import (
+    REPORTS_SUMMARIZATION_DIR,
+    DATASET_SUMMARIZATION_DIR,
+    SUMMARIZATION_DATASET_FILENAME,
+    SUMMARIZATION_CONFIG_FILENAME
+)
 from evaluation.runners.base_runner import BaseEvaluationRunner
+from evaluation.utils.generate_evaluation_json import SummarizeJsonGenerator
 
 class SummarizeEvaluationRunner(BaseEvaluationRunner):
     """Summarize justifications evaluation runner."""
@@ -49,11 +57,39 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
 
     def additional_environment_checks(self) -> bool:
         """Additional checks for summarize evaluation."""
-        dataset_path = self.project_root / DATASET_SUMMARIZATION_DIR / SUMMARIZATION_DATASET_FILENAME
-        if not dataset_path.exists():
-            print(f"Error: Dataset file not found: {dataset_path}")
-            return False
-        return True
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+
+        if eval_dataset_path:
+            print(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
+
+            if not Path(eval_dataset_path).exists():
+                print(f"Error: Dynamic dataset file not found: {eval_dataset_path}")
+                return False
+
+            config_path = self.project_root / 'evaluation' / 'configs' / SUMMARIZATION_CONFIG_FILENAME
+            print(f"Updating config file: {config_path}")
+
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                config['eval']['general']['dataset']['file_path'] = eval_dataset_path
+
+                with open(config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                print(f"Config updated to use dynamic dataset: {eval_dataset_path}")
+                return True
+
+            except Exception as e:
+                print(f"Error updating config: {e}")
+                return False
+        else:
+            dataset_path = self.project_root / DATASET_SUMMARIZATION_DIR / SUMMARIZATION_DATASET_FILENAME
+            if not dataset_path.exists():
+                print(f"Error: Dataset file not found: {dataset_path}")
+                return False
+            return True
 
     def get_debug_hints(self) -> List[str]:
         """Get debug hints for summarize evaluation."""
@@ -65,6 +101,10 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
 
     def run_post_evaluation_tasks(self):
         """Run post-evaluation tasks for summarize evaluation."""
+        reports_dir = self.get_reports_dir()
+        generator = SummarizeJsonGenerator(reports_dir, SUMMARIZATION_DATASET_FILENAME)
+        generator.generate_json()
+
         print("\\nNote: Classification metrics not calculated for summarization task")
         print("Evaluation quality is measured through the summarization_quality_eval judge LLM")
 
