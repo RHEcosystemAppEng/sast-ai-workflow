@@ -13,11 +13,6 @@ spec:
     batch completion. Designed for performance testing and MLOps workflows.
   
   params:
-    - name: batch-sheet-url
-      type: string
-      description: "Google Sheet URL with package list"
-      default: ""
-    
     - name: submitted-by
       type: string
       description: "Trigger source identifier"
@@ -26,8 +21,7 @@ spec:
     # MLOps-specific parameters
     - name: dvc-data-version
       type: string
-      description: "DVC data version tag"
-      default: ""
+      description: "DVC NVR resource version"
     
     - name: prompts-version
       type: string
@@ -39,7 +33,7 @@ spec:
       description: "Known non-issues version tag"
       default: ""
     
-    - name: image-version
+    - name: use-known-false-positive-file
       type: string
       description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
       default: "latest"
@@ -54,8 +48,6 @@ spec:
       taskRef:
         name: call-orchestrator-api-mlop
       params:
-        - name: batch-sheet-url
-          value: $(params.batch-sheet-url)
         - name: submitted-by
           value: $(params.submitted-by)
         - name: dvc-data-version

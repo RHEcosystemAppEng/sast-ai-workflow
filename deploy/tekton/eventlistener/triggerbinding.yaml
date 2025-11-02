@@ -8,22 +8,18 @@ metadata:
     app.kubernetes.io/component: benchmark-mlop
 spec:
   params:
-    # Extract batch sheet URL from webhook payload
-    # For ArgoCD triggers, this will be empty (sheet created by pipeline)
-    # For direct webhook triggers, this can be provided
-    - name: batch-sheet-url
-      value: $(body.batch_sheet_url)
-
     # Extract submitter information
     # ArgoCD: "argocd-prod-sync"
     # Direct webhook: custom value
     - name: submitted-by
       value: $(body.submitted_by)
 
-    # Extract source to determine trigger type
-    # "argocd" = triggered by ArgoCD notification
-    # empty/other = direct webhook trigger
+    # Extract trigger source for tracking
+    # Examples: "argocd", "webhook", "manual-test", "jenkins", etc.
     - name: trigger-source
+      value: $(body.trigger_source)
+
+    # Workflow image version for testing
       value: $(body.source)
 
     # MLOps-specific parameters (optional, for mlops-batch endpoint)

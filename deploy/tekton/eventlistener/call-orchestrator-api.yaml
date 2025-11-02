@@ -13,10 +13,6 @@ spec:
     testing and benchmark automation.
   
   params:
-    - name: batch-sheet-url
-      type: string
-      description: "Google Sheet URL containing the list of packages to analyze"
-    
     - name: submitted-by
       type: string
       description: "Identifier of who/what triggered this batch"
@@ -25,8 +21,7 @@ spec:
     # MLOps-specific parameters
     - name: dvc-data-version
       type: string
-      description: "DVC data version tag"
-      default: ""
+      description: "DVC NVR resource version"
     
     - name: prompts-version
       type: string
@@ -38,7 +33,7 @@ spec:
       description: "Known non-issues version tag"
       default: ""
     
-    - name: image-version
+    - name: use-known-false-positive-file
       type: string
       description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
       default: ""
@@ -86,7 +81,6 @@ spec:
         echo "Configuration:"
         echo "  Orchestrator URL: $ORCHESTRATOR_URL"
         echo "  API Endpoint: $API_ENDPOINT"
-        echo "  Batch Sheet URL: $(params.batch-sheet-url)"
         echo "  Submitted By: $(params.submitted-by)"
         echo "  DVC Version: $(params.dvc-data-version)"
         echo "  Prompts Version: $(params.prompts-version)"

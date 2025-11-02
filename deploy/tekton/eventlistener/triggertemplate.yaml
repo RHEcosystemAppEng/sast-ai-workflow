@@ -9,16 +9,12 @@ metadata:
 spec:
   params:
     # Parameters from TriggerBinding
-    - name: batch-sheet-url
-      description: "Google Sheet URL with package list"
-      default: ""
-
     - name: submitted-by
-      description: "Trigger source"
+      description: "Trigger source identifier"
       default: "eventlistener-webhook"
 
     - name: trigger-source
-      description: "Source of the trigger (argocd, webhook, etc.)"
+      description: "Tool that triggered the EventListener (argocd, webhook, manual-test, etc.)"
       default: "webhook"
 
     # MLOps-specific parameters
@@ -52,17 +48,17 @@ spec:
         labels:
           app.kubernetes.io/name: sast-ai-workflow
           app.kubernetes.io/component: benchmark-mlop
-          sast-ai.redhat.com/trigger-type: webhook
+          sast-ai.redhat.com/trigger-source: $(tt.params.trigger-source)
           tekton.dev/pipeline: benchmark-mlop-pipeline
+        annotations:
+          sast-ai.redhat.com/submitted-by: $(tt.params.submitted-by)
+          sast-ai.redhat.com/trigger-source: $(tt.params.trigger-source)
       spec:
         pipelineRef:
           name: benchmark-mlop-pipeline
         
         params:
           # Pass parameters to pipeline
-          - name: batch-sheet-url
-            value: $(tt.params.batch-sheet-url)
-
           - name: submitted-by
             value: $(tt.params.submitted-by)
 
