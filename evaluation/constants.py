@@ -40,6 +40,9 @@ OUTPUT_DIR = "evaluation/output"
 # MLflow directory
 MLRUNS_DIR = "evaluation/mlruns"
 
+# Dynamic evaluation dataset path (used in Tekton)
+DYNAMIC_EVAL_DATASET_PATH = "/shared-data/evaluation_dataset/parsed_dataset.json"
+
 
 # =============================================================================
 # Output File Names

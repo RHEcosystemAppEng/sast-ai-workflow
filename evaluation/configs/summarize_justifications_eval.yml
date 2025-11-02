@@ -42,7 +42,7 @@ eval:
       file_path: evaluation/dataset/summarize_eval/summarize_eval_dataset.json
       structure:
         question_key: "question"
-        answer_key: "expected_output_obj"
+        answer_key: "expected_output"
         generated_answer_key: "generated_answer"
         trajectory_key: "intermediate_steps"
         expected_trajectory_key: "expected_intermediate_steps"

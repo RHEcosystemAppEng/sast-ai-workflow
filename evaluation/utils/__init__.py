@@ -14,18 +14,31 @@ MLflow Components (located in mlflow_utils subpackage):
 APPENG-3747: Evaluation Dashboard Creation
 """
 
-from .mlflow_utils import (
-    BaseMLflowConverter,
-    FilterNodeConverter,
-    JudgeLLMNodeConverter,
-    SummarizeNodeConverter,
-    MLflowEvaluationRunner
-)
+# Import archive_results utility (always available)
+from .archive_results import archive_evaluation_results
 
-__all__ = [
-    'BaseMLflowConverter',
-    'FilterNodeConverter',
-    'JudgeLLMNodeConverter',
-    'SummarizeNodeConverter',
-    'MLflowEvaluationRunner'
-]
+# Make MLflow imports optional - only needed for MLflow dashboard conversion
+# Runners can work without MLflow when using PostgreSQL + Grafana
+try:
+    from .mlflow_utils import (
+        BaseMLflowConverter,
+        FilterNodeConverter,
+        JudgeLLMNodeConverter,
+        SummarizeNodeConverter,
+        MLflowEvaluationRunner
+    )
+
+    __all__ = [
+        'archive_evaluation_results',
+        'BaseMLflowConverter',
+        'FilterNodeConverter',
+        'JudgeLLMNodeConverter',
+        'SummarizeNodeConverter',
+        'MLflowEvaluationRunner'
+    ]
+except ImportError:
+    # MLflow not installed - evaluation runners will still work
+    # MLflow converters just won't be available
+    __all__ = [
+        'archive_evaluation_results'
+    ]
