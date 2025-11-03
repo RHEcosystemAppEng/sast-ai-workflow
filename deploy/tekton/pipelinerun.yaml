@@ -48,6 +48,8 @@ spec:
       value: "S3_ENDPOINT_URL_PLACEHOLDER"
     - name: S3_INPUT_BUCKET_NAME
       value: "S3_INPUT_BUCKET_NAME_PLACEHOLDER"
+    - name: S3_OUTPUT_BUCKET_NAME
+      value: "S3_OUTPUT_BUCKET_NAME_PLACEHOLDER"
   workspaces:
     - name: gitlab-token-ws
       secret:
