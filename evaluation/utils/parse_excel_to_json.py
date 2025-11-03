@@ -292,9 +292,9 @@ class JudgeLLMExcelParser(BaseExcelParser):
                 "id": test_case_id,
                 "question": json.dumps({
                     "id": test_case_id,
-                    "finding": finding,
-                    "issue_type": issue_type,
-                    "source_file": source_file,
+                    "issue_name": issue_type,
+                    "error_description": finding,
+                    "source_code_context": "",
                     "ai_prediction": ai_prediction if ai_prediction != "nan" else ""
                 }),
                 "expected_output": comment

@@ -14,6 +14,7 @@ Or run directly:
 import os
 import subprocess
 import sys
+import yaml
 from pathlib import Path
 from typing import List, Dict
 
@@ -41,13 +42,18 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
 
     def get_default_env_vars(self) -> Dict[str, str]:
         """Get default environment variables for filter evaluation."""
+        # Default to audit false positives file for local testing
+        # (matches the default filter evaluation dataset which uses audit package)
+        default_fp_path = os.path.expanduser('~/Dev/known-false-positives/audit/ignore.err')
+
         return {
             'PROJECT_NAME': 'filter-eval',
             'PROJECT_VERSION': '1.0.0',
             'INPUT_REPORT_FILE_PATH': '/dev/null',
             'OUTPUT_FILE_PATH': '/dev/null',
             'REPO_LOCAL_PATH': str(self.project_root),
-            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDINGS_LLM_API_KEY', '')
+            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDINGS_LLM_API_KEY', ''),
+            'KNOWN_FALSE_POSITIVE_FILE_PATH': os.getenv('KNOWN_FALSE_POSITIVE_FILE_PATH', default_fp_path)
         }
 
     def get_reports_dir(self) -> Path:
@@ -75,6 +81,44 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
             return False
 
         return True
+
+    def additional_environment_checks(self) -> bool:
+        """Additional checks for filter evaluation."""
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+
+        if eval_dataset_path:
+            print(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
+
+            if not Path(eval_dataset_path).exists():
+                print(f"Error: Dynamic dataset file not found: {eval_dataset_path}")
+                return False
+
+            config_path = self.project_root / 'evaluation' / 'configs' / FILTER_CONFIG_FILENAME
+            print(f"Updating config file: {config_path}")
+
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # DYNAMICALLY OVERRIDE THE DATASET PATH
+                config['eval']['general']['dataset']['file_path'] = eval_dataset_path
+
+                with open(config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                print(f"Config updated to use dynamic dataset: {eval_dataset_path}")
+                return True
+
+            except Exception as e:
+                print(f"Error updating config: {e}")
+                return False
+        else:
+            # Use default path from config file
+            dataset_path = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
+            if not dataset_path.exists():
+                print(f"Error: Dataset file not found: {dataset_path}")
+                return False
+            return True
 
     def run_post_evaluation_tasks(self):
         """Run filter validation analysis and generate JSON output."""

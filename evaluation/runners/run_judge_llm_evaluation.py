@@ -14,16 +14,22 @@ Or run directly:
 """
 
 import json
+import os
 import sys
+import yaml
 from pathlib import Path
 from typing import List, Dict
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from evaluation.constants import REPORTS_JUDGE_LLM_DIR, WORKFLOW_OUTPUT_FILENAME, EVALUATION_METRICS_FILENAME, JUDGE_LLM_CONFIG_FILENAME
+from evaluation.constants import (
+    REPORTS_JUDGE_LLM_DIR, WORKFLOW_OUTPUT_FILENAME, EVALUATION_METRICS_FILENAME,
+    JUDGE_LLM_CONFIG_FILENAME, DATASET_JUDGE_LLM_DIR, JUDGE_LLM_DATASET_FILENAME
+)
 from evaluation.runners.base_runner import BaseEvaluationRunner
 from evaluation.utils.calculate_eval_metrics import calculate_metrics_from_workflow
+from evaluation.utils.generate_evaluation_json import JudgeLLMJsonGenerator
 
 class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
     """Judge LLM analysis evaluation runner."""
@@ -58,8 +64,46 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
             "src/sast_agent_workflow/tools/iac.py (context analysis)"
         ]
 
+    def additional_environment_checks(self) -> bool:
+        """Additional checks for judge LLM evaluation."""
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+
+        if eval_dataset_path:
+            print(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
+
+            if not Path(eval_dataset_path).exists():
+                print(f"Error: Dynamic dataset file not found: {eval_dataset_path}")
+                return False
+
+            config_path = self.project_root / 'evaluation' / 'configs' / JUDGE_LLM_CONFIG_FILENAME
+            print(f"Updating config file: {config_path}")
+
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # DYNAMICALLY OVERRIDE THE DATASET PATH
+                config['eval']['general']['dataset']['file_path'] = eval_dataset_path
+
+                with open(config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                print(f"Config updated to use dynamic dataset: {eval_dataset_path}")
+                return True
+
+            except Exception as e:
+                print(f"Error updating config: {e}")
+                return False
+        else:
+            # Use default path from config file
+            dataset_path = self.project_root / DATASET_JUDGE_LLM_DIR / JUDGE_LLM_DATASET_FILENAME
+            if not dataset_path.exists():
+                print(f"Error: Dataset file not found: {dataset_path}")
+                return False
+            return True
+
     def run_post_evaluation_tasks(self):
-        """Calculate evaluation metrics for judge LLM evaluation."""
+        """Calculate evaluation metrics and generate JSON output for judge LLM evaluation."""
         workflow_output_path = self.get_reports_dir() / WORKFLOW_OUTPUT_FILENAME
         if workflow_output_path.exists():
             print("\\nCalculating evaluation metrics...")
@@ -84,6 +128,11 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
                     print(f"  Metrics saved to: {EVALUATION_METRICS_FILENAME}")
             except Exception as e:
                 print(f"Warning: Error calculating metrics - {e}")
+
+            print("\\nGenerating JSON output for orchestrator...")
+            reports_dir = self.get_reports_dir()
+            generator = JudgeLLMJsonGenerator(reports_dir, JUDGE_LLM_DATASET_FILENAME)
+            generator.generate_json()
         else:
             print(f"\\nWarning: {WORKFLOW_OUTPUT_FILENAME} not found, skipping metrics calculation")
 
