@@ -37,13 +37,24 @@ class BaseEvaluationJsonGenerator(ABC):
         self.profiler_data = {}
 
     def generate_json(self) -> None:
-        """Main method to generate and output JSON."""
+        """Main method to generate and output JSON to stdout."""
         self._load_result_files()
         package_info = self._extract_package_info()
         issues = self._extract_issues()
         aggregated = self._calculate_aggregated_metrics(issues)
         result = self._build_output_structure(package_info, issues, aggregated)
         self._output_json(result)
+
+    def generate_json_to_file(self, output_path: str) -> None:
+        """Generate and write JSON directly to file."""
+        self._load_result_files()
+        package_info = self._extract_package_info()
+        issues = self._extract_issues()
+        aggregated = self._calculate_aggregated_metrics(issues)
+        result = self._build_output_structure(package_info, issues, aggregated)
+
+        with open(output_path, 'w') as f:
+            json.dump(result, f, separators=(',', ':'))
 
     def _load_result_files(self) -> None:
         """Load workflow, quality, and profiler JSON files."""
@@ -62,7 +73,11 @@ class BaseEvaluationJsonGenerator(ABC):
                 return json.load(f)
         except Exception as e:
             logger.warning(f"Could not load {file_path}: {e}")
-            return {} if file_path.name.endswith('_output.json') else []
+            # workflow_output.json is a list, all other files are dicts
+            if file_path.name == 'workflow_output.json':
+                return []
+            else:
+                return {}
 
     @abstractmethod
     def _get_quality_filename(self) -> str:

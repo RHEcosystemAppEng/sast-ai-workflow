@@ -18,7 +18,7 @@
     name: S3_ENDPOINT_URL
     type: string
     description: "MinIO/S3 endpoint URL for DVC remote storage"
-    default: "http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com"
+    default: ""
 - op: add
   path: /spec/params/-
   value:

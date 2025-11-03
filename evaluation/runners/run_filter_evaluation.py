@@ -45,11 +45,6 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
 
     def get_default_env_vars(self) -> Dict[str, str]:
         """Get default environment variables for filter evaluation."""
-        # Dev-only default: audit false positives file for local testing
-        # This matches the default filter evaluation dataset which uses audit package
-        # In production, KNOWN_FALSE_POSITIVE_FILE_PATH must be set via environment variable
-        default_fp_path = os.path.expanduser('~/Dev/known-false-positives/audit/ignore.err')
-
         return {
             'PROJECT_NAME': 'filter-eval',
             'PROJECT_VERSION': '1.0.0',
@@ -57,7 +52,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
             'OUTPUT_FILE_PATH': '/dev/null',
             'REPO_LOCAL_PATH': str(self.project_root),
             'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDINGS_LLM_API_KEY', ''),
-            'KNOWN_FALSE_POSITIVE_FILE_PATH': os.getenv('KNOWN_FALSE_POSITIVE_FILE_PATH', default_fp_path)
+            'KNOWN_FALSE_POSITIVE_FILE_PATH': os.getenv('KNOWN_FALSE_POSITIVE_FILE_PATH', '')
         }
 
     def get_reports_dir(self) -> Path:
@@ -163,9 +158,17 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         logger.info("=" * 60)
 
         generator = FilterJsonGenerator(reports_dir, FILTER_DATASET_FILENAME)
-        generator.generate_json()
+
+        # Check if running in Tekton evaluation mode with direct file output
+        output_file = os.getenv('EVALUATION_JSON_OUTPUT', None)
+        if output_file:
+            generator.generate_json_to_file(output_file)
+            logger.info(f"Evaluation results written to: {output_file}")
+        else:
+            generator.generate_json()
 
         return True
+
 
 def main():
     """Main evaluation runner."""
