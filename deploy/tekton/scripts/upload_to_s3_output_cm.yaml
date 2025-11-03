@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-output-upload-scripts
+data:
+  s3_upload.py: |
+    import sys
+    import os
+    import time
+    import boto3
+    from botocore.exceptions import ClientError, NoCredentialsError
+
+    def upload_file_to_s3(file_path, bucket_name, s3_key, endpoint_url=None, max_retries=3):
+        """
+        Upload a file to S3/Minio bucket with retry mechanism
+
+        Args:
+            file_path: Local path to the file to upload
+            bucket_name: Name of the S3 bucket
+            s3_key: S3 object key (path in bucket)1
+            endpoint_url: Optional S3 endpoint URL for non-AWS S3 (e.g., Minio)
+            max_retries: Maximum number of upload attempts (default: 3)
+
+        Returns:
+            str: The S3 key where file was uploaded
+
+        Raises:
+            Exception: If upload fails after all retry attempts
+        """
+        print(f"S3/Minio Uploader Initialized.")
+        print(f"Target: s3://{bucket_name}/{s3_key}")
+        if endpoint_url:
+            print(f"Endpoint: {endpoint_url}")
+
+        # create S3 client
+        s3_client_kwargs = {}
+        if endpoint_url:
+            s3_client_kwargs['endpoint_url'] = endpoint_url
+
+        # disable SSL verification for self-signed certificates
+        s3_client_kwargs['verify'] = False
+
+        s3_client = boto3.client('s3', **s3_client_kwargs)
+
+        # retry logic for file upload
+        for attempt in range(max_retries):
+            try:
+                print(f"Upload attempt {attempt + 1} of {max_retries}")
+
+                # Upload the file
+                s3_client.upload_file(file_path, bucket_name, s3_key)
+
+                print(f"File uploaded successfully on attempt {attempt + 1}!")
+                print(f"Successfully uploaded: {s3_key}")
+                return s3_key
+
+            except FileNotFoundError as e:
+                # file not found is not retryable - raise immediately
+                print(f"ERROR: File not found: {file_path}")
+                raise
+
+            except NoCredentialsError as e:
+                # credentials error is not retryable - raise immediately
+                print("ERROR: No AWS credentials found")
+                print("Please ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set")
+                raise
+
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                error_message = e.response['Error']['Message']
+                print(f"S3 ClientError on attempt {attempt + 1}: ({error_code}): {error_message}")
+
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # Exponential backoff: 2, 4, 8 seconds
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print("All upload attempts failed")
+                    raise
+
+            except Exception as e:
+                print(f"Unexpected error on attempt {attempt + 1}: {e}")
+
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # Exponential backoff: 2, 4, 8 seconds
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print("All upload attempts failed")
+                    raise
+
+        # This should never be reached, but just in case
+        raise Exception("Upload failed after all retry attempts")
+
+    def main():
+        try:
+          # check for credentials
+          if not all(os.environ.get(k) for k in ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']):
+            print("s3 credentials not found in environment variables.")
+            print("Ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set via a secret.")
+            return 1
+      
+          if len(sys.argv) < 4:
+              print("Usage: python s3_upload.py <file_path> <bucket_name> <s3_key> [endpoint_url]")
+              return 1
+      
+          # get parameters
+          file_path = sys.argv[1]
+          bucket_name = sys.argv[2]
+          s3_key = sys.argv[3]
+          endpoint_url = sys.argv[4] if len(sys.argv) > 4 else None
+  
+          # verify file exists
+          if not os.path.isfile(file_path):
+              print(f"ERROR: File does not exist: {file_path}")
+              return 1
+  
+          # Upload file to S3 with retry mechanism
+          uploaded_key = upload_file_to_s3(file_path, bucket_name, s3_key, endpoint_url)
+
+          print("=== Upload completed successfully! ===")
+          return 0
+
+        except Exception as e:
+            print(f"ERROR: Upload failed - {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 1
+
+    if __name__ == "__main__":
+        sys.exit(main())

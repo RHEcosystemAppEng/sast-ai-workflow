@@ -674,7 +674,7 @@ spec:
         source /tmp/venv/bin/activate
         
         # Install Python packages
-        pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
+        pip install --quiet packaging google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
         echo "Dependencies installed successfully"
         
         # Set filename
