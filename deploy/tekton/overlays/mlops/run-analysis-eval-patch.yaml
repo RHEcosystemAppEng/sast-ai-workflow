@@ -12,6 +12,16 @@
 #     exit 0
 #   fi
 #
+- op: add
+  path: /spec/results/-
+  value:
+    name: evaluation-results
+    description: "JSON array of evaluation results from all evaluated nodes"
+- op: add
+  path: /spec/results/-
+  value:
+    name: workflow-metrics
+    description: "JSON containing workflow metrics (TP/FP/TN/FN, accuracy, precision, recall, F1)"
 - op: replace
   path: /spec/steps/5/image
   value: "$(params.CONTAINER_IMAGE)"
@@ -50,6 +60,10 @@
     # Check if running normal workflow or evaluation
     if [ "$EVAL_NODES" = "all" ]; then
       echo "Running normal SAST-AI-Workflow with aiq..."
+
+      # Enable workflow metrics JSON output
+      export WORKFLOW_JSON_OUTPUT="/shared-data/output/workflow_metrics.json"
+
       aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
 
       # Verify output file was created
@@ -59,8 +73,21 @@
         echo "Error: Output file not found!" >&2
         exit 1
       fi
+
+      # Capture workflow metrics to Tekton result
+      if [ -f "$WORKFLOW_JSON_OUTPUT" ]; then
+        echo "Capturing workflow metrics to result..."
+        cat "$WORKFLOW_JSON_OUTPUT" > $(results.workflow-metrics.path)
+        echo "Workflow metrics captured successfully"
+      else
+        echo "No workflow metrics file found (may not have ground truth data)"
+        echo "{}" > $(results.workflow-metrics.path)
+      fi
     else
       echo "Running evaluation mode for nodes: $EVAL_NODES"
+
+      # Create directory for evaluation JSON outputs
+      mkdir -p /shared-data/eval_results
 
       # Parse comma-separated list and run each evaluation runner
       echo "$EVAL_NODES" | tr ',' '\n' | while read -r node; do
@@ -115,21 +142,39 @@
         case "$node" in
           filter)
             echo "Running filter evaluation..."
-            python /app/evaluation/runners/run_filter_evaluation.py
+            EVALUATION_JSON_OUTPUT=/shared-data/eval_results/filter.json \
+              python /app/evaluation/runners/run_filter_evaluation.py
             ;;
           summary)
             echo "Running summary evaluation..."
-            python /app/evaluation/runners/run_summarize_evaluation.py
+            EVALUATION_JSON_OUTPUT=/shared-data/eval_results/summary.json \
+              python /app/evaluation/runners/run_summarize_evaluation.py
             ;;
           judge)
             echo "Running judge LLM evaluation..."
-            python /app/evaluation/runners/run_judge_llm_evaluation.py
+            EVALUATION_JSON_OUTPUT=/shared-data/eval_results/judge.json \
+              python /app/evaluation/runners/run_judge_llm_evaluation.py
             ;;
           *)
             echo "Warning: Unknown evaluation node '$node', skipping..."
             ;;
         esac
       done
+
+      # Combine all JSON files into array and write to result
+      echo "Combining evaluation results..."
+      echo -n "[" > $(results.evaluation-results.path)
+      FIRST=true
+      for json_file in /shared-data/eval_results/*.json; do
+        if [ -f "$json_file" ]; then
+          if [ "$FIRST" = false ]; then
+            echo -n "," >> $(results.evaluation-results.path)
+          fi
+          cat "$json_file" >> $(results.evaluation-results.path)
+          FIRST=false
+        fi
+      done
+      echo -n "]" >> $(results.evaluation-results.path)
 
       echo "Evaluation completed successfully"
     fi

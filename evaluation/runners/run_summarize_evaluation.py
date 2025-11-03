@@ -106,7 +106,14 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
         """Run post-evaluation tasks for summarize evaluation."""
         reports_dir = self.get_reports_dir()
         generator = SummarizeJsonGenerator(reports_dir, SUMMARIZATION_DATASET_FILENAME)
-        generator.generate_json()
+
+        # Check if running in Tekton evaluation mode with direct file output
+        output_file = os.getenv('EVALUATION_JSON_OUTPUT', None)
+        if output_file:
+            generator.generate_json_to_file(output_file)
+            logger.info(f"Evaluation results written to: {output_file}")
+        else:
+            generator.generate_json()
 
         logger.info("Note: Classification metrics not calculated for summarization task")
         logger.info("Evaluation quality is measured through the summarization_quality_eval judge LLM")

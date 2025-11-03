@@ -135,7 +135,14 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
             logger.info("Generating JSON output for orchestrator...")
             reports_dir = self.get_reports_dir()
             generator = JudgeLLMJsonGenerator(reports_dir, JUDGE_LLM_DATASET_FILENAME)
-            generator.generate_json()
+
+            # Check if running in Tekton evaluation mode with direct file output
+            output_file = os.getenv('EVALUATION_JSON_OUTPUT', None)
+            if output_file:
+                generator.generate_json_to_file(output_file)
+                logger.info(f"Evaluation results written to: {output_file}")
+            else:
+                generator.generate_json()
         else:
             logger.warning(f"{WORKFLOW_OUTPUT_FILENAME} not found, skipping metrics calculation")
 
