@@ -17,7 +17,17 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from evaluation.constants import WORKFLOW_OUTPUT_FILENAME, PROFILER_TRACES_FILENAME
-from evaluation.utils.mlflow_utils.mlflow_constants import EVAL_OUTPUT_ITEMS_KEY, REASONING_KEY
+
+# Import constants directly from mlflow_constants to avoid importing mlflow
+import sys
+from pathlib import Path
+_mlflow_constants_path = Path(__file__).parent / "mlflow_utils" / "mlflow_constants.py"
+import importlib.util
+_spec = importlib.util.spec_from_file_location("mlflow_constants", _mlflow_constants_path)
+_mlflow_constants = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mlflow_constants)
+EVAL_OUTPUT_ITEMS_KEY = _mlflow_constants.EVAL_OUTPUT_ITEMS_KEY
+REASONING_KEY = _mlflow_constants.REASONING_KEY
 
 
 class BaseEvaluationJsonGenerator(ABC):
@@ -364,4 +374,111 @@ class FilterJsonGenerator(BaseEvaluationJsonGenerator):
         return {"faiss_matching_accuracy": 0.0}
 
 
-__all__ = ['BaseEvaluationJsonGenerator', 'SummarizeJsonGenerator', 'FilterJsonGenerator']
+class JudgeLLMJsonGenerator(BaseEvaluationJsonGenerator):
+    """JSON generator for judge_llm_analysis evaluation."""
+
+    def _get_quality_filename(self) -> str:
+        return "justification_quality_eval_output.json"
+
+    def _get_node_type(self) -> str:
+        return "judge_llm_analysis"
+
+    def _extract_issues(self) -> List[Dict[str, Any]]:
+        """Extract judge LLM analysis-specific issue metrics."""
+        issues = []
+        quality_items = self.quality_data.get(EVAL_OUTPUT_ITEMS_KEY, [])
+
+        for issue in self.workflow_data:
+            issue_id = issue.get("id", "")
+            quality_metrics = self._extract_quality_metrics_for_issue(issue_id, quality_items)
+            performance_metrics = self._extract_performance_metrics_for_issue(issue)
+
+            issues.append({
+                "id": issue_id,
+                "quality_metrics": quality_metrics,
+                "performance_metrics": performance_metrics,
+                "generated_answer": issue.get("generated_answer", ""),
+                "expected_output": issue.get("expected_output", "")
+            })
+
+        return issues
+
+    def _extract_quality_metrics_for_issue(self, issue_id: str,
+                                          quality_items: List[Dict]) -> Dict[str, float]:
+        """Extract quality metrics from judge LLM quality evaluator for a single issue."""
+        default_metrics = {
+            "overall_score": 0.0,
+            "clarity": 0.0,
+            "completeness": 0.0,
+            "technical_accuracy": 0.0,
+            "logical_flow": 0.0
+        }
+
+        for qual_item in quality_items:
+            if qual_item.get("id") == issue_id:
+                default_metrics["overall_score"] = qual_item.get("score", 0.0)
+                reasoning = qual_item.get(REASONING_KEY, {}).get(REASONING_KEY, {})
+                if isinstance(reasoning, dict):
+                    default_metrics["clarity"] = reasoning.get("CLARITY", 0.0)
+                    default_metrics["completeness"] = reasoning.get("COMPLETENESS", 0.0)
+                    default_metrics["technical_accuracy"] = reasoning.get("TECHNICAL_ACCURACY", 0.0)
+                    default_metrics["logical_flow"] = reasoning.get("LOGICAL_FLOW", 0.0)
+                break
+
+        return default_metrics
+
+    def _extract_performance_metrics_for_issue(self, issue: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract performance metrics from intermediate steps."""
+        total_tokens = 0
+        llm_calls = 0
+
+        for step in issue.get("intermediate_steps", []):
+            payload = step.get("payload", {})
+            usage_info = payload.get("usage_info", {})
+            token_usage = usage_info.get("token_usage", {})
+            total_tokens += token_usage.get("total_tokens", 0)
+            llm_calls += 1
+
+        return {
+            "tokens": total_tokens,
+            "time": 0.0,
+            "llm_calls": llm_calls
+        }
+
+    def _get_default_aggregated_metrics(self) -> Dict[str, Any]:
+        """Get default aggregated metrics for judge LLM analysis."""
+        return {
+            "quality_metrics": {
+                "overall_score": 0.0,
+                "clarity": 0.0,
+                "completeness": 0.0,
+                "technical_accuracy": 0.0,
+                "logical_flow": 0.0
+            },
+            "performance_metrics": {
+                "total_tokens": 0,
+                "avg_time_per_request": 0.0,
+                "llm_call_count": 0
+            }
+        }
+
+    def _aggregate_quality_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, float]:
+        """Aggregate judge LLM quality metrics."""
+        num_issues = len(issues)
+
+        total_score = sum(i["quality_metrics"]["overall_score"] for i in issues)
+        total_clarity = sum(i["quality_metrics"]["clarity"] for i in issues)
+        total_completeness = sum(i["quality_metrics"]["completeness"] for i in issues)
+        total_technical = sum(i["quality_metrics"]["technical_accuracy"] for i in issues)
+        total_logical = sum(i["quality_metrics"]["logical_flow"] for i in issues)
+
+        return {
+            "overall_score": total_score / num_issues,
+            "clarity": total_clarity / num_issues,
+            "completeness": total_completeness / num_issues,
+            "technical_accuracy": total_technical / num_issues,
+            "logical_flow": total_logical / num_issues
+        }
+
+
+__all__ = ['BaseEvaluationJsonGenerator', 'SummarizeJsonGenerator', 'FilterJsonGenerator', 'JudgeLLMJsonGenerator']
