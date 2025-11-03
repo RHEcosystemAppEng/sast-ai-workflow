@@ -256,4 +256,112 @@ class SummarizeJsonGenerator(BaseEvaluationJsonGenerator):
         }
 
 
-__all__ = ['BaseEvaluationJsonGenerator', 'SummarizeJsonGenerator']
+class FilterJsonGenerator(BaseEvaluationJsonGenerator):
+    """JSON generator for filter evaluation."""
+
+    def _get_quality_filename(self) -> str:
+        return "filter_validation_report.json"
+
+    def _get_node_type(self) -> str:
+        return "filter"
+
+    def _extract_issues(self) -> List[Dict[str, Any]]:
+        """Extract filter-specific issue metrics."""
+        issues = []
+
+        for issue in self.workflow_data:
+            issue_id = issue.get("id", "")
+            filter_result, similar_issues_count = self._extract_filter_metrics_for_issue(issue_id, issue)
+            performance_metrics = self._extract_performance_metrics_for_issue(issue)
+
+            issues.append({
+                "id": issue_id,
+                "filter_result": filter_result,
+                "similar_issues_count": similar_issues_count,
+                "performance_metrics": performance_metrics,
+                "generated_answer": issue.get("generated_answer", ""),
+                "expected_output": issue.get("expected_output", "")
+            })
+
+        return issues
+
+    def _extract_filter_metrics_for_issue(self, issue_id: str, issue: Dict) -> tuple:
+        """Extract filter result and similar issues count."""
+        filter_result = "UNKNOWN"
+        similar_issues_count = 0
+
+        try:
+            answer_str = issue.get("generated_answer", "")
+            if isinstance(answer_str, str) and answer_str:
+                answer_data = json.loads(answer_str)
+            else:
+                answer_data = answer_str
+
+            filter_result = answer_data.get("filter_result", "UNKNOWN")
+
+            if self.quality_data and "detailed_results" in self.quality_data:
+                issue_validation = self.quality_data["detailed_results"].get(issue_id, {})
+                issues_data = issue_validation.get("issues", {})
+
+                for issue_name, issue_detail in issues_data.items():
+                    faiss_matching = issue_detail.get("faiss_matching", {})
+                    if faiss_matching:
+                        actual_matches = faiss_matching.get("actual_matches", [])
+                        similar_issues_count = len(actual_matches)
+                    break
+
+            if similar_issues_count == 0 and "similar_known_issues" in answer_data:
+                similar_issues = answer_data["similar_known_issues"]
+                similar_issues_count = len(similar_issues) if isinstance(similar_issues, list) else 0
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+
+        return filter_result, similar_issues_count
+
+    def _extract_performance_metrics_for_issue(self, issue: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract performance metrics from intermediate steps."""
+        total_tokens = 0
+        llm_calls = 0
+
+        for step in issue.get("intermediate_steps", []):
+            payload = step.get("payload", {})
+            usage_info = payload.get("usage_info", {})
+            token_usage = usage_info.get("token_usage", {})
+            total_tokens += token_usage.get("total_tokens", 0)
+            llm_calls += 1
+
+        return {
+            "tokens": total_tokens,
+            "time": 0.0,
+            "llm_calls": llm_calls
+        }
+
+    def _get_default_aggregated_metrics(self) -> Dict[str, Any]:
+        """Get default aggregated metrics for filter."""
+        return {
+            "quality_metrics": {
+                "faiss_matching_accuracy": 0.0
+            },
+            "performance_metrics": {
+                "total_tokens": 0,
+                "avg_time_per_request": 0.0,
+                "llm_call_count": 0
+            }
+        }
+
+    def _aggregate_quality_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, float]:
+        """Aggregate filter quality metrics."""
+        if not self.quality_data or "summary" not in self.quality_data:
+            return {"faiss_matching_accuracy": 0.0}
+
+        summary = self.quality_data.get("summary", {})
+        faiss_accuracy = summary.get("faiss_matching_accuracy")
+
+        if faiss_accuracy is not None:
+            return {"faiss_matching_accuracy": faiss_accuracy}
+
+        return {"faiss_matching_accuracy": 0.0}
+
+
+__all__ = ['BaseEvaluationJsonGenerator', 'SummarizeJsonGenerator', 'FilterJsonGenerator']

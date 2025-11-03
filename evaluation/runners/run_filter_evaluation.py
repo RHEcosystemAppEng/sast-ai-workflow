@@ -26,6 +26,7 @@ from evaluation.constants import (
     FILTER_CONFIG_FILENAME
 )
 from evaluation.runners.base_runner import BaseEvaluationRunner
+from evaluation.utils.generate_evaluation_json import FilterJsonGenerator
 
 
 class FilterEvaluationRunner(BaseEvaluationRunner):
@@ -76,7 +77,7 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         return True
 
     def run_post_evaluation_tasks(self):
-        """Run filter validation analysis against ground truth."""
+        """Run filter validation analysis and generate JSON output."""
         print("\n" + "=" * 60)
         print("Running Filter Validation Analysis")
         print("=" * 60)
@@ -97,7 +98,6 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
                 print(result.stdout)
 
             print(f"  - {REPORTS_FILTER_DIR}/{FILTER_VALIDATION_REPORT_FILENAME}")
-            return True
 
         except subprocess.CalledProcessError as e:
             print(f"Error running validation analysis: {e}")
@@ -105,12 +105,19 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
                 print("Stdout:", e.stdout)
             if e.stderr:
                 print("Stderr:", e.stderr)
-            print("Warning: Validation analysis failed, but continuing with archival")
-            return False
+            print("Warning: Validation analysis failed, but continuing")
         except FileNotFoundError:
             print("Error: Python not found or validation script missing")
-            print("Warning: Validation analysis failed, but continuing with archival")
-            return False
+            print("Warning: Validation analysis failed, but continuing")
+
+        print("\n" + "=" * 60)
+        print("Generating JSON Output for Orchestrator")
+        print("=" * 60)
+
+        generator = FilterJsonGenerator(reports_dir, FILTER_DATASET_FILENAME)
+        generator.generate_json()
+
+        return True
 
 def main():
     """Main evaluation runner."""

@@ -1,3 +1,20 @@
+# Evaluation Mode Patches for MLOps Overlay
+#
+# This file patches the base Tekton task to support evaluation mode for individual nodes.
+# When EVALUATE_SPECIFIC_NODE != "all", the following steps are skipped to prevent failures:
+# - Step 6: upload-to-gdrive (Google Drive upload)
+# - Step 7: upload-sarif-to-gcs (GCS upload)
+# - Step 8: cleanup
+#
+# IMPORTANT: Future upload steps (e.g., S3/MinIO from PR #133) must also include this check:
+#   if [ "$(params.EVALUATE_SPECIFIC_NODE)" != "all" ]; then
+#     echo "Skipping [step name] in evaluation mode"
+#     exit 0
+#   fi
+#
+- op: replace
+  path: /spec/steps/5/image
+  value: "$(params.CONTAINER_IMAGE)"
 - op: replace
   path: /spec/steps/5/script
   value: |
@@ -63,9 +80,23 @@
             # Construct package NVR
             NVR="${PROJECT_NAME}-${PROJECT_VERSION}"
 
+            # Map node names to parser node types
+            case "$node" in
+              summary)
+                PARSER_NODE_TYPE="summarize"
+                ;;
+              filter|judge)
+                PARSER_NODE_TYPE="$node"
+                ;;
+              *)
+                echo "Error: Unknown node type '$node'" >&2
+                exit 1
+                ;;
+            esac
+
             # Parse XLSX to JSON using the unified parser
             python /app/evaluation/utils/parse_excel_to_json.py \
-              --node-type "$node" \
+              --node-type "$PARSER_NODE_TYPE" \
               single \
               --excel-file "$GROUND_TRUTH_PATH" \
               --package-name "$NVR" \
@@ -102,3 +133,192 @@
 
       echo "Evaluation completed successfully"
     fi
+- op: replace
+  path: /spec/steps/6/script
+  value: |
+    #!/bin/bash
+    set -e
+    echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
+
+    # Skip if in evaluation mode
+    if [ "$(params.EVALUATE_SPECIFIC_NODE)" != "all" ]; then
+      echo "Skipping Google Drive upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$(params.EVALUATE_SPECIFIC_NODE))"
+      exit 0
+    fi
+
+    # Check if we have required parameters
+    if [ -z "$GDRIVE_FOLDER_ID" ]; then
+      # Try ConfigMap environment variable
+      if [ -n "$GDRIVE_FOLDER_ID_FROM_CM" ]; then
+        GDRIVE_FOLDER_ID="$GDRIVE_FOLDER_ID_FROM_CM"
+        echo "Using Google Drive folder ID from ConfigMap: $GDRIVE_FOLDER_ID"
+      else
+        echo "Skipping Google Drive upload - no folder ID available"
+        echo "This is not an error - pipeline continues gracefully"
+        exit 0
+      fi
+    else
+      echo "Using Google Drive folder ID from parameter: $GDRIVE_FOLDER_ID"
+    fi
+
+    # Check service account
+    if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+      echo "Skipping Google Drive upload - service account not available"
+      echo "This is not an error - pipeline continues gracefully"
+      exit 0
+    fi
+
+    # Check if output file exists
+    EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
+    if [ ! -f "$EXCEL_FILE" ]; then
+      echo "ERROR: Excel file not found at $EXCEL_FILE"
+      echo "Available files in output directory:"
+      ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
+      exit 1
+    fi
+
+    # Install required packages
+    echo "Installing required packages..."
+    apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq curl jq python3-pip python3-venv >/dev/null 2>&1
+
+    # Create virtual environment
+    python3 -m venv /tmp/venv >/dev/null 2>&1
+    source /tmp/venv/bin/activate
+
+    # Install Python packages
+    pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
+    echo "Dependencies installed successfully"
+
+    # Set filename
+    EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
+    if [ -z "$EXCEL_FILENAME" ] || [ "$EXCEL_FILENAME" = "-" ]; then
+      EXCEL_FILENAME="sast_ai_output"
+    fi
+
+    echo "File to upload: $EXCEL_FILE"
+    echo "Remote filename: $EXCEL_FILENAME"
+    echo "Target folder ID: $GDRIVE_FOLDER_ID"
+
+    echo "Executing Google Drive upload..."
+    python /scripts/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE_FOLDER_ID"
+
+    if [ $? -eq 0 ]; then
+      echo "=== Google Drive upload completed successfully! ==="
+    else
+      echo "=== Google Drive upload failed ==="
+      exit 1
+    fi
+- op: replace
+  path: /spec/steps/7/script
+  value: |
+    #!/bin/bash
+    set -e
+    echo "=== STEP 8: UPLOAD SARIF TO GCS BUCKET ==="
+
+    # Skip if in evaluation mode
+    if [ "$(params.EVALUATE_SPECIFIC_NODE)" != "all" ]; then
+      echo "Skipping GCS upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$(params.EVALUATE_SPECIFIC_NODE))"
+      exit 0
+    fi
+
+    # Check if we have required parameters
+    if [ -z "$GCS_BUCKET_NAME" ]; then
+      echo "Skipping GCS upload - no bucket name provided"
+      exit 0
+    fi
+
+    # Check service account
+    if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+      echo "Skipping GCS upload - service account not available"
+      exit 0
+    fi
+
+    # Look for the SARIF file in output directory
+    SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
+
+    if [ -z "$SARIF_FILE" ]; then
+      echo "ERROR: No SARIF file found in output directory"
+      echo "Available files in output directory:"
+      ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
+      exit 1
+    fi
+
+    echo "Found SARIF file: $SARIF_FILE"
+
+    # Install required packages
+    echo "Installing required packages..."
+    apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq python3-pip python3-venv >/dev/null 2>&1
+
+    # Create virtual environment
+    python3 -m venv /tmp/venv >/dev/null 2>&1
+    source /tmp/venv/bin/activate
+
+    # Install Google Cloud Storage
+    pip install --quiet google-cloud-storage >/dev/null 2>&1
+    echo "Dependencies installed successfully"
+
+    # Generate timestamp for folder organization
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%S")
+
+    # Upload the SARIF file
+    SCAN_FILENAME=$(basename "$SARIF_FILE")
+
+    # Create organized path: sarif-reports/timestamp/scan_filename
+    DESTINATION_PATH="sarif-reports/${TIMESTAMP}/${SCAN_FILENAME}"
+
+    echo "Uploading: $SARIF_FILE"
+    echo "Destination: gs://$GCS_BUCKET_NAME/$DESTINATION_PATH"
+
+    if python /scripts/gcs_upload.py "$SARIF_FILE" "$GCS_BUCKET_NAME" "$DESTINATION_PATH"; then
+      echo "✓ Successfully uploaded: $SCAN_FILENAME"
+      echo "=== SARIF file uploaded to GCS successfully! ==="
+    else
+      echo "✗ Failed to upload: $SCAN_FILENAME"
+      echo "=== SARIF upload failed, but pipeline continues ==="
+      # Don't fail the pipeline for upload issues
+    fi
+- op: replace
+  path: /spec/steps/8/script
+  value: |
+    #!/usr/bin/env sh
+    echo "=== STEP 9: CLEANUP ==="
+
+    # Skip if in evaluation mode
+    if [ "$(params.EVALUATE_SPECIFIC_NODE)" != "all" ]; then
+      echo "Skipping cleanup in evaluation mode (EVALUATE_SPECIFIC_NODE=$(params.EVALUATE_SPECIFIC_NODE))"
+      exit 0
+    fi
+
+    CLEANED_ITEMS=""
+
+    # Remove source code directory
+    if [ -d "/shared-data/source" ]; then
+        rm -rf /shared-data/source/* >/dev/null 2>&1
+        CLEANED_ITEMS="$CLEANED_ITEMS source-code"
+    fi
+
+    # Remove false positives file
+    if [ -f "/shared-data/false-positives/ignore.err" ]; then
+        rm -f /shared-data/false-positives/ignore.err >/dev/null 2>&1
+        CLEANED_ITEMS="$CLEANED_ITEMS false-positives"
+    fi
+
+    # Clean up any temporary files in cache
+    if [ -d "/cache-data/tmp" ]; then
+        rm -rf /cache-data/tmp/* >/dev/null 2>&1
+        CLEANED_ITEMS="$CLEANED_ITEMS temp-files"
+    fi
+
+    # Report what was cleaned
+    if [ -n "$CLEANED_ITEMS" ]; then
+        echo "Cleaned:$CLEANED_ITEMS"
+    else
+        echo "Nothing to clean"
+    fi
+
+    # Preserve output file
+    if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+        echo "Output file preserved"
+    fi
+
+    echo "Cleanup completed successfully"
