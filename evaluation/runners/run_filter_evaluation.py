@@ -11,6 +11,7 @@ Or run directly:
     LLM_API_KEY=your_key python evaluation/runners/run_filter_evaluation.py
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -29,6 +30,8 @@ from evaluation.constants import (
 from evaluation.runners.base_runner import BaseEvaluationRunner
 from evaluation.utils.generate_evaluation_json import FilterJsonGenerator
 
+logger = logging.getLogger(__name__)
+
 
 class FilterEvaluationRunner(BaseEvaluationRunner):
     """Filter evaluation runner."""
@@ -42,8 +45,9 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
 
     def get_default_env_vars(self) -> Dict[str, str]:
         """Get default environment variables for filter evaluation."""
-        # Default to audit false positives file for local testing
-        # (matches the default filter evaluation dataset which uses audit package)
+        # Dev-only default: audit false positives file for local testing
+        # This matches the default filter evaluation dataset which uses audit package
+        # In production, KNOWN_FALSE_POSITIVE_FILE_PATH must be set via environment variable
         default_fp_path = os.path.expanduser('~/Dev/known-false-positives/audit/ignore.err')
 
         return {
@@ -76,8 +80,8 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         embedding_api_key = os.getenv('EMBEDDINGS_LLM_API_KEY')
 
         if not embedding_api_key:
-            print("Error: EMBEDDINGS_LLM_API_KEY environment variable not set")
-            print("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
+            logger.error("EMBEDDINGS_LLM_API_KEY environment variable not set")
+            logger.error("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
             return False
 
         return True
@@ -87,14 +91,14 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
 
         if eval_dataset_path:
-            print(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
+            logger.info(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
 
             if not Path(eval_dataset_path).exists():
-                print(f"Error: Dynamic dataset file not found: {eval_dataset_path}")
+                logger.error(f"Dynamic dataset file not found: {eval_dataset_path}")
                 return False
 
             config_path = self.project_root / 'evaluation' / 'configs' / FILTER_CONFIG_FILENAME
-            print(f"Updating config file: {config_path}")
+            logger.info(f"Updating config file: {config_path}")
 
             try:
                 with open(config_path, 'r') as f:
@@ -106,57 +110,57 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
                 with open(config_path, 'w') as f:
                     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-                print(f"Config updated to use dynamic dataset: {eval_dataset_path}")
+                logger.info(f"Config updated to use dynamic dataset: {eval_dataset_path}")
                 return True
 
             except Exception as e:
-                print(f"Error updating config: {e}")
+                logger.error(f"Error updating config: {e}")
                 return False
         else:
             # Use default path from config file
             dataset_path = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
             if not dataset_path.exists():
-                print(f"Error: Dataset file not found: {dataset_path}")
+                logger.error(f"Dataset file not found: {dataset_path}")
                 return False
             return True
 
     def run_post_evaluation_tasks(self):
         """Run filter validation analysis and generate JSON output."""
-        print("\n" + "=" * 60)
-        print("Running Filter Validation Analysis")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Running Filter Validation Analysis")
+        logger.info("=" * 60)
 
         validation_script = self.project_root / UTILS_DIR / FILTER_VALIDATION_SCRIPT
         dataset_file = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
         reports_dir = self.get_reports_dir()
 
         try:
-            print(f"Executing validation: python {validation_script} {reports_dir} {dataset_file}")
+            logger.info(f"Executing validation: python {validation_script} {reports_dir} {dataset_file}")
             result = subprocess.run([
                 "python", str(validation_script), str(reports_dir), str(dataset_file)
             ], check=True, capture_output=True, text=True)
 
-            print("Validation analysis completed successfully!")
+            logger.info("Validation analysis completed successfully!")
             if result.stdout:
-                print("Validation Output:")
-                print(result.stdout)
+                logger.info("Validation Output:")
+                logger.info(result.stdout)
 
-            print(f"  - {REPORTS_FILTER_DIR}/{FILTER_VALIDATION_REPORT_FILENAME}")
+            logger.info(f"  - {REPORTS_FILTER_DIR}/{FILTER_VALIDATION_REPORT_FILENAME}")
 
         except subprocess.CalledProcessError as e:
-            print(f"Error running validation analysis: {e}")
+            logger.error(f"Error running validation analysis: {e}")
             if e.stdout:
-                print("Stdout:", e.stdout)
+                logger.error(f"Stdout: {e.stdout}")
             if e.stderr:
-                print("Stderr:", e.stderr)
-            print("Warning: Validation analysis failed, but continuing")
+                logger.error(f"Stderr: {e.stderr}")
+            logger.warning("Validation analysis failed, but continuing")
         except FileNotFoundError:
-            print("Error: Python not found or validation script missing")
-            print("Warning: Validation analysis failed, but continuing")
+            logger.error("Python not found or validation script missing")
+            logger.warning("Validation analysis failed, but continuing")
 
-        print("\n" + "=" * 60)
-        print("Generating JSON Output for Orchestrator")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Generating JSON Output for Orchestrator")
+        logger.info("=" * 60)
 
         generator = FilterJsonGenerator(reports_dir, FILTER_DATASET_FILENAME)
         generator.generate_json()

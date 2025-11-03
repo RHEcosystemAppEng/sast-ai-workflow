@@ -7,6 +7,7 @@ data into JSON datasets for NAT evaluation framework.
 """
 
 import json
+import logging
 import os
 import sys
 from abc import ABC, abstractmethod
@@ -23,6 +24,8 @@ from evaluation.constants import (
     DATASET_JUDGE_LLM_DIR,
     DYNAMIC_EVAL_DATASET_PATH
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BaseExcelParser(ABC):
@@ -45,7 +48,7 @@ class BaseExcelParser(ABC):
         test_cases = self._extract_test_cases()
 
         if not test_cases:
-            print(f"Warning: No valid test cases found in {self.excel_file}")
+            logger.warning(f"No valid test cases found in {self.excel_file}")
             return None
 
         output_file = self._write_output(test_cases)
@@ -57,7 +60,7 @@ class BaseExcelParser(ABC):
             self.df = pd.read_excel(self.excel_file)
             return True
         except Exception as e:
-            print(f"Error reading {self.excel_file}: {e}")
+            logger.error(f"Error reading {self.excel_file}: {e}")
             return False
 
     def _validate_columns(self) -> bool:
@@ -65,7 +68,7 @@ class BaseExcelParser(ABC):
         required_columns = self._get_required_columns()
         missing_columns = [col for col in required_columns if col not in self.df.columns]
         if missing_columns:
-            print(f"Warning: Missing columns {missing_columns} in {self.excel_file}")
+            logger.warning(f"Missing columns {missing_columns} in {self.excel_file}")
             return False
         return True
 
@@ -96,8 +99,8 @@ class BaseExcelParser(ABC):
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(test_cases, f, indent=2, ensure_ascii=False)
 
-        print(f"  Created {len(test_cases)} test cases")
-        print(f"  Output: {output_file}")
+        logger.info(f"  Created {len(test_cases)} test cases")
+        logger.info(f"  Output: {output_file}")
 
         return output_file
 
@@ -250,7 +253,7 @@ class FilterExcelParser(BaseExcelParser):
             test_cases.append(test_case)
 
         if skipped_count > 0:
-            print(f"  Skipped {skipped_count} rows")
+            logger.info(f"  Skipped {skipped_count} rows")
 
         return test_cases
 
@@ -303,7 +306,7 @@ class JudgeLLMExcelParser(BaseExcelParser):
             test_cases.append(test_case)
 
         if skipped_count > 0:
-            print(f"  Skipped {skipped_count} rows")
+            logger.info(f"  Skipped {skipped_count} rows")
 
         return test_cases
 
@@ -326,8 +329,8 @@ class BatchExcelParser:
         self._load_test_set()
         excel_files = self._find_excel_files()
 
-        print(f"Found {len(excel_files)} Excel files")
-        print(f"Output directory: {self.output_dir}")
+        logger.info(f"Found {len(excel_files)} Excel files")
+        logger.info(f"Output directory: {self.output_dir}")
 
         processed = 0
         skipped = 0
@@ -336,11 +339,11 @@ class BatchExcelParser:
             nvr = self._extract_nvr_from_filename(excel_file)
 
             if nvr.lower() not in self.test_packages:
-                print(f"Skipping {nvr} - not in test set")
+                logger.info(f"Skipping {nvr} - not in test set")
                 skipped += 1
                 continue
 
-            print(f"\nProcessing {nvr} (in test set)")
+            logger.info(f"Processing {nvr} (in test set)")
 
             parser = self.parser_class(excel_file, nvr, None)
             parser.output_path = os.path.join(self.output_dir, os.path.basename(parser._get_default_output_filename()))
@@ -351,10 +354,10 @@ class BatchExcelParser:
             else:
                 skipped += 1
 
-        print(f"\nSummary:")
-        print(f"  Processed: {processed} packages")
-        print(f"  Skipped: {skipped} packages (not in test set or invalid)")
-        print(f"  Output directory: {self.output_dir}")
+        logger.info("Summary:")
+        logger.info(f"  Processed: {processed} packages")
+        logger.info(f"  Skipped: {skipped} packages (not in test set or invalid)")
+        logger.info(f"  Output directory: {self.output_dir}")
 
     def _load_test_set(self) -> None:
         """Load test set package names from CSV."""
@@ -423,14 +426,14 @@ def main():
         batch_processor.parse_all()
 
     elif args.mode == 'single':
-        print(f"Processing {args.package_name}")
+        logger.info(f"Processing {args.package_name}")
         excel_parser = parser_class(args.excel_file, args.package_name, args.output_file)
         result = excel_parser.parse()
 
         if result:
-            print(f"\nSuccessfully created: {result}")
+            logger.info(f"Successfully created: {result}")
         else:
-            print(f"\nFailed to process {args.excel_file}")
+            logger.error(f"Failed to process {args.excel_file}")
             sys.exit(1)
 
     else:
