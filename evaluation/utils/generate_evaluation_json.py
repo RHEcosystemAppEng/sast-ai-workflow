@@ -7,6 +7,7 @@ results into JSON format for storage in the orchestrator database.
 """
 
 import json
+import logging
 import sys
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -18,16 +19,11 @@ sys.path.insert(0, str(project_root))
 
 from evaluation.constants import WORKFLOW_OUTPUT_FILENAME, PROFILER_TRACES_FILENAME
 
-# Import constants directly from mlflow_constants to avoid importing mlflow
-import sys
-from pathlib import Path
-_mlflow_constants_path = Path(__file__).parent / "mlflow_utils" / "mlflow_constants.py"
-import importlib.util
-_spec = importlib.util.spec_from_file_location("mlflow_constants", _mlflow_constants_path)
-_mlflow_constants = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mlflow_constants)
-EVAL_OUTPUT_ITEMS_KEY = _mlflow_constants.EVAL_OUTPUT_ITEMS_KEY
-REASONING_KEY = _mlflow_constants.REASONING_KEY
+logger = logging.getLogger(__name__)
+
+# NAT evaluation output keys
+EVAL_OUTPUT_ITEMS_KEY = "eval_output_items"
+REASONING_KEY = "reasoning"
 
 
 class BaseEvaluationJsonGenerator(ABC):
@@ -65,7 +61,7 @@ class BaseEvaluationJsonGenerator(ABC):
             with open(file_path, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Warning: Could not load {file_path}: {e}", file=sys.stderr)
+            logger.warning(f"Could not load {file_path}: {e}")
             return {} if file_path.name.endswith('_output.json') else []
 
     @abstractmethod

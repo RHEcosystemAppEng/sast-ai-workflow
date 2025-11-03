@@ -718,5 +718,5 @@ kubectl get secret sast-ai-google-service-account -n sast-ai-s3-tests
 
 **Document Version**: 1.0
 **Last Updated**: November 2, 2025
-**Author**: Claude Code
+**Author**: Guy Ziv
 **Commit Reference**: 486fb4a
