@@ -186,7 +186,7 @@ spec:
             # Check if credentials workspace is provided
             if [ -f "$(workspaces.google-sa-json-ws.path)/service_account.json" ]; then
                 # Install packages quietly
-                pip install --quiet google-api-python-client google-auth >/dev/null 2>&1
+                pip install --quiet packaging google-api-python-client google-auth >/dev/null 2>&1
                 
                 # Create and run validation script
                 cat > /tmp/validate_sheets.py << 'PYTHON_SCRIPT'
@@ -752,7 +752,7 @@ spec:
         source /tmp/venv/bin/activate
         
         # Install Google Cloud Storage
-        pip install --quiet google-cloud-storage >/dev/null 2>&1
+        pip install --quiet packaging google-cloud-storage >/dev/null 2>&1
         echo "Dependencies installed successfully"
         
         # Generate timestamp for folder organization

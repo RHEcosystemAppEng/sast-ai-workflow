@@ -1,50 +1,71 @@
+# =============================================================================
+# SAST AI Workflow - Makefile
+# =============================================================================
+# This Makefile orchestrates deployment and execution of the SAST AI pipeline
+# Run 'make help' to see all available commands and their parameters
+# =============================================================================
+
 # Check if .env file exists and load it
 ifneq (,$(wildcard ../.env))
     include ../.env
     export
 endif
 
+# =============================================================================
+# Environment Configuration
+# =============================================================================
 CONTEXT := $(shell oc config current-context)
 NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
+CO := oc --context $(CONTEXT)
 
-CO := oc  --context $(CONTEXT)
-
-# Pipeline parameters (overrideable on the CLI):
-REPO_REMOTE_URL                  ?= source/code/url
-HUMAN_VERIFIED_FILE_PATH         ?= ""
-
+# =============================================================================
+# Secrets & Authentication Configuration
+# Used by: make setup, make secrets
+# Source: Load from .env file or environment variables
+# =============================================================================
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
+LLM_API_KEY                      ?= ""
 EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
 EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
+EMBEDDINGS_LLM_API_KEY           ?= ""
+GITLAB_TOKEN                     ?= ""
+GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
+GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
+DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
-PROJECT_NAME					 ?= project-name
-PROJECT_VERSION					 ?= project-version
-
-DOWNLOAD_REPO					 ?= false
-REPO_REMOTE_URL					 ?= ""
-REPO_LOCAL_PATH					 ?= /path/to/repo
-
-INPUT_REPORT_FILE_PATH			 ?= http://<<please-set-google-spreadsheet-url>>
-
+# =============================================================================
+# Pipeline Execution Configuration
+# Used by: make run
+# =============================================================================
+PROJECT_NAME                     ?= project-name
+PROJECT_VERSION                  ?= project-version
+DOWNLOAD_REPO                    ?= false
+REPO_REMOTE_URL                  ?= ""
+REPO_LOCAL_PATH                  ?= /path/to/repo
+INPUT_REPORT_FILE_PATH           ?= http://<<please-set-google-spreadsheet-url>>
+HUMAN_VERIFIED_FILE_PATH         ?= ""
 FALSE_POSITIVES_URL              ?= false/positives/url
 USE_KNOWN_FALSE_POSITIVE_FILE    ?= true
-
 AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 
-# Optional Google Drive configuration
-GDRIVE_FOLDER_ID				 ?= ""
-GDRIVE_SA_FILE_NAME			     ?= service_account.json
+# =============================================================================
+# Optional Features Configuration
+# Used by: make configmaps, make run
+# =============================================================================
+GDRIVE_FOLDER_ID                 ?= ""
+GDRIVE_SA_FILE_NAME              ?= service_account.json
+GCS_BUCKET_NAME                  ?=
+GCS_SA_FILE_NAME                 := gcs_service_account.json
 
+# =============================================================================
 # Container Image Configuration
+# Used by: make deploy-dev, make deploy-prod, make run
+# =============================================================================
 IMAGE_REGISTRY                   ?= quay.io/ecosystem-appeng
 IMAGE_NAME                       ?= sast-ai-workflow
 IMAGE_VERSION                    ?= 
 CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-
-# GCS Bucket Configuration
-GCS_BUCKET_NAME                  ?=
-GCS_SA_FILE_NAME                 := gcs_service_account.json
 
 # DVC and S3/MinIO Configuration
 DVC_REPO_URL                     ?= https://github.com/RHEcosystemAppEng/sast-ai-dvc
@@ -53,69 +74,86 @@ S3_ENDPOINT_URL                  ?= http://minio-api-minio.apps.appeng.clusters.
 S3_INPUT_BUCKET_NAME             ?= test
 
 # GitOps Configuration
+# Used by: make argocd-deploy-dev, make argocd-deploy-prod
+# =============================================================================
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
 
-# Secret configuration (loaded from .env file)
-GITLAB_TOKEN                     ?= ""
-LLM_API_KEY                      ?= ""
-EMBEDDINGS_LLM_API_KEY           ?= ""
-GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
-GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
-DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
+# =============================================================================
+# Phony Targets Declaration
+# =============================================================================
+.PHONY: help deploy-dev deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
+.PHONY: check-prod-version
 
-# S3/Minio Configuration
-S3_OUTPUT_BUCKET_NAME            ?= ""
-AWS_ACCESS_KEY_ID                ?= ""
-AWS_SECRET_ACCESS_KEY            ?= ""
-S3_ENDPOINT_URL                  ?= ""
+# =============================================================================
+# Default Target
+# =============================================================================
+.DEFAULT_GOAL := help
 
-.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-mlops argocd-deploy-prod argocd-clean
+# =============================================================================
+# Help Target
+# =============================================================================
+.PHONY: help
+help: ## Display this help message
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "SAST AI Workflow - Available Commands"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m [PARAM=value ...]\n"} \
+	     /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } \
+	     /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Examples:"
+	@echo "  make deploy-dev"
+	@echo "  make deploy-prod IMAGE_VERSION=1.2.3"
+	@echo "  make run PROJECT_NAME=myapp REPO_REMOTE_URL=https://github.com/user/repo"
+	@echo ""
+	@echo "For detailed configuration, see deploy/README.md"
+	@echo ""
 
-# Unified deploy command
-# Usage:
-#   make deploy                     # Deploy base (Google Drive, :latest)
-#   make deploy ENV=mlops           # Deploy MLOps (S3/Minio, :latest)
-#   make deploy ENV=prod IMAGE_VERSION=1.2.3  # Deploy prod (Google Drive, versioned)
-deploy:
-	@if [ "$(ENV)" = "prod" ] && [ -z "$(IMAGE_VERSION)" ]; then \
+# =============================================================================
+##@ Deployment Commands
+# =============================================================================
+
+deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+deploy-dev: ## Deploy to development environment (uses latest image)
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Development Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Development"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-dev
+
+deploy-prod: ## Deploy to production [Params: IMAGE_VERSION=x.y.z (required)]
+	@if [ -z "$(IMAGE_VERSION)" ]; then \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo "❌ ERROR: IMAGE_VERSION is required for production deployment"; \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo ""; \
-		echo "Usage: make deploy ENV=prod IMAGE_VERSION=1.2.3"; \
+		echo "Usage: make deploy-prod IMAGE_VERSION=1.2.3"; \
 		echo ""; \
 		echo "Available versions can be found at:"; \
 		echo "https://quay.io/repository/ecosystem-appeng/sast-ai-workflow?tab=tags"; \
 		echo ""; \
 		exit 1; \
 	fi
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 SAST AI Workflow - Deployment"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@if [ "$(ENV)" = "mlops" ]; then \
-		echo "   Environment: MLOps"; \
-		echo "   Storage: S3/Minio output upload"; \
-		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
-	elif [ "$(ENV)" = "prod" ]; then \
-		echo "   Environment: Production"; \
-		echo "   Storage: Google Drive upload"; \
-		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)"; \
-	else \
-		echo "   Environment: Base"; \
-		echo "   Storage: Google Drive upload"; \
-		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
-	fi
-	@echo ""
-	@if [ "$(ENV)" = "mlops" ]; then \
-		$(MAKE) --no-print-directory ENV=mlops setup scripts tasks prompts configmaps argocd-deploy-mlops; \
-	elif [ "$(ENV)" = "prod" ]; then \
-		$(MAKE) --no-print-directory ENV=prod CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) setup scripts tasks prompts configmaps argocd-deploy-prod; \
-	else \
-		$(MAKE) --no-print-directory setup scripts tasks prompts configmaps; \
-	fi
+	@$(MAKE) --no-print-directory CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) deploy-prod-internal
 
-setup:
+deploy-prod-internal:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Production Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Production"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@$(MAKE) --no-print-directory setup scripts tasks pipeline prompts configmaps argocd-deploy-prod
+
+# =============================================================================
+##@ Infrastructure Commands
+# =============================================================================
+
+setup: ## Configure secrets and infrastructure [Params: from .env - GITLAB_TOKEN, LLM_API_KEY, etc.]
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🚀 SAST AI Workflow - Infrastructure Setup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -124,20 +162,20 @@ setup:
 	@echo ""
 	@$(MAKE) --no-print-directory secrets
 
-tasks:
+tasks: ## Deploy Tekton tasks and pipeline resources [Params: ENV=prod (optional)]
 	@echo "📋 Setting up Tekton Resources..."
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE) && \
 		echo "   ✓ Tekton resources deployed (production overlay)"; \
 	elif [ "$(ENV)" = "mlops" ]; then \
 		$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (mlops overlay - S3 output storage)"; \
+		echo "   ✓ Tekton resources deployed (mlops overlay - MinIO/S3 support)"; \
 	else \
 		$(CO) apply -k tekton/base -n $(NAMESPACE) && \
-		echo "   ✓ Tekton resources deployed (base - Google Drive storage)"; \
+		echo "   ✓ Tekton resources deployed (base - uses latest)"; \
 	fi
 
-secrets:
+secrets: ## Create Kubernetes secrets (called by setup) [Internal target]
 	@echo "🔐 Configuring Secrets..."
 	# Create GitLab token secret
 	@if [ -z "$(GITLAB_TOKEN)" ]; then \
@@ -196,27 +234,6 @@ secrets:
             -n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
         echo "   ✓ GCS service account secret"; \
     fi
-	# Create S3/Minio output credentials secret (OPTIONAL)
-	@echo "   🔍 Checking S3/Minio output credentials (OPTIONAL)..."
-	@if [ -z "$(AWS_ACCESS_KEY_ID)" ] || [ -z "$(AWS_SECRET_ACCESS_KEY)" ]; then \
-		echo "   ⚠️  S3/Minio output credentials not configured"; \
-		echo "   💡 S3 output uploads will be skipped - this is optional"; \
-	else \
-		echo "   ✓ S3/Minio output credentials found"; \
-		if [ -n "$(S3_ENDPOINT_URL)" ]; then \
-			$(CO) create secret generic sast-ai-s3-output-credentials \
-				--from-literal=access_key_id="$(AWS_ACCESS_KEY_ID)" \
-				--from-literal=secret_access_key="$(AWS_SECRET_ACCESS_KEY)" \
-				--from-literal=endpoint_url="$(S3_ENDPOINT_URL)" \
-				-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
-		else \
-			$(CO) create secret generic sast-ai-s3-output-credentials \
-				--from-literal=access_key_id="$(AWS_ACCESS_KEY_ID)" \
-				--from-literal=secret_access_key="$(AWS_SECRET_ACCESS_KEY)" \
-				-n $(NAMESPACE) --dry-run=client -o yaml | $(CO) apply -f - > /dev/null 2>&1; \
-		fi; \
-		echo "   ✓ S3/Minio output credentials secret"; \
-	fi
 	# Create Quay pull secret
 	@DOCKER_AUTH_FILE=""; \
 	if [ -f "$(DOCKER_CONFIG_PATH)" ]; then \
@@ -248,33 +265,31 @@ secrets:
 		{ echo "   ❌ Failed to patch pipeline service account"; exit 1; }
 	@echo "   ✓ Service account configured"
 
-pipeline:
+pipeline: ## Pipeline deployment (handled via Tekton resources) [Internal target]
 	@echo "🔧 Pipeline..."
 	@echo "   ✓ Pipeline deployed with Tekton resources (via kustomize)"
 
-scripts:
+scripts: ## Deploy upload scripts ConfigMaps [Internal target]
 	@echo "📜 Setting up Scripts..."
 	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml || \
 		{ echo "   ❌ Failed to apply Google Drive upload script"; exit 1; }
 	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml || \
 		{ echo "   ❌ Failed to apply GCS upload script"; exit 1; }
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_s3_output_cm.yaml || \
-		{ echo "   ❌ Failed to apply S3 output upload script"; exit 1; }
 	@echo "   ✓ Upload scripts configured"
 
-generate-prompts:
+generate-prompts: ## Generate prompts from templates [Internal target]
 	@echo "   🔄 Generating prompts from templates..."
 	@python3 scripts/generate_prompts.py > /dev/null 2>&1 || { echo "   ❌ Failed to generate prompts"; exit 1; }
 	@echo "   ✓ Prompts generated successfully"
 
-prompts:
+prompts: ## Generate and deploy prompt templates [Internal target]
 	@echo "💬 Configuring Prompts..."
 	@$(MAKE) --no-print-directory generate-prompts
 	@echo "   🔄 Applying prompts ConfigMap to cluster..."
 	@$(CO) apply -n $(NAMESPACE) -f tekton/sast-ai-prompt-templates.yaml > /dev/null 2>&1 || { echo "   ❌ Failed to apply prompts ConfigMap"; exit 1; }
 	@echo "   ✓ Prompt templates deployed"
 
-configmaps:
+configmaps: ## Create optional ConfigMaps [Params: GDRIVE_FOLDER_ID (optional)]
 	@echo "🗂️  Configuring Optional ConfigMaps..."
 	# Create Google Drive ConfigMap if GDRIVE_FOLDER_ID is set
 	@if [ -n "$(GDRIVE_FOLDER_ID)" ] && [ "$(GDRIVE_FOLDER_ID)" != "" ]; then \
@@ -288,13 +303,17 @@ configmaps:
 		echo "   💡 Set GDRIVE_FOLDER_ID in .env file to enable Google Drive uploads"; \
 	fi
 
-run:
+# =============================================================================
+##@ Pipeline Execution Commands
+# =============================================================================
+
+run: ## Execute pipeline [Params: PROJECT_NAME, REPO_REMOTE_URL, INPUT_REPORT_FILE_PATH, etc.]
 	@echo ""
 	@echo "🏃 Starting Pipeline Execution..."
 	@echo "   Container Image: $(CONTAINER_IMAGE)"
 	@echo "   🔄 Removing old pipeline runs..."
 	@$(CO) delete pipelinerun sast-ai-workflow-pipelinerun \
-				-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1
+				-n $(NAMESPACE) --ignore-not-found
 	# Create PipelineRun with current parameters
 	@sed \
 		-e 's|PROJECT_NAME_PLACEHOLDER|$(PROJECT_NAME)|g' \
@@ -318,7 +337,6 @@ run:
 		-e 's|DVC_DATA_VERSION_PLACEHOLDER|$(DVC_DATA_VERSION)|g' \
 		-e 's|S3_ENDPOINT_URL_PLACEHOLDER|$(S3_ENDPOINT_URL)|g' \
 		-e 's|S3_INPUT_BUCKET_NAME_PLACEHOLDER|$(S3_INPUT_BUCKET_NAME)|g' \
-		-e 's|S3_OUTPUT_BUCKET_NAME_PLACEHOLDER|$(S3_OUTPUT_BUCKET_NAME)|g' \
 		tekton/pipelinerun.yaml > tekton/pipelinerun-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f tekton/pipelinerun-temp.yaml
 	@rm -f tekton/pipelinerun-temp.yaml
@@ -326,8 +344,12 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
-argocd-deploy-mlops:
-	@echo "🔄 Deploying ArgoCD Application (MLOps)..."
+# =============================================================================
+##@ GitOps / ArgoCD Commands
+# =============================================================================
+
+argocd-deploy-dev: ## Deploy ArgoCD application for development [Internal target]
+	@echo "🔄 Deploying ArgoCD Application (Development)..."
 	@# Create a temporary file with placeholders replaced
 	@sed \
 		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
@@ -336,11 +358,11 @@ argocd-deploy-mlops:
 		argocd/argocd-application-dev.yaml > argocd/argocd-application-dev-temp.yaml
 	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml
 	@rm -f argocd/argocd-application-dev-temp.yaml
-	@echo "   ✓ ArgoCD Application (mlops) deployed to $(NAMESPACE) namespace"
-	@echo "   ✓ Watching: deploy/tekton/overlays/mlops (S3 output storage)"
+	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
+	@echo "   ✓ Watching: deploy/tekton/base (uses latest tag)"
 	@echo "   ✓ Auto-sync: enabled"
 
-argocd-deploy-prod:
+argocd-deploy-prod: ## Deploy ArgoCD application for production [Internal target]
 	@echo "🔄 Deploying ArgoCD Application (Production)..."
 	@# Create a temporary file with placeholders replaced
 	@sed \
@@ -354,7 +376,7 @@ argocd-deploy-prod:
 	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
 	@echo "   ✓ Auto-sync: enabled (self-heal disabled for production safety)"
 
-argocd-clean:
+argocd-clean: ## Remove ArgoCD applications [Internal target]
 	@echo "🧹 Removing ArgoCD Applications..."
 	@$(CO) delete application sast-ai-tekton-pipeline-syncer-dev -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
 	$(CO) patch application sast-ai-tekton-pipeline-syncer-dev -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
@@ -362,7 +384,11 @@ argocd-clean:
 	$(CO) patch application sast-ai-tekton-pipeline-syncer-prod -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
 	@echo "   ✓ ArgoCD Applications removed"
 
-clean:
+# =============================================================================
+##@ Maintenance Commands
+# =============================================================================
+
+clean: ## Remove all deployed resources [Params: ENV=prod (optional)]
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🧹 SAST AI Workflow - Cleanup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -433,7 +459,6 @@ clean:
 	@echo "📜 Cleaning Scripts..."
 	@$(CO) delete configmap sast-ai-gdrive-upload-scripts \
 		sast-ai-gcs-upload-scripts \
-		s3-output-upload-scripts \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ Upload scripts removed"
 	@echo "🗂️  Cleaning Optional ConfigMaps..."
@@ -445,7 +470,6 @@ clean:
 		sast-ai-default-llm-creds \
 		sast-ai-google-drive-service-account \
 		sast-ai-gcs-service-account \
-		sast-ai-s3-output-credentials \
 		sast-ai-quay-registry-config \
 		-n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
 	@echo "   ✓ All secrets removed"
