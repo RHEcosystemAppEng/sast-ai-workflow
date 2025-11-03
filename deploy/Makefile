@@ -55,7 +55,7 @@ AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
 # =============================================================================
 GDRIVE_FOLDER_ID                 ?= ""
 GDRIVE_SA_FILE_NAME              ?= service_account.json
-GCS_BUCKET_NAME                  ?= 
+GCS_BUCKET_NAME                  ?=
 GCS_SA_FILE_NAME                 := gcs_service_account.json
 
 # =============================================================================
@@ -66,8 +66,6 @@ IMAGE_REGISTRY                   ?= quay.io/ecosystem-appeng
 IMAGE_NAME                       ?= sast-ai-workflow
 IMAGE_VERSION                    ?= 
 CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-
-# GCS Bucket Configuration
 
 # DVC and S3/MinIO Configuration
 DVC_REPO_URL                     ?= https://github.com/RHEcosystemAppEng/sast-ai-dvc
@@ -155,7 +153,7 @@ deploy-prod-internal:
 ##@ Infrastructure Commands
 # =============================================================================
 
-setup: ## Configure secrets and infrastructure [Params: from .env - GITLAB_TOKEN, LLM_API_KEY, etc.] 
+setup: ## Configure secrets and infrastructure [Params: from .env - GITLAB_TOKEN, LLM_API_KEY, etc.]
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🚀 SAST AI Workflow - Infrastructure Setup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -284,7 +282,7 @@ generate-prompts: ## Generate prompts from templates [Internal target]
 	@python3 scripts/generate_prompts.py > /dev/null 2>&1 || { echo "   ❌ Failed to generate prompts"; exit 1; }
 	@echo "   ✓ Prompts generated successfully"
 
-prompts: ## Generate and deploy prompt templates [Internal target] 
+prompts: ## Generate and deploy prompt templates [Internal target]
 	@echo "💬 Configuring Prompts..."
 	@$(MAKE) --no-print-directory generate-prompts
 	@echo "   🔄 Applying prompts ConfigMap to cluster..."

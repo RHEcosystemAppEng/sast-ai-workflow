@@ -1,3 +1,4 @@
+# DVC and S3 Input parameters
 - op: add
   path: /spec/params/-
   value:
@@ -26,6 +27,17 @@
     type: string
     description: "S3/MinIO bucket name for input data"
     default: "test"
+
+# S3 Output parameters
+- op: add
+  path: /spec/params/-
+  value:
+    name: S3_OUTPUT_BUCKET_NAME
+    type: string
+    description: "S3/Minio bucket name for uploading analysis results"
+    default: ""
+
+# Pass parameters to task
 - op: add
   path: /spec/tasks/0/params/-
   value:
@@ -46,3 +58,13 @@
   value:
     name: S3_INPUT_BUCKET_NAME
     value: "$(params.S3_INPUT_BUCKET_NAME)"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: S3_OUTPUT_BUCKET_NAME
+    value: "$(params.S3_OUTPUT_BUCKET_NAME)"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: PIPELINE_RUN_ID
+    value: "$(context.pipelineRun.uid)"
