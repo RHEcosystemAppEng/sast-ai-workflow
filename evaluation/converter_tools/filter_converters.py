@@ -229,12 +229,17 @@ user_error_trace: {user_error_trace}"""
 
     def create_config(self):
         """Create filter-specific config."""
+        import os
         config = super().create_config()
 
         # Add filter-specific config if we have the real Config object
         if hasattr(config, 'USE_KNOWN_FALSE_POSITIVE_FILE'):
             config.USE_KNOWN_FALSE_POSITIVE_FILE = True
-            config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
+            # Only override KNOWN_FALSE_POSITIVE_FILE_PATH if not already set to a valid file
+            if not hasattr(config, 'KNOWN_FALSE_POSITIVE_FILE_PATH') or \
+               not config.KNOWN_FALSE_POSITIVE_FILE_PATH or \
+               not os.path.exists(config.KNOWN_FALSE_POSITIVE_FILE_PATH):
+                config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
             config.OUTPUT_DIR = OUTPUT_DIR
             config.MAX_ITERATIONS = MAX_FILTER_ITERATIONS
             config.VECTOR_STORE_PATH = KNOWN_NON_ISSUES_VECTOR_STORE_DIR
