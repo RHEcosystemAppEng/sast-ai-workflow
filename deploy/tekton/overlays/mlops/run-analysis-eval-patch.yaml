@@ -59,138 +59,117 @@
     # Create directories
     mkdir -p "/cache-data/tmp" "/shared-data/output"
 
-    # Parse EVALUATE_SPECIFIC_NODE parameter
+    # Parse and normalize EVALUATE_SPECIFIC_NODE parameter
     EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-    echo "Evaluation mode: $EVAL_NODES"
+    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+    echo "Evaluation nodes: $EVAL_NODES_NORMALIZED"
 
-    # Check if "all" is present in the comma-separated list
-    if echo ",$EVAL_NODES," | grep -q ",all,"; then
+    # Check if full workflow should run
+    if echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
       RUN_FULL_WORKFLOW=true
+      echo "Mode: Individual evaluations + full workflow"
     else
       RUN_FULL_WORKFLOW=false
+      echo "Mode: Individual evaluations only"
     fi
 
-    # Check if running normal workflow or evaluation
+    # PHASE 1: Individual node evaluations
+    mkdir -p /shared-data/eval_results
+
+    # Parse comma-separated list and run each evaluation runner
+    echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
+      node=$(echo "$node" | xargs)  # trim whitespace
+
+      # Skip "all" - it's handled by full workflow in Phase 2
+      [ "$node" = "all" ] && continue
+
+      # Parse ground truth XLSX file if needed for this evaluation node
+      if [ -f "/shared-data/report-file-path.txt" ]; then
+        GROUND_TRUTH_PATH=$(cat /shared-data/report-file-path.txt)
+
+        # Check if it's an XLSX file that needs parsing
+        if [[ "$GROUND_TRUTH_PATH" =~ \.xlsx$ ]]; then
+          mkdir -p /shared-data/evaluation_dataset
+          NVR="${PROJECT_NAME}-${PROJECT_VERSION}"
+
+          # Map node names to parser node types
+          case "$node" in
+            summary)
+              PARSER_NODE_TYPE="summarize"
+              ;;
+            filter|judge)
+              PARSER_NODE_TYPE="$node"
+              ;;
+            *)
+              continue
+              ;;
+          esac
+
+          # Parse XLSX to JSON
+          python /app/evaluation/utils/parse_excel_to_json.py \
+            --node-type "$PARSER_NODE_TYPE" \
+            single \
+            --excel-file "$GROUND_TRUTH_PATH" \
+            --package-name "$NVR" \
+            --output-file "/shared-data/evaluation_dataset/parsed_dataset.json"
+
+          if [ $? -eq 0 ]; then
+            export EVALUATION_DATASET_PATH="/shared-data/evaluation_dataset/parsed_dataset.json"
+          else
+            echo "Error: XLSX parsing failed for $node"
+            exit 1
+          fi
+        fi
+      fi
+
+      case "$node" in
+        filter)
+          echo "Evaluating: filter"
+          EVALUATION_JSON_OUTPUT=/shared-data/eval_results/filter.json \
+            python /app/evaluation/runners/run_filter_evaluation.py
+          ;;
+        summary)
+          echo "Evaluating: summary"
+          EVALUATION_JSON_OUTPUT=/shared-data/eval_results/summary.json \
+            python /app/evaluation/runners/run_summarize_evaluation.py
+          ;;
+        judge)
+          echo "Evaluating: judge"
+          EVALUATION_JSON_OUTPUT=/shared-data/eval_results/judge.json \
+            python /app/evaluation/runners/run_judge_llm_evaluation.py
+          ;;
+      esac
+    done
+
+    # PHASE 2: Run full workflow AFTER evaluations (if "all" was present)
     if [ "$RUN_FULL_WORKFLOW" = "true" ]; then
-      echo "Running normal SAST-AI-Workflow with aiq..."
-
-      # Enable workflow metrics JSON output
+      echo "Running full SAST workflow..."
       export WORKFLOW_JSON_OUTPUT="/shared-data/output/workflow_metrics.json"
-
       aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
 
-      # Verify output file was created
-      if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
-        echo "Analysis completed successfully"
-      else
-        echo "Error: Output file not found!" >&2
-        exit 1
-      fi
+      [ -f "/shared-data/output/sast_ai_output.xlsx" ] || { echo "Error: Output file not found!" >&2; exit 1; }
 
-      # Capture workflow metrics to Tekton result
+      # Capture workflow metrics
       if [ -f "$WORKFLOW_JSON_OUTPUT" ]; then
-        echo "Capturing workflow metrics to result..."
         cat "$WORKFLOW_JSON_OUTPUT" > $(results.workflow-metrics.path)
-        echo "Workflow metrics captured successfully"
       else
-        echo "No workflow metrics file found (may not have ground truth data)"
         echo "{}" > $(results.workflow-metrics.path)
       fi
-    else
-      echo "Running evaluation mode for nodes: $EVAL_NODES"
-
-      # Create directory for evaluation JSON outputs
-      mkdir -p /shared-data/eval_results
-
-      # Parse comma-separated list and run each evaluation runner
-      echo "$EVAL_NODES" | tr ',' '\n' | while read -r node; do
-        node=$(echo "$node" | xargs)  # trim whitespace
-
-        # Parse ground truth XLSX file if needed for this evaluation node
-        if [ -f "/shared-data/report-file-path.txt" ]; then
-          GROUND_TRUTH_PATH=$(cat /shared-data/report-file-path.txt)
-
-          # Check if it's an XLSX file that needs parsing
-          if [[ "$GROUND_TRUTH_PATH" =~ \.xlsx$ ]]; then
-            echo "Parsing XLSX for $node evaluation..."
-
-            # Create evaluation dataset directory
-            mkdir -p /shared-data/evaluation_dataset
-
-            # Construct package NVR
-            NVR="${PROJECT_NAME}-${PROJECT_VERSION}"
-
-            # Map node names to parser node types
-            case "$node" in
-              summary)
-                PARSER_NODE_TYPE="summarize"
-                ;;
-              filter|judge)
-                PARSER_NODE_TYPE="$node"
-                ;;
-              *)
-                echo "Error: Unknown node type '$node'" >&2
-                exit 1
-                ;;
-            esac
-
-            # Parse XLSX to JSON using the unified parser
-            python /app/evaluation/utils/parse_excel_to_json.py \
-              --node-type "$PARSER_NODE_TYPE" \
-              single \
-              --excel-file "$GROUND_TRUTH_PATH" \
-              --package-name "$NVR" \
-              --output-file "/shared-data/evaluation_dataset/parsed_dataset.json"
-
-            if [ $? -eq 0 ]; then
-              echo "XLSX parsing completed successfully for $node"
-              export EVALUATION_DATASET_PATH="/shared-data/evaluation_dataset/parsed_dataset.json"
-            else
-              echo "Error: XLSX parsing failed for $node"
-              exit 1
-            fi
-          fi
-        fi
-
-        case "$node" in
-          filter)
-            echo "Running filter evaluation..."
-            EVALUATION_JSON_OUTPUT=/shared-data/eval_results/filter.json \
-              python /app/evaluation/runners/run_filter_evaluation.py
-            ;;
-          summary)
-            echo "Running summary evaluation..."
-            EVALUATION_JSON_OUTPUT=/shared-data/eval_results/summary.json \
-              python /app/evaluation/runners/run_summarize_evaluation.py
-            ;;
-          judge)
-            echo "Running judge LLM evaluation..."
-            EVALUATION_JSON_OUTPUT=/shared-data/eval_results/judge.json \
-              python /app/evaluation/runners/run_judge_llm_evaluation.py
-            ;;
-          *)
-            echo "Warning: Unknown evaluation node '$node', skipping..."
-            ;;
-        esac
-      done
-
-      # Combine all JSON files into array and write to result
-      echo "Combining evaluation results..."
-      echo -n "[" > $(results.evaluation-results.path)
-      FIRST=true
-      for json_file in /shared-data/eval_results/*.json; do
-        if [ -f "$json_file" ]; then
-          if [ "$FIRST" = false ]; then
-            echo -n "," >> $(results.evaluation-results.path)
-          fi
-          cat "$json_file" >> $(results.evaluation-results.path)
-          FIRST=false
-        fi
-      done
-      echo -n "]" >> $(results.evaluation-results.path)
-
-      echo "Evaluation completed successfully"
     fi
+
+    # Combine evaluation results
+    echo -n "[" > $(results.evaluation-results.path)
+    FIRST=true
+    for json_file in /shared-data/eval_results/*.json; do
+      if [ -f "$json_file" ]; then
+        [ "$FIRST" = false ] && echo -n "," >> $(results.evaluation-results.path)
+        cat "$json_file" >> $(results.evaluation-results.path)
+        FIRST=false
+      fi
+    done
+    echo -n "]" >> $(results.evaluation-results.path)
+
+    echo "Completed successfully"
 - op: replace
   path: /spec/steps/6/script
   value: |
@@ -199,8 +178,10 @@
     echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
 
     # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
+    # Note: EVAL_NODES_NORMALIZED is set in step 6
     EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-    if ! echo ",$EVAL_NODES," | grep -q ",all,"; then
+    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+    if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
       echo "Skipping Google Drive upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
       exit 0
     fi
@@ -276,7 +257,8 @@
 
     # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
     EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-    if ! echo ",$EVAL_NODES," | grep -q ",all,"; then
+    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+    if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
       echo "Skipping GCS upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
       exit 0
     fi
@@ -345,7 +327,8 @@
 
     # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
     EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-    if ! echo ",$EVAL_NODES," | grep -q ",all,"; then
+    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+    if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
       echo "Skipping cleanup in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
       exit 0
     fi

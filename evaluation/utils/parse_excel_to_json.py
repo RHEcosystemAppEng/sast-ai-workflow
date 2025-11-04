@@ -200,7 +200,7 @@ class SummarizeExcelParser(BaseExcelParser):
             test_cases.append(test_case)
 
         if skipped_count > 0:
-            print(f"  Skipped {skipped_count} rows")
+            logger.info(f"  Skipped {skipped_count} rows")
 
         return test_cases
 

@@ -165,9 +165,9 @@ class BaseEvaluationJsonGenerator(ABC):
 
     def _output_json(self, result: Dict[str, Any]) -> None:
         """Output JSON with markers for orchestrator parsing."""
-        print("\n=== EVALUATION_RESULTS_JSON ===")
-        print(json.dumps(result, separators=(',', ':')))
-        print("=== END_EVALUATION_RESULTS_JSON ===\n")
+        logger.info("\n=== EVALUATION_RESULTS_JSON ===")
+        logger.info(json.dumps(result, separators=(',', ':')))
+        logger.info("=== END_EVALUATION_RESULTS_JSON ===\n")
 
 
 class SummarizeJsonGenerator(BaseEvaluationJsonGenerator):
