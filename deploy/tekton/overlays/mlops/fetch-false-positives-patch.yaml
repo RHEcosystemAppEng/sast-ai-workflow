@@ -34,6 +34,18 @@
       set -euo pipefail
       echo "=== STEP 5: FETCH FALSE POSITIVES FROM DVC ==="
 
+      # Check if false positives should be used
+      if [ "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)" = "false" ]; then
+        echo "Skipping false positives fetch - USE_KNOWN_FALSE_POSITIVE_FILE is false"
+        exit 0
+      fi
+
+      # Check if false positives URL is provided
+      if [ -z "$(params.FALSE_POSITIVES_URL)" ]; then
+        echo "Skipping false positives fetch - FALSE_POSITIVES_URL is empty"
+        exit 0
+      fi
+
       # Constants for DVC paths
       readonly DVC_FP_BASE_DIR="known-non-issues-el10"
       readonly FP_FILENAME="ignore.err"
