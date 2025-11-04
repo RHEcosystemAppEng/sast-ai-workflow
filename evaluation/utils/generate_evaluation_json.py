@@ -45,13 +45,18 @@ class BaseEvaluationJsonGenerator(ABC):
         result = self._build_output_structure(package_info, issues, aggregated)
         self._output_json(result)
 
-    def generate_json_to_file(self, output_path: str) -> None:
-        """Generate and write JSON directly to file."""
+    def generate_json_to_file(self, output_path: str, summary_only: bool = True) -> None:
+        """Generate and write JSON directly to file.
+
+        Args:
+            output_path: Path to write JSON file
+            summary_only: If True, exclude individual issue details (for Tekton results)
+        """
         self._load_result_files()
         package_info = self._extract_package_info()
         issues = self._extract_issues()
         aggregated = self._calculate_aggregated_metrics(issues)
-        result = self._build_output_structure(package_info, issues, aggregated)
+        result = self._build_output_structure(package_info, issues, aggregated, summary_only)
 
         with open(output_path, 'w') as f:
             json.dump(result, f, separators=(',', ':'))
@@ -150,18 +155,31 @@ class BaseEvaluationJsonGenerator(ABC):
 
     def _build_output_structure(self, package_info: Dict[str, Any],
                                 issues: List[Dict[str, Any]],
-                                aggregated: Dict[str, Any]) -> Dict[str, Any]:
-        """Build final JSON output structure."""
-        return {
+                                aggregated: Dict[str, Any],
+                                summary_only: bool = False) -> Dict[str, Any]:
+        """Build final JSON output structure.
+
+        Args:
+            package_info: Package metadata
+            issues: List of individual issue details
+            aggregated: Aggregated metrics
+            summary_only: If True, exclude individual issues (for Tekton results)
+        """
+        result = {
             "node_type": self._get_node_type(),
             "package_info": package_info,
             "aggregated_metrics": aggregated,
-            "issues": issues,
             "metadata": {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "evaluation_dataset": self.dataset_filename
             }
         }
+
+        # Only include issues if not summary_only mode
+        if not summary_only:
+            result["issues"] = issues
+
+        return result
 
     def _output_json(self, result: Dict[str, Any]) -> None:
         """Output JSON with markers for orchestrator parsing."""
