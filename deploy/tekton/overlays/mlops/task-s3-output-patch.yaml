@@ -59,6 +59,14 @@
       set -e
       echo "=== UPLOAD TO S3/MINIO OUTPUT ==="
 
+      # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
+      EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
+      EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+      if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
+        echo "Skipping S3 output upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
+        exit 0
+      fi
+
       # Check if we have required parameters
       if [ -z "$S3_OUTPUT_BUCKET_NAME" ]; then
         echo "Skipping S3 output upload - no bucket name provided"
