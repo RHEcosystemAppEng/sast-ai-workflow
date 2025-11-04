@@ -109,17 +109,10 @@ def write_workflow_metrics_json(metrics, output_path, config):
             "total_issues": metrics.get('total_issues', 0)
         },
         "aggregated_metrics": {
-            "quality_metrics": {
-                "accuracy": metrics.get('accuracy', 0.0),
-                "precision": metrics.get('precision', 0.0),
-                "recall": metrics.get('recall', 0.0),
-                "f1_score": metrics.get('f1_score', 0.0)
-            },
-            "performance_metrics": {
-                "total_tokens": 0,
-                "avg_time_per_request": 0.0,
-                "llm_call_count": 0
-            }
+            "accuracy": metrics.get('accuracy', 0.0),
+            "precision": metrics.get('precision', 0.0),
+            "recall": metrics.get('recall', 0.0),
+            "f1_score": metrics.get('f1_score', 0.0)
         },
         "confusion_matrix": confusion_matrix if confusion_matrix else None,
         "classification_counts": {
