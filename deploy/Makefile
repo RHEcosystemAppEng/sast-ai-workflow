@@ -56,7 +56,8 @@ GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai
 ARGOCD_NAMESPACE                 ?= sast-ai
 
 # EventListener Configuration
-ORCHESTRATOR_API_URL             ?=
+# Default uses K8s service DNS with namespace parameter
+ORCHESTRATOR_API_URL             ?= http://sast-ai-orchestrator.$(NAMESPACE).svc.cluster.local:80
 
 # Secret configuration (loaded from .env file)
 GITLAB_TOKEN                     ?= ""
@@ -107,21 +108,12 @@ deploy-prod: setup tasks-prod argocd-deploy-prod
 
 deploy-mlops: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 deploy-mlops: setup tasks-mlops argocd-deploy-mlops
-	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
-		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
-		echo "❌ ERROR: ORCHESTRATOR_API_URL is required for MLOps deployment"; \
-		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
-		echo ""; \
-		echo "Usage: make deploy-mlops ORCHESTRATOR_API_URL=<url>"; \
-		echo ""; \
-		echo "Example:"; \
-		echo "  make deploy-mlops ORCHESTRATOR_API_URL=http://orchestrator.sast-ai.svc.cluster.local:8080"; \
-		exit 1; \
-	fi
+
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🤖 SAST AI Workflow - MLOps Benchmarking Deployment"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "   Environment: MLOps (Benchmarking)"
+	@echo "   Namespace: $(NAMESPACE)"
 	@echo "   Container Image: $(CONTAINER_IMAGE)"
 	@echo "   Orchestrator URL: $(ORCHESTRATOR_API_URL)"
 	@echo ""
@@ -382,19 +374,12 @@ eventlistener:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "   ⚠️  Use 'make deploy-mlops' for full deployment"
 	@echo ""
-	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
-		echo "❌ ERROR: ORCHESTRATOR_API_URL is required"; \
-		echo ""; \
-		echo "Usage:"; \
-		echo "  make eventlistener ORCHESTRATOR_API_URL=<url>"; \
-		echo ""; \
-		echo "Example:"; \
-		echo "  make eventlistener ORCHESTRATOR_API_URL=http://orchestrator.sast-ai.svc.cluster.local:8080"; \
-		exit 1; \
-	fi
+	@echo "Using namespace: $(NAMESPACE)"
+	@echo "Using orchestrator URL: $(ORCHESTRATOR_API_URL)"
+	@echo ""
 	@echo "🎯 Deploying EventListener..."
-	@sed -e 's|ORCHESTRATOR_API_URL_PLACEHOLDER|$(ORCHESTRATOR_API_URL)|g' \
-		tekton/eventlistener/benchmark-config.yaml.example > tekton/eventlistener/benchmark-config.yaml
+	@sed -e 's|<namespace>|$(NAMESPACE)|g' \
+		tekton/eventlistener/benchmark-config.yaml.template > tekton/eventlistener/benchmark-config.yaml
 	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE) || \
 		{ echo "   ❌ Failed to deploy EventListener resources"; exit 1; }
 	@echo ""
