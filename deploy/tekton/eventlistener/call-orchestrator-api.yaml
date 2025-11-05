@@ -89,6 +89,55 @@ spec:
         echo "  Use Known False Positive File: $(params.use-known-false-positive-file)"
         echo ""
         
+        # Validate required parameters
+        echo "Validating parameters..."
+        VALIDATION_FAILED=0
+        
+        if [ -z "$ORCHESTRATOR_URL" ]; then
+          echo "ERROR: ORCHESTRATOR_URL is empty or not set"
+          echo "  Check that ConfigMap 'benchmark-config' exists and has key 'orchestrator-api-url'"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$API_ENDPOINT" ]; then
+          echo "ERROR: API_ENDPOINT is empty or not set"
+          echo "  Check that ConfigMap 'benchmark-config' exists and has key 'api-batch-endpoint'"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$(params.dvc-nvr-version)" ]; then
+          echo "ERROR: dvc-nvr-version parameter is required but empty"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$(params.dvc-prompts-version)" ]; then
+          echo "ERROR: dvc-prompts-version parameter is required but empty"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$(params.dvc-known-false-positives-version)" ]; then
+          echo "ERROR: dvc-known-false-positives-version parameter is required but empty"
+          VALIDATION_FAILED=1
+        fi
+        
+        # Validate use-known-false-positive-file is a valid boolean
+        USE_KFP="$(params.use-known-false-positive-file)"
+        if [ "$USE_KFP" != "true" ] && [ "$USE_KFP" != "false" ]; then
+          echo "ERROR: use-known-false-positive-file must be 'true' or 'false', got: $USE_KFP"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ $VALIDATION_FAILED -eq 1 ]; then
+          echo ""
+          echo "Parameter validation failed. Cannot proceed."
+          echo -n "failed" > $(results.status.path)
+          echo -n "error" > $(results.batch-id.path)
+          exit 1
+        fi
+        
+        echo "✓ All parameters validated successfully"
+        echo ""
+        
         # Construct full API URL by concatenating base URL with endpoint
         FULL_API_URL="${ORCHESTRATOR_URL}${API_ENDPOINT}"
         echo "Full API URL: $FULL_API_URL"

@@ -81,6 +81,63 @@ spec:
         echo "  Timeout: ${TIMEOUT_MINUTES} minutes"
         echo ""
         
+        # Validate required parameters
+        echo "Validating parameters..."
+        VALIDATION_FAILED=0
+        
+        if [ -z "$ORCHESTRATOR_URL" ]; then
+          echo "ERROR: ORCHESTRATOR_URL is empty or not set"
+          echo "  Check that ConfigMap 'benchmark-config' exists and has key 'orchestrator-api-url'"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$API_ENDPOINT" ]; then
+          echo "ERROR: API_ENDPOINT is empty or not set"
+          echo "  Check that ConfigMap 'benchmark-config' exists and has key 'api-batch-endpoint'"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$BATCH_ID" ]; then
+          echo "ERROR: batch-id parameter is empty or not set"
+          echo "  This parameter should be passed from the previous task"
+          VALIDATION_FAILED=1
+        elif [ "$BATCH_ID" = "error" ] || [ "$BATCH_ID" = "unknown" ]; then
+          echo "ERROR: Invalid batch-id: $BATCH_ID"
+          echo "  The previous task may have failed to create the batch"
+          VALIDATION_FAILED=1
+        fi
+        
+        # Validate poll-interval is a positive integer
+        if ! echo "$POLL_INTERVAL" | grep -qE '^[0-9]+$'; then
+          echo "ERROR: poll-interval must be a positive integer, got: $POLL_INTERVAL"
+          VALIDATION_FAILED=1
+        elif [ "$POLL_INTERVAL" -le 0 ]; then
+          echo "ERROR: poll-interval must be greater than 0, got: $POLL_INTERVAL"
+          VALIDATION_FAILED=1
+        fi
+        
+        # Validate timeout is a positive integer
+        if ! echo "$TIMEOUT_MINUTES" | grep -qE '^[0-9]+$'; then
+          echo "ERROR: timeout must be a positive integer, got: $TIMEOUT_MINUTES"
+          VALIDATION_FAILED=1
+        elif [ "$TIMEOUT_MINUTES" -le 0 ]; then
+          echo "ERROR: timeout must be greater than 0, got: $TIMEOUT_MINUTES"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ $VALIDATION_FAILED -eq 1 ]; then
+          echo ""
+          echo "Parameter validation failed. Cannot proceed."
+          echo -n "VALIDATION_FAILED" > $(results.final-status.path)
+          echo -n "0" > $(results.total-jobs.path)
+          echo -n "0" > $(results.completed-jobs.path)
+          echo -n "0" > $(results.failed-jobs.path)
+          exit 1
+        fi
+        
+        echo "✓ All parameters validated successfully"
+        echo ""
+        
         # Calculate timeout in seconds
         TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
         START_TIME=$(date +%s)

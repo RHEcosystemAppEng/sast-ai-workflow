@@ -82,5 +82,5 @@ spec:
         
         # Timeout for the entire pipeline
         timeouts:
-          pipeline: "4h"
+          pipeline: "2h"
 
