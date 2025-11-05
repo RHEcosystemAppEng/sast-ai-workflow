@@ -171,5 +171,8 @@ evaluation/reports/*
 evaluation/known_non_issues_data/*
 /.claude/
 
+# Tekton EventListener generated config
+deploy/tekton/eventlistener/benchmark-config.yaml
+
 # AI Assistant Rules (local configuration)
 workflow-ai-assistant-rules/
