@@ -95,7 +95,7 @@ check_deployment() {
         echo ""
         echo "Please deploy the EventListener resources first:"
         echo "  cd deploy"
-        echo "  make eventlistener ORCHESTRATOR_API_URL=<url> NAMESPACE=$NAMESPACE"
+        echo "  make eventlistener  # Auto-detects namespace from current context"
         exit 1
     fi
     

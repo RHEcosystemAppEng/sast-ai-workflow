@@ -1,0 +1,30 @@
+# MLOps Benchmark Configuration Template
+#
+# This is a TEMPLATE file. The Makefile generates benchmark-config.yaml from this template.
+# The <namespace> placeholder will be replaced with the actual namespace during deployment.
+#
+# Default K8s Service Pattern:
+#   Uses existing orchestrator service: http://sast-ai-orchestrator.<namespace>.svc.cluster.local:80
+#
+# Matches the orchestrator's existing Helm service:
+#   - Service name: sast-ai-orchestrator
+#   - Port: 80 (service port) -> 8080 (target port)
+#   - Type: ClusterIP
+#
+# Note: The generated benchmark-config.yaml is git-ignored and should not be committed.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-config
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+data:
+  # Orchestrator API base URL (cluster-internal service)
+  # Default: Uses existing orchestrator service (sast-ai-orchestrator:80)
+  orchestrator-api-url: "http://sast-ai-orchestrator.<namespace>.svc.cluster.local:80"
+  
+  # API endpoint path for MLOps batches
+  api-batch-endpoint: "/api/v1/mlops-batch"
+
