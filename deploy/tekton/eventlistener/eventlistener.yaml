@@ -10,6 +10,23 @@ spec:
   serviceAccountName: pipeline
   triggers:
     - name: benchmark-mlop-trigger
+      interceptors:
+        # CEL Interceptor for validating required parameters
+        # Fails fast before creating PipelineRun if validation fails
+        - name: validate-required-params
+          ref:
+            name: cel
+          params:
+            - name: filter
+              value: >-
+                has(body.dvc_nvr_version) && body.dvc_nvr_version != '' &&
+                has(body.dvc_prompts_version) && body.dvc_prompts_version != '' &&
+                has(body.dvc_known_false_positives_version) && body.dvc_known_false_positives_version != ''
+            - name: overlays
+              value:
+                # Add validation status for debugging
+                - key: validation.passed
+                  expression: "true"
       bindings:
         - ref: benchmark-mlop-binding
       template:

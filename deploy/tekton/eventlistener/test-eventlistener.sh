@@ -30,7 +30,7 @@ echo "  TRIGGER_SOURCE: ${TRIGGER_SOURCE:-manual-test} (argocd, webhook, jenkins
 echo "  IMAGE_VERSION: ${IMAGE_VERSION:-latest}"
 echo "  DVC_NVR_VERSION: ${DVC_NVR_VERSION:-(empty)}"
 echo "  DVC_PROMPTS_VERSION: ${DVC_PROMPTS_VERSION:-(empty)}"
-echo "  DVC_KFP_VERSION: ${DVC_KFP_VERSION:-(empty)}"
+echo "  DVC_KNOWN_FALSE_POSITIVES_VERSION: ${DVC_KNOWN_FALSE_POSITIVES_VERSION:-(empty)}"
 echo "  USE_KNOWN_FP: ${USE_KNOWN_FP:-true}"
 echo ""
 
@@ -191,7 +191,7 @@ send_test_request() {
   "image_version": "${IMAGE_VERSION:-latest}",
   "dvc_nvr_version": "${DVC_NVR_VERSION:-v1}",
   "dvc_prompts_version": "${DVC_PROMPTS_VERSION:-v1}",
-  "dvc_known_false_positives_version": "${DVC_KFP_VERSION:-v1}",
+  "dvc_known_false_positives_version": "${DVC_KNOWN_FALSE_POSITIVES_VERSION:-v1}",
   "use_known_false_positive_file": ${USE_KNOWN_FP:-true}
 }
 EOF
