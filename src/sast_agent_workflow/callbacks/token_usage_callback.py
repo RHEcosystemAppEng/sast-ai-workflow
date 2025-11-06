@@ -14,88 +14,52 @@ class TokenUsageCallback(BaseCallbackHandler):
         super().__init__()
         self.output_path = output_path
         self.metrics: List[Dict[str, Any]] = []
-        self.node_start_times: Dict[str, float] = {}
-        self._current_tool_name = "unknown"
-        self._current_model = "unknown"
+        self._current_contexts: Dict[str, Dict[str, Any]] = {}  # run_id -> {tool_name, model}
 
         atexit.register(self._write_file)
         logger.info(f"TokenUsageCallback initialized, will write to: {output_path}")
 
-    def on_chain_start(
-        self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
-    ) -> None:
-        """Track when a tool/node starts (captures ALL nodes including non-LLM ones)"""
-        metadata = kwargs.get("metadata", {})
-        node_name = metadata.get("langgraph_node", "unknown")
-
-        if node_name != "unknown":
-            self.node_start_times[node_name] = time.time()
-            logger.debug(f"Node started: {node_name}")
-
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
-        """Track when a tool/node ends and calculate duration"""
-        metadata = kwargs.get("metadata", {})
-        node_name = metadata.get("langgraph_node", "unknown")
-
-        if node_name in self.node_start_times:
-            start_time = self.node_start_times[node_name]
-            duration = time.time() - start_time
-
-            # Create or update metrics entry for this node
-            # Check if we already have an entry for this node from LLM callbacks
-            existing_entry = next((m for m in self.metrics if m["tool_name"] == node_name), None)
-
-            if existing_entry:
-                # Update existing entry with timing
-                existing_entry["duration_seconds"] = round(duration, 3)
-            else:
-                # Create new entry (for non-LLM nodes)
-                self.metrics.append({
-                    "tool_name": node_name,
-                    "duration_seconds": round(duration, 3),
-                    "model": None,
-                    "input_tokens": None,
-                    "output_tokens": None,
-                    "total_tokens": None
-                })
-
-            logger.info(f"Node completed: {node_name}, duration={duration:.3f}s")
-            del self.node_start_times[node_name]
-
     def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
-        metadata = kwargs.get("metadata", {})
-
-        # Extract tool name from LangGraph metadata
-        self._current_tool_name = metadata.get("langgraph_node", "unknown")
-
-        # Extract model name from LangGraph metadata
-        self._current_model = metadata.get("ls_model_name", "unknown")
-
-        logger.debug(f"Token tracking: tool={self._current_tool_name}, model={self._current_model}")
+        run_id = kwargs.get("run_id")
+        if run_id:
+            metadata = kwargs.get("metadata", {})
+            # Store context using run_id for thread-safe concurrent LLM calls
+            self._current_contexts[run_id] = {
+                "tool_name": metadata.get("langgraph_node", "unknown"),
+                "model": metadata.get("ls_model_name", "unknown")
+            }
+            logger.debug(f"Token tracking [run_id={run_id}]: tool={self._current_contexts[run_id]['tool_name']}, model={self._current_contexts[run_id]['model']}")
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
-        """Capture token usage and add to metrics"""
+        """Capture token usage and add to metrics (aggregates multiple LLM calls per node)"""
         if not response.llm_output:
             return
 
+        run_id = kwargs.get("run_id")
+        context = self._current_contexts.pop(run_id, {})
+        tool_name = context.get("tool_name", "unknown")
+        model = context.get("model", "unknown")
+
         token_usage = response.llm_output.get("token_usage", {})
         if token_usage:
-            # Check if we already have an entry for this node from chain callbacks
-            existing_entry = next((m for m in self.metrics if m["tool_name"] == self._current_tool_name and m["model"] is None), None)
+            # Find any existing entry for this node
+            existing_entry = next((m for m in self.metrics if m["tool_name"] == tool_name), None)
 
             if existing_entry:
-                # Update existing entry with token data
-                existing_entry["model"] = self._current_model
-                existing_entry["input_tokens"] = token_usage.get("prompt_tokens", 0)
-                existing_entry["output_tokens"] = token_usage.get("completion_tokens", 0)
-                existing_entry["total_tokens"] = token_usage.get("total_tokens", 0)
+                # Aggregate token usage (multiple LLM calls per node)
+                existing_entry["input_tokens"] = (existing_entry.get("input_tokens") or 0) + token_usage.get("prompt_tokens", 0)
+                existing_entry["output_tokens"] = (existing_entry.get("output_tokens") or 0) + token_usage.get("completion_tokens", 0)
+                existing_entry["total_tokens"] = (existing_entry.get("total_tokens") or 0) + token_usage.get("total_tokens", 0)
+                # Update model if not already set
+                if existing_entry.get("model") is None:
+                    existing_entry["model"] = model
             else:
-                # Create new entry (timing will be added by chain_end)
+                # Create new entry (timing will be added by decorator)
                 token_entry = {
-                    "tool_name": self._current_tool_name,
-                    "model": self._current_model,
+                    "tool_name": tool_name,
+                    "model": model,
                     "input_tokens": token_usage.get("prompt_tokens", 0),
                     "output_tokens": token_usage.get("completion_tokens", 0),
                     "total_tokens": token_usage.get("total_tokens", 0),
@@ -103,7 +67,34 @@ class TokenUsageCallback(BaseCallbackHandler):
                 }
                 self.metrics.append(token_entry)
 
-            logger.info(f"Captured token usage for {self._current_tool_name}: {token_usage}")
+            logger.info(f"Captured token usage for {tool_name}: {token_usage}")
+
+    def track_node_timing(self, node_name: str):
+        """Decorator to track timing for any node"""
+        def decorator(func):
+            async def wrapper(*args, **kwargs):
+                start_time = time.time()
+                result = await func(*args, **kwargs)
+                duration = time.time() - start_time
+
+                # Find or create entry
+                existing_entry = next((m for m in self.metrics if m["tool_name"] == node_name), None)
+                if existing_entry:
+                    existing_entry["duration_seconds"] = round(duration, 3)
+                else:
+                    self.metrics.append({
+                        "tool_name": node_name,
+                        "duration_seconds": round(duration, 3),
+                        "model": None,
+                        "input_tokens": None,
+                        "output_tokens": None,
+                        "total_tokens": None
+                    })
+
+                logger.info(f"Node completed: {node_name}, duration={duration:.3f}s")
+                return result
+            return wrapper
+        return decorator
 
     def _write_file(self) -> None:
         if not self.metrics:
