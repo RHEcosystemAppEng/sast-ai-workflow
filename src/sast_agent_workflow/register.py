@@ -1,4 +1,5 @@
 import logging
+import os
 from pydantic import Field
 import json
 
@@ -17,6 +18,16 @@ from sast_agent_workflow.embedders import extended_openai_embedder
 
 # Import token usage callback for LLM token tracking
 from sast_agent_workflow.callbacks.token_usage_callback import TokenUsageCallback
+
+# Constants for timing and token tracking
+DEFAULT_TOKEN_METRICS_PATH = "/shared-data/token_usage.json"
+LANGGRAPH_STREAM_VERSION = "v2"
+DURATION_DECIMAL_PLACES = 3
+LANGGRAPH_NODE_METADATA_KEY = "langgraph_node"
+EVENT_START_MARKER = "__start__"
+EVENT_END_MARKER = "__end__"
+EVENT_TYPE_CHAIN_START = "on_chain_start"
+EVENT_TYPE_CHAIN_END = "on_chain_end"
 
 # Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \
@@ -52,6 +63,11 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     """
     logger.info("Initializing SAST Agent workflow...")
     
+    # Initialize token usage callback for tracking LLM token usage
+    metrics_path = os.getenv("TOKEN_METRICS_PATH", DEFAULT_TOKEN_METRICS_PATH)
+    token_callback = TokenUsageCallback(output_path=metrics_path)
+    logger.info(f"Token usage callback initialized with output path: {metrics_path}")
+
     # Access all the placeholder functions
     pre_process_fn = builder.get_function(name=config.pre_process_function_name)
     filter_fn = builder.get_function(name=config.filter_function_name)
@@ -61,43 +77,51 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     summarize_justifications_fn = builder.get_function(name=config.summarize_justifications_function_name)
     calculate_metrics_fn = builder.get_function(name=config.calculate_metrics_function_name)
     write_results_fn = builder.get_function(name=config.write_results_function_name)
-    
-    # Define langgraph node functions
+
+    # Define langgraph node functions with timing decorator
+    @token_callback.track_node_timing("pre_process")
     async def pre_process_node(state: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Pre_Process node that initializes the workflow."""
         logger.info("Running Pre_Process node")
         return await pre_process_fn.ainvoke({})
-    
+
+    @token_callback.track_node_timing("filter")
     async def filter_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Filter node that filters issues."""
         logger.info("Running Filter node")
         return await filter_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("data_fetcher")
     async def data_fetcher_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Data_Fetcher node that fetches data."""
         logger.info("Running Data_Fetcher node")
         return await data_fetcher_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("judge_llm_analysis")
     async def judge_llm_analysis_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Judge_LLM_Analysis node that performs LLM analysis."""
         logger.info("Running Judge_LLM_Analysis node")
         return await judge_llm_analysis_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("evaluate_analysis")
     async def evaluate_analysis_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Evaluate_Analysis node that evaluates analysis results."""
         logger.info("Running Evaluate_Analysis node")
         return await evaluate_analysis_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("summarize_justifications")
     async def summarize_justifications_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Summarize_Justifications node that summarizes justifications."""
         logger.info("Running Summarize_Justifications node")
         return await summarize_justifications_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("calculate_metrics")
     async def calculate_metrics_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Calculate_Metrics node that calculates metrics."""
         logger.info("Running Calculate_Metrics node")
         return await calculate_metrics_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("write_results")
     async def write_results_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Write_Results node that writes results."""
         logger.info("Running Write_Results node")
@@ -117,10 +141,6 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     
     # Verify graph was built successfully
     verify_graph_structure(graph)
-
-    # Initialize token usage callback for tracking LLM token usage
-    token_callback = TokenUsageCallback(output_path="/shared-data/token_usage.json")
-    logger.info("Token usage callback initialized")
 
     # Converter functions for different input types
     def convert_str_to_sast_tracker(input_str: str) -> SASTWorkflowTracker:
@@ -154,63 +174,10 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
             raise e
     
     async def _response_fn(input_message: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """Main response function that runs the LangGraph workflow with timing tracking"""
-        import time
-
-        # Track node timings using stream events
-        final_state = None
-        async for event in graph.astream_events(input_message, version="v2", config={"callbacks": [token_callback]}):
-            event_type = event.get("event")
-            event_name = event.get("name")
-
-            # Track node start/end events
-            if event_type == "on_chain_start" and event_name != "__start__":
-                # Record start time for this node
-                node_name = event.get("metadata", {}).get("langgraph_node", event_name)
-                if node_name and node_name not in token_callback.node_start_times:
-                    token_callback.node_start_times[node_name] = time.time()
-                    logger.debug(f"Node started: {node_name}")
-
-            elif event_type == "on_chain_end" and event_name != "__end__":
-                # Calculate duration for this node
-                node_name = event.get("metadata", {}).get("langgraph_node", event_name)
-                if node_name and node_name in token_callback.node_start_times:
-                    start_time = token_callback.node_start_times[node_name]
-                    duration = time.time() - start_time
-
-                    # Find existing entry or create new one
-                    existing_entry = next((m for m in token_callback.metrics if m["tool_name"] == node_name and m.get("duration_seconds") is None), None)
-
-                    if existing_entry:
-                        # Update existing entry with timing
-                        existing_entry["duration_seconds"] = round(duration, 3)
-                    else:
-                        # Create new entry for non-LLM nodes
-                        token_callback.metrics.append({
-                            "tool_name": node_name,
-                            "duration_seconds": round(duration, 3),
-                            "model": None,
-                            "input_tokens": None,
-                            "output_tokens": None,
-                            "total_tokens": None
-                        })
-
-                    logger.info(f"Node completed: {node_name}, duration={duration:.3f}s")
-                    del token_callback.node_start_times[node_name]
-
-            # Capture final state
-            if event_type == "on_chain_end" and event_name == "__end__":
-                final_state = event.get("data", {}).get("output")
-
-        if final_state is None:
-            # Fallback if streaming didn't work
-            logger.warning("Stream events didn't capture final state, using ainvoke")
-            results = await graph.ainvoke(input_message, config={"callbacks": [token_callback]})
-            graph_output = SASTWorkflowTracker(**results)
-        else:
-            graph_output = SASTWorkflowTracker(**final_state)
-
-        return graph_output
+        """Main response function that runs the LangGraph workflow with callback tracking"""
+        # Run workflow with callback for token usage and timing tracking
+        results = await graph.ainvoke(input_message, config={"callbacks": [token_callback]})
+        return SASTWorkflowTracker(**results)
     
     try:
         yield FunctionInfo.from_fn(
