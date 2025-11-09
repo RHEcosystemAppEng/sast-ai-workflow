@@ -1,33 +1,41 @@
-# Evaluation Mode Patches for MLOps Overlay
+# Evaluation Mode Patches for MLOps Overlay - Simplified
 #
-# This file patches the base Tekton task to support evaluation mode for individual nodes.
-# When "all" is NOT present in EVALUATE_SPECIFIC_NODE, the following steps are skipped:
-# - Step 7: upload-to-gdrive (Google Drive upload)
-# - Step 8: upload-sarif-to-gcs (GCS upload)
-# - Step 9: cleanup
+# This file patches the base Tekton task to support evaluation mode.
+# Removes unnecessary validation, checks, and upload steps.
+# Assumes XLSX files always come from DVC/S3/MinIO.
 #
 # EVALUATE_SPECIFIC_NODE can be:
-# - "all" - runs normal SAST workflow + uploads/cleanup
-# - "filter" - runs only filter evaluation, skips uploads/cleanup
-# - "all,filter" - runs normal SAST workflow + filter evaluation + uploads/cleanup
-#
-# IMPORTANT: Future upload steps (e.g., S3/MinIO from PR #133) must also include this check:
-#   EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-#   if ! echo ",$EVAL_NODES," | grep -q ",all,"; then
-#     echo "Skipping [step name] in evaluation mode"
-#     exit 0
-#   fi
+# - "all" - runs normal SAST workflow
+# - "filter" - runs only filter evaluation
+# - "judge" - runs only judge evaluation
+# - "summary" - runs only summary evaluation
+# - "all,filter" - runs normal SAST workflow + filter evaluation
 #
 - op: add
   path: /spec/results/-
   value:
-    name: evaluation-results
-    description: "JSON array of evaluation results from all evaluated nodes"
+    name: filter-evaluation-results
+    description: "JSON evaluation results from filter node"
+- op: add
+  path: /spec/results/-
+  value:
+    name: judge-evaluation-results
+    description: "JSON evaluation results from judge node"
+- op: add
+  path: /spec/results/-
+  value:
+    name: summary-evaluation-results
+    description: "JSON evaluation results from summary node"
 - op: add
   path: /spec/results/-
   value:
     name: workflow-metrics
     description: "JSON containing workflow metrics (TP/FP/TN/FN, accuracy, precision, recall, F1)"
+# Override SERVICE_ACCOUNT_JSON_PATH to prevent Google Sheets authentication attempts
+# MLOps evaluation mode always uses XLSX files from DVC/S3/MinIO, never Google Sheets
+- op: replace
+  path: /spec/steps/5/env/16/value
+  value: ""
 - op: replace
   path: /spec/steps/5/image
   value: "$(params.CONTAINER_IMAGE)"
@@ -35,7 +43,7 @@
   path: /spec/steps/5/script
   value: |
     #!/usr/bin/env sh
-    set -ex
+    set -e
     echo "=== STEP 6: RUN SAST AI ANALYSIS OR EVALUATION ==="
 
     # Load the repo path from step 4
@@ -148,99 +156,91 @@
       aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
 
       [ -f "/shared-data/output/sast_ai_output.xlsx" ] || { echo "Error: Output file not found!" >&2; exit 1; }
-
-      # Capture workflow metrics
-      if [ -f "$WORKFLOW_JSON_OUTPUT" ]; then
-        cat "$WORKFLOW_JSON_OUTPUT" > $(results.workflow-metrics.path)
-      else
-        echo "{}" > $(results.workflow-metrics.path)
-      fi
+      echo "Full workflow completed"
+    else
+      # Create empty workflow metrics when full workflow doesn't run
+      echo "{}" > /shared-data/output/workflow_metrics.json
+      echo "Skipped full workflow - evaluation mode only"
     fi
 
-    # Combine evaluation results
-    echo -n "[" > $(results.evaluation-results.path)
-    FIRST=true
-    for json_file in /shared-data/eval_results/*.json; do
-      if [ -f "$json_file" ]; then
-        [ "$FIRST" = false ] && echo -n "," >> $(results.evaluation-results.path)
-        cat "$json_file" >> $(results.evaluation-results.path)
-        FIRST=false
-      fi
-    done
-    echo -n "]" >> $(results.evaluation-results.path)
+    # Write PART 1 of evaluation results (filter + judge)
+    echo ""
+    echo "=== Writing Evaluation Results (Part 1/3) ==="
 
-    echo "Completed successfully"
+    # Write filter evaluation if exists
+    if [ -f "/shared-data/eval_results/filter.json" ]; then
+      cat /shared-data/eval_results/filter.json > $(results.filter-evaluation-results.path)
+      FILTER_SIZE=$(wc -c < $(results.filter-evaluation-results.path))
+      echo "filter-evaluation-results: $FILTER_SIZE bytes"
+    else
+      echo "{}" > $(results.filter-evaluation-results.path)
+      echo "filter-evaluation-results: 2 bytes (empty)"
+    fi
+
+    # Write judge evaluation if exists
+    if [ -f "/shared-data/eval_results/judge.json" ]; then
+      cat /shared-data/eval_results/judge.json > $(results.judge-evaluation-results.path)
+      JUDGE_SIZE=$(wc -c < $(results.judge-evaluation-results.path))
+      echo "judge-evaluation-results: $JUDGE_SIZE bytes"
+    else
+      echo "{}" > $(results.judge-evaluation-results.path)
+      echo "judge-evaluation-results: 2 bytes (empty)"
+    fi
+
+    echo "Step 5 completed - filter and judge results written"
+- op: replace
+  path: /spec/steps/6/script
+  value: |
+    #!/usr/bin/env sh
+    echo "=== STEP 7: WRITE EVALUATION RESULTS (Part 2/3) ==="
+
+    # Write summary evaluation result
+    if [ -f "/shared-data/eval_results/summary.json" ]; then
+      cat /shared-data/eval_results/summary.json > $(results.summary-evaluation-results.path)
+      SUMMARY_SIZE=$(wc -c < $(results.summary-evaluation-results.path))
+      echo "summary-evaluation-results: $SUMMARY_SIZE bytes"
+    else
+      echo "{}" > $(results.summary-evaluation-results.path)
+      echo "summary-evaluation-results: 2 bytes (empty)"
+    fi
+
+    echo "Step 6 completed - summary result written"
 - op: replace
   path: /spec/steps/7/script
   value: |
-    #!/bin/bash
-    set -e
-    echo "=== STEP 8: UPLOAD SARIF TO GCS BUCKET ==="
+    #!/usr/bin/env sh
+    echo "=== STEP 8: WRITE EVALUATION RESULTS (Part 3/3) ==="
 
-    # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
-    EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
-    if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
-      echo "Skipping GCS upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
-      exit 0
+    # Load repo path for DVC commit hash
+    if [ -f "/shared-data/env.txt" ]; then
+      . /shared-data/env.txt
+      export REPO_LOCAL_PATH
     fi
 
-    # Check if we have required parameters
-    if [ -z "$GCS_BUCKET_NAME" ]; then
-      echo "Skipping GCS upload - no bucket name provided"
-      exit 0
-    fi
-
-    # Check service account
-    if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-      echo "Skipping GCS upload - service account not available"
-      exit 0
-    fi
-
-    # Look for the SARIF file in output directory
-    SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
-
-    if [ -z "$SARIF_FILE" ]; then
-      echo "ERROR: No SARIF file found in output directory"
-      echo "Available files in output directory:"
-      ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
-      exit 1
-    fi
-
-    echo "Found SARIF file: $SARIF_FILE"
-
-    # Install required packages
-    echo "Installing required packages..."
-    apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq python3-pip python3-venv >/dev/null 2>&1
-
-    # Create virtual environment
-    python3 -m venv /tmp/venv >/dev/null 2>&1
-    source /tmp/venv/bin/activate
-
-    # Install Google Cloud Storage
-    pip install --quiet google-cloud-storage >/dev/null 2>&1
-    echo "Dependencies installed successfully"
-
-    # Generate timestamp for folder organization
-    TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%S")
-
-    # Upload the SARIF file
-    SCAN_FILENAME=$(basename "$SARIF_FILE")
-
-    # Create organized path: sarif-reports/timestamp/scan_filename
-    DESTINATION_PATH="sarif-reports/${TIMESTAMP}/${SCAN_FILENAME}"
-
-    echo "Uploading: $SARIF_FILE"
-    echo "Destination: gs://$GCS_BUCKET_NAME/$DESTINATION_PATH"
-
-    if python /scripts/gcs_upload.py "$SARIF_FILE" "$GCS_BUCKET_NAME" "$DESTINATION_PATH"; then
-      echo "✓ Successfully uploaded: $SCAN_FILENAME"
-      echo "=== SARIF file uploaded to GCS successfully! ==="
+    # Write workflow metrics
+    if [ -f "/shared-data/output/workflow_metrics.json" ]; then
+      cat /shared-data/output/workflow_metrics.json > $(results.workflow-metrics.path)
+      METRICS_SIZE=$(wc -c < $(results.workflow-metrics.path))
+      echo "workflow-metrics: $METRICS_SIZE bytes"
     else
-      echo "✗ Failed to upload: $SCAN_FILENAME"
-      echo "=== SARIF upload failed, but pipeline continues ==="
-      # Don't fail the pipeline for upload issues
+      echo "{}" > $(results.workflow-metrics.path)
+      echo "workflow-metrics: 2 bytes (empty)"
     fi
+
+    # Write DVC results
+    echo -n "$(params.PROJECT_VERSION)" > $(results.dvc-data-version.path)
+
+    # For git repos, extract commit hash; for SRPM/non-git, leave empty
+    if [ -d "$REPO_LOCAL_PATH/.git" ]; then
+      cd "$REPO_LOCAL_PATH" && git rev-parse HEAD > $(results.dvc-commit-hash.path) || echo -n "" > $(results.dvc-commit-hash.path)
+    else
+      echo -n "" > $(results.dvc-commit-hash.path)
+    fi
+
+    # Pipeline stage identifier
+    echo -n "sast_ai_analysis" > $(results.dvc-pipeline-stage.path)
+
+    echo "Step 7 completed - workflow-metrics and dvc results written"
 - op: replace
   path: /spec/steps/8/script
   value: |

@@ -176,15 +176,15 @@ def _create_mock_evaluation_summary(summary_data, config, metrics):
         mock_summary.tp = mock_summary.tn = mock_summary.fp = mock_summary.fn = 0
 
     # ExcelWriter expects these to be collections that support len()
-    # Map from our stored sets/lists back to the expected attributes
-    if METRICS_FIELD_ACTUAL_TRUE_POSITIVES in metrics:
-        mock_summary.actual_true_positives = metrics[METRICS_FIELD_ACTUAL_TRUE_POSITIVES]
-    if METRICS_FIELD_ACTUAL_FALSE_POSITIVES in metrics:
-        mock_summary.actual_false_positives = metrics[METRICS_FIELD_ACTUAL_FALSE_POSITIVES]
-    if METRICS_FIELD_PREDICTED_TRUE_POSITIVES in metrics:
-        mock_summary.predicted_true_positives = metrics[METRICS_FIELD_PREDICTED_TRUE_POSITIVES]
-    if METRICS_FIELD_PREDICTED_FALSE_POSITIVES in metrics:
-        mock_summary.predicted_false_positives = metrics[METRICS_FIELD_PREDICTED_FALSE_POSITIVES]
+    # Always initialize to empty sets, then override with metrics if available
+    mock_summary.actual_true_positives = metrics.get(METRICS_FIELD_ACTUAL_TRUE_POSITIVES, set())
+    mock_summary.actual_false_positives = metrics.get(METRICS_FIELD_ACTUAL_FALSE_POSITIVES, set())
+    mock_summary.predicted_true_positives = metrics.get(
+        METRICS_FIELD_PREDICTED_TRUE_POSITIVES, set()
+    )
+    mock_summary.predicted_false_positives = metrics.get(
+        METRICS_FIELD_PREDICTED_FALSE_POSITIVES, set()
+    )
 
     # Add other metrics that ExcelWriter might need (excluding the collections and counts)
     for key, value in metrics.items():

@@ -67,7 +67,7 @@
 
       # Use DVC to fetch the file
       dvc get "$DVC_REPO_URL" "$DVC_PATH" --rev "$DVC_DATA_VERSION" -o "/shared-data/false-positives/${FP_FILENAME}" \
-        || (echo "Error: Could not fetch false positives file from DVC/MinIO" && exit 1)
+        || (echo "Error: Could not fetch false positives file from DVC/S3/MinIO" && exit 1)
 
       echo "False positives file downloaded successfully via DVC"
       echo "File size: $(du -h /shared-data/false-positives/${FP_FILENAME} | cut -f1)"
