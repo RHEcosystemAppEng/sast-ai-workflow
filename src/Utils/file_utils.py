@@ -58,23 +58,32 @@ def get_human_verified_results_local_excel(filename):
     except Exception as e:
         raise ValueError(f"Failed to read Excel file at {filename}: {e}")
 
-    df.columns = df.columns.str.strip().str.lower()
-    expected_issue_id = "issue id"
+    # Convert column names to strings first to avoid .str accessor errors with NaN/numeric columns
+    df.columns = df.columns.astype(str).str.strip().str.lower()
+
     expected_false_positive = "false positive?"
 
-    if expected_issue_id not in df.columns:
-        raise KeyError(
-            f"Expected column '{expected_issue_id}' not found in the file. \
-                Found columns: {list(df.columns)}"
-        )
     if expected_false_positive not in df.columns:
         raise KeyError(
             f"Expected column '{expected_false_positive}' not found in the file. \
                 Found columns: {list(df.columns)}"
         )
 
-    ground_truth = dict(zip(df[expected_issue_id], df[expected_false_positive]))
-    logger.info(f"Successfully loaded ground truth from {filename}")
+    # Generate issue IDs automatically (def1, def2, ...) to match Google Sheets behavior
+    ground_truth = {}
+    for idx, row in df.iterrows():
+        issue_id = f"def{idx + 1}"  # idx starts at 0, so add 1 to get def1, def2, ...
+        is_false_positive = str(row[expected_false_positive]).strip().lower()
+
+        if is_false_positive not in ALL_VALID_OPTIONS:
+            logger.warning(
+                f"Warning: {issue_id} has invalid value '{is_false_positive}' \
+                    in 'False Positive?' column."
+            )
+
+        ground_truth[issue_id] = is_false_positive
+
+    logger.info(f"Successfully loaded ground truth from {filename} ({len(ground_truth)} issues)")
     return ground_truth
 
 
@@ -86,10 +95,9 @@ def get_human_verified_results_google_sheet(service_account_file_path, google_sh
     NOTE: Assumes the data is in the first sheet (sheet name doesn't matter),
           and that if human-verified data is filled, it is filled for all rows.
 
-    :param config: Config object containing configuration details, including:
-        - INPUT_REPORT_FILE_PATH: URL of the Google Sheet.
-        - SERVICE_ACCOUNT_JSON_PATH: Path to the service account JSON file for authentication.
-     :return: Dictionary of ground truth with generated IDs (e.g., 'def1', 'def2', ...).
+    :param service_account_file_path: Path to the service account JSON file for authentication.
+    :param google_sheet_url: URL of the Google Sheet.
+    :return: Dictionary of ground truth with generated IDs (e.g., 'def1', 'def2', ...).
     """
     sheet = get_google_sheet(google_sheet_url, service_account_file_path, ignore_error=False)
     rows = sheet.get_all_records()
@@ -137,17 +145,18 @@ def read_answer_template_file(path):
 
 
 def get_header_row(filename):
-    # Locate the header row containing 'Issue ID'
+    # Locate the header row containing 'Issue ID' or 'False Positive?'
     preview = pd.read_excel(filename, header=None, nrows=5)
     header_row = next(
         (
             i
             for i, row in preview.iterrows()
-            if any(str(cell).strip().lower() == "issue id" for cell in row.values)
+            if any(str(cell).strip().lower() in ["issue id", "false positive?"] for cell in row.values)
         ),
         None,
     )
-    return header_row
+    # If no header row found, default to row 0
+    return header_row if header_row is not None else 0
 
 
 def load_json_file(file_path):

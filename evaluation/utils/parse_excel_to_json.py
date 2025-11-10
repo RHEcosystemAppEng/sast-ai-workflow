@@ -247,7 +247,15 @@ class FilterExcelParser(BaseExcelParser):
                     "issue_type": issue_type,
                     "source_file": source_file
                 }),
-                "expected_output": expected_classification
+                "expected_output_obj": {
+                    "filter_result": expected_classification,
+                    "confidence": None,
+                    "similar_known_issues": [],
+                    "justification": ""
+                },
+                "generated_answer": "",
+                "intermediate_steps": [],
+                "expected_intermediate_steps": []
             }
 
             test_cases.append(test_case)

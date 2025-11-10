@@ -1,0 +1,16 @@
+# Add evaluation results to Pipeline spec
+- op: add
+  path: /spec/results
+  value:
+    - name: filter-evaluation-results
+      description: "JSON evaluation results from filter node"
+      value: $(tasks.execute-ai-analysis.results.filter-evaluation-results)
+    - name: judge-evaluation-results
+      description: "JSON evaluation results from judge node"
+      value: $(tasks.execute-ai-analysis.results.judge-evaluation-results)
+    - name: summary-evaluation-results
+      description: "JSON evaluation results from summary node"
+      value: $(tasks.execute-ai-analysis.results.summary-evaluation-results)
+    - name: workflow-metrics
+      description: "JSON containing workflow metrics (TP/FP/TN/FN, accuracy, precision, recall, F1)"
+      value: $(tasks.execute-ai-analysis.results.workflow-metrics)
