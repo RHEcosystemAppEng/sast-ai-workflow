@@ -104,13 +104,13 @@ def write_workflow_metrics_json(metrics, output_path, config):
             "precision": metrics.get('precision', 0.0),
             "recall": metrics.get('recall', 0.0),
             "f1_score": metrics.get('f1_score', 0.0)
+        },
+        "cm": {
+            "tp": int(confusion_matrix.get('true_positives', 0)) if confusion_matrix else 0,
+            "fp": int(confusion_matrix.get('false_positives', 0)) if confusion_matrix else 0,
+            "tn": int(confusion_matrix.get('true_negatives', 0)) if confusion_matrix else 0,
+            "fn": int(confusion_matrix.get('false_negatives', 0)) if confusion_matrix else 0
         }
-        # "cm": {
-        #     "tp": confusion_matrix.get('true_positives', 0) if confusion_matrix else 0,
-        #     "fp": confusion_matrix.get('false_positives', 0) if confusion_matrix else 0,
-        #     "tn": confusion_matrix.get('true_negatives', 0) if confusion_matrix else 0,
-        #     "fn": confusion_matrix.get('false_negatives', 0) if confusion_matrix else 0
-        # }
     }
 
     with open(output_path, 'w') as f:
