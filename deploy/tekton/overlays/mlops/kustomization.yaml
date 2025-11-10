@@ -44,3 +44,7 @@ patches:
       kind: Pipeline
       name: sast-ai-workflow-pipeline
     path: pipeline-workspaces-patch.yaml
+  - target:
+      kind: Pipeline
+      name: sast-ai-workflow-pipeline
+    path: pipeline-results-patch.yaml

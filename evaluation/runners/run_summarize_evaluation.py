@@ -110,7 +110,7 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
         # Check if running in Tekton evaluation mode with direct file output
         output_file = os.getenv('EVALUATION_JSON_OUTPUT', None)
         if output_file:
-            generator.generate_json_to_file(output_file)
+            generator.generate_json_to_file(output_file, summary_only=True, tekton_compact=True)
             logger.info(f"Evaluation results written to: {output_file}")
         else:
             generator.generate_json()

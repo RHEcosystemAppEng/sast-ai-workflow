@@ -59,7 +59,9 @@
     if [ -f "/shared-data/report-file-path.txt" ]; then
       TRANSFORMED_REPORT_PATH=$(cat /shared-data/report-file-path.txt)
       export INPUT_REPORT_FILE_PATH="$TRANSFORMED_REPORT_PATH"
+      export HUMAN_VERIFIED_FILE_PATH="$TRANSFORMED_REPORT_PATH"
       echo "Using transformed report file path: $INPUT_REPORT_FILE_PATH"
+      echo "Using transformed ground truth file path: $HUMAN_VERIFIED_FILE_PATH"
     else
       echo "Using original report file path: $INPUT_REPORT_FILE_PATH"
     fi
@@ -133,8 +135,16 @@
       case "$node" in
         filter)
           echo "Evaluating: filter"
+          echo "Running: python -u /app/evaluation/runners/run_filter_evaluation.py"
+          echo "EVALUATION_JSON_OUTPUT=/shared-data/eval_results/filter.json"
+          echo "EVALUATION_DATASET_PATH=$EVALUATION_DATASET_PATH"
+          echo "---START PYTHON OUTPUT---"
           EVALUATION_JSON_OUTPUT=/shared-data/eval_results/filter.json \
-            python /app/evaluation/runners/run_filter_evaluation.py
+            python -u /app/evaluation/runners/run_filter_evaluation.py 2>&1
+          EXIT_CODE=$?
+          echo "---END PYTHON OUTPUT---"
+          echo "Filter eval exit code: $EXIT_CODE"
+          [ $EXIT_CODE -eq 0 ] || exit $EXIT_CODE
           ;;
         summary)
           echo "Evaluating: summary"

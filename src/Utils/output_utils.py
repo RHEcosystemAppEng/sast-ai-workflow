@@ -96,34 +96,20 @@ def write_workflow_metrics_json(metrics, output_path, config):
         output_path: File path where JSON should be written
         config: Workflow configuration object with project details
     """
-    package_name = getattr(config, 'PROJECT_NAME', 'unknown')
-    package_version = getattr(config, 'PROJECT_VERSION', 'unknown')
-
     confusion_matrix = metrics.get('confusion_matrix')
 
     result = {
-        "node_type": "full_workflow",
-        "package_info": {
-            "name": package_name,
-            "version": package_version,
-            "total_issues": metrics.get('total_issues', 0)
-        },
         "aggregated_metrics": {
             "accuracy": metrics.get('accuracy', 0.0),
             "precision": metrics.get('precision', 0.0),
             "recall": metrics.get('recall', 0.0),
             "f1_score": metrics.get('f1_score', 0.0)
         },
-        "confusion_matrix": confusion_matrix if confusion_matrix else None,
-        "classification_counts": {
-            "predicted_true_positives": metrics.get('predicted_true_positives_count', 0),
-            "predicted_false_positives": metrics.get('predicted_false_positives_count', 0),
-            "actual_true_positives": metrics.get('actual_true_positives_count', 0),
-            "actual_false_positives": metrics.get('actual_false_positives_count', 0)
-        },
-        "metadata": {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "has_ground_truth": metrics.get('has_ground_truth', False)
+        "cm": {
+            "tp": confusion_matrix.get('true_positives', 0) if confusion_matrix else 0,
+            "fp": confusion_matrix.get('false_positives', 0) if confusion_matrix else 0,
+            "tn": confusion_matrix.get('true_negatives', 0) if confusion_matrix else 0,
+            "fn": confusion_matrix.get('false_negatives', 0) if confusion_matrix else 0
         }
     }
 

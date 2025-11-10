@@ -45,18 +45,27 @@ class BaseEvaluationJsonGenerator(ABC):
         result = self._build_output_structure(package_info, issues, aggregated)
         self._output_json(result)
 
-    def generate_json_to_file(self, output_path: str, summary_only: bool = True) -> None:
+    def generate_json_to_file(self, output_path: str, summary_only: bool = True, tekton_compact: bool = False) -> None:
         """Generate and write JSON directly to file.
 
         Args:
             output_path: Path to write JSON file
             summary_only: If True, exclude individual issue details (for Tekton results)
+            tekton_compact: If True, generate minimal compact JSON for Tekton results
         """
         self._load_result_files()
-        package_info = self._extract_package_info()
-        issues = self._extract_issues()
-        aggregated = self._calculate_aggregated_metrics(issues)
-        result = self._build_output_structure(package_info, issues, aggregated, summary_only)
+
+        if tekton_compact:
+            # Compact mode: extract metrics and build minimal structure
+            issues = self._extract_issues()
+            aggregated = self._calculate_aggregated_metrics(issues)
+            result = self._build_tekton_compact_structure(aggregated)
+        else:
+            # Full mode
+            package_info = self._extract_package_info()
+            issues = self._extract_issues()
+            aggregated = self._calculate_aggregated_metrics(issues)
+            result = self._build_output_structure(package_info, issues, aggregated, summary_only)
 
         with open(output_path, 'w') as f:
             json.dump(result, f, separators=(',', ':'))
@@ -140,6 +149,11 @@ class BaseEvaluationJsonGenerator(ABC):
     @abstractmethod
     def _aggregate_quality_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, float]:
         """Aggregate quality metrics from issues."""
+        pass
+
+    @abstractmethod
+    def _build_tekton_compact_structure(self, aggregated: Dict[str, Any]) -> Dict[str, Any]:
+        """Build minimal Tekton-optimized JSON structure with 2-digit precision and short keys."""
         pass
 
     def _aggregate_performance_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -294,6 +308,25 @@ class SummarizeJsonGenerator(BaseEvaluationJsonGenerator):
             "professional_tone": total_prof / num_issues
         }
 
+    def _build_tekton_compact_structure(self, aggregated: Dict[str, Any]) -> Dict[str, Any]:
+        """Build minimal Tekton-optimized JSON structure for summary evaluation."""
+        quality = aggregated.get("quality_metrics", {})
+        perf = aggregated.get("performance_metrics", {})
+
+        return {
+            "quality": {
+                "overall": round(quality.get("overall_score", 0.0), 2),
+                "sem_similarity": round(quality.get("semantic_similarity", 0.0), 2),
+                "fact_accuracy": round(quality.get("factual_accuracy", 0.0), 2),
+                "conciseness": round(quality.get("conciseness", 0.0), 2),
+                "prof_tone": round(quality.get("professional_tone", 0.0), 2)
+            },
+            "perf": {
+                "total_tokens": perf.get("total_tokens", 0),
+                "llm_calls": perf.get("llm_call_count", 0)
+            }
+        }
+
 
 class FilterJsonGenerator(BaseEvaluationJsonGenerator):
     """JSON generator for filter evaluation."""
@@ -380,7 +413,7 @@ class FilterJsonGenerator(BaseEvaluationJsonGenerator):
         """Get default aggregated metrics for filter."""
         return {
             "quality_metrics": {
-                "faiss_matching_accuracy": 0.0
+                "faiss_validation": {}
             },
             "performance_metrics": {
                 "total_tokens": 0,
@@ -389,18 +422,37 @@ class FilterJsonGenerator(BaseEvaluationJsonGenerator):
             }
         }
 
-    def _aggregate_quality_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, float]:
+    def _aggregate_quality_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Aggregate filter quality metrics."""
-        if not self.quality_data or "summary" not in self.quality_data:
-            return {"faiss_matching_accuracy": 0.0}
+        if not self.quality_data or "faiss_validation" not in self.quality_data:
+            return {"faiss_validation": {}}
 
-        summary = self.quality_data.get("summary", {})
-        faiss_accuracy = summary.get("faiss_matching_accuracy")
+        faiss_validation = self.quality_data.get("faiss_validation", {})
 
-        if faiss_accuracy is not None:
-            return {"faiss_matching_accuracy": faiss_accuracy}
+        return {"faiss_validation": faiss_validation}
 
-        return {"faiss_matching_accuracy": 0.0}
+    def _build_tekton_compact_structure(self, aggregated: Dict[str, Any]) -> Dict[str, Any]:
+        """Build minimal Tekton-optimized JSON structure for filter evaluation."""
+        quality = aggregated.get("quality_metrics", {})
+        perf = aggregated.get("performance_metrics", {})
+
+        faiss_val = quality.get("faiss_validation", {})
+
+        return {
+            "quality": {
+                "faiss": {
+                    "correct": faiss_val.get("correct_matches_found", 0),
+                    "incorrect": faiss_val.get("incorrect_matches_found", 0),
+                    "missing": faiss_val.get("missing_expected_matches", 0),
+                    "unexpected": faiss_val.get("unexpected_matches", 0),
+                    "expected": faiss_val.get("total_expected_matches", 0)
+                }
+            },
+            "perf": {
+                "total_tokens": perf.get("total_tokens", 0),
+                "llm_calls": perf.get("llm_call_count", 0)
+            }
+        }
 
 
 class JudgeLLMJsonGenerator(BaseEvaluationJsonGenerator):
@@ -507,6 +559,25 @@ class JudgeLLMJsonGenerator(BaseEvaluationJsonGenerator):
             "completeness": total_completeness / num_issues,
             "technical_accuracy": total_technical / num_issues,
             "logical_flow": total_logical / num_issues
+        }
+
+    def _build_tekton_compact_structure(self, aggregated: Dict[str, Any]) -> Dict[str, Any]:
+        """Build minimal Tekton-optimized JSON structure for judge LLM evaluation."""
+        quality = aggregated.get("quality_metrics", {})
+        perf = aggregated.get("performance_metrics", {})
+
+        return {
+            "quality": {
+                "overall": round(quality.get("overall_score", 0.0), 2),
+                "clarity": round(quality.get("clarity", 0.0), 2),
+                "completeness": round(quality.get("completeness", 0.0), 2),
+                "tech_accuracy": round(quality.get("technical_accuracy", 0.0), 2),
+                "logical_flow": round(quality.get("logical_flow", 0.0), 2)
+            },
+            "perf": {
+                "total_tokens": perf.get("total_tokens", 0),
+                "llm_calls": perf.get("llm_call_count", 0)
+            }
         }
 
 
