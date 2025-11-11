@@ -424,34 +424,20 @@ class FilterJsonGenerator(BaseEvaluationJsonGenerator):
 
     def _aggregate_quality_metrics(self, issues: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Aggregate filter quality metrics."""
-        if not self.quality_data or "faiss_validation" not in self.quality_data:
-            return {"faiss_validation": {}}
+        if not self.quality_data or "faiss_stratified_stats" not in self.quality_data:
+            return {"faiss_stratified_stats": {}}
 
-        faiss_validation = self.quality_data.get("faiss_validation", {})
+        faiss_stratified_stats = self.quality_data.get("faiss_stratified_stats", {})
 
-        return {"faiss_validation": faiss_validation}
+        return {"faiss_stratified_stats": faiss_stratified_stats}
 
     def _build_tekton_compact_structure(self, aggregated: Dict[str, Any]) -> Dict[str, Any]:
         """Build minimal Tekton-optimized JSON structure for filter evaluation."""
         quality = aggregated.get("quality_metrics", {})
-        perf = aggregated.get("performance_metrics", {})
-
-        faiss_val = quality.get("faiss_validation", {})
+        faiss_stats = quality.get("faiss_stratified_stats", {})
 
         return {
-            "quality": {
-                "faiss": {
-                    "correct": faiss_val.get("correct_matches_found", 0),
-                    "incorrect": faiss_val.get("incorrect_matches_found", 0),
-                    "missing": faiss_val.get("missing_expected_matches", 0),
-                    "unexpected": faiss_val.get("unexpected_matches", 0),
-                    "expected": faiss_val.get("total_expected_matches", 0)
-                }
-            },
-            "perf": {
-                "total_tokens": perf.get("total_tokens", 0),
-                "llm_calls": perf.get("llm_call_count", 0)
-            }
+            "faiss_stratified_stats": faiss_stats
         }
 
 

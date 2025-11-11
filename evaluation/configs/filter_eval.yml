@@ -27,7 +27,7 @@ embedders:
   filter_embedding:
     _type: extended_openai
     model_name: ${EMBEDDINGS_LLM_MODEL_NAME}
-    base_url: https://integrate.api.nvidia.com/v1
+    base_url: ${EMBEDDINGS_LLM_URL}
     api_key: ${EMBEDDINGS_LLM_API_KEY}
 
 # Workflow configuration - use filter function directly
