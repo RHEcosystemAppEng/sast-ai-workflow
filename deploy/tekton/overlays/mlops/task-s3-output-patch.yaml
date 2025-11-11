@@ -123,5 +123,5 @@
         echo "=== S3 upload completed successfully! ==="
       else
         echo "=== S3 upload failed ==="
-        exit 1
+        exit 0
       fi

@@ -126,8 +126,8 @@
           if [ $? -eq 0 ]; then
             export EVALUATION_DATASET_PATH="/shared-data/evaluation_dataset/parsed_dataset.json"
           else
-            echo "Error: XLSX parsing failed for $node"
-            exit 1
+            echo "Error: XLSX parsing failed for $node, results of eval flow for $node is not saved."
+            exit 0
           fi
         fi
       fi
@@ -144,17 +144,39 @@
           EXIT_CODE=$?
           echo "---END PYTHON OUTPUT---"
           echo "Filter eval exit code: $EXIT_CODE"
-          [ $EXIT_CODE -eq 0 ] || exit $EXIT_CODE
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "WARNING: Filter evaluation failed with exit code $EXIT_CODE, continuing to next node"
+          fi
           ;;
         summary)
           echo "Evaluating: summary"
+          echo "Running: python -u /app/evaluation/runners/run_summarize_evaluation.py"
+          echo "EVALUATION_JSON_OUTPUT=/shared-data/eval_results/summary.json"
+          echo "EVALUATION_DATASET_PATH=$EVALUATION_DATASET_PATH"
+          echo "---START PYTHON OUTPUT---"
           EVALUATION_JSON_OUTPUT=/shared-data/eval_results/summary.json \
-            python /app/evaluation/runners/run_summarize_evaluation.py
+            python -u /app/evaluation/runners/run_summarize_evaluation.py 2>&1
+          EXIT_CODE=$?
+          echo "---END PYTHON OUTPUT---"
+          echo "Summary eval exit code: $EXIT_CODE"
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "WARNING: Summary evaluation failed with exit code $EXIT_CODE, continuing to next node"
+          fi
           ;;
         judge)
           echo "Evaluating: judge"
+          echo "Running: python -u /app/evaluation/runners/run_judge_llm_evaluation.py"
+          echo "EVALUATION_JSON_OUTPUT=/shared-data/eval_results/judge.json"
+          echo "EVALUATION_DATASET_PATH=$EVALUATION_DATASET_PATH"
+          echo "---START PYTHON OUTPUT---"
           EVALUATION_JSON_OUTPUT=/shared-data/eval_results/judge.json \
-            python /app/evaluation/runners/run_judge_llm_evaluation.py
+            python -u /app/evaluation/runners/run_judge_llm_evaluation.py 2>&1
+          EXIT_CODE=$?
+          echo "---END PYTHON OUTPUT---"
+          echo "Judge eval exit code: $EXIT_CODE"
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "WARNING: Judge evaluation failed with exit code $EXIT_CODE, continuing to next node"
+          fi
           ;;
       esac
     done
@@ -163,10 +185,25 @@
     if [ "$RUN_FULL_WORKFLOW" = "true" ]; then
       echo "Running full SAST workflow..."
       export WORKFLOW_JSON_OUTPUT="/shared-data/output/workflow_metrics.json"
+      echo "---START FULL WORKFLOW OUTPUT---"
       aiq run --config_file /app/src/sast_agent_workflow/configs/config.yml --input "sast_agent"
+      EXIT_CODE=$?
+      echo "---END FULL WORKFLOW OUTPUT---"
+      echo "Full workflow exit code: $EXIT_CODE"
 
-      [ -f "/shared-data/output/sast_ai_output.xlsx" ] || { echo "Error: Output file not found!" >&2; exit 1; }
-      echo "Full workflow completed"
+      # Validate workflow succeeded
+      if [ $EXIT_CODE -ne 0 ]; then
+        echo "Error: Full workflow failed with exit code $EXIT_CODE" >&2
+        exit 1
+      fi
+
+      # Validate output file exists
+      if [ ! -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+        echo "Error: Output file not found!" >&2
+        exit 1
+      fi
+
+      echo "Full workflow completed successfully"
     else
       # Create empty workflow metrics when full workflow doesn't run
       echo "{}" > /shared-data/output/workflow_metrics.json
@@ -184,7 +221,7 @@
       echo "filter-evaluation-results: $FILTER_SIZE bytes"
     else
       echo "{}" > $(results.filter-evaluation-results.path)
-      echo "filter-evaluation-results: 2 bytes (empty)"
+      echo "filter-evaluation-results: {} (empty)"
     fi
 
     # Write judge evaluation if exists
@@ -194,7 +231,7 @@
       echo "judge-evaluation-results: $JUDGE_SIZE bytes"
     else
       echo "{}" > $(results.judge-evaluation-results.path)
-      echo "judge-evaluation-results: 2 bytes (empty)"
+      echo "judge-evaluation-results: {} (empty)"
     fi
 
     echo "Step 5 completed - filter and judge results written"
@@ -211,7 +248,7 @@
       echo "summary-evaluation-results: $SUMMARY_SIZE bytes"
     else
       echo "{}" > $(results.summary-evaluation-results.path)
-      echo "summary-evaluation-results: 2 bytes (empty)"
+      echo "summary-evaluation-results: {} (empty)"
     fi
 
     echo "Step 6 completed - summary result written"
@@ -234,7 +271,7 @@
       echo "workflow-metrics: $METRICS_SIZE bytes"
     else
       echo "{}" > $(results.workflow-metrics.path)
-      echo "workflow-metrics: 2 bytes (empty)"
+      echo "workflow-metrics: {} (empty)"
     fi
 
     # Write DVC results
