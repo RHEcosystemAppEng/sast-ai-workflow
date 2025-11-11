@@ -231,6 +231,13 @@ class FilterExcelParser(BaseExcelParser):
                 skipped_count += 1
                 continue
 
+            # Check if Hint column indicates expected FAISS matches
+            has_expected_matches = False
+            if "Hint" in self.df.columns and pd.notna(row['Hint']):
+                hint_text = str(row['Hint']).strip().lower()
+                faiss_pattern = "the error is similar to one found in the provided known issues"
+                has_expected_matches = faiss_pattern in hint_text
+
             issue_identifier = self._extract_issue_id_from_trace(finding)
             test_case_id = f"{self.nvr}_{idx}_{issue_identifier}"
 
@@ -250,6 +257,7 @@ class FilterExcelParser(BaseExcelParser):
                 "expected_output_obj": {
                     "filter_result": expected_classification,
                     "confidence": None,
+                    "has_expected_matches": has_expected_matches,
                     "similar_known_issues": [],
                     "justification": ""
                 },
