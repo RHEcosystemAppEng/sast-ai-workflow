@@ -102,7 +102,7 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
         output_file = os.getenv('WORKFLOW_JSON_OUTPUT', None)
         if output_file and tracker.metrics:
             try:
-                write_workflow_metrics_json(tracker.metrics, output_file, tracker.config)
+                write_workflow_metrics_json(tracker.metrics, output_file)
             except Exception as e:
                 logger.error(f"Failed to write workflow metrics JSON: {e}")
 

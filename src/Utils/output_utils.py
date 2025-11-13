@@ -88,13 +88,12 @@ def filter_items_for_evaluation(summary_data):
     return items_for_evaluation, failed_item_ids
 
 
-def write_workflow_metrics_json(metrics, output_path, config):
+def write_workflow_metrics_json(metrics, output_file_path):
     """Write workflow metrics to JSON file for orchestrator/database storage.
 
     Args:
         metrics: Dictionary containing calculated metrics from calculate_metrics node
-        output_path: File path where JSON should be written
-        config: Workflow configuration object with project details
+        output_file_path: File path where JSON should be written
     """
     confusion_matrix = metrics.get('confusion_matrix')
 
@@ -113,7 +112,7 @@ def write_workflow_metrics_json(metrics, output_path, config):
         }
     }
 
-    with open(output_path, 'w') as f:
+    with open(output_file_path, 'w') as f:
         json.dump(result, f, separators=(',', ':'))
 
-    logger.info(f"Workflow metrics written to: {output_path}")
+    logger.info(f"Workflow metrics written to: {output_file_path}")
