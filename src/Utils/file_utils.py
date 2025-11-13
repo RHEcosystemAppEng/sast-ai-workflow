@@ -38,6 +38,28 @@ def read_known_errors_file(path):
         return doc_set
 
 
+def _validate_and_store_false_positive_value(issue_id, is_false_positive):
+    """
+    Validates and stores a false positive value for a given issue ID.
+
+    Args:
+        issue_id: The issue identifier (e.g., 'def1', 'def2')
+        is_false_positive: The raw false positive value to validate
+
+    Returns:
+        The normalized false positive value (lowercased and stripped)
+    """
+    normalized_value = str(is_false_positive).strip().lower()
+
+    if normalized_value not in ALL_VALID_OPTIONS:
+        logger.warning(
+            f"Warning: {issue_id} has invalid value '{normalized_value}' \
+                in 'False Positive?' column."
+        )
+
+    return normalized_value
+
+
 def get_human_verified_results(config: Config):
     if config.HUMAN_VERIFIED_FILE_PATH:
         if config.HUMAN_VERIFIED_FILE_PATH.startswith("https"):
@@ -73,15 +95,9 @@ def get_human_verified_results_local_excel(filename):
     ground_truth = {}
     for idx, row in df.iterrows():
         issue_id = f"def{idx + 1}"  # idx starts at 0, so add 1 to get def1, def2, ...
-        is_false_positive = str(row[expected_false_positive]).strip().lower()
-
-        if is_false_positive not in ALL_VALID_OPTIONS:
-            logger.warning(
-                f"Warning: {issue_id} has invalid value '{is_false_positive}' \
-                    in 'False Positive?' column."
-            )
-
-        ground_truth[issue_id] = is_false_positive
+        ground_truth[issue_id] = _validate_and_store_false_positive_value(
+            issue_id, row[expected_false_positive]
+        )
 
     logger.info(f"Successfully loaded ground truth from {filename} ({len(ground_truth)} issues)")
     return ground_truth
@@ -106,14 +122,10 @@ def get_human_verified_results_google_sheet(service_account_file_path, google_sh
     if rows[0].get("False Positive?"):
         ground_truth = {}
         for idx, row in enumerate(rows, start=1):  # start=1 to get def1, def2, ...
-            is_false_positive = row.get("False Positive?", "").strip().lower()
-            if is_false_positive.lower() not in ALL_VALID_OPTIONS:
-                logger.warning(
-                    f"Warning: def{idx} has invalid value '{is_false_positive}' \
-                        in 'False Positive?' column."
-                )
-
-            ground_truth[f"def{idx}"] = is_false_positive
+            issue_id = f"def{idx}"
+            ground_truth[issue_id] = _validate_and_store_false_positive_value(
+                issue_id, row.get("False Positive?", "")
+            )
 
     else:
         ground_truth = None
