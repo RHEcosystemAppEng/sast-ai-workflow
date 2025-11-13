@@ -1,0 +1,167 @@
+# Evaluation Mode Patches for MLOps Overlay - Simplified
+#
+# This file patches the base Tekton task to support evaluation mode.
+# Removes unnecessary validation, checks, and upload steps.
+# Assumes XLSX files always come from DVC/S3/MinIO.
+#
+# EVALUATE_SPECIFIC_NODE can be:
+# - "all" - runs normal SAST workflow
+# - "filter" - runs only filter evaluation
+# - "judge" - runs only judge evaluation
+# - "summary" - runs only summary evaluation
+# - "all,filter" - runs normal SAST workflow + filter evaluation
+#
+- op: add
+  path: /spec/results/-
+  value:
+    name: filter-evaluation-results
+    description: "JSON evaluation results from filter node"
+- op: add
+  path: /spec/results/-
+  value:
+    name: judge-evaluation-results
+    description: "JSON evaluation results from judge node"
+- op: add
+  path: /spec/results/-
+  value:
+    name: summary-evaluation-results
+    description: "JSON evaluation results from summary node"
+- op: add
+  path: /spec/results/-
+  value:
+    name: workflow-metrics
+    description: "JSON containing workflow metrics (TP/FP/TN/FN, accuracy, precision, recall, F1)"
+# Override SERVICE_ACCOUNT_JSON_PATH to prevent Google Sheets authentication attempts
+# MLOps evaluation mode always uses XLSX files from DVC/S3/MinIO, never Google Sheets
+- op: replace
+  path: /spec/steps/5/env/16/value
+  value: ""
+- op: replace
+  path: /spec/steps/5/image
+  value: "$(params.CONTAINER_IMAGE)"
+- op: replace
+  path: /spec/steps/5/script
+  value: |
+    #!/usr/bin/env sh
+    # Export Tekton parameters as environment variables for the script
+    export EVALUATE_SPECIFIC_NODE="$(params.EVALUATE_SPECIFIC_NODE)"
+    export PROJECT_NAME="$(params.PROJECT_NAME)"
+    export PROJECT_VERSION="$(params.PROJECT_VERSION)"
+
+    # Run the evaluation workflow script
+    /app/deploy/tekton/scripts/run-evaluation-workflow.sh
+- op: replace
+  path: /spec/steps/6/script
+  value: |
+    #!/usr/bin/env sh
+    echo "=== STEP 7: WRITE ALL EVALUATION RESULTS ==="
+
+    # Load repo path for DVC commit hash
+    if [ -f "/shared-data/env.txt" ]; then
+      . /shared-data/env.txt
+      export REPO_LOCAL_PATH
+    fi
+
+    # Write filter evaluation if exists
+    if [ -f "/shared-data/eval_results/filter.json" ]; then
+      cat /shared-data/eval_results/filter.json > $(results.filter-evaluation-results.path)
+      FILTER_SIZE=$(wc -c < $(results.filter-evaluation-results.path))
+      echo "filter-evaluation-results: $FILTER_SIZE bytes"
+    else
+      echo "{}" > $(results.filter-evaluation-results.path)
+      echo "filter-evaluation-results: {} (empty)"
+    fi
+
+    # Write judge evaluation if exists
+    if [ -f "/shared-data/eval_results/judge.json" ]; then
+      cat /shared-data/eval_results/judge.json > $(results.judge-evaluation-results.path)
+      JUDGE_SIZE=$(wc -c < $(results.judge-evaluation-results.path))
+      echo "judge-evaluation-results: $JUDGE_SIZE bytes"
+    else
+      echo "{}" > $(results.judge-evaluation-results.path)
+      echo "judge-evaluation-results: {} (empty)"
+    fi
+
+    # Write summary evaluation result
+    if [ -f "/shared-data/eval_results/summary.json" ]; then
+      cat /shared-data/eval_results/summary.json > $(results.summary-evaluation-results.path)
+      SUMMARY_SIZE=$(wc -c < $(results.summary-evaluation-results.path))
+      echo "summary-evaluation-results: $SUMMARY_SIZE bytes"
+    else
+      echo "{}" > $(results.summary-evaluation-results.path)
+      echo "summary-evaluation-results: {} (empty)"
+    fi
+
+    # Write workflow metrics
+    if [ -f "/shared-data/output/workflow_metrics.json" ]; then
+      cat /shared-data/output/workflow_metrics.json > $(results.workflow-metrics.path)
+      METRICS_SIZE=$(wc -c < $(results.workflow-metrics.path))
+      echo "workflow-metrics: $METRICS_SIZE bytes"
+    else
+      echo "{}" > $(results.workflow-metrics.path)
+      echo "workflow-metrics: {} (empty)"
+    fi
+
+    # Write DVC results
+    echo -n "$(params.PROJECT_VERSION)" > $(results.dvc-data-version.path)
+
+    # For git repos, extract commit hash; for SRPM/non-git, leave empty
+    if [ -d "$REPO_LOCAL_PATH/.git" ]; then
+      cd "$REPO_LOCAL_PATH" && git rev-parse HEAD > $(results.dvc-commit-hash.path) || echo -n "" > $(results.dvc-commit-hash.path)
+    else
+      echo -n "" > $(results.dvc-commit-hash.path)
+    fi
+
+    # Pipeline stage identifier
+    echo -n "sast_ai_analysis" > $(results.dvc-pipeline-stage.path)
+
+    echo "All evaluation results written successfully"
+- op: replace
+  path: /spec/steps/7/script
+  value: |
+    #!/usr/bin/env sh
+    echo "=== STEP 8: CLEANUP ==="
+
+    # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
+    EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
+    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+    if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
+      echo "Skipping cleanup in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
+      exit 0
+    fi
+
+    CLEANED_ITEMS=""
+
+    # Remove source code directory
+    if [ -d "/shared-data/source" ]; then
+        rm -rf /shared-data/source/* >/dev/null 2>&1
+        CLEANED_ITEMS="$CLEANED_ITEMS source-code"
+    fi
+
+    # Remove false positives file
+    if [ -f "/shared-data/false-positives/ignore.err" ]; then
+        rm -f /shared-data/false-positives/ignore.err >/dev/null 2>&1
+        CLEANED_ITEMS="$CLEANED_ITEMS false-positives"
+    fi
+
+    # Clean up any temporary files in cache
+    if [ -d "/cache-data/tmp" ]; then
+        rm -rf /cache-data/tmp/* >/dev/null 2>&1
+        CLEANED_ITEMS="$CLEANED_ITEMS temp-files"
+    fi
+
+    # Report what was cleaned
+    if [ -n "$CLEANED_ITEMS" ]; then
+        echo "Cleaned:$CLEANED_ITEMS"
+    else
+        echo "Nothing to clean"
+    fi
+
+    # Preserve output file
+    if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+        echo "Output file preserved"
+    fi
+
+    echo "Cleanup completed successfully"
+- op: remove
+  path: /spec/steps/8

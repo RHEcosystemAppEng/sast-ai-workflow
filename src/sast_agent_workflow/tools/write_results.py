@@ -1,4 +1,5 @@
 import logging
+import os
 
 from nat.builder.builder import Builder
 from nat.builder.function_info import FunctionInfo
@@ -30,7 +31,7 @@ from dto.EvaluationSummary import EvaluationSummary
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from report_writers import write_analysis_results
 from Utils.file_utils import get_human_verified_results
-from Utils.output_utils import print_conclusion
+from Utils.output_utils import print_conclusion, write_workflow_metrics_json
 from Utils.workflow_utils import convert_tracker_to_summary_data
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,14 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
             print_conclusion(evaluation_summary)
         except Exception as e:
             logger.error(f"Failed to print conclusion: {e}")
+
+        # Write metrics to JSON for orchestrator/database if requested
+        output_file = os.getenv('WORKFLOW_JSON_OUTPUT', None)
+        if output_file and tracker.metrics:
+            try:
+                write_workflow_metrics_json(tracker.metrics, output_file)
+            except Exception as e:
+                logger.error(f"Failed to write workflow metrics JSON: {e}")
 
         logger.info("Write_Results node completed")
         return tracker
@@ -167,15 +176,15 @@ def _create_mock_evaluation_summary(summary_data, config, metrics):
         mock_summary.tp = mock_summary.tn = mock_summary.fp = mock_summary.fn = 0
 
     # ExcelWriter expects these to be collections that support len()
-    # Map from our stored sets/lists back to the expected attributes
-    if METRICS_FIELD_ACTUAL_TRUE_POSITIVES in metrics:
-        mock_summary.actual_true_positives = metrics[METRICS_FIELD_ACTUAL_TRUE_POSITIVES]
-    if METRICS_FIELD_ACTUAL_FALSE_POSITIVES in metrics:
-        mock_summary.actual_false_positives = metrics[METRICS_FIELD_ACTUAL_FALSE_POSITIVES]
-    if METRICS_FIELD_PREDICTED_TRUE_POSITIVES in metrics:
-        mock_summary.predicted_true_positives = metrics[METRICS_FIELD_PREDICTED_TRUE_POSITIVES]
-    if METRICS_FIELD_PREDICTED_FALSE_POSITIVES in metrics:
-        mock_summary.predicted_false_positives = metrics[METRICS_FIELD_PREDICTED_FALSE_POSITIVES]
+    # Always initialize to empty sets, then override with metrics if available
+    mock_summary.actual_true_positives = metrics.get(METRICS_FIELD_ACTUAL_TRUE_POSITIVES, set())
+    mock_summary.actual_false_positives = metrics.get(METRICS_FIELD_ACTUAL_FALSE_POSITIVES, set())
+    mock_summary.predicted_true_positives = metrics.get(
+        METRICS_FIELD_PREDICTED_TRUE_POSITIVES, set()
+    )
+    mock_summary.predicted_false_positives = metrics.get(
+        METRICS_FIELD_PREDICTED_FALSE_POSITIVES, set()
+    )
 
     # Add other metrics that ExcelWriter might need (excluding the collections and counts)
     for key, value in metrics.items():

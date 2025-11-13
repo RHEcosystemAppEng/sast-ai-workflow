@@ -100,6 +100,7 @@ class BaseEvaluationConverter(ABC):
             'INPUT_REPORT_FILE_PATH': '/dev/null',
             'OUTPUT_FILE_PATH': '/dev/null',
             'KNOWN_FALSE_POSITIVE_FILE_PATH': '/dev/null',
+            'USE_KNOWN_FALSE_POSITIVE_FILE': 'false',  # Disable validation during config creation
             'PROJECT_NAME': f'{self.evaluation_name}-eval',
             'PROJECT_VERSION': '1.0.0',
             'REPO_LOCAL_PATH': str(self.project_root)
@@ -107,7 +108,7 @@ class BaseEvaluationConverter(ABC):
         defaults.update(kwargs)
 
         for key, value in defaults.items():
-            os.environ.setdefault(key, value)
+            os.environ.setdefault(key, str(value))
 
     def create_config(self):
         """Create Config object with fallback to minimal config."""

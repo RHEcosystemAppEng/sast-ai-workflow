@@ -1,4 +1,6 @@
+import json
 import logging
+from datetime import datetime
 
 from prettytable import PrettyTable
 
@@ -84,3 +86,33 @@ def filter_items_for_evaluation(summary_data):
         else:
             failed_item_ids.append(issue_result[0].id)
     return items_for_evaluation, failed_item_ids
+
+
+def write_workflow_metrics_json(metrics, output_file_path):
+    """Write workflow metrics to JSON file for orchestrator/database storage.
+
+    Args:
+        metrics: Dictionary containing calculated metrics from calculate_metrics node
+        output_file_path: File path where JSON should be written
+    """
+    confusion_matrix = metrics.get('confusion_matrix')
+
+    result = {
+        "aggregated_metrics": {
+            "accuracy": metrics.get('accuracy', 0.0),
+            "precision": metrics.get('precision', 0.0),
+            "recall": metrics.get('recall', 0.0),
+            "f1_score": metrics.get('f1_score', 0.0)
+        },
+        "cm": {
+            "tp": int(confusion_matrix.get('true_positives', 0)) if confusion_matrix else 0,
+            "fp": int(confusion_matrix.get('false_positives', 0)) if confusion_matrix else 0,
+            "tn": int(confusion_matrix.get('true_negatives', 0)) if confusion_matrix else 0,
+            "fn": int(confusion_matrix.get('false_negatives', 0)) if confusion_matrix else 0
+        }
+    }
+
+    with open(output_file_path, 'w') as f:
+        json.dump(result, f, separators=(',', ':'))
+
+    logger.info(f"Workflow metrics written to: {output_file_path}")

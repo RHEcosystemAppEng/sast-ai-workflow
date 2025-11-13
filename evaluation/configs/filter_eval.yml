@@ -8,7 +8,7 @@ general:
 llms:
   eval_llm:
     _type: nim
-    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    model_name: ${LLM_MODEL_NAME}
     temperature: 0.0
     max_tokens: 1024
     api_key: ${LLM_API_KEY}
@@ -17,17 +17,17 @@ llms:
     include_usage: true
   judge_llm:
     _type: nim
-    model_name: nvidia/llama-3.1-nemotron-70b-instruct
+    model_name: ${LLM_MODEL_NAME}
     temperature: 0.5
     max_tokens: 2048
     api_key: ${LLM_API_KEY}
 
-# Embedder configuration - using real sentence-transformers endpoint for FAISS
+# Embedder configuration - using NVIDIA API (OpenShift service has CUDA errors)
 embedders:
   filter_embedding:
     _type: extended_openai
-    model_name: sentence-transformers/all-mpnet-base-v2
-    base_url: https://all-mpnet-base-v2-sast-ai-embedding.apps.ai-dev03.kni.syseng.devcluster.openshift.com/v1
+    model_name: ${EMBEDDINGS_LLM_MODEL_NAME}
+    base_url: ${EMBEDDINGS_LLM_URL}
     api_key: ${EMBEDDINGS_LLM_API_KEY}
 
 # Workflow configuration - use filter function directly
@@ -61,6 +61,3 @@ eval:
       enable_telemetry: true
       bottleneck_analysis:
         enable_nested_stack: false
-
-  # Generate validation reports instead of complex LLM evaluation
-  validation_reports_only: true

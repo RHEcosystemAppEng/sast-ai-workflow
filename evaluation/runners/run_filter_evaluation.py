@@ -11,9 +11,11 @@ Or run directly:
     LLM_API_KEY=your_key python evaluation/runners/run_filter_evaluation.py
 """
 
+import logging
 import os
 import subprocess
 import sys
+import yaml
 from pathlib import Path
 from typing import List, Dict
 
@@ -26,6 +28,9 @@ from evaluation.constants import (
     FILTER_CONFIG_FILENAME
 )
 from evaluation.runners.base_runner import BaseEvaluationRunner
+from evaluation.utils.generate_evaluation_json import FilterJsonGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class FilterEvaluationRunner(BaseEvaluationRunner):
@@ -46,7 +51,8 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
             'INPUT_REPORT_FILE_PATH': '/dev/null',
             'OUTPUT_FILE_PATH': '/dev/null',
             'REPO_LOCAL_PATH': str(self.project_root),
-            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDINGS_LLM_API_KEY', '')
+            'EMBEDDINGS_LLM_API_KEY': os.getenv('EMBEDDINGS_LLM_API_KEY', ''),
+            'KNOWN_FALSE_POSITIVE_FILE_PATH': os.getenv('KNOWN_FALSE_POSITIVE_FILE_PATH', '')
         }
 
     def get_reports_dir(self) -> Path:
@@ -69,48 +75,109 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         embedding_api_key = os.getenv('EMBEDDINGS_LLM_API_KEY')
 
         if not embedding_api_key:
-            print("Error: EMBEDDINGS_LLM_API_KEY environment variable not set")
-            print("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
+            logger.error("EMBEDDINGS_LLM_API_KEY environment variable not set")
+            logger.error("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
             return False
 
         return True
 
+    def additional_environment_checks(self) -> bool:
+        """Additional checks for filter evaluation."""
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+
+        if eval_dataset_path:
+            logger.info(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
+
+            if not Path(eval_dataset_path).exists():
+                logger.error(f"Dynamic dataset file not found: {eval_dataset_path}")
+                return False
+
+            config_path = self.project_root / 'evaluation' / 'configs' / FILTER_CONFIG_FILENAME
+            logger.info(f"Updating config file: {config_path}")
+
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # DYNAMICALLY OVERRIDE THE DATASET PATH
+                config['eval']['general']['dataset']['file_path'] = eval_dataset_path
+
+                with open(config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                logger.info(f"Config updated to use dynamic dataset: {eval_dataset_path}")
+                return True
+
+            except Exception as e:
+                logger.error(f"Error updating config: {e}")
+                return False
+        else:
+            # Use default path from config file
+            dataset_path = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
+            if not dataset_path.exists():
+                logger.error(f"Dataset file not found: {dataset_path}")
+                return False
+            return True
+
     def run_post_evaluation_tasks(self):
-        """Run filter validation analysis against ground truth."""
-        print("\n" + "=" * 60)
-        print("Running Filter Validation Analysis")
-        print("=" * 60)
+        """Run filter validation analysis and generate JSON output."""
+        logger.info("=" * 60)
+        logger.info("Running Filter Validation Analysis")
+        logger.info("=" * 60)
 
         validation_script = self.project_root / UTILS_DIR / FILTER_VALIDATION_SCRIPT
-        dataset_file = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
+
+        # Use dynamic dataset path if available, otherwise use default
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+        if eval_dataset_path:
+            dataset_file = Path(eval_dataset_path)
+            logger.info(f"Using dynamic dataset for validation: {dataset_file}")
+        else:
+            dataset_file = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
+            logger.info(f"Using default dataset for validation: {dataset_file}")
+
         reports_dir = self.get_reports_dir()
 
         try:
-            print(f"Executing validation: python {validation_script} {reports_dir} {dataset_file}")
+            logger.info(f"Executing validation: python {validation_script} {reports_dir} {dataset_file}")
             result = subprocess.run([
                 "python", str(validation_script), str(reports_dir), str(dataset_file)
             ], check=True, capture_output=True, text=True)
 
-            print("Validation analysis completed successfully!")
+            logger.info("Validation analysis completed successfully!")
             if result.stdout:
-                print("Validation Output:")
-                print(result.stdout)
+                logger.info("Validation Output:")
+                logger.info(result.stdout)
 
-            print(f"  - {REPORTS_FILTER_DIR}/{FILTER_VALIDATION_REPORT_FILENAME}")
-            return True
+            logger.info(f"  - {REPORTS_FILTER_DIR}/{FILTER_VALIDATION_REPORT_FILENAME}")
 
         except subprocess.CalledProcessError as e:
-            print(f"Error running validation analysis: {e}")
+            logger.error(f"Error running validation analysis: {e}")
             if e.stdout:
-                print("Stdout:", e.stdout)
+                logger.error(f"Stdout: {e.stdout}")
             if e.stderr:
-                print("Stderr:", e.stderr)
-            print("Warning: Validation analysis failed, but continuing with archival")
-            return False
+                logger.error(f"Stderr: {e.stderr}")
+            logger.warning("Validation analysis failed, but continuing")
         except FileNotFoundError:
-            print("Error: Python not found or validation script missing")
-            print("Warning: Validation analysis failed, but continuing with archival")
-            return False
+            logger.error("Python not found or validation script missing")
+            logger.warning("Validation analysis failed, but continuing")
+
+        logger.info("=" * 60)
+        logger.info("Generating JSON Output for Orchestrator")
+        logger.info("=" * 60)
+
+        generator = FilterJsonGenerator(reports_dir, FILTER_DATASET_FILENAME)
+
+        # Check if running in Tekton evaluation mode with direct file output
+        output_file = os.getenv('EVALUATION_JSON_OUTPUT', None)
+        if output_file:
+            generator.generate_json_to_file(output_file, summary_only=True, tekton_compact=True)
+            logger.info(f"Evaluation results written to: {output_file}")
+        else:
+            generator.generate_json()
+
+        return True
+
 
 def main():
     """Main evaluation runner."""

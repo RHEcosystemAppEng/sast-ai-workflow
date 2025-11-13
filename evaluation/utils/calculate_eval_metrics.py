@@ -5,6 +5,7 @@ from workflow output files containing investigation results.
 """
 
 import json
+import logging
 import os
 import sys
 from typing import Dict, List, Any
@@ -19,6 +20,8 @@ from evaluation.constants import (
     CLASSIFICATION_TRUE_POSITIVE,
     CLASSIFICATION_FALSE_POSITIVE
 )
+
+logger = logging.getLogger(__name__)
 
 
 def extract_investigation_result(generated_answer: str) -> str:
@@ -59,7 +62,19 @@ def calculate_metrics(predictions: List[str], ground_truth: List[str]) -> Dict[s
         Dictionary containing calculated metrics
     """
     if len(predictions) != len(ground_truth):
-        raise ValueError("Predictions and ground truth must have the same length")
+        logger.warning(f"WARNING: Predictions ({len(predictions)}) and ground truth ({len(ground_truth)}) length mismatch - returning zero metrics")
+        # Return zero metrics with same format as normal return
+        return {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1_score": 0.0,
+            "accuracy": 0.0,
+            "total_items": 0,
+            "true_positives": 0,
+            "false_positives": 0,
+            "true_negatives": 0,
+            "false_negatives": 0
+        }
 
     tp = sum(1 for p, g in zip(predictions, ground_truth)
              if p == CLASSIFICATION_TRUE_POSITIVE and g == CLASSIFICATION_TRUE_POSITIVE)
@@ -104,7 +119,7 @@ def process_workflow_output(file_path: str) -> Dict[str, Any]:
         with open(file_path, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Error reading {file_path}: {e}")
+        logger.error(f"Error reading {file_path}: {e}")
         return {}
 
     predictions = []
@@ -178,19 +193,19 @@ def calculate_metrics_from_workflow(workflow_output_file: str) -> Dict[str, Any]
 def main():
     """Main function for standalone execution."""
     if len(sys.argv) != 2:
-        print("Usage: python calculate_eval_metrics.py <workflow_output.json>")
+        logger.error("Usage: python calculate_eval_metrics.py <workflow_output.json>")
         sys.exit(1)
 
     workflow_file = sys.argv[1]
 
     if not os.path.exists(workflow_file):
-        print(f"Error: File {workflow_file} does not exist")
+        logger.error(f"File {workflow_file} does not exist")
         sys.exit(1)
 
     results = calculate_metrics_from_workflow(workflow_file)
 
     if "error" in results:
-        print(f"Error: {results['error']}")
+        logger.error(results['error'])
         sys.exit(1)
 
     print("Evaluation Metrics Results:")

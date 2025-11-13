@@ -14,16 +14,25 @@ Or run directly:
 """
 
 import json
+import logging
+import os
 import sys
+import yaml
 from pathlib import Path
 from typing import List, Dict
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from evaluation.constants import REPORTS_JUDGE_LLM_DIR, WORKFLOW_OUTPUT_FILENAME, EVALUATION_METRICS_FILENAME, JUDGE_LLM_CONFIG_FILENAME
+from evaluation.constants import (
+    REPORTS_JUDGE_LLM_DIR, WORKFLOW_OUTPUT_FILENAME, EVALUATION_METRICS_FILENAME,
+    JUDGE_LLM_CONFIG_FILENAME, DATASET_JUDGE_LLM_DIR, JUDGE_LLM_DATASET_FILENAME
+)
 from evaluation.runners.base_runner import BaseEvaluationRunner
 from evaluation.utils.calculate_eval_metrics import calculate_metrics_from_workflow
+from evaluation.utils.generate_evaluation_json import JudgeLLMJsonGenerator
+
+logger = logging.getLogger(__name__)
 
 class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
     """Judge LLM analysis evaluation runner."""
@@ -58,16 +67,53 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
             "src/sast_agent_workflow/tools/iac.py (context analysis)"
         ]
 
+    def additional_environment_checks(self) -> bool:
+        """Additional checks for judge LLM evaluation."""
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+
+        if eval_dataset_path:
+            logger.info(f"Using dynamic dataset path from EVALUATION_DATASET_PATH: {eval_dataset_path}")
+
+            if not Path(eval_dataset_path).exists():
+                logger.error(f"Dynamic dataset file not found: {eval_dataset_path}")
+                return False
+
+            config_path = os.path.join(self.project_root, 'evaluation', 'configs', JUDGE_LLM_CONFIG_FILENAME)
+
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # DYNAMICALLY OVERRIDE THE DATASET PATH
+                config['eval']['general']['dataset']['file_path'] = eval_dataset_path
+
+                with open(config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+                logger.info(f"Config updated to use dynamic dataset: {eval_dataset_path}")
+                return True
+
+            except Exception as e:
+                logger.error(f"Error updating config: {e}")
+                return False
+        else:
+            # Use default path from config file
+            dataset_path = os.path.join(self.project_root, DATASET_JUDGE_LLM_DIR, JUDGE_LLM_DATASET_FILENAME)
+            if not os.path.exists(dataset_path):
+                logger.error(f"Dataset file not found: {dataset_path}")
+                return False
+            return True
+
     def run_post_evaluation_tasks(self):
-        """Calculate evaluation metrics for judge LLM evaluation."""
+        """Calculate evaluation metrics and generate JSON output for judge LLM evaluation."""
         workflow_output_path = self.get_reports_dir() / WORKFLOW_OUTPUT_FILENAME
         if workflow_output_path.exists():
-            print("\\nCalculating evaluation metrics...")
+            logger.info("Calculating evaluation metrics...")
             try:
                 metrics_results = calculate_metrics_from_workflow(str(workflow_output_path))
 
                 if "error" in metrics_results:
-                    print(f"Warning: Could not calculate metrics - {metrics_results['error']}")
+                    logger.warning(f"Could not calculate metrics - {metrics_results['error']}")
                 else:
                     metrics_file = self.get_reports_dir() / EVALUATION_METRICS_FILENAME
                     with open(metrics_file, 'w') as f:
@@ -76,16 +122,28 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
                     metrics = metrics_results["metrics"]
                     metadata = metrics_results["metadata"]
 
-                    print(f"  Processed {metadata['processed_items']}/{metadata['total_items']} items")
-                    print(f"  Accuracy:  {metrics['accuracy']:.4f}")
-                    print(f"  Precision: {metrics['precision']:.4f}")
-                    print(f"  Recall:    {metrics['recall']:.4f}")
-                    print(f"  F1 Score:  {metrics['f1_score']:.4f}")
-                    print(f"  Metrics saved to: {EVALUATION_METRICS_FILENAME}")
+                    logger.info(f"  Processed {metadata['processed_items']}/{metadata['total_items']} items")
+                    logger.info(f"  Accuracy:  {metrics['accuracy']:.4f}")
+                    logger.info(f"  Precision: {metrics['precision']:.4f}")
+                    logger.info(f"  Recall:    {metrics['recall']:.4f}")
+                    logger.info(f"  F1 Score:  {metrics['f1_score']:.4f}")
+                    logger.info(f"  Metrics saved to: {EVALUATION_METRICS_FILENAME}")
             except Exception as e:
-                print(f"Warning: Error calculating metrics - {e}")
+                logger.warning(f"Error calculating metrics - {e}")
+
+            logger.info("Generating JSON output for orchestrator...")
+            reports_dir = self.get_reports_dir()
+            generator = JudgeLLMJsonGenerator(reports_dir, JUDGE_LLM_DATASET_FILENAME)
+
+            # Check if running in Tekton evaluation mode with direct file output
+            output_file = os.getenv('EVALUATION_JSON_OUTPUT', None)
+            if output_file:
+                generator.generate_json_to_file(output_file, summary_only=True, tekton_compact=True)
+                logger.info(f"Evaluation results written to: {output_file}")
+            else:
+                generator.generate_json()
         else:
-            print(f"\\nWarning: {WORKFLOW_OUTPUT_FILENAME} not found, skipping metrics calculation")
+            logger.warning(f"{WORKFLOW_OUTPUT_FILENAME} not found, skipping metrics calculation")
 
 def main():
     """Main evaluation runner."""
