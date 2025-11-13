@@ -78,8 +78,7 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
                 logger.error(f"Dynamic dataset file not found: {eval_dataset_path}")
                 return False
 
-            config_path = self.project_root / 'evaluation' / 'configs' / JUDGE_LLM_CONFIG_FILENAME
-            logger.info(f"Updating config file: {config_path}")
+            config_path = os.path.join(self.project_root, 'evaluation', 'configs', JUDGE_LLM_CONFIG_FILENAME)
 
             try:
                 with open(config_path, 'r') as f:
