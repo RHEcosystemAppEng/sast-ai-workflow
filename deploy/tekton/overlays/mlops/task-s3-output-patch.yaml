@@ -59,6 +59,17 @@
       set -e
       echo "=== UPLOAD TO S3/MINIO OUTPUT ==="
 
+      # Inline S3 availability check (from s3-helper.sh check mode)
+      if [ -f "/shared-data/s3-available.txt" ]; then
+        S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
+        if [ "$S3_AVAILABLE" = "false" ]; then
+          echo "Skipped: S3 endpoint not available (see Step 4)"
+          exit 0
+        fi
+      else
+        echo "Warning: S3 availability status file not found, proceeding with caution"
+      fi
+
       # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
       EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
       EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
