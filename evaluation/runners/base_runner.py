@@ -283,7 +283,7 @@ class BaseEvaluationRunner(ABC):
 
     def run_nat_evaluation(self, config_file: Optional[str] = None, debug_mode: bool = False):
         """Run NAT evaluation with automatic metrics collection."""
-        logger.info(f"\\nRunning NAT Evaluation for {self.evaluation_name}...")
+        logger.info(f"\nRunning NAT Evaluation for {self.evaluation_name}...")
         logger.info("This will automatically collect:")
         logger.info("- Token counts (input/output/total)")
         logger.info("- Processing time metrics")
@@ -339,14 +339,14 @@ class BaseEvaluationRunner(ABC):
 
             logger.info("NAT evaluation completed successfully!")
             if result.stdout:
-                logger.info("Output:", result.stdout)
+                logger.info(f"Output: {result.stdout}")
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Error running NAT evaluation: {e}")
             if e.stdout:
-                logger.error("Stdout:", e.stdout)
+                logger.error(f"Stdout: {e.stdout}")
             if e.stderr:
-                logger.error("Stderr:", e.stderr)
+                logger.error(f"Stderr: {e.stderr}")
             raise
         except FileNotFoundError:
             logger.info("Error: 'nat' command not found. Please ensure NAT is installed and in PATH.")
@@ -370,7 +370,7 @@ class BaseEvaluationRunner(ABC):
 
     def print_results_info(self):
         """Print information about where results are saved."""
-        logger.info("\\nEvaluation completed!")
+        logger.info("\nEvaluation completed!")
         logger.info("Results saved to:")
         reports_dir = self.get_reports_dir()
         logger.info(f"  - {reports_dir}/{WORKFLOW_OUTPUT_FILENAME}")
@@ -382,10 +382,10 @@ class BaseEvaluationRunner(ABC):
         reports_dir = self.project_root / REPORTS_BASE_DIR
         archived_path = archive_evaluation_results(str(reports_dir), self.evaluation_name)
         if archived_path:
-            logger.info(f"\\nResults archived to: {archived_path}")
+            logger.info(f"\nResults archived to: {archived_path}")
             return archived_path
         else:
-            logger.info("\\nNote: Results were not archived (no files found)")
+            logger.info("\nNote: Results were not archived (no files found)")
             return None
 
     def run_post_evaluation_tasks(self):

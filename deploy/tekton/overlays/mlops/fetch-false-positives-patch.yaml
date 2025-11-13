@@ -34,6 +34,17 @@
       set -euo pipefail
       echo "=== STEP 5: FETCH FALSE POSITIVES FROM DVC ==="
 
+      # Inline S3 availability check (from s3-helper.sh check mode)
+      if [ -f "/shared-data/s3-available.txt" ]; then
+        S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
+        if [ "$S3_AVAILABLE" = "false" ]; then
+          echo "Skipped: S3 endpoint not available (see Step 4)"
+          exit 0
+        fi
+      else
+        echo "Warning: S3 availability status file not found, proceeding with caution"
+      fi
+
       # Check if false positives should be used
       if [ "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)" = "false" ]; then
         echo "Skipping false positives fetch - USE_KNOWN_FALSE_POSITIVE_FILE is false"
@@ -65,9 +76,14 @@
       echo "DVC Version: $DVC_DATA_VERSION"
       echo "S3 Endpoint: $S3_ENDPOINT_URL"
 
-      # Use DVC to fetch the file
-      dvc get "$DVC_REPO_URL" "$DVC_PATH" --rev "$DVC_DATA_VERSION" -o "/shared-data/false-positives/${FP_FILENAME}" \
-        || (echo "Error: Could not fetch false positives file from DVC/S3/MinIO" && exit 0)
-
-      echo "False positives file downloaded successfully via DVC"
-      echo "File size: $(du -h /shared-data/false-positives/${FP_FILENAME} | cut -f1)"
+      # Check if file exists in DVC before attempting download
+      if dvc list "$DVC_REPO_URL" "$DVC_FP_BASE_DIR/${PROJECT_NAME}" --rev "$DVC_DATA_VERSION" 2>/dev/null | grep -q "$FP_FILENAME"; then
+        echo "False positives file found in DVC, downloading..."
+        dvc get "$DVC_REPO_URL" "$DVC_PATH" --rev "$DVC_DATA_VERSION" -o "/shared-data/false-positives/${FP_FILENAME}" \
+          || (echo "Error: Failed to download false positives file despite it existing in DVC" && exit 1)
+        echo "False positives file downloaded successfully via DVC"
+        echo "File size: $(du -h /shared-data/false-positives/${FP_FILENAME} | cut -f1)"
+      else
+        echo "No false positives file found for ${PROJECT_NAME} - continuing without filtering"
+        exit 0
+      fi

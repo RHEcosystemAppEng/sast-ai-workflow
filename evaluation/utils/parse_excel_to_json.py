@@ -48,8 +48,12 @@ class BaseExcelParser(ABC):
         test_cases = self._extract_test_cases()
 
         if not test_cases:
-            logger.warning(f"No valid test cases found in {self.excel_file}")
+            logger.error(f"No valid test cases extracted from {self.excel_file} - cannot generate evaluation dataset")
             return None
+
+        if len(test_cases) < 1:
+            logger.warning(f"Only {len(test_cases)} test case(s) found in {self.excel_file} - evaluation may not be meaningful")
+            # Continue anyway - allow single test case datasets for debugging
 
         output_file = self._write_output(test_cases)
         return output_file
@@ -58,6 +62,12 @@ class BaseExcelParser(ABC):
         """Load Excel file into DataFrame."""
         try:
             self.df = pd.read_excel(self.excel_file)
+
+            # Validate DataFrame is not empty
+            if self.df.empty:
+                logger.error(f"Excel file {self.excel_file} is empty (no rows)")
+                return False
+
             return True
         except Exception as e:
             logger.error(f"Error reading {self.excel_file}: {e}")
@@ -87,22 +97,33 @@ class BaseExcelParser(ABC):
         """Get default output filename for this parser type."""
         pass
 
-    def _write_output(self, test_cases: List[Dict[str, Any]]) -> str:
+    def _write_output(self, test_cases: List[Dict[str, Any]]) -> Optional[str]:
         """Write test cases to JSON file."""
         if self.output_path:
             output_file = self.output_path
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
         else:
             output_file = self._get_default_output_filename()
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(test_cases, f, indent=2, ensure_ascii=False)
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_file)
+        if output_dir:  # Only create if dirname is not empty
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                logger.warning(f"WARNING: Failed to create output directory {output_dir}: {e} - cannot write output file")
+                return None
 
-        logger.info(f"  Created {len(test_cases)} test cases")
-        logger.info(f"  Output: {output_file}")
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(test_cases, f, indent=2, ensure_ascii=False)
 
-        return output_file
+            logger.info(f"  Created {len(test_cases)} test cases")
+            logger.info(f"  Output: {output_file}")
+
+            return output_file
+        except (OSError, PermissionError) as e:
+            logger.warning(f"WARNING: Failed to write output file {output_file}: {e}")
+            return None
 
     @staticmethod
     def _extract_issue_id_from_trace(finding_text: str) -> str:
@@ -184,16 +205,23 @@ class SummarizeExcelParser(BaseExcelParser):
             issue_type = self._extract_issue_type_from_finding(finding)
             source_file = self._extract_source_file_from_finding(finding)
 
-            test_case = {
-                "id": test_case_id,
-                "question": json.dumps({
+            try:
+                question_json = json.dumps({
                     "id": test_case_id,
                     "full_justification": comment,
                     "issue_type": issue_type,
                     "severity": "MEDIUM",
                     "source_file": source_file,
                     "investigation_result": "TRUE POSITIVE"
-                }),
+                })
+            except (TypeError, ValueError) as e:
+                logger.warning(f"Failed to serialize question JSON for row {idx}: {e}")
+                skipped_count += 1
+                continue
+
+            test_case = {
+                "id": test_case_id,
+                "question": question_json,
                 "expected_output": hint
             }
 
@@ -246,14 +274,21 @@ class FilterExcelParser(BaseExcelParser):
 
             expected_classification = "FALSE_POSITIVE" if is_false_positive.strip().upper() == "YES" else "TRUE_POSITIVE"
 
-            test_case = {
-                "id": test_case_id,
-                "question": json.dumps({
+            try:
+                question_json = json.dumps({
                     "id": test_case_id,
                     "finding": finding,
                     "issue_type": issue_type,
                     "source_file": source_file
-                }),
+                })
+            except (TypeError, ValueError) as e:
+                logger.warning(f"Failed to serialize question JSON for row {idx}: {e}")
+                skipped_count += 1
+                continue
+
+            test_case = {
+                "id": test_case_id,
+                "question": question_json,
                 "expected_output_obj": {
                     "filter_result": expected_classification,
                     "confidence": None,
@@ -307,15 +342,22 @@ class JudgeLLMExcelParser(BaseExcelParser):
             issue_type = self._extract_issue_type_from_finding(finding)
             source_file = self._extract_source_file_from_finding(finding)
 
-            test_case = {
-                "id": test_case_id,
-                "question": json.dumps({
+            try:
+                question_json = json.dumps({
                     "id": test_case_id,
                     "issue_name": issue_type,
                     "error_description": finding,
                     "source_code_context": "",
                     "ai_prediction": ai_prediction if ai_prediction != "nan" else ""
-                }),
+                })
+            except (TypeError, ValueError) as e:
+                logger.warning(f"Failed to serialize question JSON for row {idx}: {e}")
+                skipped_count += 1
+                continue
+
+            test_case = {
+                "id": test_case_id,
+                "question": question_json,
                 "expected_output": comment
             }
 
@@ -364,11 +406,17 @@ class BatchExcelParser:
             parser = self.parser_class(excel_file, nvr, None)
             parser.output_path = os.path.join(self.output_dir, os.path.basename(parser._get_default_output_filename()))
 
-            result = parser.parse()
-            if result:
-                processed += 1
-            else:
+            try:
+                result = parser.parse()
+                if result:
+                    processed += 1
+                    logger.info(f"Successfully processed {nvr} -> {result}")
+                else:
+                    skipped += 1
+                    logger.warning(f"Failed to process {nvr} from {excel_file} - check logs above for details")
+            except Exception as e:
                 skipped += 1
+                logger.error(f"Unexpected error processing {nvr} from {excel_file}: {e}", exc_info=True)
 
         logger.info("Summary:")
         logger.info(f"  Processed: {processed} packages")
@@ -377,16 +425,49 @@ class BatchExcelParser:
 
     def _load_test_set(self) -> None:
         """Load test set package names from CSV."""
-        test_df = pd.read_csv(self.test_set_csv)
-        self.test_packages = set(test_df['nvr'].str.strip().str.lower())
+        if not os.path.exists(self.test_set_csv):
+            logger.warning(f"WARNING: Test set CSV file not found: {self.test_set_csv} - will process all Excel files")
+            self.test_packages = set()
+            return
+
+        if not os.path.isfile(self.test_set_csv):
+            logger.warning(f"WARNING: Test set path is not a file: {self.test_set_csv} - will process all Excel files")
+            self.test_packages = set()
+            return
+
+        try:
+            test_df = pd.read_csv(self.test_set_csv)
+
+            if 'nvr' not in test_df.columns:
+                logger.warning(f"WARNING: Test set CSV missing required 'nvr' column: {self.test_set_csv} - will process all Excel files")
+                self.test_packages = set()
+                return
+
+            self.test_packages = set(test_df['nvr'].str.strip().str.lower())
+            logger.info(f"Loaded {len(self.test_packages)} packages from test set")
+        except Exception as e:
+            logger.warning(f"WARNING: Failed to load test set CSV {self.test_set_csv}: {e} - will process all Excel files")
+            self.test_packages = set()
 
     def _find_excel_files(self) -> List[str]:
         """Find all Excel files in the directory."""
-        excel_files = []
-        for filename in os.listdir(self.ground_truth_dir):
-            if filename.endswith('.xlsx') and not filename.startswith('~'):
-                excel_files.append(os.path.join(self.ground_truth_dir, filename))
-        return excel_files
+        if not os.path.exists(self.ground_truth_dir):
+            logger.warning(f"WARNING: Ground truth directory not found: {self.ground_truth_dir} - no files to process")
+            return []
+
+        if not os.path.isdir(self.ground_truth_dir):
+            logger.warning(f"WARNING: Ground truth path is not a directory: {self.ground_truth_dir} - no files to process")
+            return []
+
+        try:
+            excel_files = []
+            for filename in os.listdir(self.ground_truth_dir):
+                if filename.endswith('.xlsx') and not filename.startswith('~'):
+                    excel_files.append(os.path.join(self.ground_truth_dir, filename))
+            return excel_files
+        except Exception as e:
+            logger.warning(f"WARNING: Failed to list Excel files in {self.ground_truth_dir}: {e} - no files to process")
+            return []
 
     @staticmethod
     def _extract_nvr_from_filename(excel_file: str) -> str:
@@ -449,8 +530,8 @@ def main():
         if result:
             logger.info(f"Successfully created: {result}")
         else:
-            logger.error(f"Failed to process {args.excel_file}")
-            sys.exit(1)
+            logger.warning(f"WARNING: Failed to process {args.excel_file} - evaluation will be skipped")
+            sys.exit(1)  # Non-zero exit for shell script to detect, but pipeline will handle gracefully
 
     else:
         parser.print_help()

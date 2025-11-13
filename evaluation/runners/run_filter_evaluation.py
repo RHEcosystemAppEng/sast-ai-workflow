@@ -126,7 +126,16 @@ class FilterEvaluationRunner(BaseEvaluationRunner):
         logger.info("=" * 60)
 
         validation_script = self.project_root / UTILS_DIR / FILTER_VALIDATION_SCRIPT
-        dataset_file = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
+
+        # Use dynamic dataset path if available, otherwise use default
+        eval_dataset_path = os.environ.get('EVALUATION_DATASET_PATH')
+        if eval_dataset_path:
+            dataset_file = Path(eval_dataset_path)
+            logger.info(f"Using dynamic dataset for validation: {dataset_file}")
+        else:
+            dataset_file = self.project_root / DATASET_FILTER_DIR / FILTER_DATASET_FILENAME
+            logger.info(f"Using default dataset for validation: {dataset_file}")
+
         reports_dir = self.get_reports_dir()
 
         try:
