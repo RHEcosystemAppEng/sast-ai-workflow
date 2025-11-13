@@ -1,11 +1,6 @@
 FROM registry.access.redhat.com/ubi9/python-312 AS builder
 USER 0
-COPY requirements.txt /tmp/requirements.txt
-RUN yum install -y git clang llvm-devel && yum clean all && \
-    REQUIRED_CLANG_VERSION=$(grep -E '^clang==' /tmp/requirements.txt | cut -d'=' -f3) && \
-    INSTALLED_LIBCLANG=$(ls /usr/lib64/libclang.so.* | grep -E 'libclang\.so\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1) && \
-    ln -sf "$INSTALLED_LIBCLANG" "/usr/lib64/libclang.so.${REQUIRED_CLANG_VERSION}" && \
-    rm /tmp/requirements.txt
+RUN yum install -y git clang llvm-devel && yum clean all
 
 FROM builder
 USER 1001
