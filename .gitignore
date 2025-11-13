@@ -169,3 +169,4 @@ cython_debug/
 evaluation/dataset/*
 evaluation/reports/*
 evaluation/known_non_issues_data/*
+/.claude/

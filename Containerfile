@@ -11,10 +11,13 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY config ./config/
 COPY src ./src/
+COPY evaluation ./evaluation/
+COPY deploy ./deploy/
 COPY pyproject.toml .
 
 USER 0
-RUN chown -R 1001:1001 /app
+RUN chown -R 1001:1001 /app && \
+    chmod +x /app/deploy/tekton/scripts/*.sh
 USER 1001
 
 # Set version for setuptools-scm since .git folder is not available in container

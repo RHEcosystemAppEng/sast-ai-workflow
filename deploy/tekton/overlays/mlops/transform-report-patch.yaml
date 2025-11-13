@@ -32,126 +32,78 @@
     script: |
       #!/bin/bash
       set -e
-      echo "=== STEP 4: TRANSFORM SAST REPORT TO SARIF FORMAT ==="
+      echo "=== STEP 4: FETCH REPORT FILE FROM DVC ==="
 
       REPORT_PATH="$INPUT_REPORT_FILE_PATH"
       WORKSPACE_PATH="/shared-data"
 
-      echo "Processing report path: $REPORT_PATH"
-      echo "Workspace path: $WORKSPACE_PATH"
+      echo "Report path: $REPORT_PATH"
+      echo "Workspace: $WORKSPACE_PATH"
 
-      # Check if URL contains "minio" to determine if we should use DVC flow
-      if echo "$REPORT_PATH" | grep -q "minio"; then
-        echo "Detected MinIO URL - using DVC flow..."
+      # Inline S3 validation using curl for reliability
+      echo "Validating S3 endpoint configuration..."
+      S3_AVAILABLE="true"
 
-        # Install DVC with S3 support
-        echo "Installing DVC..."
-        dnf install -y python3-pip >/dev/null 2>&1
-        pip3 install --quiet dvc dvc-s3 >/dev/null 2>&1
-
-        # Extract the DVC path from the MinIO URL
-        DVC_PATH=$(echo "$REPORT_PATH" | sed -n "s|.*/$S3_INPUT_BUCKET_NAME/\(.*\)|\1|p" | tr '[:upper:]' '[:lower:]' | sed 's/%20/ /g')
-
-        if [ -z "$DVC_PATH" ]; then
-          echo "Error: Could not extract DVC path from MinIO URL: $REPORT_PATH"
-          exit 1
-        fi
-
-        echo "DVC Repository: $DVC_REPO_URL"
-        echo "DVC Path: $DVC_PATH"
-        echo "DVC Version: $DVC_DATA_VERSION"
-        echo "S3 Endpoint: $S3_ENDPOINT_URL"
-
-        # Extract file extension from the DVC path
-        FILE_EXT="${DVC_PATH##*.}"
-        echo "Detected file extension: $FILE_EXT"
-
-        # Use DVC to fetch the file
-        DOWNLOADED_FILE="$WORKSPACE_PATH/downloaded_report.$FILE_EXT"
-        dvc get "$DVC_REPO_URL" "${DVC_PATH}" --rev "$DVC_DATA_VERSION" -o "$DOWNLOADED_FILE" \
-          || (echo "Error: Could not fetch report file from DVC/MinIO" && exit 1)
-
-        echo "Report file downloaded successfully via DVC"
-        echo "File size: $(du -h $DOWNLOADED_FILE | cut -f1)"
-
-        # Set JSON_FILE only for JSON/SARIF files (for conversion flow)
-        if [[ "$FILE_EXT" =~ ^(json|js|sarif)$ ]]; then
-          JSON_FILE="$DOWNLOADED_FILE"
-        fi
-
-      # Check if the input is a URL of json file
-      elif [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
-        echo "Detected JSON URL - using direct download ..."
-
-        # Install curl
-        dnf install -y curl --allowerasing >/dev/null 2>&1
-
-        # Download the JSON file
-        JSON_FILE="$WORKSPACE_PATH/downloaded_report.json"
-        echo "Downloading file to: $JSON_FILE"
-        curl -kL "$REPORT_PATH" -o "$JSON_FILE"
-
-        # Verify the file was downloaded
-        if [ ! -f "$JSON_FILE" ]; then
-          echo "Error: Failed to download file"
-          exit 1
-        fi
-
-        echo "File downloaded successfully ($(wc -c < "$JSON_FILE") bytes)"
-      fi
-
-      # Common processing for both MinIO/DVC and HTTP flows
-      if [ -f "$JSON_FILE" ]; then
-        # Install required tools for SARIF conversion
-        echo "Installing required tools for SARIF conversion..."
-        dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm >/dev/null 2>&1
-        dnf install -y csdiff file >/dev/null 2>&1
-
-        # Check if it's a JSON file and convert to SARIF
-        if file "$JSON_FILE" | grep -q "JSON"; then
-          echo "Detected JSON file - converting to SARIF format..."
-
-          # Convert to SARIF format using csgrep
-          SARIF_FILE="$WORKSPACE_PATH/report.sarif"
-          echo "Converting to SARIF format: $SARIF_FILE"
-          csgrep "$JSON_FILE" --mode sarif > "$SARIF_FILE"
-
-          # Verify the SARIF file was created
-          if [ ! -f "$SARIF_FILE" ]; then
-            echo "Error: Failed to create SARIF file"
-            exit 1
-          fi
-
-          echo "SARIF file created successfully ($(wc -c < "$SARIF_FILE") bytes)"
-
-          # Clean up the downloaded JSON file
-          rm -f "$JSON_FILE"
-
-          # Set the result to the SARIF file path
-          echo -n "$SARIF_FILE" > $(results.report-file-path.path)
-          echo -n "$SARIF_FILE" > /shared-data/report-file-path.txt
-          echo "Report converted and saved as: $SARIF_FILE"
-          ls -l $SARIF_FILE
-        else
-          echo "File is already a SARIF file - using as-is"
-          # Set the result to the downloaded file path
-          echo -n "$JSON_FILE" > $(results.report-file-path.path)
-          echo -n "$JSON_FILE" > /shared-data/report-file-path.txt
-          echo "Report saved as: $JSON_FILE"
-        fi
-
-      elif [ -f "$DOWNLOADED_FILE" ]; then
-        echo "Downloaded file is not JSON/SARIF - passing through unchanged"
-        # For .xlsx and other files from MinIO, pass the downloaded file path through
-        echo -n "$DOWNLOADED_FILE" > $(results.report-file-path.path)
-        echo -n "$DOWNLOADED_FILE" > /shared-data/report-file-path.txt
-        echo "Report saved as: $DOWNLOADED_FILE"
+      if [ -z "$S3_ENDPOINT_URL" ]; then
+        echo "Warning: S3_ENDPOINT_URL is not set"
+        S3_AVAILABLE="false"
       else
-        echo "Input is not a JSON URL - passing through unchanged"
-        # For non-URL paths (Google Sheets, local files), pass the original path through
-        echo -n "$REPORT_PATH" > $(results.report-file-path.path)
-        echo -n "$REPORT_PATH" > /shared-data/report-file-path.txt
-        echo "Report path unchanged: $REPORT_PATH"
+        echo "S3 Endpoint: $S3_ENDPOINT_URL"
+        echo "Testing connectivity to S3 endpoint with curl..."
+
+        # Test S3 endpoint connectivity (ignoring HTTP errors, just checking if reachable)
+        # S3/MinIO may return 403 without auth, which is fine - we just need to know it's there
+        if curl -s --connect-timeout 10 --max-time 15 -o /dev/null -w "%{http_code}" "$S3_ENDPOINT_URL" | grep -qE "^(200|403|404)"; then
+          echo "S3 endpoint is reachable"
+        else
+          echo "Warning: Cannot connect to S3 endpoint $S3_ENDPOINT_URL"
+          S3_AVAILABLE="false"
+        fi
       fi
 
-      echo "Report preparation completed"
+      echo "$S3_AVAILABLE" > /shared-data/s3-available.txt
+      echo "S3 availability status: $S3_AVAILABLE"
+
+      if [ "$S3_AVAILABLE" = "false" ]; then
+        echo "ERROR: S3 endpoint not available - cannot fetch evaluation data"
+        echo "All evaluation steps will be skipped"
+        echo "Please verify S3_ENDPOINT_URL configuration and network connectivity"
+        exit 0
+      fi
+
+      # Install DVC with S3 support
+      echo "Installing DVC..."
+      dnf install -y python3-pip >/dev/null 2>&1
+      pip3 install --quiet dvc dvc-s3 >/dev/null 2>&1
+
+      # Extract the DVC path from the MinIO URL
+      DVC_PATH=$(echo "$REPORT_PATH" | sed -n "s|.*/$S3_INPUT_BUCKET_NAME/\(.*\)|\1|p" | tr '[:upper:]' '[:lower:]' | sed 's/%20/ /g')
+
+      if [ -z "$DVC_PATH" ]; then
+        echo "Error: Could not extract DVC path from URL: $REPORT_PATH"
+        exit 1
+      fi
+
+      echo "DVC Repository: $DVC_REPO_URL"
+      echo "DVC Path: $DVC_PATH"
+      echo "DVC Version: $DVC_DATA_VERSION"
+      echo "S3 Endpoint: $S3_ENDPOINT_URL"
+
+      # Extract file extension
+      FILE_EXT="${DVC_PATH##*.}"
+      echo "File extension: $FILE_EXT"
+
+      # Use DVC to fetch the file
+      DOWNLOADED_FILE="$WORKSPACE_PATH/downloaded_report.$FILE_EXT"
+      dvc get "$DVC_REPO_URL" "${DVC_PATH}" --rev "$DVC_DATA_VERSION" -o "$DOWNLOADED_FILE" \
+        || (echo "Error: Could not fetch report file from DVC/S3/MinIO" && exit 1)
+
+      echo "Report file downloaded successfully via DVC"
+      echo "File size: $(du -h $DOWNLOADED_FILE | cut -f1)"
+
+      # Write result paths
+      echo -n "$DOWNLOADED_FILE" > $(results.report-file-path.path)
+      echo -n "$DOWNLOADED_FILE" > /shared-data/report-file-path.txt
+      echo "Report saved as: $DOWNLOADED_FILE"
+
+      echo "Report fetch completed"

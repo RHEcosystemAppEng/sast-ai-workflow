@@ -5,153 +5,19 @@ Base class for NAT evaluation runners.
 This class provides common functionality for all evaluation runners,
 including environment checking, NAT execution, and result archiving.
 
-Dataset Configuration
----------------------
-Evaluation datasets can be configured in NAT config YAML files to use local filesystem,
-S3, or HTTP/HTTPS locations. The NAT framework automatically detects the location type
-based on the file_path prefix.
-
-LOCAL DATASET (Default - Recommended):
-    Use relative paths from project root for datasets in the repository:
-
-    Configuration:
-        eval:
-          general:
-            dataset:
-              _type: json
-              file_path: evaluation/dataset/filter_eval/filter_eval_dataset_individual_issues.json
-              structure:
-                question_key: "question"
-                answer_key: "expected_output_obj"
-
-    When to use:
-        - Default setup with datasets in the repo
-        - Local development and testing
-        - CI/CD pipelines with checked-out code
-        - Version-controlled datasets
-
-    Path formats:
-        - Relative (recommended): evaluation/dataset/filter_eval/dataset.json
-        - Absolute (if needed): /full/path/to/sast-ai-workflow/evaluation/dataset/dataset.json
-
-    No additional configuration needed - works out of the box.
-
-REMOTE DATASET (S3):
-    Use S3 URLs for datasets stored in Amazon S3 buckets:
-
-    Configuration:
-        eval:
-          general:
-            dataset:
-              _type: json
-              file_path: s3://sast-ai-datasets/evaluation/filter_eval_dataset_individual_issues.json
-              structure:
-                question_key: "question"
-                answer_key: "expected_output_obj"
-
-    When to use:
-        - Large datasets not suitable for git
-        - Shared datasets across teams
-        - Production deployments on AWS
-        - Datasets that change frequently
-
-    Setup requirements:
-        1. Configure AWS credentials (choose one):
-           - Environment variables:
-             export AWS_ACCESS_KEY_ID=AKIA...
-             export AWS_SECRET_ACCESS_KEY=your_secret_key
-             export AWS_DEFAULT_REGION=us-east-1  # Optional
-
-           - AWS credentials file (~/.aws/credentials):
-             [default]
-             aws_access_key_id = AKIA...
-             aws_secret_access_key = your_secret_key
-
-           - IAM role (for EC2/ECS - no config needed)
-
-        2. Verify S3 access:
-           aws s3 ls s3://sast-ai-datasets/evaluation/
-           aws s3 cp s3://sast-ai-datasets/evaluation/dataset.json /tmp/test.json
-
-        3. Ensure bucket permissions:
-           - Bucket must allow s3:GetObject permission
-           - Check bucket policy or IAM user/role permissions
-
-    Common issues:
-        - NoCredentialsError: AWS credentials not configured
-        - AccessDenied: Check IAM permissions on bucket
-        - NoSuchBucket: Verify bucket name and region
-
-REMOTE DATASET (HTTP/HTTPS):
-    Use HTTP/HTTPS URLs for datasets hosted on web servers:
-
-    Configuration:
-        eval:
-          general:
-            dataset:
-              _type: json
-              file_path: https://datasets.example.com/sast-ai/filter_eval_dataset.json
-              structure:
-                question_key: "question"
-                answer_key: "expected_output_obj"
-
-    When to use:
-        - Publicly hosted datasets
-        - Datasets behind CDN
-        - Third-party dataset sources
-
-    Requirements:
-        - URL must be publicly accessible OR
-        - Configure authentication in NAT config (if required)
-        - HTTPS is recommended for security
-
-    Verification:
-        curl -I https://datasets.example.com/sast-ai/filter_eval_dataset.json
-
-SWITCHING BETWEEN LOCATIONS:
-    Simply change the file_path in your config YAML:
-
-    Local:  file_path: evaluation/dataset/filter_eval/dataset.json
-    S3:     file_path: s3://sast-ai-datasets/evaluation/dataset.json
-    HTTP:   file_path: https://datasets.example.com/sast-ai/dataset.json
-
-    The NAT framework automatically detects and handles each location type.
-
-Dataset Structure Requirements:
-    All evaluation datasets must follow the NAT format:
-        - question_key: Field containing input data
-        - answer_key: Field containing expected output
-
-    Example dataset entry:
-        {
-          "id": "test_case_1",
-          "question": "{...input data...}",
-          "expected_output_obj": {...expected output...}
-        }
-
-File Path Best Practices:
-    1. Use relative paths in configs for portability across environments
-    2. Use constants from evaluation.constants for standard dataset locations in Python code
-    3. Ensure remote URLs/S3 buckets are accessible before running evaluations
-    4. Test dataset accessibility:
-       - Local: ls -l evaluation/dataset/filter_eval/dataset.json
-       - S3: aws s3 ls s3://bucket/path/dataset.json
-       - HTTP: curl -I https://url/dataset.json
-    5. For S3, verify bucket permissions and credentials are properly configured
-
-See individual evaluation README files for dataset format specifications:
-    - evaluation/README-filter.md
-    - evaluation/README-judge-llm.md
-    - evaluation/README-summarize.md
-    - evaluation/dataset/README.md
+For detailed documentation on dataset configuration, DVC integration, and evaluation
+workflows, see evaluation/README.md
 """
 
+import logging
 import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -230,11 +96,11 @@ class BaseEvaluationRunner(ABC):
         required_vars = self.get_required_env_vars()
         for var_name in required_vars:
             if not os.getenv(var_name):
-                print(f"Error: {var_name} environment variable not set")
+                logger.error(f"Error: {var_name} environment variable not set")
                 if var_name == 'LLM_API_KEY':
-                    print("Please set it with: export LLM_API_KEY=your_nvidia_api_key")
+                    logger.error("Please set it with: export LLM_API_KEY=your_nvidia_api_key")
                 elif var_name == 'EMBEDDINGS_LLM_API_KEY':
-                    print("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
+                    logger.error("Please set it with: export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
                 return False
 
         # Check config file
@@ -244,14 +110,14 @@ class BaseEvaluationRunner(ABC):
             config_path = self.project_root / CONFIGS_DIR / self.config_filename
 
         if not config_path.exists():
-            print(f"Error: Config file not found: {config_path}")
+            logger.error(f"Error: Config file not found: {config_path}")
             return False
 
         # Additional checks can be overridden by subclasses
         if not self.additional_environment_checks():
             return False
 
-        print("Environment checks passed")
+        logger.info("Environment checks passed")
         return True
 
     def additional_environment_checks(self) -> bool:
@@ -265,7 +131,7 @@ class BaseEvaluationRunner(ABC):
 
     def setup_evaluation_environment(self):
         """Set up required environment variables for SAST Config."""
-        print("Setting up evaluation environment variables...")
+        logger.info("Setting up evaluation environment variables...")
 
         default_vars = self.get_default_env_vars()
         for var_name, default_value in default_vars.items():
@@ -280,13 +146,13 @@ class BaseEvaluationRunner(ABC):
 
     def run_nat_evaluation(self, config_file: Optional[str] = None, debug_mode: bool = False):
         """Run NAT evaluation with automatic metrics collection."""
-        print(f"\\nRunning NAT Evaluation for {self.evaluation_name}...")
-        print("This will automatically collect:")
-        print("- Token counts (input/output/total)")
-        print("- Processing time metrics")
-        print("- Memory usage tracking")
-        print("- Error counting")
-        print("")
+        logger.info(f"\nRunning NAT Evaluation for {self.evaluation_name}...")
+        logger.info("This will automatically collect:")
+        logger.info("- Token counts (input/output/total)")
+        logger.info("- Processing time metrics")
+        logger.info("- Memory usage tracking")
+        logger.info("- Error counting")
+        logger.info("")
 
         config_path = self.get_config_path()
 
@@ -297,25 +163,25 @@ class BaseEvaluationRunner(ABC):
 
     def _run_nat_debug_mode(self, config_path: Path):
         """Run NAT evaluation in debug mode (direct Python call)."""
-        print("🐛 DEBUG MODE: Running NAT evaluation directly in Python")
-        print("You can set breakpoints in PyCharm and they will be hit!")
+        logger.info("🐛 DEBUG MODE: Running NAT evaluation directly in Python")
+        logger.info("You can set breakpoints in PyCharm and they will be hit!")
 
         # Add debug hints specific to the evaluation type
         debug_hints = self.get_debug_hints()
         if debug_hints:
-            print("Key places to set breakpoints:")
+            logger.info("Key places to set breakpoints:")
             for hint in debug_hints:
-                print(f"  - {hint}")
-            print("")
+                logger.info(f"  - {hint}")
+            logger.info("")
 
         original_argv = sys.argv.copy()
         sys.argv = ['nat', 'eval', '--config_file', str(config_path)]
         try:
-            print(f"Executing NAT directly: {' '.join(sys.argv)}")
+            logger.info(f"Executing NAT directly: {' '.join(sys.argv)}")
             run_cli()
         finally:
             sys.argv = original_argv
-        print("NAT evaluation completed successfully!")
+        logger.info("NAT evaluation completed successfully!")
 
     def get_debug_hints(self) -> List[str]:
         """
@@ -329,25 +195,25 @@ class BaseEvaluationRunner(ABC):
     def _run_nat_subprocess_mode(self, config_path: Path):
         """Run NAT evaluation using subprocess (original method)."""
         try:
-            print(f"Executing: nat eval --config_file {config_path}")
+            logger.info(f"Executing: nat eval --config_file {config_path}")
             result = subprocess.run([
                 "nat", "eval", "--config_file", str(config_path)
             ], check=True, capture_output=True, text=True)
 
-            print("NAT evaluation completed successfully!")
+            logger.info("NAT evaluation completed successfully!")
             if result.stdout:
-                print("Output:", result.stdout)
+                logger.info(f"Output: {result.stdout}")
 
         except subprocess.CalledProcessError as e:
-            print(f"Error running NAT evaluation: {e}")
+            logger.error(f"Error running NAT evaluation: {e}")
             if e.stdout:
-                print("Stdout:", e.stdout)
+                logger.error(f"Stdout: {e.stdout}")
             if e.stderr:
-                print("Stderr:", e.stderr)
+                logger.error(f"Stderr: {e.stderr}")
             raise
         except FileNotFoundError:
-            print("Error: 'nat' command not found. Please ensure NAT is installed and in PATH.")
-            print("Try: source .venv-test/bin/activate")
+            logger.info("Error: 'nat' command not found. Please ensure NAT is installed and in PATH.")
+            logger.info("Try: source .venv-test/bin/activate")
             raise
 
     def parse_command_line_args(self, args: List[str]):
@@ -355,34 +221,34 @@ class BaseEvaluationRunner(ABC):
         for arg in args:
             if arg == "--debug" or arg == "-d":
                 self.debug_mode = True
-                print("🐛 Debug mode enabled")
+                logger.info("🐛 Debug mode enabled")
             elif not arg.startswith("-"):
                 self.config_file = arg
 
     def print_evaluation_header(self):
         """Print the evaluation header."""
-        print("=" * 60)
-        print(f"SAST-AI-Workflow: {self.get_display_name()} Evaluation")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info(f"SAST-AI-Workflow: {self.get_display_name()} Evaluation")
+        logger.info("=" * 60)
 
     def print_results_info(self):
         """Print information about where results are saved."""
-        print("\\nEvaluation completed!")
-        print("Results saved to:")
+        logger.info("\nEvaluation completed!")
+        logger.info("Results saved to:")
         reports_dir = self.get_reports_dir()
-        print(f"  - {reports_dir}/{WORKFLOW_OUTPUT_FILENAME}")
-        print(f"  - {reports_dir}/{STANDARDIZED_DATA_FILENAME}")
-        print(f"  - {reports_dir}/{PROFILER_TRACES_FILENAME}")
+        logger.info(f"  - {reports_dir}/{WORKFLOW_OUTPUT_FILENAME}")
+        logger.info(f"  - {reports_dir}/{STANDARDIZED_DATA_FILENAME}")
+        logger.info(f"  - {reports_dir}/{PROFILER_TRACES_FILENAME}")
 
     def archive_results(self) -> Optional[str]:
         """Archive evaluation results."""
         reports_dir = self.project_root / REPORTS_BASE_DIR
         archived_path = archive_evaluation_results(str(reports_dir), self.evaluation_name)
         if archived_path:
-            print(f"\\nResults archived to: {archived_path}")
+            logger.info(f"\nResults archived to: {archived_path}")
             return archived_path
         else:
-            print("\\nNote: Results were not archived (no files found)")
+            logger.info("\nNote: Results were not archived (no files found)")
             return None
 
     def run_post_evaluation_tasks(self):
@@ -395,15 +261,15 @@ class BaseEvaluationRunner(ABC):
     def print_usage_info(self):
         """Print usage information."""
         required_vars = self.get_required_env_vars()
-        print("\\nTo run this evaluation, use:")
+        logger.info("\\nTo run this evaluation, use:")
         for var in required_vars:
             if var == 'LLM_API_KEY':
-                print("  export LLM_API_KEY=your_nvidia_api_key")
+                logger.info("  export LLM_API_KEY=your_nvidia_api_key")
             elif var == 'EMBEDDINGS_LLM_API_KEY':
-                print("  export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
-        print(f"  python {RUNNERS_DIR}/run_{self.evaluation_name}_evaluation.py")
-        print("\\nFor PyCharm debugging with breakpoints:")
-        print(f"  python {RUNNERS_DIR}/run_{self.evaluation_name}_evaluation.py --debug")
+                logger.info("  export EMBEDDINGS_LLM_API_KEY=your_embedding_api_key")
+        logger.info(f"  python {RUNNERS_DIR}/run_{self.evaluation_name}_evaluation.py")
+        logger.info("\\nFor PyCharm debugging with breakpoints:")
+        logger.info(f"  python {RUNNERS_DIR}/run_{self.evaluation_name}_evaluation.py --debug")
 
     def run(self):
         """Main runner method."""

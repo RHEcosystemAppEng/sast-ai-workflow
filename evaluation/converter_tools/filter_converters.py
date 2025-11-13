@@ -19,8 +19,6 @@ from evaluation.constants import (
     MAX_FILTER_ITERATIONS,
     FILTER_DATASET_FILENAME,
     OUTPUT_DIR,
-    KNOWN_NON_ISSUES_DIR,
-    KNOWN_NON_ISSUES_FILENAME,
     KNOWN_NON_ISSUES_VECTOR_STORE_DIR,
     CLASSIFICATION_TRUE_POSITIVE,
     CLASSIFICATION_FALSE_POSITIVE,
@@ -71,8 +69,8 @@ class FilterConverter(BaseEvaluationConverter):
             id=issue_id,
             issue_type=parsed_data.get("issue_type", "unknown"),
             severity=parsed_data.get("severity", "medium"),
-            trace=parsed_data.get("trace", ""),
-            file_path=parsed_data.get("file_path", ""),
+            trace=parsed_data.get("finding", parsed_data.get("trace", "")),
+            file_path=parsed_data.get("source_file", parsed_data.get("file_path", "")),
             line_number=parsed_data.get("line_number", 0),
             cwe_id=parsed_data.get("cwe_id", "CWE-000"),
             description=f"Filter evaluation for issue: {issue_id}",
@@ -171,10 +169,12 @@ class FilterConverter(BaseEvaluationConverter):
 
     def get_minimal_config(self):
         """Get filter-specific minimal config."""
+        import os
         class MinimalConfig:
             def __init__(self):
                 self.USE_KNOWN_FALSE_POSITIVE_FILE = True
-                self.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
+                # Always read from environment variable - no hardcoded fallback
+                self.KNOWN_FALSE_POSITIVE_FILE_PATH = os.getenv('KNOWN_FALSE_POSITIVE_FILE_PATH', '')
                 self.OUTPUT_DIR = OUTPUT_DIR
                 self.MAX_ITERATIONS = MAX_FILTER_ITERATIONS
                 self.VECTOR_STORE_PATH = KNOWN_NON_ISSUES_VECTOR_STORE_DIR
@@ -219,22 +219,15 @@ user_error_trace: {user_error_trace}"""
 
         return MinimalConfig()
 
-    def setup_environment(self, **kwargs):
-        """Setup filter-specific environment variables."""
-        filter_kwargs = {
-            'KNOWN_FALSE_POSITIVE_FILE_PATH': str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
-        }
-        filter_kwargs.update(kwargs)
-        super().setup_environment(**filter_kwargs)
-
     def create_config(self):
         """Create filter-specific config."""
+        import os
         config = super().create_config()
 
         # Add filter-specific config if we have the real Config object
         if hasattr(config, 'USE_KNOWN_FALSE_POSITIVE_FILE'):
             config.USE_KNOWN_FALSE_POSITIVE_FILE = True
-            config.KNOWN_FALSE_POSITIVE_FILE_PATH = str(project_root / KNOWN_NON_ISSUES_DIR / KNOWN_NON_ISSUES_FILENAME)
+            # KNOWN_FALSE_POSITIVE_FILE_PATH must be set via environment variable - no fallback
             config.OUTPUT_DIR = OUTPUT_DIR
             config.MAX_ITERATIONS = MAX_FILTER_ITERATIONS
             config.VECTOR_STORE_PATH = KNOWN_NON_ISSUES_VECTOR_STORE_DIR

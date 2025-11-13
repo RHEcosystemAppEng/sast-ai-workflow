@@ -552,7 +552,7 @@ spec:
         - name: OUTPUT_FILE_PATH
           value: "/shared-data/output/sast_ai_output.xlsx"
         - name: LIBCLANG_PATH
-          value: "/usr/lib64/libclang.so.19.1.7"
+          value: "/usr/lib64/libclang.so.20.1"
         - name: DVC_GIT_COMMIT_HASH
           value: "$(params.GIT_COMMIT_HASH)"
         - name: DVC_REPO_BRANCH
