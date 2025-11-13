@@ -69,8 +69,7 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
                 logger.error(f"Dynamic dataset file not found: {eval_dataset_path}")
                 return False
 
-            config_path = self.project_root / 'evaluation' / 'configs' / SUMMARIZATION_CONFIG_FILENAME
-            logger.info(f"Updating config file: {config_path}")
+            config_path = os.path.join(self.project_root, 'evaluation', 'configs', SUMMARIZATION_CONFIG_FILENAME)
 
             try:
                 with open(config_path, 'r') as f:
@@ -88,8 +87,8 @@ class SummarizeEvaluationRunner(BaseEvaluationRunner):
                 logger.error(f"Error updating config: {e}")
                 return False
         else:
-            dataset_path = self.project_root / DATASET_SUMMARIZATION_DIR / SUMMARIZATION_DATASET_FILENAME
-            if not dataset_path.exists():
+            dataset_path = os.path.join(self.project_root, DATASET_SUMMARIZATION_DIR, SUMMARIZATION_DATASET_FILENAME)
+            if not os.path.exists(dataset_path):
                 logger.error(f"Dataset file not found: {dataset_path}")
                 return False
             return True
