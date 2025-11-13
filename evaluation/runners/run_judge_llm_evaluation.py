@@ -98,8 +98,8 @@ class JudgeLLMEvaluationRunner(BaseEvaluationRunner):
                 return False
         else:
             # Use default path from config file
-            dataset_path = self.project_root / DATASET_JUDGE_LLM_DIR / JUDGE_LLM_DATASET_FILENAME
-            if not dataset_path.exists():
+            dataset_path = os.path.join(self.project_root, DATASET_JUDGE_LLM_DIR, JUDGE_LLM_DATASET_FILENAME)
+            if not os.path.exists(dataset_path):
                 logger.error(f"Dataset file not found: {dataset_path}")
                 return False
             return True
