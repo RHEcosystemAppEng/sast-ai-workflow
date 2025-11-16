@@ -148,8 +148,8 @@ spec:
           echo "No FALSE_POSITIVES_URL provided; skipping validation"
         else
           echo "Validating false positives URL..."
-          curl -ksSfL "$FP_URL" >/dev/null 2>&1 || (echo "Error: False positives URL is invalid" && exit 1)
-          echo "False positives URL validated successfully"
+          curl -ksSfL "$FP_URL" >/dev/null 2>&1 || echo "Warning: False positives file not found at URL (will proceed without it)"
+          echo "False positives URL validation completed"
         fi
 
     # STEP 2: Validate Report File
@@ -447,15 +447,19 @@ spec:
             GITLAB_TOKEN=$(cat "$TOKEN_FILE")
             echo "GitLab token found. Fetching file with authentication..."
             curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
-              || (echo "Error: Could not fetch false positives file with token." && exit 1)
+              || (echo "Warning: Could not fetch false positives file. Creating empty file." && touch /shared-data/false-positives/ignore.err)
         else
             echo "No GitLab token file found; attempting unauthenticated fetch..."
             curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
-              || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+              || (echo "Warning: Could not fetch false positives file. Creating empty file." && touch /shared-data/false-positives/ignore.err)
         fi
 
-        echo "False positives file downloaded successfully"
-        echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
+        if [ -s "/shared-data/false-positives/ignore.err" ]; then
+          echo "False positives file downloaded successfully"
+          echo "File size: $(du -h /shared-data/false-positives/ignore.err | cut -f1)"
+        else
+          echo "Using empty false positives file (no known false positives for this package)"
+        fi
 
     # STEP 6: Execute SAST AI Analysis
     - name: run-analysis

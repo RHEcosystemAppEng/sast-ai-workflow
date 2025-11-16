@@ -170,3 +170,7 @@ evaluation/dataset/*
 evaluation/reports/*
 evaluation/known_non_issues_data/*
 /.claude/
+
+# Claude Code
+CLAUDE.md
+workflow-ai-assistant-rules/
