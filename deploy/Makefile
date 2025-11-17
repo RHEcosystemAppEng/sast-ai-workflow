@@ -88,10 +88,6 @@ ARGOCD_NAMESPACE                 ?= sast-ai
 
 # EventListener Configuration
 ORCHESTRATOR_API_URL             ?=
-MLOPS_ORCHESTRATOR_API_URL       ?=
-
-# EventListener Configuration
-ORCHESTRATOR_API_URL             ?=
 
 # =============================================================================
 # Phony Targets Declaration
@@ -166,12 +162,12 @@ deploy-prod: setup-common tasks-prod argocd-deploy-prod
 
 deploy-mlops: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 deploy-mlops: setup-common tasks-mlops eventlistener argocd-deploy-mlops 
-	@if [ -z "$(MLOPS_ORCHESTRATOR_API_URL)" ]; then \
+	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
-		echo "❌ ERROR: MLOPS_ORCHESTRATOR_API_URL is required for MLOps deployment"; \
+		echo "❌ ERROR: ORCHESTRATOR_API_URL is required for MLOps deployment"; \
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo ""; \
-		echo "Usage: make deploy-mlops MLOPS_ORCHESTRATOR_API_URL=<url>"; \
+		echo "Usage: make deploy-mlops ORCHESTRATOR_API_URL=<url>"; \
 		exit 1; \
 	fi
 
@@ -181,7 +177,6 @@ deploy-mlops: setup-common tasks-mlops eventlistener argocd-deploy-mlops
 
 setup-common: secrets scripts prompts configmaps
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🚀 Common Infrastructure Ready"
 	@echo "🚀 Common Infrastructure Ready"
 	@echo "   Context: $(CONTEXT)"
 	@echo "   Namespace: $(NAMESPACE)"
@@ -543,8 +538,8 @@ clean: ## Remove all deployed resources [Params: ENV=prod (optional)]
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(CO) delete -k tekton/overlays/prod -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
 		echo "   ✓ Production Tekton resources removed (kustomize overlay)"; \
-	elif [ "$(ENV)" = "mlop" ]; then \
-		$(CO) delete -k tekton/overlays/mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+	elif [ "$(ENV)" = "mlops" ]; then \
+		$(CO) delete -k tekton/overlays/mlops -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
 		echo "   ✓ MLOp Tekton resources removed (kustomize overlay)"; \
 	else \
 		$(CO) delete -k tekton/base -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
@@ -605,7 +600,6 @@ clean: ## Remove all deployed resources [Params: ENV=prod (optional)]
 	@echo "🔐 Removing Secrets..."
 	@$(CO) delete secret sast-ai-gitlab-token \
 		sast-ai-default-llm-creds \
-		sast-ai-google-service-account \
 		sast-ai-google-service-account \
 		sast-ai-gcs-service-account \
 		sast-ai-s3-output-credentials \

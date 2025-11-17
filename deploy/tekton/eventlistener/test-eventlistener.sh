@@ -28,9 +28,9 @@ echo ""
 echo "Environment variables (optional):"
 echo "  TRIGGER_SOURCE: ${TRIGGER_SOURCE:-manual-test} (argocd, webhook, jenkins, etc.)"
 echo "  IMAGE_VERSION: ${IMAGE_VERSION:-latest}"
-echo "  DVC_NVR_VERSION: ${DVC_NVR_VERSION:-(empty)}"
-echo "  DVC_PROMPTS_VERSION: ${DVC_PROMPTS_VERSION:-(empty)}"
-echo "  DVC_KNOWN_FALSE_POSITIVES_VERSION: ${DVC_KNOWN_FALSE_POSITIVES_VERSION:-(empty)}"
+echo "  DVC_DATA_VERSION: ${DVC_DATA_VERSION:-(empty)}"
+echo "  PROMPTS_VERSION: ${PROMPTS_VERSION:-(empty)}"
+echo "  KNOWN_NON_ISSUES_VERSION: ${KNOWN_NON_ISSUES_VERSION:-(empty)}"
 echo "  USE_KNOWN_FP: ${USE_KNOWN_FP:-true}"
 echo ""
 
@@ -189,9 +189,9 @@ send_test_request() {
   "submitted_by": "test-script-$TIMESTAMP",
   "trigger_source": "${TRIGGER_SOURCE:-manual-test}",
   "image_version": "${IMAGE_VERSION:-latest}",
-  "dvc_nvr_version": "${DVC_NVR_VERSION:-v1}",
-  "dvc_prompts_version": "${DVC_PROMPTS_VERSION:-v1}",
-  "dvc_known_false_positives_version": "${DVC_KNOWN_FALSE_POSITIVES_VERSION:-v1}",
+  "dvc_data_version": "${DVC_DATA_VERSION:-v1}",
+  "prompts_version": "${PROMPTS_VERSION:-v1}",
+  "known_non_issues_version": "${KNOWN_NON_ISSUES_VERSION:-v1}",
   "use_known_false_positive_file": ${USE_KNOWN_FP:-true}
 }
 EOF

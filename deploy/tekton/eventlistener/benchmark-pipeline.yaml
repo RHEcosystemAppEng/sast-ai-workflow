@@ -33,7 +33,7 @@ spec:
       description: "Known non-issues version tag"
       default: ""
     
-    - name: use-known-false-positive-file
+    - name: image-version
       type: string
       description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
       default: "latest"

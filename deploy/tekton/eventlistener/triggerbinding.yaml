@@ -20,7 +20,8 @@ spec:
       value: $(body.trigger_source)
 
     # Workflow image version for testing
-      value: $(body.source)
+    - name: image-version
+      value: $(body.image_version)
 
     # MLOps-specific parameters (optional, for mlops-batch endpoint)
     - name: dvc-data-version
@@ -31,10 +32,6 @@ spec:
     
     - name: known-non-issues-version
       value: $(body.known_non_issues_version)
-    
-    # Optional: Override workflow version for testing
-    - name: image-version
-      value: $(body.image_version)
     
     - name: use-known-false-positive-file
       value: $(body.use_known_false_positive_file)

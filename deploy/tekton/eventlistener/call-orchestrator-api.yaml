@@ -33,7 +33,7 @@ spec:
       description: "Known non-issues version tag"
       default: ""
     
-    - name: use-known-false-positive-file
+    - name: image-version
       type: string
       description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
       default: ""
@@ -105,18 +105,18 @@ spec:
           VALIDATION_FAILED=1
         fi
         
-        if [ -z "$(params.dvc-nvr-version)" ]; then
-          echo "ERROR: dvc-nvr-version parameter is required but empty"
+        if [ -z "$(params.dvc-data-version)" ]; then
+          echo "ERROR: dvc-data-version parameter is required but empty"
           VALIDATION_FAILED=1
         fi
         
-        if [ -z "$(params.dvc-prompts-version)" ]; then
-          echo "ERROR: dvc-prompts-version parameter is required but empty"
+        if [ -z "$(params.prompts-version)" ]; then
+          echo "ERROR: prompts-version parameter is required but empty"
           VALIDATION_FAILED=1
         fi
         
-        if [ -z "$(params.dvc-known-false-positives-version)" ]; then
-          echo "ERROR: dvc-known-false-positives-version parameter is required but empty"
+        if [ -z "$(params.known-non-issues-version)" ]; then
+          echo "ERROR: known-non-issues-version parameter is required but empty"
           VALIDATION_FAILED=1
         fi
         
@@ -151,10 +151,10 @@ spec:
           "testingDataNvrsVersion": "$(params.dvc-data-version)",
           "promptsVersion": "$(params.prompts-version)",
           "knownNonIssuesVersion": "$(params.known-non-issues-version)",
-          "sastAiImage": "$(params.image-version)"
+          "sastAiImage": "$(params.image-version)",
           "jobSettings": {
             "useKnownFalsePositiveFile": "$(params.use-known-false-positive-file)"
-  }
+          }
         }
         EOF
         )
