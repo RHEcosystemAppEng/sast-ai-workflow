@@ -76,7 +76,9 @@ DVC_REPO_URL                     ?= https://github.com/RHEcosystemAppEng/sast-ai
 DVC_DATA_VERSION                 ?= v1.0
 S3_ENDPOINT_URL                  ?= http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com
 S3_INPUT_BUCKET_NAME             ?= test
-S3_OUTPUT_BUCKET_NAME            ?= test
+S3_OUTPUT_BUCKET_NAME            ?= bucket-name
+AWS_ACCESS_KEY_ID                ?= ""
+AWS_SECRET_ACCESS_KEY            ?= ""
 
 # GitOps Configuration
 # Used by: make argocd-deploy-dev, make argocd-deploy-prod
@@ -129,13 +131,6 @@ help: ## Display this help message
 
 deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
 deploy-dev: ## Deploy to development environment (uses latest image)
-=======
-
-# S3/Minio Configuration
-S3_OUTPUT_BUCKET_NAME            ?= 
-AWS_ACCESS_KEY_ID                ?= 
-AWS_SECRET_ACCESS_KEY            ?= 
-S3_ENDPOINT_URL                  ?= 
 
 .PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean eventlistener eventlistener-clean
 

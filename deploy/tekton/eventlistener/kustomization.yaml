@@ -23,10 +23,10 @@ resources:
 
 # ConfigMap generator (alternative to static file)
 # Uncomment to generate ConfigMap from properties
-# Note: Use K8s service DNS pattern for orchestrator URL
 # configMapGenerator:
 #   - name: benchmark-config
 #     literals:
-#       - orchestrator-api-url=http://sast-ai-orchestrator.<namespace>.svc.cluster.local:80
-#       - api-batch-endpoint=/api/v1/mlops-batches
+#       - orchestrator-api-url=http://sast-ai-orchestrator.sast-ai.svc.cluster.local:8080
+#       - default-batch-sheet-url=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit
+#       - api-batch-endpoint=/api/v1/mlops-batch
 
