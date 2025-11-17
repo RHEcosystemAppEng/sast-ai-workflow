@@ -1,0 +1,80 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: benchmark-mlop-template
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  params:
+    # Parameters from TriggerBinding
+    - name: submitted-by
+      description: "Trigger source identifier"
+      default: "eventlistener-webhook"
+
+    - name: trigger-source
+      description: "Tool that triggered the EventListener (argocd, webhook, manual-test, etc.)"
+      default: "webhook"
+
+    - name: image-version
+      description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
+      default: "latest"
+    
+    # DVC version parameters (required)
+    - name: dvc-nvr-version
+      description: "DVC NVR resource version"
+    
+    - name: dvc-prompts-version
+      description: "DVC prompts resource version"
+    
+    - name: dvc-known-false-positives-version
+      description: "DVC known false positives resource version"
+    
+    - name: use-known-false-positive-file
+      description: "Whether to use known false positive file"
+      default: "true"
+  
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        # Use generateName for unique PipelineRun names
+        # Kubernetes will append random suffix: benchmark-mlop-pipeline-abc123
+        generateName: benchmark-mlop-pipeline-
+        labels:
+          app.kubernetes.io/name: sast-ai-workflow
+          app.kubernetes.io/component: benchmark-mlop
+          sast-ai.redhat.com/trigger-source: $(tt.params.trigger-source)
+          tekton.dev/pipeline: benchmark-mlop-pipeline
+        annotations:
+          sast-ai.redhat.com/submitted-by: $(tt.params.submitted-by)
+          sast-ai.redhat.com/trigger-source: $(tt.params.trigger-source)
+      spec:
+        pipelineRef:
+          name: benchmark-mlop-pipeline
+        
+        params:
+          # Pass parameters to pipeline
+          - name: submitted-by
+            value: $(tt.params.submitted-by)
+          
+          - name: image-version
+            value: $(tt.params.image-version)
+          
+          - name: dvc-nvr-version
+            value: $(tt.params.dvc-nvr-version)
+          
+          - name: dvc-prompts-version
+            value: $(tt.params.dvc-prompts-version)
+          
+          - name: dvc-known-false-positives-version
+            value: $(tt.params.dvc-known-false-positives-version)
+          
+          - name: use-known-false-positive-file
+            value: $(tt.params.use-known-false-positive-file)
+        
+        # Timeout for the entire pipeline
+        timeouts:
+          pipeline: "2h"
+
