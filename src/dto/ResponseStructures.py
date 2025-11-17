@@ -41,13 +41,14 @@ class JudgeLLMResponse(BaseModel):
       as false positive or not a false positive.
     """
 
-    investigation_result: str = Field(
+    investigation_result: Literal["FALSE POSITIVE", "TRUE POSITIVE"] = Field(
         description="The result of the investigation. \
             Possible values are 'FALSE POSITIVE' or 'TRUE POSITIVE'."
     )
     justifications: List[str] = Field(
         description="The reasoning that led to the investigation_result decision."
     )
+    model_config = {"extra": "forbid"}
 
 
 class InstructionResponse(BaseModel):
