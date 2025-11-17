@@ -51,6 +51,9 @@ DVC_REPO_URL                     ?= https://github.com/RHEcosystemAppEng/sast-ai
 DVC_DATA_VERSION                 ?= v1.0
 S3_ENDPOINT_URL                  ?= http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com
 S3_INPUT_BUCKET_NAME             ?= test
+S3_OUTPUT_BUCKET_NAME            ?= bucket-name
+AWS_ACCESS_KEY_ID                ?= ""
+AWS_SECRET_ACCESS_KEY            ?= ""
 
 # GitOps Configuration
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
@@ -69,17 +72,8 @@ GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 
-# S3/Minio Configuration
-S3_OUTPUT_BUCKET_NAME            ?= 
-AWS_ACCESS_KEY_ID                ?= 
-AWS_SECRET_ACCESS_KEY            ?= 
-S3_ENDPOINT_URL                  ?= 
-
-<<<<<<< HEAD
 .PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean eventlistener eventlistener-clean
 
-=======
->>>>>>> f20a781 (fix: remove duplicate lines from rebase and enhance parameter validation)
 # Unified deploy command
 # Usage:
 #   make deploy                     # Deploy base (Google Drive, :latest)
