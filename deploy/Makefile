@@ -15,6 +15,7 @@ HUMAN_VERIFIED_FILE_PATH         ?= ""
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
+LLM_API_TYPE                     ?= nim
 EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
 EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 
@@ -39,8 +40,8 @@ GDRIVE_SA_FILE_NAME			     ?= service_account.json
 # Container Image Configuration
 IMAGE_REGISTRY                   ?= quay.io/ecosystem-appeng
 IMAGE_NAME                       ?= sast-ai-workflow
-IMAGE_VERSION                    ?= 
-CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+IMAGE_VERSION                    ?= latest
+CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
 
 # GCS Bucket Configuration
 GCS_BUCKET_NAME                  ?=
@@ -65,10 +66,10 @@ GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 # S3/Minio Configuration
-S3_OUTPUT_BUCKET_NAME            ?= ""
-AWS_ACCESS_KEY_ID                ?= ""
-AWS_SECRET_ACCESS_KEY            ?= ""
-S3_ENDPOINT_URL                  ?= ""
+S3_OUTPUT_BUCKET_NAME            ?= 
+AWS_ACCESS_KEY_ID                ?= 
+AWS_SECRET_ACCESS_KEY            ?= 
+S3_ENDPOINT_URL                  ?= 
 
 .PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-mlops argocd-deploy-prod argocd-clean
 
@@ -165,6 +166,7 @@ secrets:
 	$(CO) create secret generic sast-ai-default-llm-creds \
 		--from-literal=llm_url="$(LLM_URL)" \
 		--from-literal=llm_api_key="$(LLM_API_KEY)" \
+		--from-literal=llm_api_type="$(LLM_API_TYPE)" \
 		--from-literal=embeddings_llm_url="$(EMBEDDINGS_LLM_URL)" \
 		--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
 		--from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
@@ -305,6 +307,7 @@ run:
 		-e 's|EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER|$(EMBEDDINGS_LLM_MODEL_NAME)|g' \
 		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
 		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
+		-e 's|LLM_API_TYPE_PLACEHOLDER|$(LLM_API_TYPE)|g' \
 		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
 		-e 's|HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER|$(HUMAN_VERIFIED_FILE_PATH)|g' \
 		-e 's|USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER|$(USE_KNOWN_FALSE_POSITIVE_FILE)|g' \
