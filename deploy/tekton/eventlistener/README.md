@@ -54,7 +54,7 @@ First, ensure you have the MLOps pipeline deployed:
 
 ```bash
 cd deploy
-make tasks ENV=mlop NAMESPACE=your-namespace
+make tasks ENV=mlops
 ```
 
 ### Step 2: Deploy EventListener
