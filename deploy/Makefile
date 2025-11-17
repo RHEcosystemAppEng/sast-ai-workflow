@@ -421,8 +421,8 @@ clean:
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(CO) delete -k tekton/overlays/prod -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
 		echo "   ✓ Production Tekton resources removed (kustomize overlay)"; \
-	elif [ "$(ENV)" = "mlop" ]; then \
-		$(CO) delete -k tekton/overlays/mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+	elif [ "$(ENV)" = "mlops" ]; then \
+		$(CO) delete -k tekton/overlays/mlops -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
 		echo "   ✓ MLOp Tekton resources removed (kustomize overlay)"; \
 	else \
 		$(CO) delete -k tekton/base -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
