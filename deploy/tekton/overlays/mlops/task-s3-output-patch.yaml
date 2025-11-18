@@ -23,7 +23,7 @@
   path: /spec/steps/6
   value:
     name: upload-to-s3-output
-    image: python:3.11-slim
+    image: $(params.INFRASTRUCTURE_IMAGE)
     env:
       - name: S3_OUTPUT_BUCKET_NAME
         value: "$(params.S3_OUTPUT_BUCKET_NAME)"
@@ -100,11 +100,6 @@
         ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
         exit 1
       fi
-
-      # Install required packages
-      echo "Installing required packages..."
-      pip install --quiet boto3 >/dev/null 2>&1
-      echo "Dependencies installed successfully"
 
       # Construct S3 key using unique pipeline run ID
       # Use PIPELINE_RUN_ID if provided, otherwise fallback to timestamp
