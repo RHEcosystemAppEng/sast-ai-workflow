@@ -79,6 +79,10 @@ spec:
       type: string
       description: "Container image to use for SAST AI analysis"
       default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
+    - name: INFRASTRUCTURE_IMAGE
+      type: string
+      description: "Infrastructure container image with pre-installed dependencies"
+      default: "quay.io/rh-ee-operetz/sast-ai-infrastructure:test"
 
     - name: GCS_BUCKET_NAME
       type: string
@@ -129,13 +133,10 @@ spec:
   steps:
     # STEP 1: Validate Input URLs
     - name: validate-input-urls
-      image: registry.access.redhat.com/ubi9/ubi:latest
+      image: $(params.INFRASTRUCTURE_IMAGE)
       script: |
         #!/usr/bin/env sh
         echo "=== STEP 1: VALIDATE INPUT URLS ==="
-
-        # Install curl once for both validations
-        dnf install -y curl --allowerasing >/dev/null 2>&1
 
         # Validate source URL
         echo "Validating source URL..."
@@ -154,7 +155,7 @@ spec:
 
     # STEP 2: Validate Report File
     - name: validate-report-file
-      image: 'python:3.11-slim'
+      image: $(params.INFRASTRUCTURE_IMAGE)
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -185,8 +186,6 @@ spec:
 
             # Check if credentials workspace is provided
             if [ -f "$(workspaces.google-sa-json-ws.path)/service_account.json" ]; then
-                # Install packages quietly
-                pip install --quiet google-api-python-client google-auth >/dev/null 2>&1
                 
                 # Create and run validation script
                 cat > /tmp/validate_sheets.py << 'PYTHON_SCRIPT'
@@ -243,7 +242,7 @@ spec:
 
     # STEP 3: Prepare Source Code
     - name: prepare-source
-      image: registry.access.redhat.com/ubi9/python-312
+      image: $(params.INFRASTRUCTURE_IMAGE)
       securityContext:
         runAsUser: 0
       env:
@@ -260,14 +259,13 @@ spec:
         #!/usr/bin/env sh
         set -ex
         echo "=== STEP 3: PREPARE SOURCE ==="
-        
+
         # Clean workspace and prepare directories
         rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
         mkdir -p "${WORKDIR}/source"
-        
+
         if echo "$SRC_URL" | grep -iq '\.rpm$'; then
           echo "Processing SRPM package..."
-          yum install -y rpm-build curl --allowerasing >/dev/null 2>&1 && yum clean all >/dev/null 2>&1
           
           # Setup rpmbuild environment
           mkdir -p "$HOME"/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
@@ -301,8 +299,7 @@ spec:
           
         else
           echo "Processing Git repository..."
-          yum install -y git --allowerasing >/dev/null 2>&1 && yum clean all >/dev/null 2>&1
-          
+
           REPO_NAME=$(basename "$SRC_URL" .git)
           git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME" >/dev/null 2>&1
           REPO_LOCAL_PATH="${WORKDIR}/source/$REPO_NAME"
@@ -321,7 +318,7 @@ spec:
 
     # STEP 4: Transform SAST Report to SARIF Format
     - name: transform-report
-      image: registry.access.redhat.com/ubi9/ubi:latest
+      image: $(params.INFRASTRUCTURE_IMAGE)
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -343,9 +340,6 @@ spec:
         if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
           echo "Detected JSON URL - using direct download..."
 
-          # Install curl
-          dnf install -y curl --allowerasing >/dev/null 2>&1
-
           # Download the JSON file
           JSON_FILE="$WORKSPACE_PATH/downloaded_report.json"
           echo "Downloading file to: $JSON_FILE"
@@ -358,11 +352,6 @@ spec:
           fi
 
           echo "File downloaded successfully ($(wc -c < "$JSON_FILE") bytes)"
-
-          # Install required tools for SARIF conversion
-          echo "Installing required tools for SARIF conversion..."
-          dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm >/dev/null 2>&1
-          dnf install -y csdiff file >/dev/null 2>&1
 
           # Check if it's a JSON file and convert to SARIF
           if  [[ "$JSON_FILE" =~ \.(json|js)$ ]] || file "$JSON_FILE" | grep -q "JSON"; then
@@ -408,7 +397,7 @@ spec:
 
     # STEP 5: Fetch False Positives
     - name: fetch-false-positives
-      image: python:3.11-slim
+      image: $(params.INFRASTRUCTURE_IMAGE)
       env:
         - name: FP_URL
           value: "$(params.FALSE_POSITIVES_URL)"
@@ -437,9 +426,6 @@ spec:
         fi
 
         echo "Fetching false positives from GitLab/HTTP..."
-
-        # Install curl
-        apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq curl >/dev/null 2>&1
 
         # If a token is needed for private repos, read it from the secret (if present)
         TOKEN_FILE="$(workspaces.gitlab-token-ws.path)/gitlab_token"
@@ -608,7 +594,7 @@ spec:
 
     # STEP 7: Upload to Google Drive
     - name: upload-to-gdrive
-      image: google/cloud-sdk:slim
+      image: $(params.INFRASTRUCTURE_IMAGE)
       env:
         - name: GDRIVE_FOLDER_ID
           value: "$(params.GDRIVE_FOLDER_ID)"
@@ -633,7 +619,7 @@ spec:
         #!/bin/bash
         set -e
         echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
-        
+
         # Check if we have required parameters
         if [ -z "$GDRIVE_FOLDER_ID" ]; then
           # Try ConfigMap environment variable
@@ -648,14 +634,14 @@ spec:
         else
           echo "Using Google Drive folder ID from parameter: $GDRIVE_FOLDER_ID"
         fi
-        
+
         # Check service account
         if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
           echo "Skipping Google Drive upload - service account not available"
           echo "This is not an error - pipeline continues gracefully"
           exit 0
         fi
-        
+
         # Check if output file exists
         EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
         if [ ! -f "$EXCEL_FILE" ]; then
@@ -664,18 +650,6 @@ spec:
           ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
           exit 1
         fi
-        
-        # Install required packages
-        echo "Installing required packages..."
-        apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq curl jq python3-pip python3-venv >/dev/null 2>&1
-        
-        # Create virtual environment
-        python3 -m venv /tmp/venv >/dev/null 2>&1
-        source /tmp/venv/bin/activate
-        
-        # Install Python packages
-        pip install --quiet packaging google-api-python-client google-auth-httplib2 google-auth-oauthlib >/dev/null 2>&1
-        echo "Dependencies installed successfully"
         
         # Set filename
         EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
@@ -699,7 +673,7 @@ spec:
 
     # STEP 8: Upload SARIF to GCS Bucket
     - name: upload-sarif-to-gcs
-      image: google/cloud-sdk:slim
+      image: $(params.INFRASTRUCTURE_IMAGE)
       env:
         - name: GCS_BUCKET_NAME
           value: "$(params.GCS_BUCKET_NAME)"
@@ -718,42 +692,30 @@ spec:
         #!/bin/bash
         set -e
         echo "=== STEP 8: UPLOAD SARIF TO GCS BUCKET ==="
-        
+
         # Check if we have required parameters
         if [ -z "$GCS_BUCKET_NAME" ]; then
           echo "Skipping GCS upload - no bucket name provided"
           exit 0
         fi
-        
+
         # Check service account
         if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
           echo "Skipping GCS upload - service account not available"
           exit 0
         fi
-        
+
         # Look for the SARIF file in output directory
         SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
-        
+
         if [ -z "$SARIF_FILE" ]; then
           echo "ERROR: No SARIF file found in output directory"
           echo "Available files in output directory:"
           ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
           exit 1
         fi
-        
+
         echo "Found SARIF file: $SARIF_FILE"
-        
-        # Install required packages
-        echo "Installing required packages..."
-        apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq python3-pip python3-venv >/dev/null 2>&1
-        
-        # Create virtual environment
-        python3 -m venv /tmp/venv >/dev/null 2>&1
-        source /tmp/venv/bin/activate
-        
-        # Install Google Cloud Storage
-        pip install --quiet google-cloud-storage >/dev/null 2>&1
-        echo "Dependencies installed successfully"
         
         # Generate timestamp for folder organization
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%S")
@@ -778,7 +740,7 @@ spec:
 
     # STEP 9: Cleanup (Always runs)
     - name: cleanup
-      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      image: $(params.INFRASTRUCTURE_IMAGE)
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
