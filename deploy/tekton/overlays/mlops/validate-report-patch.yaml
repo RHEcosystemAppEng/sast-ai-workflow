@@ -2,7 +2,7 @@
   path: /spec/steps/1
   value:
     name: validate-report-file
-    image: registry.access.redhat.com/ubi9/ubi:latest
+    image: $(params.INFRASTRUCTURE_IMAGE)
     script: |
       #!/bin/bash
       set -e

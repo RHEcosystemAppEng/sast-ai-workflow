@@ -2,7 +2,7 @@
   path: /spec/steps/4
   value:
     name: fetch-false-positives
-    image: python:3.11-slim
+    image: $(params.INFRASTRUCTURE_IMAGE)
     volumeMounts:
       - name: shared-data
         mountPath: /shared-data
@@ -63,10 +63,6 @@
 
       # Create false positives directory
       mkdir -p /shared-data/false-positives
-
-      # Install DVC with S3 support
-      echo "Installing DVC..."
-      pip install --quiet dvc dvc-s3 >/dev/null 2>&1
 
       # Construct DVC path: Known-non-issues-el10/$PROJECT_NAME/ignore.err
       DVC_PATH="${DVC_FP_BASE_DIR}/${PROJECT_NAME}/${FP_FILENAME}"
