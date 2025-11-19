@@ -16,7 +16,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: sast-ai
   source:
     repoURL: GITHUB_REPO_URL_PLACEHOLDER
     targetRevision: HEAD
