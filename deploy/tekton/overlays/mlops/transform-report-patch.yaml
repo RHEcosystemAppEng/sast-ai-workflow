@@ -2,7 +2,7 @@
   path: /spec/steps/3
   value:
     name: transform-report
-    image: $(params.INFRASTRUCTURE_IMAGE)
+    image: $(params.CONTAINER_IMAGE)
     volumeMounts:
       - name: shared-data
         mountPath: /shared-data
