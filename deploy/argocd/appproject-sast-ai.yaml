@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: sast-ai
+  namespace: ARGOCD_NAMESPACE_PLACEHOLDER
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/part-of: sast-ai-workflow
+spec:
+  description: SAST AI Workflow Project - manages Tekton pipelines across environments
+  
+  # Source restrictions - only our repository
+  sourceRepos:
+  - 'GITHUB_REPO_URL_PLACEHOLDER'
+  
+  # Destination restrictions - namespaces are added dynamically by Makefile
+  # when deploying ArgoCD applications
+  destinations: []
+  
+  # Resource whitelist - only what we need for Tekton pipelines
+  clusterResourceWhitelist:
+  - group: 'tekton.dev'
+    kind: 'Pipeline'
+  - group: 'tekton.dev'
+    kind: 'Task'
+  - group: 'tekton.dev'
+    kind: 'PipelineRun'
+  - group: 'tekton.dev'
+    kind: 'TaskRun'
+  - group: ''
+    kind: 'ConfigMap'
+  - group: ''
+    kind: 'Secret'
+  - group: ''
+    kind: 'ServiceAccount'
+  - group: ''
+    kind: 'PersistentVolumeClaim'
+  
+  # Deny list - prevent accidental quota/limit changes
+  namespaceResourceBlacklist:
+  - group: ''
+    kind: 'LimitRange'
+  - group: ''
+    kind: 'ResourceQuota'
+  
+  # Optional: RBAC for team access
+  # roles:
+  # - name: developer
+  #   description: Developers can view and sync applications
+  #   policies:
+  #   - p, proj:sast-ai:developer, applications, get, sast-ai/*, allow
+  #   - p, proj:sast-ai:developer, applications, sync, sast-ai/*, allow
+  #   groups:
+  #   - sast-ai-developers
+  # 
+  # - name: admin
+  #   description: Admins have full control
+  #   policies:
+  #   - p, proj:sast-ai:admin, applications, *, sast-ai/*, allow
+  #   groups:
+  #   - sast-ai-admins
+

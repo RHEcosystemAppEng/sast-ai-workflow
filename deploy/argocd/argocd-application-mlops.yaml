@@ -1,12 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: sast-ai-tekton-pipeline-syncer-prod
+  name: sast-ai-tekton-pipeline-syncer-mlops
   namespace: ARGOCD_NAMESPACE_PLACEHOLDER
   labels:
     app.kubernetes.io/name: sast-ai-workflow
     app.kubernetes.io/part-of: sast-ai-workflow
-    app.kubernetes.io/environment: prod
+    app.kubernetes.io/environment: mlops
+  annotations:
+    # ArgoCD Image Updater - watches for new 'latest' tag in registry
+    argocd-image-updater.argoproj.io/image-list: sast-workflow=quay.io/ecosystem-appeng/sast-ai-workflow:latest
+    argocd-image-updater.argoproj.io/sast-workflow.update-strategy: latest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+    argocd-image-updater.argoproj.io/sast-workflow.allow-tags: regexp:^latest$
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -14,14 +20,14 @@ spec:
   source:
     repoURL: GITHUB_REPO_URL_PLACEHOLDER
     targetRevision: HEAD
-    path: deploy/tekton/overlays/prod
+    path: deploy/tekton/overlays/mlops
   destination:
     server: https://kubernetes.default.svc
     namespace: TARGET_NAMESPACE_PLACEHOLDER
   syncPolicy:
     automated:
       prune: true
-      selfHeal: false
+      selfHeal: true
       allowEmpty: false
     syncOptions:
       - CreateNamespace=true
@@ -34,4 +40,5 @@ spec:
         factor: 2
         maxDuration: 3m
   revisionHistoryLimit: 10
+
 

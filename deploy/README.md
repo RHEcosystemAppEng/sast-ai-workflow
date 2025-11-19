@@ -116,9 +116,10 @@ oc get secrets | grep sast-ai
 | `run` | Execute pipeline using oc apply with PipelineRun |
 | `clean` | **⚠️ Deletes ALL resources in namespace** |
 | **ArgoCD GitOps** | |
-| `argocd-deploy-mlops` | Deploy ArgoCD Application for mlops environment |
-| `argocd-deploy-prod` | Deploy ArgoCD Application for prod environment |
-| `argocd-clean` | Remove ArgoCD Applications |
+| `argocd-deploy-dev` | Deploy ArgoCD Application for dev environment (base config) |
+| `argocd-deploy-mlops` | Deploy ArgoCD Application for mlops environment (S3 output) |
+| `argocd-deploy-prod` | Deploy ArgoCD Application for prod environment (versioned) |
+| `argocd-clean` | Remove ArgoCD Applications and AppProject |
 
 ### 6. Quick Start
 
@@ -175,29 +176,84 @@ make run                 # Execute pipeline (optional)
 For VPN-protected clusters, use GitOps to automatically sync Tekton resources from GitHub.
 
 #### 8.1. Prerequisites
-- ArgoCD installed in your cluster (e.g., in `sast-ai` namespace)
+- ArgoCD installed in a **dedicated management namespace** (recommended: `openshift-gitops` or `argocd`)
 - Repository access from within the cluster
 
+**⚠️ Best Practice:** Keep ArgoCD in a separate namespace from your managed applications for:
+- Security isolation
+- Clear separation of concerns
+- Multi-tenancy support
+- Avoiding circular dependencies
+
 #### 8.2. Deploy GitOps
+
+**IMPORTANT**: You must specify both `ARGOCD_NAMESPACE_PLACEHOLDER` (where ArgoCD is installed) and `NAMESPACE` (where Tekton resources will be deployed).
+
+The deployment automatically creates an ArgoCD **AppProject** named `sast-ai` that provides:
+- 🔒 **Security**: Only allowed namespaces and repos
+- 🎯 **Resource Control**: Only Tekton resources permitted
+- 🔍 **Audit Trail**: Clear project boundaries
+
 ```bash
-# Deploy ArgoCD Application
-make argocd-deploy
+# Development environment (uses base configuration)
+make argocd-deploy-dev \
+  ARGOCD_NAMESPACE_PLACEHOLDER=openshift-gitops \
+  NAMESPACE=sast-ai-dev
+
+# MLOps environment (uses S3 output storage)
+make argocd-deploy-mlops \
+  ARGOCD_NAMESPACE_PLACEHOLDER=openshift-gitops \
+  NAMESPACE=sast-ai-prod
+
+# Production environment (uses versioned images)
+make argocd-deploy-prod \
+  ARGOCD_NAMESPACE_PLACEHOLDER=openshift-gitops \
+  NAMESPACE=sast-ai-prod
 ```
 
-#### 8.3. How It Works
+**What Gets Deployed:**
+1. ArgoCD AppProject `sast-ai` (if not exists) - defines security boundaries
+2. Target namespace labeled with `argocd.argoproj.io/managed-by=<ARGOCD_NAMESPACE>` - enables ArgoCD management
+3. ArgoCD Application - watches Git and syncs to cluster
+
+**AppProject Security Features:**
+- ✅ Allowed destinations: Dynamically added when you deploy (any namespace you specify)
+- ✅ Allowed resources: Tekton Pipelines, Tasks, ConfigMaps, Secrets only
+- ❌ Blocked resources: LimitRange, ResourceQuota (prevent quota tampering)
+- ✅ Source repos: Only your configured Git repository
+
+**Automated Setup:**
+- Namespace automatically added to AppProject destinations when you deploy
+- Namespace labeled for ArgoCD management
+- ArgoCD creates Role + RoleBinding automatically
+- No manual permission setup required!
+
+**Common Error**: If you see "namespace X is not managed":
+1. Check the namespace label: `oc get namespace <NS> -o jsonpath='{.metadata.labels}'`
+2. Verify AppProject destinations: `oc get appproject sast-ai -n <ARGOCD_NS> -o jsonpath='{.spec.destinations[*].namespace}'`
+3. Try rerunning the deploy command - it will add the namespace automatically
+
+#### 8.3. Environment Differences
+
+| Environment | Kustomize Path | Use Case | Image Strategy |
+|-------------|----------------|----------|----------------|
+| **dev** | `deploy/tekton/base` | Development/testing | Latest tag, auto-update |
+| **mlops** | `deploy/tekton/overlays/mlops` | MLOps with S3 storage | Latest tag, auto-update |
+| **prod** | `deploy/tekton/overlays/prod` | Production | Versioned, manual update |
+
+#### 8.4. How It Works
 - **Auto-sync**: Changes to `main` branch deploy automatically (~3 min)
 - **Self-healing**: Manual changes are automatically reverted
 - **Pruning**: Deleted files are removed from cluster
-- **Path**: Only syncs `deploy/tekton/` directory
+- **Path**: Syncs the appropriate directory based on environment
 
-#### 8.4. Configuration
-Set in `.env` file (optional):
+#### 8.5. Configuration (Optional)
+Set in `.env` file:
 ```env
 GITHUB_REPO_URL=https://github.com/your-org/sast-ai-workflow.git
-ARGOCD_NAMESPACE=sast-ai
 ```
 
-#### 8.5. Prompt Changes with GitOps
+#### 8.6. Prompt Changes with GitOps
 When modifying prompts in `src/templates/prompts/`, you must regenerate the ConfigMap:
 
 ```bash
