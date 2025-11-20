@@ -64,13 +64,13 @@ def _handle_chat_openai(
         result = llm_chain.invoke(input)
         duration = time.time() - start_time
 
-        logger.info("✅ Parsed successfully! Duration: %.2fs", duration)
+        logger.info("Parsed successfully! Duration: %.2fs", duration)
         return result
 
     except Exception as e:
         duration = time.time() - start_time
-        logger.error("❌ Parsing failed. Duration: %.2fs", duration)
-        logger.error("❌ Error in _handle_chat_openai: %s: %s", type(e).__name__, e)
+        logger.error("Parsing failed. Duration: %.2fs", duration)
+        logger.error("Error in _handle_chat_openai: %s: %s", type(e).__name__, e)
         logger.error(traceback.format_exc())
         raise
 
