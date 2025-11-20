@@ -2,7 +2,7 @@
   path: /spec/steps/4
   value:
     name: fetch-false-positives
-    image: $(params.CONTAINER_IMAGE)
+    image: $(params.INFRASTRUCTURE_IMAGE)
     volumeMounts:
       - name: shared-data
         mountPath: /shared-data
