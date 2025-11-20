@@ -1,20 +1,6 @@
 FROM registry.access.redhat.com/ubi9/python-312 AS builder
 USER 0
-
-# Install EPEL repository (needed for csdiff/csgrep)
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-
-# Install system packages
-RUN dnf install -y --allowerasing \
-    git \
-    clang \
-    llvm-devel \
-    rpm-build \
-    curl \
-    jq \
-    file \
-    csdiff \
-    && dnf clean all
+RUN yum install -y git clang llvm-devel && yum clean all
 
 FROM builder
 USER 1001
@@ -22,14 +8,6 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
-
-# Install infrastructure packages separately to avoid dependency conflicts
-RUN pip install --no-cache-dir \
-    google-api-python-client==2.187.0 \
-    google-auth-httplib2==0.2.1 \
-    google-cloud-storage==3.6.0 \
-    dvc==3.64.0 \
-    dvc-s3==3.2.2
 
 COPY config ./config/
 COPY src ./src/

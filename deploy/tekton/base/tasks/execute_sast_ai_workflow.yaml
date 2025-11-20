@@ -79,6 +79,10 @@ spec:
       type: string
       description: "Container image to use for SAST AI analysis"
       default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
+    - name: INFRASTRUCTURE_IMAGE
+      type: string
+      description: "Infrastructure container image with pre-installed dependencies"
+      default: "quay.io/rh-ee-operetz/sast-ai-infrastructure:test"
 
     - name: GCS_BUCKET_NAME
       type: string
@@ -129,7 +133,7 @@ spec:
   steps:
     # STEP 1: Validate Input URLs
     - name: validate-input-urls
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       script: |
         #!/usr/bin/env sh
         echo "=== STEP 1: VALIDATE INPUT URLS ==="
@@ -151,7 +155,7 @@ spec:
 
     # STEP 2: Validate Report File
     - name: validate-report-file
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -238,7 +242,7 @@ spec:
 
     # STEP 3: Prepare Source Code
     - name: prepare-source
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       securityContext:
         runAsUser: 0
       env:
@@ -314,7 +318,7 @@ spec:
 
     # STEP 4: Transform SAST Report to SARIF Format
     - name: transform-report
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -393,7 +397,7 @@ spec:
 
     # STEP 5: Fetch False Positives
     - name: fetch-false-positives
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       env:
         - name: FP_URL
           value: "$(params.FALSE_POSITIVES_URL)"
@@ -590,7 +594,7 @@ spec:
 
     # STEP 7: Upload to Google Drive
     - name: upload-to-gdrive
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       env:
         - name: GDRIVE_FOLDER_ID
           value: "$(params.GDRIVE_FOLDER_ID)"
@@ -669,7 +673,7 @@ spec:
 
     # STEP 8: Upload SARIF to GCS Bucket
     - name: upload-sarif-to-gcs
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       env:
         - name: GCS_BUCKET_NAME
           value: "$(params.GCS_BUCKET_NAME)"
@@ -736,7 +740,7 @@ spec:
 
     # STEP 9: Cleanup (Always runs)
     - name: cleanup
-      image: $(params.CONTAINER_IMAGE)
+      image: $(params.INFRASTRUCTURE_IMAGE)
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data

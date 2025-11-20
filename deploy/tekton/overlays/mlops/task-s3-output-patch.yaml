@@ -23,7 +23,7 @@
   path: /spec/steps/6
   value:
     name: upload-to-s3-output
-    image: $(params.CONTAINER_IMAGE)
+    image: $(params.INFRASTRUCTURE_IMAGE)
     env:
       - name: S3_OUTPUT_BUCKET_NAME
         value: "$(params.S3_OUTPUT_BUCKET_NAME)"
