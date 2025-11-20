@@ -7,7 +7,7 @@ from dto.ResponseStructures import InstructionResponse
 
 class CVEValidationStatus(Enum):
     TRUE_POSITIVE = "TRUE POSITIVE"
-    FALSE_POSITIVE = " FALSE POSITIVE"
+    FALSE_POSITIVE = "FALSE POSITIVE"
 
 
 class FinalStatus(Enum):

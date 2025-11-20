@@ -63,6 +63,10 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
+    - name: CONTAINER_IMAGE
+      type: string
+      description: "Container image to use for SAST AI analysis"
+      default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
   workspaces:
     - name: gitlab-token-ws
       optional: true
@@ -106,6 +110,8 @@ spec:
           value: "$(params.GCS_BUCKET_NAME)"
         - name: GCS_SA_FILE_NAME
           value: "$(params.GCS_SA_FILE_NAME)"
+        - name: CONTAINER_IMAGE
+          value: "$(params.CONTAINER_IMAGE)"
       workspaces:
         - name: gitlab-token-ws
           workspace: gitlab-token-ws
