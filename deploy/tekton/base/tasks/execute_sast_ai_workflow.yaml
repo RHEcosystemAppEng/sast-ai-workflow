@@ -365,7 +365,7 @@ spec:
           dnf install -y csdiff file >/dev/null 2>&1
 
           # Check if it's a JSON file and convert to SARIF
-          if file "$JSON_FILE" | grep -q "JSON"; then
+          if  [[ "$JSON_FILE" =~ \.(json|js)$ ]] || file "$JSON_FILE" | grep -q "JSON"; then
             echo "Detected JSON file - converting to SARIF format..."
 
             # Convert to SARIF format using csgrep
