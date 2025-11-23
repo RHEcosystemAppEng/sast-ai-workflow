@@ -65,8 +65,5 @@ ENV ENVIRONMENT=base
 # Set working directory
 WORKDIR /workspace
 
-# Switch back to non-root user for security
-USER 1001
-
 # Default command
 CMD ["/bin/bash"]
