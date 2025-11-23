@@ -621,7 +621,7 @@ spec:
         - name: GDRIVE_FOLDER_ID_FROM_CM
           valueFrom:
             configMapKeyRef:
-              name: gdrive-config
+              name: sast-ai-gdrive-config
               key: folder-id
               optional: true
       volumeMounts:
