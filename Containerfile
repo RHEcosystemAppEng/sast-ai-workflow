@@ -1,6 +1,6 @@
-FROM registry.access.redhat.com/ubi9/python-312 AS builder
+FROM quay.io/rh-ee-operetz/sast-ai-base-image:test AS builder
 USER 0
-RUN yum install -y git clang llvm-devel && yum clean all
+RUN yum install -y clang llvm-devel && yum clean all
 
 FROM builder
 USER 1001

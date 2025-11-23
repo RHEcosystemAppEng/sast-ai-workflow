@@ -1,30 +1,31 @@
-name: Build Dev Image
+name: Build Base Image
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'base_image_containerfile'
+      - '.github/workflows/build-base-image.yml'
   pull_request:
     branches:
       - main
+    paths:
+      - 'base_image_containerfile'
+      - '.github/workflows/build-base-image.yml'
     types:
       - closed
-  workflow_run:
-    workflows: ["Build Base Image"]
-    types:
-      - completed
-    branches:
-      - main
+  workflow_dispatch:
 
 env:
   REGISTRY: quay.io
-  IMAGE_NAME: quay.io/ecosystem-appeng/sast-ai-workflow
+  IMAGE_NAME: quay.io/ecosystem-appeng/sast-ai-base-image
 
 jobs:
-  build-dev:
+  build-base:
     runs-on: ubuntu-latest
-    # Only run on direct pushes to main OR when PRs are merged OR when base image build completes successfully
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # Only run on direct pushes to main OR when PRs are merged (not just closed) OR manual trigger
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     permissions:
       contents: read
       packages: write
@@ -43,7 +44,7 @@ jobs:
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
-    - name: Generate development metadata
+    - name: Generate base image metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
@@ -53,15 +54,15 @@ jobs:
           type=raw,value=latest
           type=raw,value=main-{{sha}}
         labels: |
-          org.opencontainers.image.title=SAST AI Workflow (Development)
-          org.opencontainers.image.description=LLM-based tool for SAST vulnerability detection (Development Build)
+          org.opencontainers.image.title=SAST AI Base Image
+          org.opencontainers.image.description=Base image with pre-installed dependencies for SAST AI Workflow
           org.opencontainers.image.vendor=Red Hat Ecosystem AppEng
 
-    - name: Build and push development container
+    - name: Build and push base image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./Containerfile
+        file: ./base_image_containerfile
         platforms: linux/amd64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
@@ -71,9 +72,9 @@ jobs:
 
     - name: Generate build summary
       run: |
-        echo "## 🔧 Development Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔧 Base Image Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Type:** Development Build" >> $GITHUB_STEP_SUMMARY
+        echo "**Type:** Base Image Build" >> $GITHUB_STEP_SUMMARY
         echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
         echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -81,4 +82,4 @@ jobs:
         echo "- \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "- \`${{ env.IMAGE_NAME }}:main-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-workflow)" >> $GITHUB_STEP_SUMMARY
+        echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-base-image)" >> $GITHUB_STEP_SUMMARY
