@@ -1,9 +1,7 @@
-FROM quay.io/rh-ee-operetz/sast-ai-base-image:test AS builder
+FROM quay.io/ecosystem-appeng/sast-ai-base-image:latest
 USER 0
 RUN yum install -y clang llvm-devel && yum clean all
 
-FROM builder
-USER 1001
 WORKDIR /app
 
 COPY requirements.txt .
@@ -15,16 +13,14 @@ COPY evaluation ./evaluation/
 COPY deploy ./deploy/
 COPY pyproject.toml .
 
-USER 0
-RUN chown -R 1001:1001 /app && \
-    chmod +x /app/deploy/tekton/scripts/*.sh
-USER 1001
-
 # Set version for setuptools-scm since .git folder is not available in container
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
 
+RUN pip install -e .
 
-RUN pip install -e . 
+RUN chown -R 1001:1001 /app && \
+    chmod +x /app/deploy/tekton/scripts/*.sh
+USER 1001 
 
 VOLUME ["/etc/secrets"]
 

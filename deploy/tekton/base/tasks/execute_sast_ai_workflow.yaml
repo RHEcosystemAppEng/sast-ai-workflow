@@ -78,11 +78,11 @@ spec:
     - name: CONTAINER_IMAGE
       type: string
       description: "Container image to use for SAST AI analysis"
-      default: "quay.io/rh-ee-operetz/sast-ai-workflow:test"
+      default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
     - name: BASE_IMAGE
       type: string
       description: "Base image with pre-installed dependencies"
-      default: "quay.io/rh-ee-operetz/sast-ai-base-image:test"
+      default: "quay.io/ecosystem-appeng/sast-ai-base-image:latest"
 
     - name: GCS_BUCKET_NAME
       type: string
