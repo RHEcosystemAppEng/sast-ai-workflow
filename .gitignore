@@ -170,3 +170,6 @@ evaluation/dataset/*
 evaluation/reports/*
 evaluation/known_non_issues_data/*
 /.claude/
+
+# AI Assistant Rules (local configuration)
+workflow-ai-assistant-rules/
