@@ -21,13 +21,6 @@ from sast_agent_workflow.callbacks.token_usage_callback import TokenUsageCallbac
 
 # Constants for timing and token tracking
 DEFAULT_TOKEN_METRICS_PATH = "/shared-data/token_usage.json"
-LANGGRAPH_STREAM_VERSION = "v2"
-DURATION_DECIMAL_PLACES = 3
-LANGGRAPH_NODE_METADATA_KEY = "langgraph_node"
-EVENT_START_MARKER = "__start__"
-EVENT_END_MARKER = "__end__"
-EVENT_TYPE_CHAIN_START = "on_chain_start"
-EVENT_TYPE_CHAIN_END = "on_chain_end"
 
 # Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \

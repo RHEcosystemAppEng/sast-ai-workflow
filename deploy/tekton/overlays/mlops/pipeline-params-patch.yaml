@@ -80,15 +80,3 @@
   value:
     name: EVALUATE_SPECIFIC_NODE
     value: "$(params.EVALUATE_SPECIFIC_NODE)"
-- op: add
-  path: /spec/params/-
-  value:
-    name: CONTAINER_IMAGE
-    type: string
-    description: "Container image to use for SAST AI analysis"
-    default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
-- op: add
-  path: /spec/tasks/0/params/-
-  value:
-    name: CONTAINER_IMAGE
-    value: "$(params.CONTAINER_IMAGE)"
