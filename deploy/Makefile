@@ -6,7 +6,7 @@ endif
 
 CONTEXT := $(shell oc config current-context)
 NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
-
+ARGOCD_NAMESPACE_PLACEHOLDER ?= argocd
 CO := oc  --context $(CONTEXT)
 
 # Pipeline parameters (overrideable on the CLI):
@@ -15,6 +15,7 @@ HUMAN_VERIFIED_FILE_PATH         ?= ""
 
 LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
+LLM_API_TYPE                     ?= nim
 EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
 EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 
@@ -39,8 +40,8 @@ GDRIVE_SA_FILE_NAME			     ?= service_account.json
 # Container Image Configuration
 IMAGE_REGISTRY                   ?= quay.io/ecosystem-appeng
 IMAGE_NAME                       ?= sast-ai-workflow
-IMAGE_VERSION                    ?= 
-CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
+IMAGE_VERSION                    ?= latest
+CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
 
 # GCS Bucket Configuration
 GCS_BUCKET_NAME                  ?=
@@ -65,12 +66,12 @@ GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
 DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 
 # S3/Minio Configuration
-S3_OUTPUT_BUCKET_NAME            ?= ""
-AWS_ACCESS_KEY_ID                ?= ""
-AWS_SECRET_ACCESS_KEY            ?= ""
-S3_ENDPOINT_URL                  ?= ""
+S3_OUTPUT_BUCKET_NAME            ?= 
+AWS_ACCESS_KEY_ID                ?= 
+AWS_SECRET_ACCESS_KEY            ?= 
+S3_ENDPOINT_URL                  ?= 
 
-.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-mlops argocd-deploy-prod argocd-clean
+.PHONY: deploy setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-setup-project argocd-deploy-dev argocd-deploy-mlops argocd-deploy-prod argocd-clean
 
 # Unified deploy command
 # Usage:
@@ -165,6 +166,7 @@ secrets:
 	$(CO) create secret generic sast-ai-default-llm-creds \
 		--from-literal=llm_url="$(LLM_URL)" \
 		--from-literal=llm_api_key="$(LLM_API_KEY)" \
+		--from-literal=llm_api_type="$(LLM_API_TYPE)" \
 		--from-literal=embeddings_llm_url="$(EMBEDDINGS_LLM_URL)" \
 		--from-literal=embeddings_llm_api_key="$(EMBEDDINGS_LLM_API_KEY)" \
 		--from-literal=llm_model_name="$(LLM_MODEL_NAME)" \
@@ -305,6 +307,7 @@ run:
 		-e 's|EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER|$(EMBEDDINGS_LLM_MODEL_NAME)|g' \
 		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
 		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
+		-e 's|LLM_API_TYPE_PLACEHOLDER|$(LLM_API_TYPE)|g' \
 		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
 		-e 's|HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER|$(HUMAN_VERIFIED_FILE_PATH)|g' \
 		-e 's|USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER|$(USE_KNOWN_FALSE_POSITIVE_FILE)|g' \
@@ -326,29 +329,78 @@ run:
 	@echo "   ✓ View status: oc get pipelineruns -n $(NAMESPACE)"
 	@echo "   ✓ Follow logs: oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
 
-argocd-deploy-mlops:
-	@echo "🔄 Deploying ArgoCD Application (MLOps)..."
+argocd-setup-project:
+	@echo "🔧 Setting up ArgoCD AppProject..."
+	@# Check if AppProject exists
+	@if $(CO) get appproject sast-ai -n $(ARGOCD_NAMESPACE_PLACEHOLDER) > /dev/null 2>&1; then \
+		echo "   ℹ️  AppProject 'sast-ai' already exists, skipping creation"; \
+	else \
+		echo "   🆕 Creating new AppProject 'sast-ai'..."; \
+		sed \
+			-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
+			-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+			argocd/appproject-sast-ai.yaml > argocd/appproject-sast-ai-temp.yaml; \
+		$(CO) apply -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -f argocd/appproject-sast-ai-temp.yaml; \
+		rm -f argocd/appproject-sast-ai-temp.yaml; \
+		echo "   ✓ ArgoCD AppProject 'sast-ai' created"; \
+	fi
+	@# Add target namespace to AppProject destinations (idempotent)
+	@echo "   🔄 Adding namespace $(NAMESPACE) to AppProject destinations..."
+	@$(CO) get appproject sast-ai -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -o json | \
+		jq '.spec.destinations |= (. + [{"namespace":"$(NAMESPACE)","server":"https://kubernetes.default.svc"}] | unique_by(.namespace))' | \
+		$(CO) apply -f - > /dev/null 2>&1 || \
+		{ echo "   ⚠️  Warning: Could not update AppProject destinations"; }
+	@echo "   ✓ Namespace $(NAMESPACE) added to AppProject"
+
+argocd-deploy-dev: argocd-setup-project
+	@echo "🔄 Deploying ArgoCD Application (Dev)..."
+	@# Label the target namespace for ArgoCD management
+	@echo "   🏷️  Labeling namespace $(NAMESPACE) for ArgoCD management..."
+	@$(CO) label namespace $(NAMESPACE) argocd.argoproj.io/managed-by=$(ARGOCD_NAMESPACE_PLACEHOLDER) --overwrite > /dev/null 2>&1 || \
+		{ echo "   ⚠️  Warning: Could not label namespace $(NAMESPACE) (might not exist yet)"; }
 	@# Create a temporary file with placeholders replaced
 	@sed \
-		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
 		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
 		argocd/argocd-application-dev.yaml > argocd/argocd-application-dev-temp.yaml
-	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-dev-temp.yaml
+	@$(CO) apply -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -f argocd/argocd-application-dev-temp.yaml
 	@rm -f argocd/argocd-application-dev-temp.yaml
+	@echo "   ✓ ArgoCD Application (dev) deployed to $(NAMESPACE) namespace"
+	@echo "   ✓ Watching: deploy/tekton/base (base configuration)"
+	@echo "   ✓ Auto-sync: enabled"
+
+argocd-deploy-mlops: argocd-setup-project
+	@echo "🔄 Deploying ArgoCD Application (MLOps)..."
+	@# Label the target namespace for ArgoCD management
+	@echo "   🏷️  Labeling namespace $(NAMESPACE) for ArgoCD management..."
+	@$(CO) label namespace $(NAMESPACE) argocd.argoproj.io/managed-by=$(ARGOCD_NAMESPACE_PLACEHOLDER) --overwrite > /dev/null 2>&1 || \
+		{ echo "   ⚠️  Warning: Could not label namespace $(NAMESPACE) (might not exist yet)"; }
+	@# Create a temporary file with placeholders replaced
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
+		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-application-mlops.yaml > argocd/argocd-application-mlops-temp.yaml
+	@$(CO) apply -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -f argocd/argocd-application-mlops-temp.yaml
+	@rm -f argocd/argocd-application-mlops-temp.yaml
 	@echo "   ✓ ArgoCD Application (mlops) deployed to $(NAMESPACE) namespace"
 	@echo "   ✓ Watching: deploy/tekton/overlays/mlops (S3 output storage)"
 	@echo "   ✓ Auto-sync: enabled"
 
-argocd-deploy-prod:
+argocd-deploy-prod: argocd-setup-project
 	@echo "🔄 Deploying ArgoCD Application (Production)..."
+	@# Label the target namespace for ArgoCD management
+	@echo "   🏷️  Labeling namespace $(NAMESPACE) for ArgoCD management..."
+	@$(CO) label namespace $(NAMESPACE) argocd.argoproj.io/managed-by=$(ARGOCD_NAMESPACE_PLACEHOLDER) --overwrite > /dev/null 2>&1 || \
+		{ echo "   ⚠️  Warning: Could not label namespace $(NAMESPACE) (might not exist yet)"; }
 	@# Create a temporary file with placeholders replaced
 	@sed \
-		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
 		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
 		argocd/argocd-application-prod.yaml > argocd/argocd-application-prod-temp.yaml
-	@$(CO) apply -n $(NAMESPACE) -f argocd/argocd-application-prod-temp.yaml
+	@$(CO) apply -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -f argocd/argocd-application-prod-temp.yaml
 	@rm -f argocd/argocd-application-prod-temp.yaml
 	@echo "   ✓ ArgoCD Application (prod) deployed to $(NAMESPACE) namespace"
 	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
@@ -356,11 +408,14 @@ argocd-deploy-prod:
 
 argocd-clean:
 	@echo "🧹 Removing ArgoCD Applications..."
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-dev -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-dev -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-prod -n $(NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-prod -n $(NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@echo "   ✓ ArgoCD Applications removed"
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer-dev -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+	$(CO) patch application sast-ai-tekton-pipeline-syncer-dev -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer-mlops -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+	$(CO) patch application sast-ai-tekton-pipeline-syncer-mlops -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
+	@$(CO) delete application sast-ai-tekton-pipeline-syncer-prod -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+	$(CO) patch application sast-ai-tekton-pipeline-syncer-prod -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
+	@$(CO) delete appproject sast-ai -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || true
+	@echo "   ✓ ArgoCD Applications and AppProject removed"
 
 clean:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

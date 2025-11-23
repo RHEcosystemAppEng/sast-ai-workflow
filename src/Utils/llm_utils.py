@@ -1,10 +1,9 @@
 import logging
+import time
+import traceback
 from typing import Dict, List, Type
 
-from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
-from langchain.output_parsers.prompts import NAIVE_FIX
-from langchain_core.exceptions import LangChainException, OutputParserException
-from langchain_core.prompts.prompt import PromptTemplate
+from langchain_core.exceptions import LangChainException
 from langchain_core.runnables import RunnableSerializable
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai.chat_models.base import ChatOpenAI
@@ -54,35 +53,26 @@ def _handle_chat_openai(
 ) -> BaseModel:
     """
     Handles structured output for ChatOpenAI.
+    Uses json_schema with strict=True mode, which either returns a valid
+    parsed object or raises an exception. No fallback logic needed.
     """
-    structured_llm = llm.with_structured_output(schema, method="json_mode", include_raw=True)
-    llm_chain = prompt_chain | structured_llm
-    result = llm_chain.invoke(input)
-
-    if result.get("parsed") is not None:
-        return result.get("parsed")
-
-    logger.warning(WARNING_MESSAGE.format(model_type=schema))
-    raw_content = result.get("raw").content
-    # logger.info(f"{raw_content=}")
-
-    parser = PydanticOutputParser(pydantic_object=schema)
-    fix_prompt = PromptTemplate.from_template(
-        NAIVE_FIX
-        + " Please don't change the content of the answer itself, \
-            but just the structure and data type of it."
-    )
-    fixing_parser = OutputFixingParser.from_llm(
-        parser=parser, llm=llm, max_retries=max_retries, prompt=fix_prompt
-    )
-
+    start_time = time.time()
     try:
-        fixed_result = fixing_parser.invoke(raw_content)
-        return fixed_result
-    except OutputParserException as e:
-        raise OutputParserException(
-            ERROR_MESSAGE.format(max_retries=max_retries, exception=e, input=input)
-        )
+        structured_llm = llm.with_structured_output(schema, method="json_schema", strict=True)
+        llm_chain = prompt_chain | structured_llm
+
+        result = llm_chain.invoke(input)
+        duration = time.time() - start_time
+
+        logger.info("Parsed successfully! Duration: %.2fs", duration)
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        logger.error("Parsing failed. Duration: %.2fs", duration)
+        logger.error("Error in _handle_chat_openai: %s: %s", type(e).__name__, e)
+        logger.error(traceback.format_exc())
+        raise
 
 
 def _handle_chat_nvidia(
@@ -97,7 +87,7 @@ def _handle_chat_nvidia(
     ChatNVIDIA not soppurted include_raw=True, instead it return None when failed to parse.
     """
     for attempt in range(max_retries):
-        structured_llm = llm.with_structured_output(schema, method="json_mode")
+        structured_llm = llm.with_structured_output(schema)
         llm_chain = prompt_chain | structured_llm
         try:
             result = llm_chain.invoke(input)
@@ -121,21 +111,21 @@ def _handle_chat_nvidia(
 def format_source_code_for_analysis(source_code: Dict[str, List[str]]) -> str:
     """
     Convert the structured source_code dict to formatted string for LLM analysis.
-    
+
     Args:
         source_code: Dict mapping file paths to lists of code snippets
-        
+
     Returns:
         Formatted string with proper separators and headers
     """
     if not source_code:
         return ""
-    
+
     formatted_sections = []
     for path, code_snippets in source_code.items():
         if code_snippets:
             # Join with double newlines to separate different code snippets
             combined_code = "\n\n".join(code_snippets)
             formatted_sections.append(f"\ncode of {path} file:\n{combined_code}")
-    
+
     return "".join(formatted_sections)
