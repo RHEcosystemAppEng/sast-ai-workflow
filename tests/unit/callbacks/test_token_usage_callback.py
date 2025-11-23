@@ -7,7 +7,7 @@ import json
 import asyncio
 import tempfile
 import os
-from unittest.mock import Mock, patch, ANY
+from unittest.mock import Mock, MagicMock, patch, ANY
 from pathlib import Path
 
 from src.sast_agent_workflow.callbacks.token_usage_callback import (
@@ -372,3 +372,88 @@ class TestTokenUsageCallback:
         assert callback.metrics[0]["total_tokens"] == 750
         assert callback.metrics[0]["duration_seconds"] >= 0.2
         assert callback.metrics[0]["duration_seconds"] is not None
+
+    def test_on_llm_error__cleans_up_context(self, callback):
+        """Test that on_llm_error cleans up context on LLM failure"""
+        run_id = "error-run-123"
+
+        # Simulate LLM start
+        callback.on_llm_start(
+            serialized={},
+            prompts=["test"],
+            run_id=run_id,
+            metadata={"langgraph_node": "judge_llm_analysis"}
+        )
+
+        assert run_id in callback._current_contexts
+
+        # Simulate LLM error
+        callback.on_llm_error(
+            error=Exception("LLM timeout"),
+            run_id=run_id
+        )
+
+        # Context should be cleaned up
+        assert run_id not in callback._current_contexts
+
+    def test_on_llm_end__validates_run_id(self, callback, caplog):
+        """Test that on_llm_end validates run_id exists"""
+        run_id = "missing-run-123"
+
+        # Try to end an LLM call that was never started
+        with caplog.at_level('WARNING'):
+            callback.on_llm_end(
+                response=MagicMock(llm_output={
+                    "token_usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 50,
+                        "total_tokens": 150
+                    }
+                }),
+                run_id=run_id
+            )
+
+        assert f"No context found for run_id={run_id}" in caplog.text
+        assert len(callback.metrics) == 0
+
+    def test_track_node_timing__supports_sync_functions(self, callback):
+        """Test that track_node_timing works with synchronous functions"""
+        @callback.track_node_timing("sync_node")
+        def sync_function(value):
+            """Sync function docstring"""
+            import time
+            time.sleep(0.1)
+            return value * 2
+
+        result = sync_function(5)
+
+        assert result == 10
+        assert len(callback.metrics) == 1
+        assert callback.metrics[0]["tool_name"] == "sync_node"
+        assert callback.metrics[0]["duration_seconds"] >= 0.1
+        assert sync_function.__name__ == "sync_function"
+        assert sync_function.__doc__ == "Sync function docstring"
+
+    def test__write_file__thread_safe(self, callback, temp_output_file):
+        """Test that _write_file is thread-safe with concurrent writes"""
+        import threading
+
+        callback.metrics = [{"tool_name": "test", "duration_seconds": 1.0}]
+
+        # Try to write from multiple threads simultaneously
+        threads = []
+        for _ in range(5):
+            thread = threading.Thread(target=callback._write_file)
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        # File should exist and be written only once
+        assert os.path.exists(temp_output_file)
+        with open(temp_output_file, 'r') as f:
+            data = json.load(f)
+
+        assert len(data) == 1
+        assert callback._written is True

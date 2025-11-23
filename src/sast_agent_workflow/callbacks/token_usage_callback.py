@@ -3,6 +3,8 @@ import logging
 import atexit
 import time
 import functools
+import asyncio
+import threading
 import os
 from typing import Any, Dict, List, Optional
 from langchain_core.callbacks import BaseCallbackHandler
@@ -21,6 +23,7 @@ class TokenUsageCallback(BaseCallbackHandler):
         self.metrics: List[Dict[str, Any]] = []
         self._current_contexts: Dict[str, Dict[str, Any]] = {}  # run_id -> {tool_name, model}
         self._written = False
+        self._write_lock = threading.Lock()
 
         atexit.register(self._write_file)
         logger.info(f"TokenUsageCallback initialized, will write to: {output_path}")
@@ -44,6 +47,10 @@ class TokenUsageCallback(BaseCallbackHandler):
             return
 
         run_id = kwargs.get("run_id")
+        if run_id not in self._current_contexts:
+            logger.warning(f"No context found for run_id={run_id}")
+            return
+
         context = self._current_contexts.pop(run_id, {})
         tool_name = context.get("tool_name", "unknown")
         model = context.get("model", "unknown")
@@ -75,51 +82,70 @@ class TokenUsageCallback(BaseCallbackHandler):
 
             logger.info(f"Captured token usage for {tool_name}: {token_usage}")
 
+    def on_llm_error(self, error: Exception, **kwargs: Any) -> None:
+        """Clean up context on LLM error to prevent memory leaks"""
+        run_id = kwargs.get("run_id")
+        if run_id and run_id in self._current_contexts:
+            logger.warning(f"LLM call failed for run_id={run_id}, cleaning up context")
+            self._current_contexts.pop(run_id, None)
+
+    def _update_timing(self, node_name: str, duration: float) -> None:
+        """Update or create timing entry for a node"""
+        existing_entry = next((m for m in self.metrics if m["tool_name"] == node_name), None)
+        if existing_entry:
+            existing_entry["duration_seconds"] = round(duration, DURATION_DECIMAL_PLACES)
+        else:
+            self.metrics.append({
+                "tool_name": node_name,
+                "duration_seconds": round(duration, DURATION_DECIMAL_PLACES),
+                "model": None,
+                "input_tokens": None,
+                "output_tokens": None,
+                "total_tokens": None
+            })
+        logger.info(f"Node completed: {node_name}, duration={duration:.3f}s")
+
     def track_node_timing(self, node_name: str):
-        """Decorator to track timing for any node"""
+        """Decorator to track timing for both sync and async node functions"""
         def decorator(func):
-            @functools.wraps(func)
-            async def wrapper(*args, **kwargs):
-                start_time = time.time()
-                result = await func(*args, **kwargs)
-                duration = time.time() - start_time
-
-                # Find or create entry
-                existing_entry = next((m for m in self.metrics if m["tool_name"] == node_name), None)
-                if existing_entry:
-                    existing_entry["duration_seconds"] = round(duration, DURATION_DECIMAL_PLACES)
-                else:
-                    self.metrics.append({
-                        "tool_name": node_name,
-                        "duration_seconds": round(duration, DURATION_DECIMAL_PLACES),
-                        "model": None,
-                        "input_tokens": None,
-                        "output_tokens": None,
-                        "total_tokens": None
-                    })
-
-                logger.info(f"Node completed: {node_name}, duration={duration:.3f}s")
-                return result
-            return wrapper
+            if asyncio.iscoroutinefunction(func):
+                @functools.wraps(func)
+                async def async_wrapper(*args, **kwargs):
+                    start_time = time.time()
+                    result = await func(*args, **kwargs)
+                    duration = time.time() - start_time
+                    self._update_timing(node_name, duration)
+                    return result
+                return async_wrapper
+            else:
+                @functools.wraps(func)
+                def sync_wrapper(*args, **kwargs):
+                    start_time = time.time()
+                    result = func(*args, **kwargs)
+                    duration = time.time() - start_time
+                    self._update_timing(node_name, duration)
+                    return result
+                return sync_wrapper
         return decorator
 
     def _write_file(self) -> None:
-        if self._written:
-            return
+        with self._write_lock:
+            if self._written:
+                return
 
-        if not self.metrics:
-            logger.warning("No metrics data to write")
-            return
+            if not self.metrics:
+                logger.warning("No metrics data to write")
+                return
 
-        try:
-            output_dir = os.path.dirname(self.output_path)
-            if output_dir:
-                os.makedirs(output_dir, exist_ok=True)
+            try:
+                output_dir = os.path.dirname(self.output_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
 
-            logger.info(f"Writing {len(self.metrics)} metric entries to: {self.output_path}")
-            with open(self.output_path, 'w') as f:
-                json.dump(self.metrics, f, indent=2)
-            logger.info(f"Metrics file written successfully to: {self.output_path}")
-            self._written = True
-        except Exception as e:
-            logger.error(f"Failed to write metrics file: {e}", exc_info=True)
+                logger.info(f"Writing {len(self.metrics)} metric entries to: {self.output_path}")
+                with open(self.output_path, 'w') as f:
+                    json.dump(self.metrics, f, indent=2)
+                logger.info(f"Metrics file written successfully to: {self.output_path}")
+                self._written = True
+            except Exception as e:
+                logger.error(f"Failed to write metrics file: {e}", exc_info=True)
