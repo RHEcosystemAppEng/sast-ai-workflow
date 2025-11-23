@@ -2,7 +2,7 @@
   path: /spec/steps/1
   value:
     name: validate-report-file
-    image: $(params.INFRASTRUCTURE_IMAGE)
+    image: $(params.BASE_IMAGE)
     script: |
       #!/bin/bash
       set -e
