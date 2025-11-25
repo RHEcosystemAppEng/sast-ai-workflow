@@ -5,7 +5,7 @@ resources:
   - pipeline.yaml
   - tasks/execute_sast_ai_workflow.yaml
   # Upload scripts ConfigMaps
-  - ../scripts/upload_to_drive_cm.yaml
-  - ../scripts/upload_to_gcs_cm.yaml
-  - ../scripts/upload_to_s3_output_cm.yaml
+  - configmaps/upload_to_drive_cm.yaml
+  - configmaps/upload_to_gcs_cm.yaml
+  - configmaps/upload_to_s3_output_cm.yaml
 
