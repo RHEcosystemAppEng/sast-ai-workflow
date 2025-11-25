@@ -1,4 +1,5 @@
 import logging
+import os
 from pydantic import Field
 import json
 
@@ -14,6 +15,12 @@ from sast_agent_workflow.graph_builder import build_sast_workflow_graph, verify_
 
 # Import extended embedder for automatic registration
 from sast_agent_workflow.embedders import extended_openai_embedder
+
+# Import token usage callback for LLM token tracking
+from sast_agent_workflow.callbacks.token_usage_callback import TokenUsageCallback
+
+# Constants for timing and token tracking
+DEFAULT_TOKEN_METRICS_PATH = "/shared-data/token_usage.json"
 
 # Import any tools which need to be automatically registered here, its actually used even though they marked as unused
 from sast_agent_workflow.tools import pre_process, \
@@ -49,6 +56,11 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     """
     logger.info("Initializing SAST Agent workflow...")
     
+    # Initialize token usage callback for tracking LLM token usage
+    metrics_path = os.getenv("TOKEN_METRICS_PATH", DEFAULT_TOKEN_METRICS_PATH)
+    token_callback = TokenUsageCallback(output_path=metrics_path)
+    logger.info(f"Token usage callback initialized with output path: {metrics_path}")
+
     # Access all the placeholder functions
     pre_process_fn = builder.get_function(name=config.pre_process_function_name)
     filter_fn = builder.get_function(name=config.filter_function_name)
@@ -58,43 +70,51 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     summarize_justifications_fn = builder.get_function(name=config.summarize_justifications_function_name)
     calculate_metrics_fn = builder.get_function(name=config.calculate_metrics_function_name)
     write_results_fn = builder.get_function(name=config.write_results_function_name)
-    
-    # Define langgraph node functions
+
+    # Define langgraph node functions with timing decorator
+    @token_callback.track_node_timing("pre_process")
     async def pre_process_node(state: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Pre_Process node that initializes the workflow."""
         logger.info("Running Pre_Process node")
         return await pre_process_fn.ainvoke({})
-    
+
+    @token_callback.track_node_timing("filter")
     async def filter_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Filter node that filters issues."""
         logger.info("Running Filter node")
         return await filter_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("data_fetcher")
     async def data_fetcher_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Data_Fetcher node that fetches data."""
         logger.info("Running Data_Fetcher node")
         return await data_fetcher_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("judge_llm_analysis")
     async def judge_llm_analysis_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Judge_LLM_Analysis node that performs LLM analysis."""
         logger.info("Running Judge_LLM_Analysis node")
         return await judge_llm_analysis_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("evaluate_analysis")
     async def evaluate_analysis_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Evaluate_Analysis node that evaluates analysis results."""
         logger.info("Running Evaluate_Analysis node")
         return await evaluate_analysis_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("summarize_justifications")
     async def summarize_justifications_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Summarize_Justifications node that summarizes justifications."""
         logger.info("Running Summarize_Justifications node")
         return await summarize_justifications_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("calculate_metrics")
     async def calculate_metrics_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Calculate_Metrics node that calculates metrics."""
         logger.info("Running Calculate_Metrics node")
         return await calculate_metrics_fn.ainvoke(tracker)
-    
+
+    @token_callback.track_node_timing("write_results")
     async def write_results_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Write_Results node that writes results."""
         logger.info("Running Write_Results node")
@@ -114,7 +134,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     
     # Verify graph was built successfully
     verify_graph_structure(graph)
-    
+
     # Converter functions for different input types
     def convert_str_to_sast_tracker(input_str: str) -> SASTWorkflowTracker:
         """Convert string input to SASTWorkflowTracker
@@ -147,10 +167,10 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
             raise e
     
     async def _response_fn(input_message: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """Main response function that runs the LangGraph workflow""" 
-        results = await graph.ainvoke(input_message)
-        graph_output = SASTWorkflowTracker(**results)
-        return graph_output
+        """Main response function that runs the LangGraph workflow with callback tracking"""
+        # Run workflow with callback for token usage and timing tracking
+        results = await graph.ainvoke(input_message, config={"callbacks": [token_callback]})
+        return SASTWorkflowTracker(**results)
     
     try:
         yield FunctionInfo.from_fn(
@@ -166,3 +186,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         logger.info("SAST Agent workflow exited early!")
     finally:
         logger.info("Cleaning up SAST Agent workflow.")
+        # Ensure token usage data is written to file
+        if 'token_callback' in locals():
+            logger.info("Writing token usage data from callback")
+            token_callback._write_file()
