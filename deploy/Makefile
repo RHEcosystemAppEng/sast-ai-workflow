@@ -256,11 +256,11 @@ pipeline:
 
 scripts:
 	@echo "📜 Setting up Scripts..."
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_drive_cm.yaml || \
+	@$(CO) apply -n $(NAMESPACE) -f tekton/base/configmaps/upload_to_drive_cm.yaml || \
 		{ echo "   ❌ Failed to apply Google Drive upload script"; exit 1; }
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_gcs_cm.yaml || \
+	@$(CO) apply -n $(NAMESPACE) -f tekton/base/configmaps/upload_to_gcs_cm.yaml || \
 		{ echo "   ❌ Failed to apply GCS upload script"; exit 1; }
-	@$(CO) apply -n $(NAMESPACE) -f tekton/scripts/upload_to_s3_output_cm.yaml || \
+	@$(CO) apply -n $(NAMESPACE) -f tekton/base/configmaps/upload_to_s3_output_cm.yaml || \
 		{ echo "   ❌ Failed to apply S3 output upload script"; exit 1; }
 	@echo "   ✓ Upload scripts configured"
 
