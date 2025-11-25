@@ -126,7 +126,7 @@
 - op: add
   path: /spec/steps/8
   value:
-    name: upload-token-metrics-to-s3
+    name: upload-token-metrics-to-s3[mlops]
     image: python:3.11-slim
     env:
       - name: S3_OUTPUT_BUCKET_NAME
