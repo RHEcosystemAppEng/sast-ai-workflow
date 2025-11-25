@@ -53,7 +53,7 @@
 - op: add
   path: /spec/steps/7
   value:
-    name: write-evaluation-results
+    name: write-evaluation-results[mlops]
     image: registry.access.redhat.com/ubi9/ubi-minimal:latest
     volumeMounts:
       - name: shared-data
