@@ -17,7 +17,10 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -66,7 +69,7 @@ jobs:
         else
           # Switch to the default branch first
           DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
-          git checkout $DEFAULT_BRANCH
+          git checkout -B $DEFAULT_BRANCH origin/$DEFAULT_BRANCH
           git pull origin $DEFAULT_BRANCH
           # Re-add and commit the changes
           git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml
