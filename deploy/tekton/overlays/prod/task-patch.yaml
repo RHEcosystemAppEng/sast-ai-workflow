@@ -1,6 +1,7 @@
 # JSON Patch to override CONTAINER_IMAGE default value for prod environment
 # Uses JSON Patch (RFC 6902) to replace only the default value without affecting other params
 # CONTAINER_IMAGE is at index 18 in the params array
+# This value is updated automatically in new releases
 - op: replace
   path: /spec/params/18/default
-  value: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
+  value: "quay.io/ecosystem-appeng/sast-ai-workflow:RELEASE_IMAGE_VERSION_PLACEHOLDER"
