@@ -51,10 +51,22 @@ jobs:
         VERSION="${{ steps.version.outputs.version }}"
         
         # Update prod overlay task patch
-        sed -i "s|default: \"quay.io/ecosystem-appeng/sast-ai-workflow:.*\"|default: \"quay.io/ecosystem-appeng/sast-ai-workflow:$VERSION\"|g" \
+        sed -i "s|RELEASE_IMAGE_VERSION_PLACEHOLDER|$VERSION|g" \
           deploy/tekton/overlays/prod/task-patch.yaml
         
         echo "Updated production overlay to version: $VERSION"
+
+    - name: Update ArgoCD application with release version
+      run: |
+        # Use original tag format for ArgoCD (preserves v prefix if present)
+        ORIGINAL_TAG=${GITHUB_REF#refs/tags/}
+        
+        # Update ArgoCD application with original tag format
+        sed -i "s|RELEASE_VERSION_PLACEHOLDER|$ORIGINAL_TAG|g" \
+          deploy/argocd/argocd-application-prod.yaml
+        
+        echo "Updated ArgoCD application to version: $ORIGINAL_TAG"
+        git add deploy/argocd/argocd-application-prod.yaml
 
     - name: Commit version updates
       run: |
