@@ -5,5 +5,9 @@ resources:
   - ../../base
 
 patches:
-  - path: task-patch.yaml
+  # Task patches - using JSON Patch to override specific parameter defaults
+  - target:
+      kind: Task
+      name: execute-ai-analysis
+    path: task-patch.yaml
 
