@@ -32,6 +32,7 @@ class SarifReportReader(BaseReportReader):
         r"Loop condition is",
         r"^Following.*branch",
         r"^Jumping back to the beginning of the loop",
+        r"Starting defect path here",
     ]
 
     # Patterns for vulnerability-semantic messages to keep (important for security analysis)
@@ -286,12 +287,18 @@ class SarifReportReader(BaseReportReader):
     def _clean_rule_id(self, rule_id: str) -> str:
         """
         Clean rule ID by removing 'note[...]' patterns and other unwanted suffixes.
+        Also removes everything after the first colon to keep only the base issue type.
         """
         if not rule_id:
             return rule_id
 
         # Remove 'note[...]' pattern
         cleaned = re.sub(r":\s*note\[.*?\]", "", rule_id)
+
+        # Remove everything after the first colon to keep only the base issue type
+        # This ensures "RESOURCE_LEAK: leaked_storage" becomes "RESOURCE_LEAK"
+        if ":" in cleaned:
+            cleaned = cleaned.split(":")[0]
 
         # Remove any trailing whitespace
         cleaned = cleaned.strip()
