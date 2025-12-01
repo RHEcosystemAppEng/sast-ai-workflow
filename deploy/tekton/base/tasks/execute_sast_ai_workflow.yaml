@@ -484,7 +484,10 @@ spec:
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: LLM_API_TYPE
-          value: "$(params.LLM_API_TYPE)"
+          valueFrom:
+            secretKeyRef:
+              name: sast-ai-default-llm-creds
+              key: llm_api_type
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
