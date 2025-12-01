@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - 'base_image_containerfile'
+      - '../../Containerfile.base.dockerfile'
       - '.github/workflows/build-base-image.yml'
   pull_request:
     branches:
       - main
     paths:
-      - 'base_image_containerfile'
+      - '../../Containerfile.base.dockerfile'
       - '.github/workflows/build-base-image.yml'
     types:
       - closed
@@ -62,7 +62,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./base_image_containerfile
+        file: ./Containerfile.base.dockerfile
         platforms: linux/amd64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
