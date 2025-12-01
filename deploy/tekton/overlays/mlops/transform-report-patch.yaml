@@ -2,7 +2,7 @@
   path: /spec/steps/3
   value:
     name: transform-report
-    image: registry.access.redhat.com/ubi9/ubi:latest
+    image: $(params.BASE_IMAGE)
     volumeMounts:
       - name: shared-data
         mountPath: /shared-data
@@ -70,11 +70,6 @@
         echo "Please verify S3_ENDPOINT_URL configuration and network connectivity"
         exit 0
       fi
-
-      # Install DVC with S3 support
-      echo "Installing DVC..."
-      dnf install -y python3-pip >/dev/null 2>&1
-      pip3 install --quiet dvc dvc-s3 >/dev/null 2>&1
 
       # Extract the DVC path from the MinIO URL
       DVC_PATH=$(echo "$REPORT_PATH" | sed -n "s|.*/$S3_INPUT_BUCKET_NAME/\(.*\)|\1|p" | tr '[:upper:]' '[:lower:]' | sed 's/%20/ /g')
