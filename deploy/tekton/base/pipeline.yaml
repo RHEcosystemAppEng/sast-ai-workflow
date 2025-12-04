@@ -67,6 +67,10 @@ spec:
       type: string
       description: "Container image to use for SAST AI analysis"
       default: "quay.io/ecosystem-appeng/sast-ai-workflow:latest"
+    - name: BASE_IMAGE
+      type: string
+      description: "Base image with pipeline dependencies"
+      default: "quay.io/ecosystem-appeng/sast-ai-base-image:latest"
   workspaces:
     - name: gitlab-token-ws
       optional: true
@@ -112,6 +116,8 @@ spec:
           value: "$(params.GCS_SA_FILE_NAME)"
         - name: CONTAINER_IMAGE
           value: "$(params.CONTAINER_IMAGE)"
+        - name: BASE_IMAGE
+          value: "$(params.BASE_IMAGE)"
       workspaces:
         - name: gitlab-token-ws
           workspace: gitlab-token-ws
