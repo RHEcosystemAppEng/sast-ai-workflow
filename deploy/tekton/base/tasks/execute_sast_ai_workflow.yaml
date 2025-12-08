@@ -92,6 +92,10 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
+    - name: OSH_TASK_ID
+      type: string
+      description: "Optional OSH task identifier for organizing SARIF uploads"
+      default: ""
 
   workspaces:
     - name: gitlab-token-ws
@@ -686,6 +690,8 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
+        - name: OSH_TASK_ID
+          value: "$(params.OSH_TASK_ID)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -727,7 +733,12 @@ spec:
         SCAN_FILENAME=$(basename "$SARIF_FILE")
         
         # Create organized path: sarif-reports/timestamp/scan_filename
-        DESTINATION_PATH="sarif-reports/${TIMESTAMP}/${SCAN_FILENAME}"
+        echo "OSH_TASK_ID: '$OSH_TASK_ID'"
+        if [ -n "$OSH_TASK_ID" ]; then
+          DESTINATION_PATH="osh/sarif-reports/${TIMESTAMP}/${OSH_TASK_ID}_${SCAN_FILENAME}"
+        else
+          DESTINATION_PATH="osh/sarif-reports/${TIMESTAMP}/${SCAN_FILENAME}"
+        fi
         
         echo "Uploading: $SARIF_FILE"
         echo "Destination: gs://$GCS_BUCKET_NAME/$DESTINATION_PATH"
