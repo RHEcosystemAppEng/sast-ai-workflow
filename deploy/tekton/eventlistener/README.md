@@ -75,21 +75,12 @@ make eventlistener
 
 **Override Options:**
 ```bash
-# Override namespace only
+# Override namespace
 make eventlistener NAMESPACE=custom-namespace
-
-# Override orchestrator URL only
-make eventlistener ORCHESTRATOR_API_URL=http://custom-service.sast-ai.svc.cluster.local:8080
-
-# Override both
-make eventlistener \
-  ORCHESTRATOR_API_URL=http://custom-service.custom-ns.svc.cluster.local:8080 \
-  NAMESPACE=custom-ns
 ```
 
 **Parameters:**
 - `NAMESPACE` - Target namespace (optional, auto-detected from current context)
-- `ORCHESTRATOR_API_URL` - Orchestrator service URL (optional, uses K8s service DNS default)
 
 ### Step 3: Verify Orchestrator Service
 
@@ -254,10 +245,6 @@ make eventlistener
 
 # Or override namespace
 make eventlistener NAMESPACE=your-namespace
-
-# Or with custom orchestrator URL
-make eventlistener \
-  ORCHESTRATOR_API_URL=http://custom-orchestrator-service.your-namespace.svc.cluster.local:8080
 ```
 
 ## 🔧 Configuration Reference

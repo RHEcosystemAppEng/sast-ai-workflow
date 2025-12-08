@@ -86,13 +86,10 @@ AWS_SECRET_ACCESS_KEY            ?= ""
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
 
-# EventListener Configuration
-ORCHESTRATOR_API_URL             ?=
-
 # =============================================================================
 # Phony Targets Declaration
 # =============================================================================
-.PHONY: help deploy-dev deploy-prod setup tasks secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean
+.PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-deploy-mlops argocd-clean eventlistener eventlistener-clean
 .PHONY: check-prod-version
 
 # =============================================================================
@@ -125,11 +122,6 @@ help: ## Display this help message
 ##@ Deployment Commands
 # =============================================================================
 
-deploy-dev: CONTAINER_IMAGE = $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-deploy-dev: ## Deploy to development environment (uses latest image)
-
-.PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-clean eventlistener eventlistener-clean
-
 # Unified deploy command
 # Usage:
 #   make deploy                     # Deploy base (Google Drive, :latest)
@@ -161,15 +153,7 @@ deploy-prod: setup-common tasks-prod argocd-deploy-prod
 	fi
 
 deploy-mlops: CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):latest
-deploy-mlops: setup-common tasks-mlops eventlistener argocd-deploy-mlops 
-	@if [ -z "$(ORCHESTRATOR_API_URL)" ]; then \
-		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
-		echo "❌ ERROR: ORCHESTRATOR_API_URL is required for MLOps deployment"; \
-		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
-		echo ""; \
-		echo "Usage: make deploy-mlops ORCHESTRATOR_API_URL=<url>"; \
-		exit 1; \
-	fi
+deploy-mlops: setup-common tasks-mlops eventlistener argocd-deploy-mlops
 
 # =============================================================================
 ##@ Infrastructure Commands
@@ -486,7 +470,6 @@ eventlistener:
 	@echo "   ⚠️  Use 'make deploy-mlops' for full deployment"
 	@echo ""
 	@echo "Using namespace: $(NAMESPACE)"
-	@echo "Using orchestrator URL: $(ORCHESTRATOR_API_URL)"
 	@echo ""
 	@echo "🎯 Deploying EventListener..."
 	@sed -e 's|<namespace>|$(NAMESPACE)|g' \

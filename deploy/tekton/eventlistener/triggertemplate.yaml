@@ -59,11 +59,9 @@ spec:
         
         params:
           # Pass parameters to pipeline
+          # Note: trigger-source is captured in labels/annotations above, not passed to pipeline
           - name: submitted-by
             value: $(tt.params.submitted-by)
-
-          - name: trigger-source
-            value: $(tt.params.trigger-source)
 
           - name: dvc-data-version
             value: $(tt.params.dvc-data-version)
