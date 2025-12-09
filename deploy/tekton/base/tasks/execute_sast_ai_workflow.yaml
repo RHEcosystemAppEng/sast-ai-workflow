@@ -611,6 +611,8 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
+        - name: OSH_TASK_ID
+          value: "$(params.OSH_TASK_ID)"
         - name: GDRIVE_FOLDER_ID_FROM_CM
           valueFrom:
             configMapKeyRef:
@@ -659,10 +661,11 @@ spec:
         fi
         
         # Set filename
-        EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
-        if [ -z "$EXCEL_FILENAME" ] || [ "$EXCEL_FILENAME" = "-" ]; then
-          EXCEL_FILENAME="sast_ai_output"
+        BASE_NAME="${PROJECT_NAME}-${PROJECT_VERSION}"
+        if [ -z "$BASE_NAME" ] || [ "$BASE_NAME" = "-" ]; then
+          BASE_NAME="sast_ai_output"
         fi
+        EXCEL_FILENAME="${OSH_TASK_ID:+${OSH_TASK_ID}_}${BASE_NAME}"
         
         echo "File to upload: $EXCEL_FILE"
         echo "Remote filename: $EXCEL_FILENAME"
