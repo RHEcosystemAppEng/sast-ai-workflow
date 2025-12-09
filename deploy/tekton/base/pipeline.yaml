@@ -63,6 +63,10 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
+    - name: OSH_TASK_ID
+      type: string
+      description: "Optional OSH task identifier for organizing SARIF uploads"
+      default: ""
     - name: CONTAINER_IMAGE
       type: string
       description: "Container image to use for SAST AI analysis"
@@ -110,6 +114,8 @@ spec:
           value: "$(params.GCS_BUCKET_NAME)"
         - name: GCS_SA_FILE_NAME
           value: "$(params.GCS_SA_FILE_NAME)"
+        - name: OSH_TASK_ID
+          value: "$(params.OSH_TASK_ID)"
         - name: CONTAINER_IMAGE
           value: "$(params.CONTAINER_IMAGE)"
       workspaces:
