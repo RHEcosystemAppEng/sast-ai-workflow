@@ -1,6 +1,15 @@
 #!/usr/bin/env sh
 echo "=== STEP 9: CLEANUP ==="
 
+# Skip cleanup if in evaluation mode (mlops only)
+if [ -n "$EVALUATE_SPECIFIC_NODE" ]; then
+  EVAL_NODES_NORMALIZED=$(echo "$EVALUATE_SPECIFIC_NODE" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
+  if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
+    echo "Skipping cleanup in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVALUATE_SPECIFIC_NODE)"
+    exit 0
+  fi
+fi
+
 CLEANED_ITEMS=""
 
 # Remove source code directory

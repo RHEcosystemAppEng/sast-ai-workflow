@@ -53,82 +53,24 @@
 - op: add
   path: /spec/steps/7
   value:
-    name: write-evaluation-results[mlops]
-    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    name: write-evaluation-results-mlops
+    image: $(params.BASE_IMAGE)
     volumeMounts:
       - name: shared-data
         mountPath: /shared-data
-    script: |
-      #!/usr/bin/env sh
-      echo "=== STEP 8: WRITE ALL EVALUATION RESULTS ==="
-
-      # Load repo path for DVC commit hash
-      if [ -f "/shared-data/env.txt" ]; then
-        . /shared-data/env.txt
-        export REPO_LOCAL_PATH
-      fi
-
-      # Write filter evaluation if exists
-      if [ -f "/shared-data/eval_results/filter.json" ]; then
-        cat /shared-data/eval_results/filter.json > $(results.filter-evaluation-results.path)
-        FILTER_SIZE=$(wc -c < $(results.filter-evaluation-results.path))
-        echo "filter-evaluation-results: $FILTER_SIZE bytes"
-      else
-        echo "{}" > $(results.filter-evaluation-results.path)
-        echo "filter-evaluation-results: {} (empty)"
-      fi
-
-      # Write judge evaluation if exists
-      if [ -f "/shared-data/eval_results/judge.json" ]; then
-        cat /shared-data/eval_results/judge.json > $(results.judge-evaluation-results.path)
-        JUDGE_SIZE=$(wc -c < $(results.judge-evaluation-results.path))
-        echo "judge-evaluation-results: $JUDGE_SIZE bytes"
-      else
-        echo "{}" > $(results.judge-evaluation-results.path)
-        echo "judge-evaluation-results: {} (empty)"
-      fi
-
-      # Write summary evaluation result
-      if [ -f "/shared-data/eval_results/summary.json" ]; then
-        cat /shared-data/eval_results/summary.json > $(results.summary-evaluation-results.path)
-        SUMMARY_SIZE=$(wc -c < $(results.summary-evaluation-results.path))
-        echo "summary-evaluation-results: $SUMMARY_SIZE bytes"
-      else
-        echo "{}" > $(results.summary-evaluation-results.path)
-        echo "summary-evaluation-results: {} (empty)"
-      fi
-
-      # Write workflow metrics
-      if [ -f "/shared-data/output/workflow_metrics.json" ]; then
-        cat /shared-data/output/workflow_metrics.json > $(results.workflow-metrics.path)
-        METRICS_SIZE=$(wc -c < $(results.workflow-metrics.path))
-        echo "workflow-metrics: $METRICS_SIZE bytes"
-      else
-        echo "{}" > $(results.workflow-metrics.path)
-        echo "workflow-metrics: {} (empty)"
-      fi
-
-      # Write DVC results
-      echo -n "$(params.PROJECT_VERSION)" > $(results.dvc-data-version.path)
-
-      # For git repos, extract commit hash; for SRPM/non-git, leave empty
-      if [ -d "$REPO_LOCAL_PATH/.git" ]; then
-        cd "$REPO_LOCAL_PATH" && git rev-parse HEAD > $(results.dvc-commit-hash.path) || echo -n "" > $(results.dvc-commit-hash.path)
-      else
-        echo -n "" > $(results.dvc-commit-hash.path)
-      fi
-
-      # Pipeline stage identifier
-      echo -n "sast_ai_analysis" > $(results.dvc-pipeline-stage.path)
-
-      echo "All evaluation results written successfully"
+    env:
+      - name: PROJECT_VERSION
+        value: "$(params.PROJECT_VERSION)"
+    command: ["/scripts/write_evaluation_results.sh"]
 # STEP 9: Upload token metrics to S3/MinIO
 - op: add
   path: /spec/steps/8
   value:
-    name: upload-token-metrics-to-s3[mlops]
-    image: python:3.11-slim
+    name: upload-token-metrics-to-s3-mlops
+    image: $(params.BASE_IMAGE)
     env:
+      - name: EVALUATE_SPECIFIC_NODE
+        value: "$(params.EVALUATE_SPECIFIC_NODE)"
       - name: S3_OUTPUT_BUCKET_NAME
         value: "$(params.S3_OUTPUT_BUCKET_NAME)"
       - name: PIPELINE_RUN_ID
@@ -157,128 +99,11 @@
       - name: shared-data
         mountPath: /shared-data
       - name: s3-output-scripts
-        mountPath: /scripts
-    script: |
-      #!/bin/bash
-      set -e
-      echo "=== STEP 9: UPLOAD TOKEN METRICS TO S3/MINIO ==="
-
-      # Check if S3 is available
-      if [ -f "/shared-data/s3-available.txt" ]; then
-        S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
-        if [ "$S3_AVAILABLE" = "false" ]; then
-          echo "Skipped: S3 endpoint not available"
-          exit 0
-        fi
-      fi
-
-      # Skip if not running in "all" mode
-      EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-      EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
-      if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
-        echo "Skipping token metrics upload in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
-        exit 0
-      fi
-
-      # Check if bucket name is provided
-      if [ -z "$S3_OUTPUT_BUCKET_NAME" ]; then
-        echo "Skipping token metrics upload - no bucket name provided"
-        exit 0
-      fi
-
-      # Check if credentials are available
-      if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-        echo "Skipping token metrics upload - credentials not available"
-        exit 0
-      fi
-
-      # Check if token metrics file exists
-      TOKEN_METRICS_FILE="/shared-data/token_usage.json"
-      if [ ! -f "$TOKEN_METRICS_FILE" ]; then
-        echo "WARNING: Token metrics file not found at $TOKEN_METRICS_FILE"
-        echo "This may indicate the workflow did not use LLM nodes or metrics tracking failed"
-        echo "Continuing pipeline execution gracefully"
-        exit 0
-      fi
-
-      # Install required packages
-      echo "Installing required packages..."
-      pip install --quiet boto3 >/dev/null 2>&1
-      echo "Dependencies installed successfully"
-
-      # Construct S3 key
-      if [ -n "$PIPELINE_RUN_ID" ]; then
-        PIPELINE_ID="$PIPELINE_RUN_ID"
-      else
-        PIPELINE_ID=$(date -u +"%Y%m%d-%H%M%S")
-      fi
-
-      REPO_NAME="${PROJECT_NAME}"
-      S3_KEY="${PIPELINE_ID}/${REPO_NAME}_token_usage.json"
-
-      echo "File to upload: $TOKEN_METRICS_FILE"
-      echo "S3 Output Bucket: $S3_OUTPUT_BUCKET_NAME"
-      echo "S3 Key: $S3_KEY"
-
-      # Upload to S3
-      echo "Executing token metrics upload..."
-      if [ -n "$S3_ENDPOINT_URL" ]; then
-        python /scripts/s3_upload.py "$TOKEN_METRICS_FILE" "$S3_OUTPUT_BUCKET_NAME" "$S3_KEY" "$S3_ENDPOINT_URL"
-      else
-        python /scripts/s3_upload.py "$TOKEN_METRICS_FILE" "$S3_OUTPUT_BUCKET_NAME" "$S3_KEY"
-      fi
-
-      if [ $? -eq 0 ]; then
-        echo "=== Token metrics upload completed successfully! ==="
-      else
-        echo "WARNING: Token metrics upload failed, but continuing pipeline"
-        exit 0
-      fi
-# STEP 10: Cleanup (modified from base to support evaluation mode)
-- op: replace
-  path: /spec/steps/9/script
-  value: |
-    #!/usr/bin/env sh
-    echo "=== STEP 10: CLEANUP ==="
-
-    # Skip if "all" is not present in EVALUATE_SPECIFIC_NODE
-    EVAL_NODES="$(params.EVALUATE_SPECIFIC_NODE)"
-    EVAL_NODES_NORMALIZED=$(echo "$EVAL_NODES" | tr '[:upper:]' '[:lower:]' | sed 's/ //g')
-    if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
-      echo "Skipping cleanup in evaluation mode (EVALUATE_SPECIFIC_NODE=$EVAL_NODES)"
-      exit 0
-    fi
-
-    CLEANED_ITEMS=""
-
-    # Remove source code directory
-    if [ -d "/shared-data/source" ]; then
-        rm -rf /shared-data/source/* >/dev/null 2>&1
-        CLEANED_ITEMS="$CLEANED_ITEMS source-code"
-    fi
-
-    # Remove false positives file
-    if [ -f "/shared-data/false-positives/ignore.err" ]; then
-        rm -f /shared-data/false-positives/ignore.err >/dev/null 2>&1
-        CLEANED_ITEMS="$CLEANED_ITEMS false-positives"
-    fi
-
-    # Clean up any temporary files in cache
-    if [ -d "/cache-data/tmp" ]; then
-        rm -rf /cache-data/tmp/* >/dev/null 2>&1
-        CLEANED_ITEMS="$CLEANED_ITEMS temp-files"
-    fi
-
-    # Report what was cleaned
-    if [ -n "$CLEANED_ITEMS" ]; then
-        echo "Cleaned:$CLEANED_ITEMS"
-    else
-        echo "Nothing to clean"
-    fi
-
-    # Preserve output file
-    if [ -f "/shared-data/output/sast_ai_output.xlsx" ]; then
-        echo "Output file preserved"
-    fi
-
-    echo "Cleanup completed successfully"
+        mountPath: /scripts/s3-output
+    command: ["/scripts/upload_token_metrics_to_s3.sh"]
+# STEP 10: Add EVALUATE_SPECIFIC_NODE env var to cleanup step
+- op: add
+  path: /spec/steps/9/env/-
+  value:
+    name: EVALUATE_SPECIFIC_NODE
+    value: "$(params.EVALUATE_SPECIFIC_NODE)"
