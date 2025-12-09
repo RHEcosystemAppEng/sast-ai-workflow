@@ -98,21 +98,16 @@ deploy:
 		echo "   Environment: MLOps"; \
 		echo "   Storage: S3/Minio output upload"; \
 		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
+		$(MAKE) --no-print-directory ENV=mlops setup scripts tasks prompts configmaps argocd-deploy-mlops; \
 	elif [ "$(ENV)" = "prod" ]; then \
 		echo "   Environment: Production"; \
 		echo "   Storage: Google Drive upload"; \
 		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)"; \
+        $(MAKE) --no-print-directory ENV=prod CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) setup scripts tasks prompts configmaps argocd-deploy-prod; \
 	else \
 		echo "   Environment: Base"; \
 		echo "   Storage: Google Drive upload"; \
 		echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"; \
-	fi
-	@echo ""
-	@if [ "$(ENV)" = "mlops" ]; then \
-		$(MAKE) --no-print-directory ENV=mlops setup scripts tasks prompts configmaps argocd-deploy-mlops; \
-	elif [ "$(ENV)" = "prod" ]; then \
-		$(MAKE) --no-print-directory ENV=prod CONTAINER_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION) setup scripts tasks prompts configmaps argocd-deploy-prod; \
-	else \
 		$(MAKE) --no-print-directory setup scripts tasks prompts configmaps; \
 	fi
 
