@@ -25,11 +25,11 @@ if [[ -f "$GITLAB_TOKEN_PATH" ]]; then
     GITLAB_TOKEN=$(cat "$GITLAB_TOKEN_PATH")
     echo "GitLab token found. Fetching file with authentication..."
     curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
-      || (echo "Error: Could not fetch false positives file with token." && exit 1)
+      || (echo "Error: Could not fetch false positives file with token." >&2 && exit 1)
 else
     echo "No GitLab token file found; attempting unauthenticated fetch..."
     curl --retry 3 --retry-delay 5 -k -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
-      || (echo "Error: Could not fetch false positives file unauthenticated." && exit 1)
+      || (echo "Error: Could not fetch false positives file unauthenticated." >&2 && exit 1)
 fi
 
 echo "False positives file downloaded successfully"

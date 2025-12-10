@@ -18,7 +18,7 @@ fi
 SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
 
 if [[ -z "$SARIF_FILE" ]]; then
-  echo "ERROR: No SARIF file found in output directory"
+  echo "ERROR: No SARIF file found in output directory" >&2
   echo "Available files in output directory:"
   ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
   exit 1

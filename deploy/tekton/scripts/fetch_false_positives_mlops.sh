@@ -44,7 +44,7 @@ echo "S3 Endpoint: $S3_ENDPOINT_URL"
 if dvc list "$DVC_REPO_URL" "$DVC_FP_BASE_DIR/${PROJECT_NAME}" --rev "$DVC_DATA_VERSION" 2>/dev/null | grep -q "$FP_FILENAME"; then
   echo "False positives file found in DVC, downloading..."
   dvc get "$DVC_REPO_URL" "$DVC_PATH" --rev "$DVC_DATA_VERSION" -o "/shared-data/false-positives/${FP_FILENAME}" \
-    || (echo "Error: Failed to download false positives file despite it existing in DVC" && exit 1)
+    || (echo "Error: Failed to download false positives file despite it existing in DVC" >&2 && exit 1)
   echo "False positives file downloaded successfully via DVC"
   echo "File size: $(du -h /shared-data/false-positives/${FP_FILENAME} | cut -f1)"
 else

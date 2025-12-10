@@ -33,7 +33,7 @@ echo "$S3_AVAILABLE" > /shared-data/s3-available.txt
 echo "S3 availability status: $S3_AVAILABLE"
 
 if [[ "$S3_AVAILABLE" = "false" ]]; then
-  echo "ERROR: S3 endpoint not available - cannot fetch evaluation data"
+  echo "ERROR: S3 endpoint not available - cannot fetch evaluation data" >&2
   echo "All evaluation steps will be skipped"
   echo "Please verify S3_ENDPOINT_URL configuration and network connectivity"
   exit 0
@@ -43,7 +43,7 @@ fi
 DVC_PATH=$(echo "$REPORT_PATH" | sed -n "s|.*/$S3_INPUT_BUCKET_NAME/\(.*\)|\1|p" | tr '[:upper:]' '[:lower:]' | sed 's/%20/ /g')
 
 if [[ -z "$DVC_PATH" ]]; then
-  echo "Error: Could not extract DVC path from URL: $REPORT_PATH"
+  echo "Error: Could not extract DVC path from URL: $REPORT_PATH" >&2
   exit 1
 fi
 
@@ -59,7 +59,7 @@ echo "File extension: $FILE_EXT"
 # Use DVC to fetch the file
 DOWNLOADED_FILE="$WORKSPACE_PATH/downloaded_report.$FILE_EXT"
 dvc get "$DVC_REPO_URL" "${DVC_PATH}" --rev "$DVC_DATA_VERSION" -o "$DOWNLOADED_FILE" \
-  || (echo "Error: Could not fetch report file from DVC/S3/MinIO" && exit 1)
+  || (echo "Error: Could not fetch report file from DVC/S3/MinIO" >&2 && exit 1)
 
 echo "Report file downloaded successfully via DVC"
 echo "File size: $(du -h $DOWNLOADED_FILE | cut -f1)"

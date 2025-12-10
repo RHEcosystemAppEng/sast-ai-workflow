@@ -19,7 +19,7 @@ if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
 
   # Verify the file was downloaded
   if [[ ! -f "$JSON_FILE" ]]; then
-    echo "Error: Failed to download file"
+    echo "Error: Failed to download file" >&2
     exit 1
   fi
 
@@ -36,7 +36,7 @@ if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
 
     # Verify the SARIF file was created
     if [[ ! -f "$SARIF_FILE" ]]; then
-      echo "Error: Failed to create SARIF file"
+      echo "Error: Failed to create SARIF file" >&2
       exit 1
     fi
 

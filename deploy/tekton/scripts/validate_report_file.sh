@@ -15,7 +15,7 @@ if [[ "$INPUT_REPORT_FILE_PATH" =~ ^https?:// ]]; then
     SHEET_ID=$(echo "$INPUT_REPORT_FILE_PATH" | sed -n 's/.*\/spreadsheets\/d\/\([a-zA-Z0-9_-]*\).*/\1/p')
 
     if [[ -z "$SHEET_ID" ]]; then
-        echo "Error: Invalid Google Sheets URL format"
+        echo "Error: Invalid Google Sheets URL format" >&2
         echo "Expected format: https://docs.google.com/spreadsheets/d/{SHEET_ID}/..."
         exit 1
     fi
@@ -25,7 +25,7 @@ if [[ "$INPUT_REPORT_FILE_PATH" =~ ^https?:// ]]; then
         # Run validation script
         python3 /scripts/validate_sheets.py "$SHEET_ID" "$GOOGLE_SA_JSON_PATH"
     else
-        echo "Error: No service account credentials provided for Google Sheets validation"
+        echo "Error: No service account credentials provided for Google Sheets validation" >&2
         exit 1
     fi
 else
@@ -33,7 +33,7 @@ else
     if [[ -f "$INPUT_REPORT_FILE_PATH" ]]; then
         echo "Local file validated successfully"
     else
-        echo "Error: File does not exist: $INPUT_REPORT_FILE_PATH"
+        echo "Error: File does not exist: $INPUT_REPORT_FILE_PATH" >&2
         exit 1
     fi
 fi

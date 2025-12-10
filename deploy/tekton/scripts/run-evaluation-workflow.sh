@@ -1,12 +1,12 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -e
 
 echo "=== STEP 6: RUN SAST AI ANALYSIS OR EVALUATION ==="
 
 # Inline S3 availability check (from s3-helper.sh check mode)
-if [ -f "/shared-data/s3-available.txt" ]; then
+if [[ -f "/shared-data/s3-available.txt" ]]; then
   S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
-  if [ "$S3_AVAILABLE" = "false" ]; then
+  if [[ "$S3_AVAILABLE" = "false" ]]; then
     echo "Cannot run evaluation without ground truth data from S3"
     echo "Skipped: S3 endpoint not available (see Step 4)"
 
@@ -21,7 +21,7 @@ else
 fi
 
 # Load the repo path from step 4
-if [ -f "/shared-data/env.txt" ]; then
+if [[ -f "/shared-data/env.txt" ]]; then
   . /shared-data/env.txt
   export REPO_LOCAL_PATH
 else
@@ -30,7 +30,7 @@ else
 fi
 
 # Use the transformed report file path if available
-if [ -f "/shared-data/report-file-path.txt" ]; then
+if [[ -f "/shared-data/report-file-path.txt" ]]; then
   TRANSFORMED_REPORT_PATH=$(cat /shared-data/report-file-path.txt)
   export INPUT_REPORT_FILE_PATH="$TRANSFORMED_REPORT_PATH"
   export HUMAN_VERIFIED_FILE_PATH="$TRANSFORMED_REPORT_PATH"
@@ -68,7 +68,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
   [ "$node" = "all" ] && continue
 
   # Parse ground truth XLSX file if needed for this evaluation node
-  if [ -f "/shared-data/report-file-path.txt" ]; then
+  if [[ -f "/shared-data/report-file-path.txt" ]]; then
     GROUND_TRUTH_PATH=$(cat /shared-data/report-file-path.txt)
 
     # Check if it's an XLSX file that needs parsing
@@ -98,7 +98,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
         --package-name "$NVR" \
         --output-file "/shared-data/evaluation_dataset/parsed_dataset.json"
 
-        if [ $? -eq 0 ]; then
+        if [[ $? -eq 0 ]]; then
           export EVALUATION_DATASET_PATH="/shared-data/evaluation_dataset/parsed_dataset.json"
         else
           echo "Error: XLSX parsing failed for $node, results of eval flow for $node is not saved."
@@ -120,7 +120,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
       EXIT_CODE=$?
       echo "---END PYTHON OUTPUT---"
       echo "Filter eval exit code: $EXIT_CODE"
-      if [ $EXIT_CODE -ne 0 ]; then
+      if [[ $EXIT_CODE -ne 0 ]]; then
         echo "WARNING: Filter evaluation failed with exit code $EXIT_CODE, continuing to next node"
       fi
       ;;
@@ -135,7 +135,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
       EXIT_CODE=$?
       echo "---END PYTHON OUTPUT---"
       echo "Summary eval exit code: $EXIT_CODE"
-      if [ $EXIT_CODE -ne 0 ]; then
+      if [[ $EXIT_CODE -ne 0 ]]; then
         echo "WARNING: Summary evaluation failed with exit code $EXIT_CODE, continuing to next node"
       fi
       ;;
@@ -150,7 +150,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
       EXIT_CODE=$?
       echo "---END PYTHON OUTPUT---"
       echo "Judge eval exit code: $EXIT_CODE"
-      if [ $EXIT_CODE -ne 0 ]; then
+      if [[ $EXIT_CODE -ne 0 ]]; then
         echo "WARNING: Judge evaluation failed with exit code $EXIT_CODE, continuing to next node"
       fi
       ;;
@@ -158,7 +158,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
 done
 
 # PHASE 2: Run full workflow AFTER evaluations (if "all" was present)
-if [ "$RUN_FULL_WORKFLOW" = "true" ]; then
+if [[ "$RUN_FULL_WORKFLOW" = "true" ]]; then
   echo "Running full SAST workflow..."
   export WORKFLOW_JSON_OUTPUT="/shared-data/output/workflow_metrics.json"
   echo "---START FULL WORKFLOW OUTPUT---"
@@ -168,13 +168,13 @@ if [ "$RUN_FULL_WORKFLOW" = "true" ]; then
   echo "Full workflow exit code: $EXIT_CODE"
 
   # Validate workflow succeeded
-  if [ $EXIT_CODE -ne 0 ]; then
+  if [[ $EXIT_CODE -ne 0 ]]; then
     echo "Error: Full workflow failed with exit code $EXIT_CODE" >&2
     exit 1
   fi
 
   # Validate output file exists
-  if [ ! -f "/shared-data/output/sast_ai_output.xlsx" ]; then
+  if [[ ! -f "/shared-data/output/sast_ai_output.xlsx" ]]; then
     echo "Error: Output file not found!" >&2
     exit 1
   fi

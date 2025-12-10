@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -ex
 echo "=== STEP 3: PREPARE SOURCE ==="
 
@@ -19,7 +19,7 @@ if echo "$SRC_URL" | grep -iq '\.rpm$'; then
 
   # Build source
   SPEC="$(find "$HOME/rpmbuild/SPECS" -name '*.spec' | head -n1)"
-  if [ -z "$SPEC" ]; then
+  if [[ -z "$SPEC" ]]; then
     echo "Error: No .spec found in SRPM" >&2
     exit 1
   fi
@@ -27,7 +27,7 @@ if echo "$SRC_URL" | grep -iq '\.rpm$'; then
 
   # Find and copy source directory
   BUILD_DIR=$(find "$HOME/rpmbuild/BUILD" -maxdepth 1 -type d ! -path "$HOME/rpmbuild/BUILD" | head -n1)
-  if [ -z "$BUILD_DIR" ]; then
+  if [[ -z "$BUILD_DIR" ]]; then
     echo "Error: No source directory found in BUILD after rpmbuild" >&2
     exit 1
   fi
@@ -48,7 +48,7 @@ else
 fi
 
 # Verify source preparation
-if [ ! -d "$REPO_LOCAL_PATH" ]; then
+if [[ ! -d "$REPO_LOCAL_PATH" ]]; then
   echo "Error: Repository directory not found: $REPO_LOCAL_PATH" >&2
   exit 1
 fi
