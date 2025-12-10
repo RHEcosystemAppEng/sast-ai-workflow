@@ -17,6 +17,10 @@
         value: "$(params.S3_ENDPOINT_URL)"
       - name: S3_INPUT_BUCKET_NAME
         value: "$(params.S3_INPUT_BUCKET_NAME)"
+      - name: USE_KNOWN_FALSE_POSITIVE_FILE
+        value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
+      - name: FALSE_POSITIVES_URL
+        value: "$(params.FALSE_POSITIVES_URL)"
       - name: AWS_ACCESS_KEY_ID
         valueFrom:
           secretKeyRef:
@@ -29,57 +33,4 @@
             name: sast-ai-s3-input-creds
             key: aws_secret_access_key
             optional: true
-    script: |
-      #!/bin/bash
-      set -euo pipefail
-      echo "=== STEP 5: FETCH FALSE POSITIVES FROM DVC ==="
-
-      # Inline S3 availability check (from s3-helper.sh check mode)
-      if [ -f "/shared-data/s3-available.txt" ]; then
-        S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
-        if [ "$S3_AVAILABLE" = "false" ]; then
-          echo "Skipped: S3 endpoint not available (see Step 4)"
-          exit 0
-        fi
-      else
-        echo "Warning: S3 availability status file not found, proceeding with caution"
-      fi
-
-      # Check if false positives should be used
-      if [ "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)" = "false" ]; then
-        echo "Skipping false positives fetch - USE_KNOWN_FALSE_POSITIVE_FILE is false"
-        exit 0
-      fi
-
-      # Check if false positives URL is provided
-      if [ -z "$(params.FALSE_POSITIVES_URL)" ]; then
-        echo "Skipping false positives fetch - FALSE_POSITIVES_URL is empty"
-        exit 0
-      fi
-
-      # Constants for DVC paths
-      readonly DVC_FP_BASE_DIR="known-non-issues-el10"
-      readonly FP_FILENAME="ignore.err"
-
-      # Create false positives directory
-      mkdir -p /shared-data/false-positives
-
-      # Construct DVC path: Known-non-issues-el10/$PROJECT_NAME/ignore.err
-      DVC_PATH="${DVC_FP_BASE_DIR}/${PROJECT_NAME}/${FP_FILENAME}"
-
-      echo "DVC Repository: $DVC_REPO_URL"
-      echo "DVC Path: $DVC_PATH"
-      echo "DVC Version: $DVC_DATA_VERSION"
-      echo "S3 Endpoint: $S3_ENDPOINT_URL"
-
-      # Check if file exists in DVC before attempting download
-      if dvc list "$DVC_REPO_URL" "$DVC_FP_BASE_DIR/${PROJECT_NAME}" --rev "$DVC_DATA_VERSION" 2>/dev/null | grep -q "$FP_FILENAME"; then
-        echo "False positives file found in DVC, downloading..."
-        dvc get "$DVC_REPO_URL" "$DVC_PATH" --rev "$DVC_DATA_VERSION" -o "/shared-data/false-positives/${FP_FILENAME}" \
-          || (echo "Error: Failed to download false positives file despite it existing in DVC" && exit 1)
-        echo "False positives file downloaded successfully via DVC"
-        echo "File size: $(du -h /shared-data/false-positives/${FP_FILENAME} | cut -f1)"
-      else
-        echo "No false positives file found for ${PROJECT_NAME} - continuing without filtering"
-        exit 0
-      fi
+    command: ["/scripts/fetch_false_positives_mlops.sh"]
