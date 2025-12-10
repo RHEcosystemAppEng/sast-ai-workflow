@@ -12,7 +12,7 @@ echo "Workspace: $WORKSPACE_PATH"
 echo "Validating S3 endpoint configuration..."
 S3_AVAILABLE="true"
 
-if [ -z "$S3_ENDPOINT_URL" ]; then
+if [[ -z "$S3_ENDPOINT_URL" ]]; then
   echo "Warning: S3_ENDPOINT_URL is not set"
   S3_AVAILABLE="false"
 else
@@ -32,7 +32,7 @@ fi
 echo "$S3_AVAILABLE" > /shared-data/s3-available.txt
 echo "S3 availability status: $S3_AVAILABLE"
 
-if [ "$S3_AVAILABLE" = "false" ]; then
+if [[ "$S3_AVAILABLE" = "false" ]]; then
   echo "ERROR: S3 endpoint not available - cannot fetch evaluation data"
   echo "All evaluation steps will be skipped"
   echo "Please verify S3_ENDPOINT_URL configuration and network connectivity"
@@ -42,7 +42,7 @@ fi
 # Extract the DVC path from the MinIO URL
 DVC_PATH=$(echo "$REPORT_PATH" | sed -n "s|.*/$S3_INPUT_BUCKET_NAME/\(.*\)|\1|p" | tr '[:upper:]' '[:lower:]' | sed 's/%20/ /g')
 
-if [ -z "$DVC_PATH" ]; then
+if [[ -z "$DVC_PATH" ]]; then
   echo "Error: Could not extract DVC path from URL: $REPORT_PATH"
   exit 1
 fi

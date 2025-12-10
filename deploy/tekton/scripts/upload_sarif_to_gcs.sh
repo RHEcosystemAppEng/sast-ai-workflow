@@ -3,13 +3,13 @@ set -e
 echo "=== STEP 8: UPLOAD SARIF TO GCS BUCKET ==="
 
 # Check if we have required parameters
-if [ -z "$GCS_BUCKET_NAME" ]; then
+if [[ -z "$GCS_BUCKET_NAME" ]]; then
   echo "Skipping GCS upload - no bucket name provided"
   exit 0
 fi
 
 # Check service account
-if [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
   echo "Skipping GCS upload - service account not available"
   exit 0
 fi
@@ -17,7 +17,7 @@ fi
 # Look for the SARIF file in output directory
 SARIF_FILE=$(find /shared-data/output -name "*.sarif" -type f 2>/dev/null | head -1)
 
-if [ -z "$SARIF_FILE" ]; then
+if [[ -z "$SARIF_FILE" ]]; then
   echo "ERROR: No SARIF file found in output directory"
   echo "Available files in output directory:"
   ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"

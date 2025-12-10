@@ -3,9 +3,9 @@ set -e
 echo "=== STEP 9: UPLOAD TOKEN METRICS TO S3/MINIO ==="
 
 # Check if S3 is available
-if [ -f "/shared-data/s3-available.txt" ]; then
+if [[ -f "/shared-data/s3-available.txt" ]]; then
   S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
-  if [ "$S3_AVAILABLE" = "false" ]; then
+  if [[ "$S3_AVAILABLE" = "false" ]]; then
     echo "Skipped: S3 endpoint not available"
     exit 0
   fi
@@ -19,20 +19,20 @@ if ! echo ",$EVAL_NODES_NORMALIZED," | grep -q ",all,"; then
 fi
 
 # Check if bucket name is provided
-if [ -z "$S3_OUTPUT_BUCKET_NAME" ]; then
+if [[ -z "$S3_OUTPUT_BUCKET_NAME" ]]; then
   echo "Skipping token metrics upload - no bucket name provided"
   exit 0
 fi
 
 # Check if credentials are available
-if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+if [[ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
   echo "Skipping token metrics upload - credentials not available"
   exit 0
 fi
 
 # Check if token metrics file exists
 TOKEN_METRICS_FILE="/shared-data/token_usage.json"
-if [ ! -f "$TOKEN_METRICS_FILE" ]; then
+if [[ ! -f "$TOKEN_METRICS_FILE" ]]; then
   echo "WARNING: Token metrics file not found at $TOKEN_METRICS_FILE"
   echo "This may indicate the workflow did not use LLM nodes or metrics tracking failed"
   echo "Continuing pipeline execution gracefully"
@@ -45,7 +45,7 @@ pip install --quiet boto3 >/dev/null 2>&1
 echo "Dependencies installed successfully"
 
 # Construct S3 key
-if [ -n "$PIPELINE_RUN_ID" ]; then
+if [[ -n "$PIPELINE_RUN_ID" ]]; then
   PIPELINE_ID="$PIPELINE_RUN_ID"
 else
   PIPELINE_ID=$(date -u +"%Y%m%d-%H%M%S")
@@ -60,13 +60,13 @@ echo "S3 Key: $S3_KEY"
 
 # Upload to S3
 echo "Executing token metrics upload..."
-if [ -n "$S3_ENDPOINT_URL" ]; then
+if [[ -n "$S3_ENDPOINT_URL" ]]; then
   python /scripts/s3-output/s3_upload.py "$TOKEN_METRICS_FILE" "$S3_OUTPUT_BUCKET_NAME" "$S3_KEY" "$S3_ENDPOINT_URL"
 else
   python /scripts/s3-output/s3_upload.py "$TOKEN_METRICS_FILE" "$S3_OUTPUT_BUCKET_NAME" "$S3_KEY"
 fi
 
-if [ $? -eq 0 ]; then
+if [[ $? -eq 0 ]]; then
   echo "=== Token metrics upload completed successfully! ==="
 else
   echo "WARNING: Token metrics upload failed, but continuing pipeline"

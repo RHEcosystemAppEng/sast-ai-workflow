@@ -3,9 +3,9 @@ set -euo pipefail
 echo "=== STEP 5: FETCH FALSE POSITIVES FROM DVC ==="
 
 # Inline S3 availability check (from s3-helper.sh check mode)
-if [ -f "/shared-data/s3-available.txt" ]; then
+if [[ -f "/shared-data/s3-available.txt" ]]; then
   S3_AVAILABLE=$(cat /shared-data/s3-available.txt)
-  if [ "$S3_AVAILABLE" = "false" ]; then
+  if [[ "$S3_AVAILABLE" = "false" ]]; then
     echo "Skipped: S3 endpoint not available (see Step 4)"
     exit 0
   fi
@@ -14,13 +14,13 @@ else
 fi
 
 # Check if false positives should be used
-if [ "$USE_KNOWN_FALSE_POSITIVE_FILE" = "false" ]; then
+if [[ "$USE_KNOWN_FALSE_POSITIVE_FILE" = "false" ]]; then
   echo "Skipping false positives fetch - USE_KNOWN_FALSE_POSITIVE_FILE is false"
   exit 0
 fi
 
 # Check if false positives URL is provided
-if [ -z "$FALSE_POSITIVES_URL" ]; then
+if [[ -z "$FALSE_POSITIVES_URL" ]]; then
   echo "Skipping false positives fetch - FALSE_POSITIVES_URL is empty"
   exit 0
 fi

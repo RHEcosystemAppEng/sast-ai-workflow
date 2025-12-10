@@ -18,7 +18,7 @@ if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
   curl -kL "$REPORT_PATH" -o "$JSON_FILE"
 
   # Verify the file was downloaded
-  if [ ! -f "$JSON_FILE" ]; then
+  if [[ ! -f "$JSON_FILE" ]]; then
     echo "Error: Failed to download file"
     exit 1
   fi
@@ -35,7 +35,7 @@ if [[ "$REPORT_PATH" =~ ^https?://.*\.(json|js|sarif)$ ]]; then
     csgrep "$JSON_FILE" --mode sarif > "$SARIF_FILE"
 
     # Verify the SARIF file was created
-    if [ ! -f "$SARIF_FILE" ]; then
+    if [[ ! -f "$SARIF_FILE" ]]; then
       echo "Error: Failed to create SARIF file"
       exit 1
     fi

@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "USE_KNOWN_FALSE_POSITIVE_FILE: $USE_KNOWN_FALSE_POSITIVE_FILE"
-if [ "$USE_KNOWN_FALSE_POSITIVE_FILE" = "false" ]; then
+if [[ "$USE_KNOWN_FALSE_POSITIVE_FILE" = "false" ]]; then
   echo "USE_KNOWN_FALSE_POSITIVE_FILE is false; skipping fetch..."
   exit 0
 fi
@@ -11,7 +11,7 @@ echo "=== STEP 5: FETCH FALSE POSITIVES ==="
 # Create false positives directory
 mkdir -p /shared-data/false-positives
 
-if [ -z "$FP_URL" ]; then
+if [[ -z "$FP_URL" ]]; then
   echo "No falsePositivesUrl provided; skipping fetch..."
   echo "Creating empty ignore.err file"
   touch /shared-data/false-positives/ignore.err
@@ -21,7 +21,7 @@ fi
 echo "Fetching false positives from GitLab/HTTP..."
 
 # If a token is needed for private repos, read it from the secret (if present)
-if [ -f "$GITLAB_TOKEN_PATH" ]; then
+if [[ -f "$GITLAB_TOKEN_PATH" ]]; then
     GITLAB_TOKEN=$(cat "$GITLAB_TOKEN_PATH")
     echo "GitLab token found. Fetching file with authentication..."
     curl --retry 3 --retry-delay 5 -k -H "PRIVATE-TOKEN: $GITLAB_TOKEN" -fL "$FP_URL" -o "/shared-data/false-positives/ignore.err" \
