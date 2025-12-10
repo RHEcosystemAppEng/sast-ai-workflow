@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-    types:
-      - closed
   workflow_run:
     workflows: ["Build Base Image"]
     types:
@@ -34,8 +29,8 @@ env:
 jobs:
   build-dev:
     runs-on: ubuntu-latest
-    # Only run on direct pushes to main OR when PRs are merged OR when base image build completes successfully OR manual dispatch
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # Only run on direct pushes to main OR when base image build completes successfully OR manual dispatch
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     # Only use protected environment for manual dispatch
     environment: ${{ github.event_name == 'workflow_dispatch' && 'dev-image-builds' || '' }}
     permissions:
