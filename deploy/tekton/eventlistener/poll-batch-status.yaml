@@ -1,0 +1,267 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: poll-batch-status-mlop
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  description: >-
+    Polls the orchestrator batch status API until the batch job completes
+    (status COMPLETED or FAILED) or timeout is reached.
+  
+  params:
+    - name: batch-id
+      type: string
+      description: "Batch ID to monitor (from previous task)"
+    
+    - name: poll-interval
+      type: string
+      description: "Seconds to wait between status checks"
+      default: "30"
+    
+    - name: timeout
+      type: string
+      description: "Maximum time to wait in minutes"
+      default: "480"
+  
+  results:
+    - name: final-status
+      description: "Final batch status (COMPLETED, FAILED, or TIMEOUT)"
+    
+    - name: total-jobs
+      description: "Total number of jobs in the batch"
+    
+    - name: completed-jobs
+      description: "Number of successfully completed jobs"
+    
+    - name: failed-jobs
+      description: "Number of failed jobs"
+  
+  steps:
+    - name: poll-status
+      image: quay.io/curl/curl:latest
+      env:
+        - name: ORCHESTRATOR_URL
+          valueFrom:
+            configMapKeyRef:
+              name: benchmark-config
+              key: orchestrator-api-url
+        
+        # Read API endpoint from ConfigMap
+        - name: API_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: benchmark-config
+              key: api-batch-endpoint
+        
+        - name: BATCH_ID
+          value: $(params.batch-id)
+        
+        - name: POLL_INTERVAL
+          value: $(params.poll-interval)
+        
+        - name: TIMEOUT_MINUTES
+          value: $(params.timeout)
+      
+      script: |
+        #!/bin/sh
+        set -e
+        
+        echo "========================================="
+        echo "Polling Batch Status"
+        echo "========================================="
+        echo ""
+        echo "Configuration:"
+        echo "  Orchestrator URL: $ORCHESTRATOR_URL"
+        echo "  API Endpoint: $API_ENDPOINT"
+        echo "  Batch ID: $BATCH_ID"
+        echo "  Poll Interval: ${POLL_INTERVAL}s"
+        echo "  Timeout: ${TIMEOUT_MINUTES} minutes"
+        echo ""
+        
+        # Validate required parameters
+        echo "Validating parameters..."
+        VALIDATION_FAILED=0
+        
+        if [ -z "$ORCHESTRATOR_URL" ]; then
+          echo "ERROR: ORCHESTRATOR_URL is empty or not set"
+          echo "  Check that ConfigMap 'benchmark-config' exists and has key 'orchestrator-api-url'"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$API_ENDPOINT" ]; then
+          echo "ERROR: API_ENDPOINT is empty or not set"
+          echo "  Check that ConfigMap 'benchmark-config' exists and has key 'api-batch-endpoint'"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ -z "$BATCH_ID" ]; then
+          echo "ERROR: batch-id parameter is empty or not set"
+          echo "  This parameter should be passed from the previous task"
+          VALIDATION_FAILED=1
+        elif [ "$BATCH_ID" = "error" ] || [ "$BATCH_ID" = "unknown" ]; then
+          echo "ERROR: Invalid batch-id: $BATCH_ID"
+          echo "  The previous task may have failed to create the batch"
+          VALIDATION_FAILED=1
+        fi
+        
+        # Validate poll-interval is a positive integer
+        if ! echo "$POLL_INTERVAL" | grep -qE '^[0-9]+$'; then
+          echo "ERROR: poll-interval must be a positive integer, got: $POLL_INTERVAL"
+          VALIDATION_FAILED=1
+        elif [ "$POLL_INTERVAL" -le 0 ]; then
+          echo "ERROR: poll-interval must be greater than 0, got: $POLL_INTERVAL"
+          VALIDATION_FAILED=1
+        fi
+        
+        # Validate timeout is a positive integer
+        if ! echo "$TIMEOUT_MINUTES" | grep -qE '^[0-9]+$'; then
+          echo "ERROR: timeout must be a positive integer, got: $TIMEOUT_MINUTES"
+          VALIDATION_FAILED=1
+        elif [ "$TIMEOUT_MINUTES" -le 0 ]; then
+          echo "ERROR: timeout must be greater than 0, got: $TIMEOUT_MINUTES"
+          VALIDATION_FAILED=1
+        fi
+        
+        if [ $VALIDATION_FAILED -eq 1 ]; then
+          echo ""
+          echo "Parameter validation failed. Cannot proceed."
+          echo -n "VALIDATION_FAILED" > $(results.final-status.path)
+          echo -n "0" > $(results.total-jobs.path)
+          echo -n "0" > $(results.completed-jobs.path)
+          echo -n "0" > $(results.failed-jobs.path)
+          exit 1
+        fi
+        
+        echo "✓ All parameters validated successfully"
+        echo ""
+        
+        # Calculate timeout in seconds
+        TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
+        START_TIME=$(date +%s)
+        
+        # Construct status API URL using endpoint from ConfigMap
+        STATUS_URL="${ORCHESTRATOR_URL}${API_ENDPOINT}/${BATCH_ID}"
+        echo "Status API URL: $STATUS_URL"
+        echo ""
+        
+        # Initialize counters
+        POLL_COUNT=0
+        
+        # Poll loop
+        while true; do
+          POLL_COUNT=$((POLL_COUNT + 1))
+          CURRENT_TIME=$(date +%s)
+          ELAPSED=$((CURRENT_TIME - START_TIME))
+          
+          echo "----------------------------------------"
+          echo "Poll #${POLL_COUNT} (elapsed: ${ELAPSED}s)"
+          echo "----------------------------------------"
+          
+          # Check timeout
+          if [ $ELAPSED -ge $TIMEOUT_SECONDS ]; then
+            echo "✗ TIMEOUT reached after ${TIMEOUT_MINUTES} minutes"
+            echo ""
+            echo "Batch did not complete within the timeout period."
+            echo "You can check the status manually:"
+            echo "  curl $STATUS_URL"
+            echo ""
+            echo -n "TIMEOUT" > $(results.final-status.path)
+            echo -n "0" > $(results.total-jobs.path)
+            echo -n "0" > $(results.completed-jobs.path)
+            echo -n "0" > $(results.failed-jobs.path)
+            exit 1
+          fi
+          
+          # Call status API
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$STATUS_URL" 2>&1) || {
+            echo "ERROR: Failed to call status API"
+            sleep $POLL_INTERVAL
+            continue
+          }
+          
+          # Parse response
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "ERROR: API returned status $HTTP_STATUS"
+            echo "Response: $BODY"
+            sleep $POLL_INTERVAL
+            continue
+          fi
+          
+          # Extract status fields (without jq)
+          STATUS=$(echo "$BODY" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          TOTAL=$(echo "$BODY" | grep -o '"totalJobs":[0-9]*' | cut -d':' -f2)
+          COMPLETED=$(echo "$BODY" | grep -o '"completedJobs":[0-9]*' | cut -d':' -f2)
+          FAILED=$(echo "$BODY" | grep -o '"failedJobs":[0-9]*' | cut -d':' -f2)
+          
+          echo "Status: $STATUS"
+          echo "Progress: $COMPLETED/$TOTAL jobs completed ($FAILED failed)"
+          
+          # Check if batch is done
+          case "$STATUS" in
+            COMPLETED)
+              echo ""
+              echo "========================================="
+              echo "✓ Batch COMPLETED Successfully!"
+              echo "========================================="
+              echo "Total Jobs: $TOTAL"
+              echo "Completed: $COMPLETED"
+              echo "Failed: $FAILED"
+              echo ""
+              
+              if [ "$FAILED" -gt 0 ]; then
+                echo "⚠ Warning: Some jobs failed ($FAILED out of $TOTAL)"
+              else
+                echo "✓ All jobs completed successfully!"
+              fi
+              
+              echo ""
+              echo "Total execution time: ${ELAPSED}s ($((ELAPSED / 60)) minutes)"
+              echo "========================================="
+              
+              echo -n "COMPLETED" > $(results.final-status.path)
+              echo -n "$TOTAL" > $(results.total-jobs.path)
+              echo -n "$COMPLETED" > $(results.completed-jobs.path)
+              echo -n "$FAILED" > $(results.failed-jobs.path)
+              exit 0
+              ;;
+              
+            FAILED)
+              echo ""
+              echo "========================================="
+              echo "✗ Batch FAILED"
+              echo "========================================="
+              echo "Total Jobs: $TOTAL"
+              echo "Completed: $COMPLETED"
+              echo "Failed: $FAILED"
+              echo ""
+              echo "Check orchestrator logs for details:"
+              echo "  oc logs -l app=sast-ai-orchestrator"
+              echo "========================================="
+              
+              echo -n "FAILED" > $(results.final-status.path)
+              echo -n "$TOTAL" > $(results.total-jobs.path)
+              echo -n "$COMPLETED" > $(results.completed-jobs.path)
+              echo -n "$FAILED" > $(results.failed-jobs.path)
+              exit 1
+              ;;
+              
+            PROCESSING|PENDING)
+              echo "Batch still processing... waiting ${POLL_INTERVAL}s"
+              echo ""
+              sleep $POLL_INTERVAL
+              ;;
+              
+            *)
+              echo "Unknown status: $STATUS"
+              echo "Full response: $BODY"
+              sleep $POLL_INTERVAL
+              ;;
+          esac
+        done
+

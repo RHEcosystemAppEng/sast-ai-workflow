@@ -92,6 +92,10 @@ spec:
       type: string
       description: "GCS service account file name (constant)"
       default: "gcs_service_account.json"
+    - name: OSH_TASK_ID
+      type: string
+      description: "Optional OSH task identifier for organizing SARIF uploads"
+      default: ""
 
   workspaces:
     - name: gitlab-token-ws
@@ -365,6 +369,8 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
+        - name: OSH_TASK_ID
+          value: "$(params.OSH_TASK_ID)"
         - name: GDRIVE_FOLDER_ID_FROM_CM
           valueFrom:
             configMapKeyRef:
@@ -390,6 +396,8 @@ spec:
           value: "$(params.PROJECT_NAME)"
         - name: PROJECT_VERSION
           value: "$(params.PROJECT_VERSION)"
+        - name: OSH_TASK_ID
+          value: "$(params.OSH_TASK_ID)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
