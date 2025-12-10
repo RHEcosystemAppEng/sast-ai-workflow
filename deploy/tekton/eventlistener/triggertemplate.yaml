@@ -1,0 +1,84 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: benchmark-mlop-template
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  params:
+    # Parameters from TriggerBinding
+    - name: submitted-by
+      description: "Trigger source identifier"
+      default: "eventlistener-webhook"
+
+    - name: trigger-source
+      description: "Tool that triggered the EventListener (argocd, webhook, manual-test, etc.)"
+      default: "webhook"
+
+    # MLOps-specific parameters
+    - name: dvc-data-version
+      description: "DVC data version tag"
+      default: ""
+    
+    - name: prompts-version
+      description: "Prompts version tag"
+      default: ""
+    
+    - name: known-non-issues-version
+      description: "Known non-issues version tag"
+      default: ""
+    
+    - name: image-version
+      description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
+      default: ""
+    
+    - name: use-known-false-positive-file
+      description: "Whether to use known false positive file"
+      default: "true"
+  
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        # Use generateName for unique PipelineRun names
+        # Kubernetes will append random suffix: benchmark-mlop-pipeline-abc123
+        generateName: benchmark-mlop-pipeline-
+        labels:
+          app.kubernetes.io/name: sast-ai-workflow
+          app.kubernetes.io/component: benchmark-mlop
+          sast-ai.redhat.com/trigger-source: $(tt.params.trigger-source)
+          tekton.dev/pipeline: benchmark-mlop-pipeline
+        annotations:
+          sast-ai.redhat.com/submitted-by: $(tt.params.submitted-by)
+          sast-ai.redhat.com/trigger-source: $(tt.params.trigger-source)
+      spec:
+        pipelineRef:
+          name: benchmark-mlop-pipeline
+        
+        params:
+          # Pass parameters to pipeline
+          # Note: trigger-source is captured in labels/annotations above, not passed to pipeline
+          - name: submitted-by
+            value: $(tt.params.submitted-by)
+
+          - name: dvc-data-version
+            value: $(tt.params.dvc-data-version)
+          
+          - name: prompts-version
+            value: $(tt.params.prompts-version)
+          
+          - name: known-non-issues-version
+            value: $(tt.params.known-non-issues-version)
+          
+          - name: image-version
+            value: $(tt.params.image-version)
+          
+          - name: use-known-false-positive-file
+            value: $(tt.params.use-known-false-positive-file)
+        
+        # Timeout for the entire pipeline
+        timeouts:
+          pipeline: "2h"
+
