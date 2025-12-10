@@ -1,0 +1,175 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: benchmark-mlop-pipeline
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  description: >-
+    MLOps benchmark pipeline for triggering batch SAST analysis via EventListener.
+    This pipeline calls the sast-ai-orchestrator MLOps API endpoint and monitors
+    batch completion. Designed for performance testing and MLOps workflows.
+  
+  params:
+    - name: submitted-by
+      type: string
+      description: "Trigger source identifier"
+      default: "eventlistener-webhook"
+    
+    # MLOps-specific parameters
+    - name: dvc-data-version
+      type: string
+      description: "DVC NVR resource version"
+    
+    - name: prompts-version
+      type: string
+      description: "Prompts version tag"
+      default: ""
+    
+    - name: known-non-issues-version
+      type: string
+      description: "Known non-issues version tag"
+      default: ""
+    
+    - name: image-version
+      type: string
+      description: "Workflow image version for testing (e.g., v2.1.0, sha-abc123)"
+      default: "latest"
+    
+    - name: use-known-false-positive-file
+      type: string
+      description: "Whether to use known false positive file"
+      default: "true"
+  
+  tasks:
+    - name: call-orchestrator-api
+      taskRef:
+        name: call-orchestrator-api-mlop
+      params:
+        - name: submitted-by
+          value: $(params.submitted-by)
+        - name: dvc-data-version
+          value: $(params.dvc-data-version)
+        - name: prompts-version
+          value: $(params.prompts-version)
+        - name: known-non-issues-version
+          value: $(params.known-non-issues-version)
+        - name: image-version
+          value: $(params.image-version)
+        - name: use-known-false-positive-file
+          value: $(params.use-known-false-positive-file)
+    
+    - name: poll-batch-status
+      taskRef:
+        name: poll-batch-status-mlop
+      runAfter:
+        - call-orchestrator-api
+      params:
+        - name: batch-id
+          value: $(tasks.call-orchestrator-api.results.batch-id)
+        - name: poll-interval
+          value: "30"
+        - name: timeout
+          value: "480"
+  
+  results:
+    - name: batch-id
+      description: "Orchestrator batch job ID"
+      value: $(tasks.call-orchestrator-api.results.batch-id)
+    
+    - name: trigger-status
+      description: "Batch trigger status"
+      value: $(tasks.call-orchestrator-api.results.status)
+    
+    - name: final-status
+      description: "Final batch completion status"
+      value: $(tasks.poll-batch-status.results.final-status)
+    
+    - name: total-jobs
+      description: "Total jobs in batch"
+      value: $(tasks.poll-batch-status.results.total-jobs)
+    
+    - name: completed-jobs
+      description: "Completed jobs count"
+      value: $(tasks.poll-batch-status.results.completed-jobs)
+    
+    - name: failed-jobs
+      description: "Failed jobs count"
+      value: $(tasks.poll-batch-status.results.failed-jobs)
+  
+  finally:
+    - name: log-completion
+      params:
+        - name: batch-id
+          value: $(tasks.call-orchestrator-api.results.batch-id)
+        - name: trigger-status
+          value: $(tasks.call-orchestrator-api.results.status)
+        - name: final-status
+          value: $(tasks.poll-batch-status.results.final-status)
+        - name: total-jobs
+          value: $(tasks.poll-batch-status.results.total-jobs)
+        - name: completed-jobs
+          value: $(tasks.poll-batch-status.results.completed-jobs)
+        - name: failed-jobs
+          value: $(tasks.poll-batch-status.results.failed-jobs)
+      taskSpec:
+        params:
+          - name: batch-id
+          - name: trigger-status
+          - name: final-status
+          - name: total-jobs
+          - name: completed-jobs
+          - name: failed-jobs
+        steps:
+          - name: log
+            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+            script: |
+              #!/bin/sh
+              echo "========================================="
+              echo "Pipeline Execution Summary"
+              echo "========================================="
+              echo "Batch ID: $(params.batch-id)"
+              echo "Trigger Status: $(params.trigger-status)"
+              echo "Final Status: $(params.final-status)"
+              echo ""
+              echo "Jobs Summary:"
+              echo "  Total: $(params.total-jobs)"
+              echo "  Completed: $(params.completed-jobs)"
+              echo "  Failed: $(params.failed-jobs)"
+              echo ""
+              
+              if [ "$(params.final-status)" = "COMPLETED" ]; then
+                if [ "$(params.failed-jobs)" = "0" ]; then
+                  echo "✓ All batch jobs completed successfully!"
+                  echo ""
+                  echo "Next steps:"
+                  echo "  1. Review results in Google Drive"
+                  echo "  2. Check individual job outputs"
+                  echo "  3. Analyze metrics in MLflow (if configured)"
+                else
+                  echo "⚠ Batch completed but some jobs failed"
+                  echo ""
+                  echo "Troubleshooting failed jobs:"
+                  echo "  1. Check orchestrator logs: oc logs -l app=sast-ai-orchestrator"
+                  echo "  2. Review failed PipelineRuns: oc get pr -l status=failed"
+                  echo "  3. Check individual job logs"
+                fi
+              elif [ "$(params.final-status)" = "TIMEOUT" ]; then
+                echo "⚠ Batch monitoring timed out"
+                echo ""
+                echo "The batch may still be processing."
+                echo "Check status manually:"
+                echo "  curl http://sast-ai-orchestrator/api/v1/mlops-batch/$(params.batch-id)"
+              else
+                echo "✗ Batch failed or encountered an error"
+                echo ""
+                echo "Troubleshooting:"
+                echo "  1. Check orchestrator logs: oc logs -l app=sast-ai-orchestrator"
+                echo "  2. Verify ConfigMap: oc get cm benchmark-config -o yaml"
+                echo "  3. Check batch status: curl http://sast-ai-orchestrator/api/v1/mlops-batch/$(params.batch-id)"
+              fi
+              
+              echo "========================================="
+

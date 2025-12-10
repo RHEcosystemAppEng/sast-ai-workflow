@@ -1,0 +1,38 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: benchmark-mlop-binding
+  labels:
+    app.kubernetes.io/name: sast-ai-workflow
+    app.kubernetes.io/component: benchmark-mlop
+spec:
+  params:
+    # Extract submitter information
+    # ArgoCD: "argocd-prod-sync"
+    # Direct webhook: custom value
+    - name: submitted-by
+      value: $(body.submitted_by)
+
+    # Extract trigger source for tracking
+    # Examples: "argocd", "webhook", "manual-test", "jenkins", etc.
+    - name: trigger-source
+      value: $(body.trigger_source)
+
+    # Workflow image version for testing
+    - name: image-version
+      value: $(body.image_version)
+
+    # MLOps-specific parameters (optional, for mlops-batch endpoint)
+    - name: dvc-data-version
+      value: $(body.dvc_data_version)
+    
+    - name: prompts-version
+      value: $(body.prompts_version)
+    
+    - name: known-non-issues-version
+      value: $(body.known_non_issues_version)
+    
+    - name: use-known-false-positive-file
+      value: $(body.use_known_false_positive_file)
+

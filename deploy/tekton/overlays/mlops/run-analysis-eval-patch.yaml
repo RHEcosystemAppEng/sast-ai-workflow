@@ -53,7 +53,7 @@
 - op: add
   path: /spec/steps/7
   value:
-    name: write-evaluation-results[mlops]
+    name: write-evaluation-results
     image: registry.access.redhat.com/ubi9/ubi-minimal:latest
     volumeMounts:
       - name: shared-data
@@ -126,7 +126,7 @@
 - op: add
   path: /spec/steps/8
   value:
-    name: upload-token-metrics-to-s3[mlops]
+    name: upload-token-metrics-to-s3
     image: python:3.11-slim
     env:
       - name: S3_OUTPUT_BUCKET_NAME
