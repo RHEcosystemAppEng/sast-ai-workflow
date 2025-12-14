@@ -59,6 +59,11 @@ RUN pip install --no-cache-dir \
 # Create scripts directory
 RUN mkdir -p /scripts && chmod 755 /scripts
 
+# Copy pipeline scripts
+COPY deploy/tekton/scripts/*.sh /scripts/
+COPY deploy/tekton/scripts/*.py /scripts/
+RUN chmod +x /scripts/*.sh
+
 # Set environment variable for environment selection (base/mlops/prod)
 ENV ENVIRONMENT=base
 
