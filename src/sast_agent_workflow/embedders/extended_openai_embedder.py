@@ -25,7 +25,7 @@ class ExtendedOpenAIEmbedderConfig(OpenAIEmbedderModelConfig, name="extended_ope
 
 
 @register_embedder_provider(config_type=ExtendedOpenAIEmbedderConfig)
-async def extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder: Builder):
+async def register_extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder: Builder):
     """Register the extended OpenAI embedder provider."""
     yield EmbedderProviderInfo(
         config=config, description="An OpenAI model for use with an Embedder client."
@@ -35,7 +35,7 @@ async def extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder
 @register_embedder_client(
     config_type=ExtendedOpenAIEmbedderConfig, wrapper_type=LLMFrameworkEnum.LANGCHAIN
 )
-async def extended_openai_langchain(
+async def create_extended_openai_langchain(
     embedder_config: ExtendedOpenAIEmbedderConfig, builder: Builder
 ):
     """Register the extended OpenAI embedder client with http_client dict conversion.
