@@ -35,7 +35,7 @@ fi
 
 # Set filename
 EXCEL_FILENAME="${PROJECT_NAME}-${PROJECT_VERSION}"
-if [[ -z "$EXCEL_FILENAME" ] || [ "$EXCEL_FILENAME" = "-" ]]; then
+if [[ -z "$EXCEL_FILENAME" ]] || [[ "$EXCEL_FILENAME" = "-" ]]; then
   EXCEL_FILENAME="sast_ai_output"
 fi
 
