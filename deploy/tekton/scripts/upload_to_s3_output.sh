@@ -37,7 +37,7 @@ fi
 # Check if output file exists
 EXCEL_FILE="/shared-data/output/sast_ai_output.xlsx"
 if [[ ! -f "$EXCEL_FILE" ]]; then
-  echo "ERROR: Excel file not found at $EXCEL_FILE"
+  echo "ERROR: Excel file not found at $EXCEL_FILE" >&2
   echo "Available files in output directory:"
   ls -la /shared-data/output/ || echo "Output directory is empty or inaccessible"
   exit 1
@@ -70,6 +70,6 @@ fi
 if [[ $? -eq 0 ]]; then
   echo "=== S3 upload completed successfully! ==="
 else
-  echo "=== S3 upload failed ==="
+  echo "=== S3 upload failed ===" >&2
   exit 0
 fi
