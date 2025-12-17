@@ -28,7 +28,7 @@ if [[ -z "$S3_OUTPUT_BUCKET_NAME" ]]; then
 fi
 
 # Check if credentials are available
-if [[ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+if [[ -z "$AWS_ACCESS_KEY_ID" ]] || [[ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
   echo "Skipping S3 upload - credentials not available"
   echo "This is not an error - pipeline continues gracefully"
   exit 0
