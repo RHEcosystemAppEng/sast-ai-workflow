@@ -25,7 +25,7 @@ if [[ -z "$S3_OUTPUT_BUCKET_NAME" ]]; then
 fi
 
 # Check if credentials are available
-if [[ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+if [[ -z "$AWS_ACCESS_KEY_ID" ]] || [[ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
   echo "Skipping token metrics upload - credentials not available"
   exit 0
 fi
