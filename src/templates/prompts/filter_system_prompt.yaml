@@ -14,6 +14,13 @@ template: |
   * **Ignore:** Line numbers and package version details.
   * **Must Match Exactly:** Method names and their call order.
 
+  **Confidence Score:**
+
+  * Provide a `filter_confidence` score (0.0-1.0) indicating how certain you are about your decision (YES or NO).
+  * High confidence (0.8-1.0): Very certain about the match or non-match.
+  * Medium confidence (0.5-0.8): Somewhat certain, minor differences exist.
+  * Low confidence (0.0-0.5): Uncertain, borderline case.
+
   **Constraint:**
 
   * Your response must strictly follow the provided **answer response template** and include no additional text.
@@ -26,9 +33,9 @@ template: |
   {answer_template}
 
 
-  context_false_positives: 
+  context_false_positives:
   {context}
 
 
-  user_error_trace: 
+  user_error_trace:
   {user_error_trace}

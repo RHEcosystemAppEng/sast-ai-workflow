@@ -31,21 +31,19 @@ class KnownIssueRetriever():
         Returns:
             list[KnownIssue]: A list of KnownIssue objects containing error traces and metadata.
         """
-        retriever = self.vector_store.as_retriever(
-            search_kwargs={
-                "k": self.similarity_error_threshold,
-                'filter': {'issue_type': issue_type} #try to filter by cwe too
-            }
+        docs_with_scores = self.vector_store.similarity_search_with_score(
+            finding_trace,
+            k=self.similarity_error_threshold,
+            filter={'issue_type': issue_type}
         )
-        docs = retriever.invoke(finding_trace)
         known_issues = []
-        for doc in docs:
+        for doc, score in docs_with_scores:
             known_issues.append(KnownFalsePositive(
                 error_trace=doc.page_content,
                 reason_of_false_positive=doc.metadata.get('reason_of_false_positive', ''),
                 issue_type=doc.metadata.get('issue_type', ''),
                 issue_cwe=doc.metadata.get('issue_cwe'),
-                similarity_score=None
+                similarity_score=score
             ))
         return known_issues
 
@@ -71,7 +69,7 @@ def capture_known_issues(main_process: LLMService, issue_list: List[Issue], conf
     for issue in issue_list:
         similar_known_issues_list = known_issue_retriever.get_relevant_known_issues(issue.trace, issue.issue_type)
 
-        is_finding_known_false_positive, equal_error_trace = is_known_false_positive(issue,similar_known_issues_list,main_process)
+        is_finding_known_false_positive, equal_error_trace, filter_confidence = is_known_false_positive(issue,similar_known_issues_list,main_process)
         if is_finding_known_false_positive:
             already_seen_dict[issue.id] = equal_error_trace
             logger.info(f"LLM found {issue.id} error trace inside known false positives list")
@@ -99,7 +97,7 @@ def create_known_issue_retriever(main_process: LLMService, config: Config) -> Kn
     known_issue_retriever = KnownIssueRetriever(known_issue_db, config.SIMILARITY_ERROR_THRESHOLD) 
     return known_issue_retriever
 
-def is_known_false_positive(issue, similar_known_issues_list, main_process: LLMService) -> tuple[bool, List[str]]:
+def is_known_false_positive(issue, similar_known_issues_list, main_process: LLMService) -> tuple[bool, List[str], float]:
     def convert_similar_known_issues_to_filter_known_error_context(resp) -> str:
         context_list = ''
         for index, known_issue in enumerate(resp, start=1):
@@ -109,13 +107,13 @@ def is_known_false_positive(issue, similar_known_issues_list, main_process: LLMS
                 reason=known_issue.reason_of_false_positive
             )
         return context_list
-    
+
     similar_findings_context = convert_similar_known_issues_to_filter_known_error_context(similar_known_issues_list)
     filter_response = main_process.filter_known_error(issue, similar_findings_context)
     logger.debug(f"Response of filter_known_error: {filter_response}")
     result_value = filter_response.result.strip().lower()
-    logger.debug(f"{issue.id} Is known false positive? {result_value}")
-    return "yes" in result_value, filter_response.equal_error_trace
+    logger.info(f"{issue.id} Is known false positive? {result_value} with confidence: {filter_response.filter_confidence}" )
+    return "yes" in result_value, filter_response.equal_error_trace, filter_response.filter_confidence
 
 def convert_similar_issues_to_examples_context_string(similar_known_issues_list: list[KnownFalsePositive]) -> str:
     """Convert a list of known false positive CVE examples into a formatted string."""
