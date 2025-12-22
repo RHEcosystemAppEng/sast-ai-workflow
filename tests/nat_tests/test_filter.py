@@ -55,8 +55,8 @@ class TestFilterCore(unittest.IsolatedAsyncioTestCase):
         
         def mock_fp_side_effect(issue, similar_list, llm_service):
             if issue.id == self.sample_issues[0].id:
-                return True, ["Similar buffer overflow"]
-            return False, []
+                return True, ["Similar buffer overflow"], 0.95
+            return False, [], 0.5
         
         mock_is_fp.side_effect = mock_fp_side_effect
         
