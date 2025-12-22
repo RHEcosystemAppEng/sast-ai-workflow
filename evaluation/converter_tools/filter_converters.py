@@ -118,8 +118,11 @@ class FilterConverter(BaseEvaluationConverter):
             else CLASSIFICATION_TRUE_POSITIVE
         )
 
-        # Use default confidence - let the evaluation system compare with expected values
-        confidence = None
+        # Extract filter_confidence from analysis_response if available
+        confidence = getattr(analysis, 'filter_confidence', None)
+
+        # Extract faiss_similarity_score from analysis_response if available
+        faiss_score = getattr(analysis, 'faiss_similarity_score', None)
 
         # Get justification
         justification = ""
@@ -163,6 +166,7 @@ class FilterConverter(BaseEvaluationConverter):
         return {
             "filter_result": filter_result,
             "confidence": confidence,
+            "faiss_similarity_score": faiss_score,
             "similar_known_issues": similar_issues,
             "justification": justification
         }
