@@ -142,9 +142,11 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
             if issue.id == "issue1":  # exact match scenario
                 mock_response.result = "yes"
                 mock_response.equal_error_trace = ["char buffer[10]; strcpy(buffer, user_input);"]
+                mock_response.filter_confidence = 0.95
             else:  # issue2 (similar but not exact) and issue3 (no similar issues)
                 mock_response.result = "no"
                 mock_response.equal_error_trace = []
+                mock_response.filter_confidence = 0.5
             return mock_response
 
         mock_llm_service_run_script.filter_known_error = mock_filter_response
@@ -152,8 +154,8 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
         # Mock is_known_false_positive for filter tool - only issue1 is FP
         def mock_is_fp(issue, similar_list, llm_service):
             if issue.id == "issue1":  # exact match scenario
-                return True, ["char buffer[10]; strcpy(buffer, user_input);"]
-            return False, []
+                return True, ["char buffer[10]; strcpy(buffer, user_input);"], 0.95
+            return False, [], 0.5
 
         # Mock convert_similar_issues_to_examples_context_string
         def mock_convert_context(similar_list):

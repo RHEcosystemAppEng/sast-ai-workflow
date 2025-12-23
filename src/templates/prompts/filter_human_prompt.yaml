@@ -1,3 +1,4 @@
 template: |
   Does the error trace of user_error_trace match any of the context_false_positives errors?
+  Provide your decision (YES/NO) and confidence score (0.0-1.0).
   user_error_trace: {user_error_trace} 
