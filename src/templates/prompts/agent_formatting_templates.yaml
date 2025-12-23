@@ -1,0 +1,66 @@
+# Agent node formatting templates
+# These are sub-prompts used to format various parts of the agent's context
+
+project_context_template: |
+  **Directory Structure** (top directories):
+  {directory_list}
+
+  **Security-Related Files** ({security_files_count} found):
+  {security_files_list}
+  {security_files_more}
+
+  **Detected Frameworks**:
+  {frameworks_list}
+
+project_context_no_context: "No project context available."
+
+error_context_template: |
+  **LAST ERROR:**
+  Tool: {tool_name}
+  Args: {attempted_args}
+  Error: {error_message}
+
+  **Recovery Strategy:**
+  - Do NOT retry the same tool with the same arguments
+  - Try a different tool or different parameters
+  - If fetch_code failed on a symbol name: Try the file path instead
+  - If fetch_code failed on a file: Try a related file from the trace
+  - After 3 consecutive errors: Proceed to analyze_issue with available context
+
+error_context_no_errors: "No previous errors."
+
+evaluation_feedback_template: |
+  **COMPREHENSIVE EVALUATION FEEDBACK:**
+
+  is_final: {is_final}
+  confidence: {verdict_confidence}
+
+  **PROCESS AUDIT (Exploration Gaps):**
+  {exploration_gaps_section}
+
+  **LOGIC AUDIT (Evidence Gaps):**
+  {logic_gaps_section}
+  {required_code_section}
+
+  **RECOMMENDATIONS (Prioritized):**
+  {recommendations_list}
+
+evaluation_feedback_no_evaluation: "No evaluation feedback yet - analyze the issue first."
+
+exploration_gaps_complete: "  ✓ No exploration gaps - investigation thorough"
+
+logic_gaps_complete: "  ✓ No logic gaps - analysis sound"
+
+state_summary_template: |
+  **Issue:** {issue_type} in {file_path}
+  **Trace:** {trace_preview}...
+
+  **Files Fetched:** {files_count} files
+    {files_list}
+
+  **Analysis Result:** {analysis_result}
+
+  **Investigation Status:**
+    - Iteration: {iteration_count}/15
+    - is_final: {is_final}
+    - Errors: {errors_count}
