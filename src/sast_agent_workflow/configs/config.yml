@@ -70,10 +70,10 @@ workflow:
   description: "SAST agent workflow for static application security testing"
 
 general:
-  use_uvloop: true
-  logging:
-    console:
-      _type: console
-      level: INFO
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: INFO
   front_end:
-    type: console
+    _type: console
