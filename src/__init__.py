@@ -7,3 +7,6 @@ This package contains the complete SAST AI workflow system including:
 - File handlers and utilities
 - Integration with NAT
 """
+
+# Import agent module to trigger NAT registration
+from sast_agent_workflow import agent  # noqa: F401

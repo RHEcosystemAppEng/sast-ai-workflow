@@ -1,0 +1,267 @@
+# ADR 0001: Agent-Based Investigation for SAST Triage
+
+**Status:** Approved
+**Date:** 2025-12-21
+**Decision:** Approved - Implementation in progress
+
+---
+
+## PROBLEM STATEMENT
+
+Current SAST triage system does not meet production quality targets:
+- **Accuracy, Recall, Precision below requirements** (need: Accuracy ≥0.7, Recall ≥0.9, Precision ≥0.74)
+- **Root cause**: Incomplete context retrieval leads to incorrect verdicts
+  - False Positives: Missing sanitizers/validators → incorrectly flagged
+  - False Negatives: Missing data flow steps → vulnerabilities undetected
+
+**Current System Limitations:**
+1. **Fixed iteration count**: MAX_ANALYSIS_ITERATIONS (typically 3) stops investigation
+   - Not all issues reach "final" decision within k iterations
+   - Complex issues need more exploration, simple issues waste iterations
+
+2. **No fallback retrieval**: `extract_missing_functions_or_macros` requires exact symbol names
+   - Works when LLM guesses correct name
+   - **Fails** when LLM guesses wrong name → incomplete context → wrong verdict
+
+3. **Result**: Investigations terminate with incomplete context → incorrect verdicts
+
+---
+
+## PROPOSED SOLUTION
+
+Replace k-iteration loop with **ReAct agent** that has:
+
+**1. Adaptive investigation depth** (replaces fixed k iterations)
+- Simple issues: Stop early when sufficient context gathered
+- Complex issues: Continue investigation up to 15 tool calls
+- More issues reach "final" decision (no arbitrary iteration limit)
+
+**2. Intelligent fallback retrieval**
+- Try exact symbol lookup first (same as current system)
+- If fails: Fallback to pattern search (`search_codebase`)
+- If still unclear: Explore project structure (`list_files`)
+
+**Goal**: Improve accuracy/recall by (a) allowing flexible investigation depth, and (b) discovering missing context via fallback when exact retrieval fails.
+
+---
+
+## KEY DECISIONS
+
+### Decision 1: ReAct Agent Architecture
+
+**Why**: Fixed loop cannot effectively use fallback tools
+- Current: If exact lookup fails → dead-end
+- Agent: If exact lookup fails → try pattern search → recover
+
+**Trade-off**: Higher LLM cost (agent reasoning overhead) but improved quality
+
+---
+
+### Decision 2: Tool Set
+
+**fetch_code(identifier)** - PRIMARY method
+- Uses existing `extract_missing_functions_or_macros`
+- Lowest cost (no LLM, just AST lookup)
+- Agent tries this FIRST
+
+**search_codebase(pattern, scope)** - FALLBACK
+- Pattern-based search (e.g., "sanitize.*")
+- Higher cost (text search, many results)
+- Agent uses when fetch_code fails
+
+**list_files(directory)** - DISCOVERY
+- Explore project structure
+- Moderate cost
+- Agent uses when search unclear
+
+**analyze_issue(context)** - Same as current (wraps IssueAnalysisService.analyze_issue_core_only)
+
+**comprehensive_evaluation(result)** - ENHANCED evaluation combining:
+- Process audit: Checks investigation thoroughness (reflection)
+- Logic audit: Validates analysis reasoning (evaluation)
+- Uses project_context to suggest specific files (not just function names)
+- Single LLM call combining reflection + evaluation (cost efficient)
+
+---
+
+### Decision 3: Comprehensive Evaluation (Merged Reflection + Evaluation)
+
+**Why**: Initial design considered separate reflection and evaluation nodes
+- Reflection: "Did I explore thoroughly?" (process audit)
+- Evaluation: "Is analysis logic sound?" (evidence audit)
+
+**Decision**: Merge into single `comprehensive_evaluation` node
+
+**Rationale**:
+1. Both are advisory (not decision-makers) - only agent decides next action
+2. Both run sequentially after analyze_issue
+3. Both provide input to same consumer (agent decision node)
+4. Single LLM call more cost-efficient than two separate calls (~40% token savings)
+5. Unified feedback prevents contradictions between reflection and evaluation
+6. LLM can reason holistically about BOTH process completeness AND logic soundness
+
+**Implementation**:
+- Single prompt with two sections: Process Audit + Logic Audit
+- Uses project_context to suggest specific files (not guessed function names)
+- Returns: is_final, exploration_gaps, logic_gaps, recommendations, required_code
+- Agent receives coherent, prioritized guidance for next decision
+
+**Trade-off**: Slightly longer prompt, but eliminates redundancy and improves coherence
+
+---
+
+### Decision 4: Cost vs. Quality Trade-off
+
+**Expected**: Higher token cost than baseline
+- Agent reasoning: Extra LLM call before each tool
+- Search results: Consume context window
+- More iterations: More flexible investigation
+
+**Justification**: Current system's quality insufficient for production
+- Cannot deploy with current metrics
+- Cost increase justified IF quality improves
+- Implementation will validate: Does higher cost → better quality?
+
+---
+
+## OBSERVABILITY & VALIDATION
+
+### Execution Tracing (Langfuse)
+- Track every tool call (input, output, latency, token cost)
+- Monitor agent "thoughts" (reasoning between tool calls) to debug failures
+- Attribute token costs per investigation
+- Enable investigation replay for debugging
+
+### Prompt Independence Testing (Promptfoo)
+- **Variant Testing**: Run same Golden Dataset entry against multiple prompt versions
+  (e.g., "Concise" vs "Step-by-step")
+- **Agreement Testing**: Ensure prompt wording changes don't alter security verdicts
+- Validate verdicts depend on evidence, not prompt phrasing
+
+---
+
+## IMPLEMENTATION VALIDATION
+
+### Phase 1: Core Agent (Week 1-2)
+**Deliverables:**
+- Agent framework operational (ReAct decision loop)
+- Project context initialization (one-time discovery of security files, frameworks)
+- Tools: fetch_code, analyze_issue, comprehensive_evaluation
+- Error recovery mechanisms (state-driven retry with alternative tools)
+- Circuit breakers (max 15 calls, 5-min timeout, duplicate detection)
+- Langfuse tracing integrated
+
+**Quality Gate:**
+- Agent achieves baseline parity (no regressions)
+- All tool calls execute without errors
+- Cost tracking functional
+- Project context initialization completes in <15 seconds
+
+---
+
+### Phase 2: Fallback Retrieval (Week 3-4)
+**Deliverables:**
+- Add search_codebase and list_files tools
+- Agent demonstrates fallback strategy (fetch → search → list)
+- Test on 10 issues (5 with known retrieval gaps + 5 baseline)
+
+**Quality Gate:**
+- Fallback successfully finds missing context in ≥3 gap cases
+- At least 2 incorrect baseline verdicts corrected
+- Quality improvement measurable (Accuracy/Recall/Precision trending up)
+
+---
+
+### Production Readiness Criteria
+Before deploying to production, system must achieve:
+
+**Quality Targets:**
+- Accuracy ≥ 0.7
+- Recall ≥ 0.9
+- Precision ≥ 0.74
+- Consistency ≥ 90% (3 runs, same verdict)
+
+**Operational Requirements:**
+- Cost justified by quality improvement
+- Fallback success rate ≥ 60% (when used, finds useful context)
+- No infinite loops or tool errors
+
+**If Not Met:**
+- Continue iteration on prompts, tool implementations, or search strategies
+- Quality improvement is mandatory - cost increase only justified if metrics improve
+
+---
+
+## METRICS
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Accuracy | ≥0.7 | Must improve vs. baseline |
+| Recall | ≥0.9 | Must improve vs. baseline |
+| Precision | ≥0.74 | Maintain or improve |
+| Consistency | ≥90% | 3 runs, same verdict |
+| Fallback Success | ≥60% | When used, finds useful context |
+| Cost vs. Baseline | TBD | Track but secondary to quality |
+
+---
+
+## RISKS & MITIGATION
+
+### Risk 1: Quality Does Not Improve (CRITICAL)
+- **Impact**: Cost increase unjustified
+- **Mitigation**: Phase 2 tests 5 known gap cases; iterate on implementation if no improvement
+
+### Risk 2: Cost Too High
+- **Impact**: Operationally expensive
+- **Mitigation**: Track per-issue cost; optimize tool usage; max 15 tool calls hard limit
+
+### Risk 3: Search Noise
+- **Impact**: Fallback finds irrelevant results
+- **Mitigation**: Limit results (100 max); require scope parameter; monitor precision
+
+---
+
+## EXAMPLE: Fallback in Action
+
+**SAST Finding**: SQL Injection in `app/views.py:45`
+
+**Current System**:
+1. fetch_code("app/views.py") ✓
+2. analyze → "need sanitization check"
+3. evaluate → recommends fetching "sanitize_username" (exact name)
+4. fetch_code("sanitize_username") ✗ NOT FOUND
+5. **Result**: Incorrect verdict (missed actual sanitizer)
+
+**Agent System**:
+1. agent → fetch_code("app/views.py") ✓
+2. agent → analyze_issue → "Possible SQL injection, no sanitization in views.py"
+3. comprehensive_evaluation:
+   - Process audit: "Global middleware not checked - app/middleware/security.py exists in project"
+   - Logic audit: "Analysis assumes no sanitization but incomplete exploration"
+   - Guidance: "Check app/middleware/security.py"
+4. agent (sees evaluation feedback) → fetch_code("app/middleware/security.py") ✓
+5. **Found**: `GlobalInputSanitizer` middleware
+6. agent → analyze_issue (iteration 2) → "Middleware sanitizes all inputs"
+7. comprehensive_evaluation → is_final=TRUE, verdict=FALSE_POSITIVE
+8. **Result**: CORRECT verdict (baseline was WRONG)
+
+**Outcome**: Higher cost but CORRECT - comprehensive_evaluation used project_context to guide agent to actual file
+
+---
+
+## APPROVAL
+
+| Assignee | Status | Comment |
+|----------|--------|---------|
+| Guy Ziv | Pending | |
+| Yael Fishel | Pending | |
+| Jude Niroshan | Approved | I like the overall approach |
+
+---
+
+## REFERENCES
+
+- Existing code: `src/sast_agent_workflow/`
+- Current nodes: `data_fetcher.py`, `judge_llm_analysis.py`, `evaluate_analysis.py`
+- LangGraph: https://langchain-ai.github.io/langgraph/
+- ReAct paper: https://arxiv.org/abs/2210.03629
