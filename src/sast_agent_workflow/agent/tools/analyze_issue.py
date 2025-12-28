@@ -5,6 +5,7 @@ Analyzes SAST security issues using fetched source code and returns
 TRUE_POSITIVE or FALSE_POSITIVE verdict with justifications.
 """
 
+import json
 import logging
 
 from langchain_core.tools import StructuredTool
@@ -16,7 +17,10 @@ from nat.data_models.function import FunctionBaseConfig
 from pydantic import BaseModel, Field
 
 from ....common.config import Config
+from ....dto.ResponseStructures import JudgeLLMResponse
 from ....handlers.repo_handler_factory import repo_handler_factory
+from ....services.issue_analysis_service import IssueAnalysisService
+from ....services.vector_store_service import VectorStoreService
 from ..agent_state import SASTAgentState
 from .fetch_code import fetch_code_from_error_trace
 
@@ -50,8 +54,9 @@ async def register_analyze_issue_tool(config: AnalyzeIssueToolConfig, builder: B
     """Register the analyze_issue tool with NAT."""
     logger.info("Registering analyze_issue tool...")
 
-    # Get LLM for analysis (will be used when implementing actual analysis)
-    _ = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+    # Get LLM for analysis
+    llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+    logger.info(f"Initialized LLM: {config.llm_name}")
 
     # Initialize repo_handler for fetching initial code from error trace
     try:
@@ -62,11 +67,51 @@ async def register_analyze_issue_tool(config: AnalyzeIssueToolConfig, builder: B
         logger.error(f"Failed to initialize repo_handler: {e}")
         raise
 
-    # TODO: Load analysis prompt when implementing actual analysis
-    # prompts_dir = os.path.join(os.path.dirname(__file__), "../../../templates/prompts")
-    # prompt_file = os.path.join(prompts_dir, "analysis_prompt.yaml")
-    # For now, using placeholder implementation
-    logger.info("Using placeholder analysis implementation (LLM integration pending)")
+    # Initialize VectorStoreService and IssueAnalysisService
+    # TODO: Validate VectorStoreService initialization - currently using placeholder None
+    # Need to verify if vector store is required for analysis or can remain None
+    try:
+        vector_service = VectorStoreService(config=global_config, vector_store=None)
+        analysis_service = IssueAnalysisService(config=global_config, vector_service=vector_service)
+        logger.info("Initialized IssueAnalysisService with placeholder vector_service")
+    except Exception as e:
+        logger.error(f"Failed to initialize IssueAnalysisService: {e}")
+        raise
+
+    def _extract_context_from_state(state: SASTAgentState) -> str:
+        """
+        Extract all fetched code from state and format as context string.
+
+        Args:
+            state: Agent state containing fetched_files
+
+        Returns:
+            Formatted context string with all code blocks
+        """
+        # TODO: Validate context format - should we preserve === markers from fetch_code?
+        # Current implementation preserves the structured format for LLM readability
+
+        if not state.context.fetched_files:
+            logger.warning(f"[{state.issue_id}] No code fetched yet - context is empty")
+            return ""
+
+        context_blocks = []
+        for identifier, code_list in state.context.fetched_files.items():
+            # Each identifier can have multiple code blocks (usually just one)
+            for code in code_list:
+                context_blocks.append(code)
+
+        context = "\n\n".join(context_blocks)
+
+        # Log context size for observability
+        num_files = len(state.context.fetched_files)
+        context_size = len(context)
+        logger.info(
+            f"[{state.issue_id}] Extracted context: {num_files} files, "
+            f"{context_size} characters"
+        )
+
+        return context
 
     def _analyze_issue(state: SASTAgentState, issue_trace: str, fetched_code: str) -> str:
         """
@@ -93,24 +138,59 @@ async def register_analyze_issue_tool(config: AnalyzeIssueToolConfig, builder: B
             f"Files in context: {list(state.context.fetched_files.keys())}"
         )
 
-        # TODO: Implement actual LLM call with structured output
-        # from langchain_core.output_parsers import PydanticOutputParser
-        # parser = PydanticOutputParser(pydantic_object=AnalysisResponse)
-        # prompt = analysis_prompt.format(issue_trace=issue_trace, code_context=fetched_code)
-        # response = llm.invoke(prompt)
-        # result = parser.parse(response.content)
+        # STEP 2: Extract all gathered code from state
+        context = _extract_context_from_state(state)
 
-        # Placeholder
-        import json
+        if not context:
+            logger.warning(f"[{state.issue_id}] Empty context - returning default result")
+            # TODO: Validate error default - should we return TRUE_POSITIVE (safer) or FALSE_POSITIVE?
+            # Currently defaulting to TRUE_POSITIVE to avoid missing real vulnerabilities
+            return json.dumps({
+                "investigation_result": "TRUE_POSITIVE",
+                "justifications": ["No code context available for analysis"],
+                "prompt_used": "N/A - no context"
+            })
 
-        result = {
-            "investigation_result": "FALSE_POSITIVE",
-            "justifications": [
-                "Placeholder justification - actual LLM analysis not yet implemented"
-            ],
-            "recommendations": ["Implement actual analysis"],
-        }
-        return json.dumps(result, indent=2)
+        # STEP 3: Call IssueAnalysisService for LLM-based analysis
+        try:
+            logger.info(f"[{state.issue_id}] Calling IssueAnalysisService.analyze_issue_core_only")
+
+            prompt_used, analysis_response = analysis_service.analyze_issue_core_only(
+                issue=state.issue,
+                context=context,
+                main_llm=llm
+            )
+
+            logger.info(
+                f"[{state.issue_id}] Analysis complete: {analysis_response.investigation_result}"
+            )
+            logger.debug(f"[{state.issue_id}] Prompt used:\n{prompt_used}")
+
+            # STEP 4: Format structured result
+            result = {
+                "investigation_result": analysis_response.investigation_result,
+                "justifications": analysis_response.justifications,
+                "prompt_used": prompt_used
+            }
+
+            return json.dumps(result, indent=2)
+
+        except Exception as e:
+            logger.error(
+                f"[{state.issue_id}] Analysis failed: {e}",
+                exc_info=True
+            )
+
+            # TODO: Validate error default - should we return TRUE_POSITIVE (safer) or FALSE_POSITIVE?
+            # Currently defaulting to TRUE_POSITIVE to avoid missing real vulnerabilities when analysis fails
+            return json.dumps({
+                "investigation_result": "TRUE_POSITIVE",
+                "justifications": [
+                    f"Analysis failed with error: {str(e)}",
+                    "Defaulting to TRUE_POSITIVE for safety"
+                ],
+                "prompt_used": "N/A - analysis failed"
+            })
 
     analyze_tool = StructuredTool.from_function(
         func=_analyze_issue,
