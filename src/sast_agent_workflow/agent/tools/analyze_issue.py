@@ -15,6 +15,11 @@ from nat.data_models.component_ref import LLMRef
 from nat.data_models.function import FunctionBaseConfig
 from pydantic import BaseModel, Field
 
+from ....common.config import Config
+from ....handlers.repo_handler_factory import repo_handler_factory
+from ..agent_state import SASTAgentState
+from .fetch_code import fetch_code_from_error_trace
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,24 +53,45 @@ async def register_analyze_issue_tool(config: AnalyzeIssueToolConfig, builder: B
     # Get LLM for analysis (will be used when implementing actual analysis)
     _ = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 
+    # Initialize repo_handler for fetching initial code from error trace
+    try:
+        global_config = Config()
+        _repo_handler = repo_handler_factory(global_config)
+        logger.info(f"Initialized repo_handler for: {global_config.REPO_LOCAL_PATH}")
+    except Exception as e:
+        logger.error(f"Failed to initialize repo_handler: {e}")
+        raise
+
     # TODO: Load analysis prompt when implementing actual analysis
     # prompts_dir = os.path.join(os.path.dirname(__file__), "../../../templates/prompts")
     # prompt_file = os.path.join(prompts_dir, "analysis_prompt.yaml")
     # For now, using placeholder implementation
     logger.info("Using placeholder analysis implementation (LLM integration pending)")
 
-    def _analyze_issue(issue_trace: str, fetched_code: str) -> str:
+    def _analyze_issue(state: SASTAgentState, issue_trace: str, fetched_code: str) -> str:
         """
         Analyze SAST issue for TRUE_POSITIVE/FALSE_POSITIVE.
 
+        NOTE: This function is called once at investigation start and automatically
+        fetches initial code from the error trace before analysis.
+
         Args:
+            state: Agent state (for storing fetched code from trace)
             issue_trace: The SAST finding trace
             fetched_code: Source code context
 
         Returns:
             Analysis result as JSON string with verdict and justifications
         """
-        logger.info("analyze_issue called")
+        logger.info(f"[{state.issue_id}] analyze_issue called")
+
+        # STEP 1: Fetch initial code from error trace (file+line extraction)
+        # This is called ONCE at investigation start to populate initial context
+        fetch_code_from_error_trace(state, issue_trace, _repo_handler)
+        logger.info(
+            f"[{state.issue_id}] Fetched initial code from trace. "
+            f"Files in context: {list(state.context.fetched_files.keys())}"
+        )
 
         # TODO: Implement actual LLM call with structured output
         # from langchain_core.output_parsers import PydanticOutputParser

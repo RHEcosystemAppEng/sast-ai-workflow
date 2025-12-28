@@ -213,6 +213,12 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
 
         logger.debug(f"[{issue_id}] Tool args: {tool_args}")
 
+        # Inject state into tool_args for all tools
+        # This allows tools to access context (fetched_files, found_symbols, etc.)
+        # without the LLM having to construct or pass the state object
+        tool_args["state"] = state
+        logger.debug(f"[{issue_id}] Injected state into tool_args")
+
         try:
             # Call the NAT tool
             if hasattr(tool, "ainvoke"):

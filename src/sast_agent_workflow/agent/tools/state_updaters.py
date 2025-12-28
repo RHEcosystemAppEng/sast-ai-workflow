@@ -48,40 +48,44 @@ class FetchCodeStateUpdater:
         """
         Update state with fetched code.
 
-        Stores code in fetched_files, adds identifier to found_symbols,
+        Stores code in fetched_files, adds identifier to found_symbols ONLY on success,
         and resets error recovery counter on success.
+
+        The tool returns error messages starting with "Error:" for failed fetches.
+        Only successful fetches should update found_symbols to prevent duplicate tracking.
         """
-        # Get the new parameter names, with fallback to old format for backward compatibility
-        referring_path = tool_args.get(
-            "referring_source_code_path", tool_args.get("identifier", "unknown")
-        )
-        expression_name = tool_args.get("expression_name", "")
+        identifier = tool_args.get("identifier", "unknown")
 
-        # Create a combined identifier for storage
-        if expression_name:
-            identifier = f"{referring_path}::{expression_name}"
+        # Check if result is an error message
+        is_error = result.startswith("Error:")
+
+        if not is_error:
+            # Success: Store fetched code and update found_symbols
+            state.context.fetched_files[identifier] = [result]
+            state.context.found_symbols.add(identifier)
+
+            # Reset error state on success
+            state.error_state.error_recovery_attempts = 0
+            state.error_state.last_error = None
+
+            logger.debug(f"[{state.issue_id}] Updated state: fetched {identifier}")
         else:
-            identifier = referring_path
+            # Error: Store error message but DON'T add to found_symbols
+            # This allows the agent to see the error and try a different approach
+            state.context.fetched_files[identifier] = [result]
 
-        # Store fetched code
-        state.context.fetched_files[identifier] = [result]
-        # Add to found_symbols with deduplication (List instead of Set for JSON serialization)
-        if identifier not in state.context.found_symbols:
-            state.context.found_symbols.append(identifier)
-
-        # Reset error state on success
-        state.error_state.error_recovery_attempts = 0
-        state.error_state.last_error = None
-
-        logger.debug(f"[{state.issue_id}] Updated state: fetched {identifier}")
+            logger.debug(
+                f"[{state.issue_id}] Fetch failed for {identifier}, "
+                f"not adding to found_symbols"
+            )
 
 
-class EvaluatorStateUpdater:
-    """State updater for evaluator tool (ADR-0002 gate)."""
+class AnalyzeIssueStateUpdater:
+    """State updater for analyze_issue tool."""
 
     def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
         """
-        Update state with evaluator results.
+        Update state with analysis results.
 
         Parses evaluator JSON result, stores EvaluatorReport, merges blocking gaps
         into unknowns, and finalizes only when verification_passed==true.
