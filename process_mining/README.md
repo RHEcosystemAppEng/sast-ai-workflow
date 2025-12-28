@@ -2,7 +2,15 @@
 
 ## Overview
 
-This directory contains prompt templates for extracting investigation patterns from human-annotated SAST findings using a single LLM approach.
+This directory contains a complete workflow for learning SAST false positive detection patterns from human-annotated ground-truth data. It provides tools for:
+
+- **Dataset Management**: Preprocessing and validation of ground-truth Excel files with human annotations
+- **Train/Validation/Test Splitting**: Stratified dataset splitting with quality validation
+- **Pattern Extraction**: Automated preparation of findings with source code context for LLM analysis
+- **Pattern Learning**: Prompt templates for extracting investigation patterns using Claude
+- **Pattern Aggregation**: Scripts and prompts for consolidating patterns across packages
+
+The workflow enables systematic learning from expert annotations to identify common patterns that distinguish false positives from true positives in SAST findings.
 
 ## Workflow Summary
 
