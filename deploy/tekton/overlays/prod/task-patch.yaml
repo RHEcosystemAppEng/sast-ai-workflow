@@ -4,4 +4,4 @@
 # This value is updated automatically in new releases
 - op: replace
   path: /spec/params/18/default
-  value: "quay.io/ecosystem-appeng/sast-ai-workflow:RELEASE_IMAGE_VERSION_PLACEHOLDER"
+  value: "quay.io/ecosystem-appeng/sast-ai-workflow:1.0.0"
