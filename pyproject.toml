@@ -7,7 +7,7 @@ requires = ["setuptools >= 64", "setuptools-scm>=8"]
 
 [project]
 name = "sast_agent_workflow"
-version = "2.0.0"  # This will be updated by release workflow
+version = "1.0.0"  # This will be updated by release workflow
 dynamic = ["dependencies"]
 requires-python = ">=3.12"
 description = "SAST AI Workflow - NeMo Agent for Static Application Security Testing"

@@ -13,7 +13,7 @@ spec:
   project: sast-ai
   source:
     repoURL: GITHUB_REPO_URL_PLACEHOLDER
-    targetRevision: RELEASE_VERSION_PLACEHOLDER
+    targetRevision: v1.0.0
     path: deploy/tekton/overlays/prod
   destination:
     server: https://kubernetes.default.svc
