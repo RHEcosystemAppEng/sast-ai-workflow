@@ -52,7 +52,8 @@ class FetchCodeStateUpdater:
         and resets error recovery counter on success.
 
         The tool returns error messages starting with "Error:" for failed fetches.
-        Only successful fetches should update found_symbols to prevent duplicate tracking.
+        On error, creates a ToolError and stores in error_state
+        to allow retries with different parameters.
         """
         identifier = tool_args.get("identifier", "unknown")
 
@@ -70,13 +71,20 @@ class FetchCodeStateUpdater:
 
             logger.debug(f"[{state.issue_id}] Updated state: fetched {identifier}")
         else:
-            # Error: Store error message but DON'T add to found_symbols
-            # This allows the agent to see the error and try a different approach
-            state.context.fetched_files[identifier] = [result]
+            tool_error = ToolError(
+                tool_name="fetch_code",
+                error_message=result,
+                attempted_args=tool_args,
+                timestamp=datetime.utcnow().isoformat(),
+            )
+
+            state.error_state.errors.append(tool_error)
+            state.error_state.last_error = tool_error
+            state.error_state.error_recovery_attempts += 1
 
             logger.debug(
                 f"[{state.issue_id}] Fetch failed for {identifier}, "
-                f"not adding to found_symbols"
+                f"stored in error_state (retries allowed with different params)"
             )
 
 

@@ -14,8 +14,8 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.function import FunctionBaseConfig
 from pydantic import BaseModel, Field
 
-from ....common.config import Config
-from ....handlers.repo_handler_factory import repo_handler_factory
+from common.config import Config
+from handlers.repo_handler_factory import repo_handler_factory
 from ..agent_state import SASTAgentState
 
 logger = logging.getLogger(__name__)
@@ -42,14 +42,12 @@ def fetch_code_from_error_trace(state, error_trace: str, repo_handler) -> None:
     logger.info(f"[{state.issue_id}] Fetching initial code from error trace")
 
     try:
-        # Extract code from error trace using repo_handler
         result_dict = repo_handler.get_source_code_blocks_from_error_trace(error_trace)
 
         if not result_dict:
             logger.warning(f"[{state.issue_id}] No code extracted from error trace")
             return
 
-        # Store fetched code in state
         for file_path, code in result_dict.items():
             state.context.fetched_files[file_path] = [code]
             state.context.found_symbols.add(file_path)
@@ -64,24 +62,9 @@ def fetch_code_from_error_trace(state, error_trace: str, repo_handler) -> None:
         logger.error(f"[{state.issue_id}] Failed to fetch code from trace: {e}", exc_info=True)
 
 class FetchCodeInput(BaseModel):
-    """
-    Input schema for fetch_code tool.
-
-    Note: The 'state' parameter is injected by the tool wrapper and not
-    exposed to the LLM. Only identifier, context_lines, and reason are
-    provided by the agent.
-    """
-
-    identifier: str = Field(
-        description="Symbol name (e.g., 'sanitize_input', 'User', 'validate_data') to fetch"
-    )
-    context_lines: str = Field(
-        default="",
-        description="File path or file:line where symbol was referenced (e.g., 'app/views.py' or 'app/views.py:42')",
-    )
-    reason: str = Field(
-        description="Reason for fetching this code (helps with investigation reasoning)"
-    )
+    """Input schema for fetch_code tool."""
+    identifier: str = Field(description="File path (e.g., 'app/views.py') or symbol name to fetch")
+    reason: str = Field(description="Reason for fetching this code (for investigation reasoning)")
 
 
 class FetchCodeToolConfig(FunctionBaseConfig, name="fetch_code"):
@@ -112,33 +95,23 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
         logger.error(f"Failed to initialize repo_handler: {e}")
         raise
 
-    def _fetch_code(
-        state: SASTAgentState, identifier: str, context_lines: str, reason: str
-    ) -> str:
+    def _fetch_code(state: SASTAgentState, identifier: str, reason: str) -> str:
         """
         Fetch source code by symbol name (function, class, macro).
 
         Use for exact symbol names when you know the identifier.
-        Provides context about where the symbol was referenced to help repo_handler locate it.
+        Automatically determines where the symbol was referenced from already-fetched code.
 
         NOTE: For initial code from SAST error trace (file+line), use the
         fetch_code_from_error_trace() helper function instead.
 
         Examples:
-        - fetch_code(state, 'sanitize_input', 'app/views.py:42', 'Need to verify sanitization logic')
-        - fetch_code(state, 'validate_user_data', 'app/forms.py', 'Check validation function')
-
-        Trade-offs:
-        - Fast: Direct retrieval by searching entire repo for symbol
-        - Precise: Gets exact symbol definition with file location
-        - Context-aware: Uses referring path to help locate the right definition
-        - BUT: Will fail if symbol name is guessed wrong or doesn't exist
-        - Fallback: Use search_codebase for pattern matching if name is uncertain
+        - fetch_code(state, 'sanitize_input', 'Need to verify sanitization logic')
+        - fetch_code(state, 'validate_user_data', 'Check validation function')
 
         Args:
             state: Agent state (for accessing fetched_files and context)
             identifier: Symbol name (e.g., 'sanitize_input', 'User', 'MAX_LENGTH')
-            context_lines: File path or file:line where symbol was referenced (e.g., 'app/views.py:42')
             reason: Reason for fetching (for investigation reasoning)
 
         Returns:
@@ -152,26 +125,34 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
         # ============================================================
         # STEP 3: Anti-loop protection - check for duplicates
         # ============================================================
-        if identifier in state.context.fetched_files:
+        # Check found_symbols (not fetched_files) to allow retries with different params
+        if identifier in state.context.found_symbols:
             error_msg = (
-                f"Error: '{identifier}' was already fetched.\n"
+                f"Error: '{identifier}' was already successfully fetched.\n"
                 f"The code is already in your context. Review existing fetched files instead."
             )
             logger.warning(f"Duplicate fetch attempt: {identifier}")
             return error_msg
 
         # ============================================================
-        # STEP 4: Fetch symbol using extract_missing_functions_or_macros
+        # STEP 4: Determine referring path from already-fetched code
+        # ============================================================
+        # Search through fetched files to find where this symbol might be referenced
+        referring_path = "unknown"
+        for file_path, code_blocks in state.context.fetched_files.items():
+            for code in code_blocks:
+                if identifier in code:
+                    referring_path = file_path
+                    logger.debug(f"Found '{identifier}' referenced in {file_path}")
+                    break
+            if referring_path != "unknown":
+                break
+
+        # ============================================================
+        # STEP 5: Fetch symbol using extract_missing_functions_or_macros
         # ============================================================
         try:
-            # This method expects a list of instruction objects with attributes:
-            # - expression_name: the symbol name
-            # - referring_source_code_path: where the symbol is referenced (can be "unknown")
-
             from types import SimpleNamespace
-
-            # Use context_lines as referring_source_code_path if provided, otherwise "unknown"
-            referring_path = context_lines if context_lines else "unknown"
 
             instruction = SimpleNamespace(
                 expression_name=identifier,
@@ -253,18 +234,9 @@ Reason: {reason}
 
     # Create async wrapper for NAT 1.3.1
     async def fetch_code_fn(input_data: FetchCodeInput) -> str:
-        """
-        Async wrapper for fetch_code tool.
-
-        Note: The 'state' parameter is NOT passed here - it will be injected
-        by the tool wrapper in agent_graph.py before calling the tool.
-        """
+        """Async wrapper for fetch_code tool."""
         return fetch_code_tool.invoke(
-            {
-                "identifier": input_data.identifier,
-                "context_lines": input_data.context_lines,
-                "reason": input_data.reason,
-            }
+            {"identifier": input_data.identifier, "reason": input_data.reason}
         )
 
     try:

@@ -17,10 +17,10 @@ from nat.data_models.component_ref import LLMRef
 from nat.data_models.function import FunctionBaseConfig
 from pydantic import BaseModel, Field
 
-from ....common.config import Config
-from ....dto.ResponseStructures import JudgeLLMResponse
-from ....services.issue_analysis_service import IssueAnalysisService
-from ....services.vector_store_service import VectorStoreService
+from common.config import Config
+from dto.ResponseStructures import JudgeLLMResponse
+from services.issue_analysis_service import IssueAnalysisService
+from services.vector_store_service import VectorStoreService
 from ..agent_state import SASTAgentState
 
 logger = logging.getLogger(__name__)
@@ -64,13 +64,11 @@ async def register_comprehensive_evaluation_tool(
     logger.info(f"Initialized LLM: {config.llm_name}")
 
     # Initialize VectorStoreService and IssueAnalysisService
-    # TODO: Validate VectorStoreService initialization - currently using placeholder None
-    # Need to verify if vector store is required for evaluation or can remain None
     try:
         global_config = Config()
-        vector_service = VectorStoreService(config=global_config, vector_store=None)
+        vector_service = VectorStoreService()
         analysis_service = IssueAnalysisService(config=global_config, vector_service=vector_service)
-        logger.info("Initialized IssueAnalysisService with placeholder vector_service")
+        logger.info("Initialized IssueAnalysisService with vector_service")
     except Exception as e:
         logger.error(f"Failed to initialize IssueAnalysisService: {e}")
         raise
