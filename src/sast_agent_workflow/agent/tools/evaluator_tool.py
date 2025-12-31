@@ -1,5 +1,5 @@
 """
-comprehensive_evaluation tool - NAT-registered tool for investigation evaluation.
+evaluator_tool - NAT-registered tool for investigation evaluation.
 
 Evaluates investigation completeness via process and logic audits.
 Returns is_final decision, exploration gaps, and recommendations.
@@ -26,8 +26,8 @@ from ..agent_state import SASTAgentState
 logger = logging.getLogger(__name__)
 
 
-class ComprehensiveEvaluationInput(BaseModel):
-    """Input schema for comprehensive_evaluation tool."""
+class EvaluatorToolInput(BaseModel):
+    """Input schema for evaluator_tool."""
 
     issue_trace: str = Field(description="The SAST issue being investigated")
     analysis_verdict: str = Field(
@@ -38,8 +38,8 @@ class ComprehensiveEvaluationInput(BaseModel):
     iteration_count: int = Field(description="Current iteration number")
 
 
-class ComprehensiveEvaluationToolConfig(FunctionBaseConfig, name="comprehensive_evaluation"):
-    """Configuration for comprehensive_evaluation tool."""
+class EvaluatorToolConfig(FunctionBaseConfig, name="evaluator_tool"):
+    """Configuration for evaluator_tool."""
 
     description: str = Field(
         default=(
@@ -52,13 +52,13 @@ class ComprehensiveEvaluationToolConfig(FunctionBaseConfig, name="comprehensive_
 
 
 @register_function(
-    config_type=ComprehensiveEvaluationToolConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN]
+    config_type=EvaluatorToolConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN]
 )
-async def register_comprehensive_evaluation_tool(
-    config: ComprehensiveEvaluationToolConfig, builder: Builder
+async def register_evaluator_tool(
+    config: EvaluatorToolConfig, builder: Builder
 ):
-    """Register the comprehensive_evaluation tool with NAT."""
-    logger.info("Registering comprehensive_evaluation tool...")
+    """Register the evaluator_tool with NAT."""
+    logger.info("Registering evaluator_tool...")
 
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     logger.info(f"Initialized LLM: {config.llm_name}")
@@ -127,32 +127,45 @@ async def register_comprehensive_evaluation_tool(
             investigation_result=verdict_with_space, justifications=analysis_justifications
         )
 
-    def _comprehensive_evaluation(
-        state: SASTAgentState,
-        issue_trace: str,
-        analysis_verdict: str,
-        analysis_justifications: List[str],
-        fetched_files: List[str],
-        iteration_count: int,
-    ) -> str:
+    def _evaluator(**kwargs) -> str:
         """
         Evaluate investigation completeness and decide if investigation should terminate.
 
         NOTE: This function receives state via injection (agent_graph.py line 192).
-        The LLM does NOT construct state - it only provides the other parameters.
+        The LLM does NOT construct state - state is injected by the wrapper.
+
+        Other parameters (issue_trace, analysis_verdict, etc.) are provided by the LLM
+        based on the input schema, but are optional for backwards compatibility.
 
         Args:
-            state: Agent state (injected by tool wrapper, contains fetched_files and issue)
-            issue_trace: The SAST issue trace
-            analysis_verdict: Current verdict (TRUE_POSITIVE/FALSE_POSITIVE)
-            analysis_justifications: Justifications from analysis
-            fetched_files: List of files fetched (for LLM visibility)
-            iteration_count: Current iteration number
+            **kwargs: Contains state (injected) plus optional LLM-provided params
 
         Returns:
             Evaluation result as JSON with is_final, gaps, recommendations
         """
-        logger.info(f"[{state.issue_id}] comprehensive_evaluation called (iteration {iteration_count})")
+        # Extract state from kwargs (injected by wrapper)
+        state: SASTAgentState = kwargs.get("state")
+        if not state:
+            logger.error("evaluator_tool called without state injection")
+            return json.dumps({
+                "is_final": "TRUE",
+                "verdict_confidence": "low",
+                "exploration_gaps": [],
+                "has_exploration_gaps": False,
+                "logic_gaps": [],
+                "required_code": [],
+                "recommendations": ["Error: No state provided"],
+                "justifications": ["State injection failed - cannot evaluate"]
+            }, indent=2)
+
+        # Extract other parameters from kwargs (for backwards compatibility/logging)
+        issue_trace = kwargs.get("issue_trace", "")
+        analysis_verdict = kwargs.get("analysis_verdict", "")
+        analysis_justifications = kwargs.get("analysis_justifications", [])
+        fetched_files = kwargs.get("fetched_files", [])
+        iteration_count = kwargs.get("iteration_count", state.iteration_count)
+
+        logger.info(f"[{state.issue_id}] evaluator_tool called (iteration {iteration_count})")
 
         # STEP 1: Extract context from state
         context = _extract_context_from_state(state)
@@ -264,15 +277,14 @@ async def register_comprehensive_evaluation_tool(
             return json.dumps(result, indent=2)
 
     eval_tool = StructuredTool.from_function(
-        func=_comprehensive_evaluation,
-        name="comprehensive_evaluation",
+        func=_evaluator,
+        name="evaluator_tool",
         description=config.description,
-        args_schema=ComprehensiveEvaluationInput,
     )
 
     # Create async wrapper for NAT 1.3.1
-    async def comprehensive_evaluation_fn(input_data: ComprehensiveEvaluationInput) -> str:
-        """Async wrapper for comprehensive_evaluation tool."""
+    async def evaluator_tool_fn(input_data: EvaluatorToolInput) -> str:
+        """Async wrapper for evaluator_tool."""
         return eval_tool.invoke(
             {
                 "issue_trace": input_data.issue_trace,
@@ -286,11 +298,11 @@ async def register_comprehensive_evaluation_tool(
     try:
         # NAT 1.3.1+ uses from_fn with async functions
         yield FunctionInfo.from_fn(
-            comprehensive_evaluation_fn,
+            evaluator_tool_fn,
             description=config.description,
-            input_schema=ComprehensiveEvaluationInput,
+            input_schema=EvaluatorToolInput,
         )
     except GeneratorExit:
-        logger.info("comprehensive_evaluation tool exited!")
+        logger.info("evaluator_tool exited!")
     finally:
-        logger.debug("Cleaning up comprehensive_evaluation tool")
+        logger.debug("Cleaning up evaluator_tool")

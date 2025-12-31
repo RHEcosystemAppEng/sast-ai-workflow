@@ -87,74 +87,34 @@ class FetchCodeStateUpdater:
                 f"stored in error_state (retries allowed with different params)"
             )
 
-
-class AnalyzeIssueStateUpdater:
-    """State updater for analyze_issue tool."""
+class EvaluatorToolStateUpdater:
+    """State updater for evaluator_tool."""
 
     def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
         """
-        Update state with analysis results.
+        Update state with evaluation results.
 
-        Parses evaluator JSON result, stores EvaluatorReport, merges blocking gaps
-        into unknowns, and finalizes only when verification_passed==true.
+        Parses JSON result, stores as ComprehensiveEvaluationResponse,
+        sets is_final flag, and sets verdict if investigation is complete.
         """
         try:
-            report_dict = json.loads(result)
-            report = EvaluatorReport(**report_dict)
+            eval_dict = json.loads(result)
+            state.analysis.evaluation_result = ComprehensiveEvaluationResponse(**eval_dict)
 
-            state.guard_attempt_count += 1
-            state.analysis.last_evaluator_report = report
-            state.analysis.evaluator_reports.append(report)
+            # Set is_final based on evaluation
+            state.is_final = eval_dict.get("is_final") == "TRUE"
 
-            # Merge evaluator gaps into unknowns (dedupe by question)
-            existing_questions = {u.question for u in state.analysis.unknowns}
-            for gap in report.blocking_gaps:
-                if gap in existing_questions:
-                    continue
-                gap_id = sha1(gap.encode("utf-8")).hexdigest()[:10]
-                state.analysis.unknowns.append(
-                    Unknown(
-                        unknown_id=f"gap:{gap_id}",
-                        question=gap,
-                        priority=100,
-                        blocking=True,
-                    )
-                )
-
-            if report.verification_passed:
-                state.is_final = True
-                state.stop_reason = "verified"
-                state.guard_rejection_streak = 0
-                if report.verdict:
-                    state.analysis.verdict = report.verdict
-                if report.justifications:
-                    state.analysis.final_justifications = report.justifications
-            else:
-                state.is_final = False
-                state.guard_rejection_streak += 1
-
-            # Reset error state on success
-            state.error_state.error_recovery_attempts = 0
-            state.error_state.last_error = None
+            # Set verdict if final and we have investigation result
+            if state.is_final and state.analysis.investigation_result:
+                state.analysis.verdict = state.analysis.investigation_result.investigation_result
 
             logger.debug(
-                f"[{state.issue_id}] Updated state from evaluator: "
-                f"verification_passed={report.verification_passed}, "
-                f"is_final={state.is_final}, "
-                f"blocking_gaps={len(report.blocking_gaps)}"
+                f"[{state.issue_id}] Updated state: is_final={state.is_final}, "
+                f"exploration_gaps={len(state.analysis.evaluation_result.exploration_gaps)}"
             )
         except (json.JSONDecodeError, Exception) as e:
-            logger.error(f"[{state.issue_id}] Failed to parse evaluator result: {e}")
-            # Record error so agent can see it and make recovery decisions
-            error = ToolError(
-                tool_name="evaluator",
-                error_message=f"Failed to parse result: {str(e)}",
-                attempted_args=tool_args,
-                timestamp=datetime.now().isoformat(),
-            )
-            state.error_state.errors.append(error)
-            state.error_state.last_error = error
-            state.error_state.error_recovery_attempts += 1
+            logger.error(f"[{state.issue_id}] Failed to parse evaluation result: {e}")
+            # Don't raise - let the tool wrapper handle this as an error
 
 
 class SearchCodebaseStateUpdater:
@@ -182,62 +142,48 @@ class SearchCodebaseStateUpdater:
                 else:
                     state.context.fetched_files[file_path] = snippets
 
-                # Add to found_symbols with deduplication
-                if file_path not in state.context.found_symbols:
-                    state.context.found_symbols.append(file_path)
-
-            # Reset error state on success
-            state.error_state.error_recovery_attempts = 0
-            state.error_state.last_error = None
+                state.context.found_symbols.add(file_path)
 
             logger.debug(
                 f"[{state.issue_id}] Updated state: search found " f"{len(search_results)} files"
             )
         except (json.JSONDecodeError, Exception) as e:
             logger.error(f"[{state.issue_id}] Failed to parse search results: {e}")
-            # Record error so agent can see it and make recovery decisions
-            error = ToolError(
-                tool_name="search_codebase",
-                error_message=f"Failed to parse result: {str(e)}",
-                attempted_args=tool_args,
-                timestamp=datetime.now().isoformat(),
-            )
-            state.error_state.errors.append(error)
-            state.error_state.last_error = error
-            state.error_state.error_recovery_attempts += 1
 
 
 class ListFilesStateUpdater:
     """
-    State updater for list_files tool (core parsing only).
+    State updater for list_files tool (Phase 2).
 
-    Expected result format (placeholder): {"files": ["path1", "path2", ...]}
+    This updater will be implemented when list_files tool is added.
     """
 
     def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
+        """
+        Update state with file listing.
+
+        Stores discovered file paths in project context for reference.
+        """
         try:
-            _ = json.loads(result)
-            # We don't currently store discovered files in state; this is a no-op parser.
-            state.error_state.error_recovery_attempts = 0
-            state.error_state.last_error = None
-        except (json.JSONDecodeError, Exception) as e:
-            logger.error(f"[{state.issue_id}] Failed to parse list_files result: {e}")
-            error = ToolError(
-                tool_name="list_files",
-                error_message=f"Failed to parse result: {str(e)}",
-                attempted_args=tool_args,
-                timestamp=datetime.now().isoformat(),
+            # Expected format: {"files": ["path1", "path2", ...]}
+            file_list_dict = json.loads(result)
+            discovered_files = file_list_dict.get("files", [])
+
+            # Note: SASTAgentState doesn't currently have a discovered_files field
+            # This would need to be added to ProjectContext when implementing
+            # For now, just log
+            logger.debug(
+                f"[{state.issue_id}] Discovered {len(discovered_files)} files "
+                f"(state update pending ProjectContext extension)"
             )
-            state.error_state.errors.append(error)
-            state.error_state.last_error = error
-            state.error_state.error_recovery_attempts += 1
+        except (json.JSONDecodeError, Exception) as e:
+            logger.error(f"[{state.issue_id}] Failed to parse file list: {e}")
 
 
 # Registry mapping tool names to their state updaters
 STATE_UPDATER_REGISTRY: Dict[str, ToolStateUpdater] = {
     "fetch_code": FetchCodeStateUpdater(),
-    "evaluator": EvaluatorStateUpdater(),
-    # Future tools (core parsing only; tool implementations happen elsewhere)
+    "evaluator": EvaluatorToolStateUpdater(),
     "search_codebase": SearchCodebaseStateUpdater(),
     "list_files": ListFilesStateUpdater(),
 }
