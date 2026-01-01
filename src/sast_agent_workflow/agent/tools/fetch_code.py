@@ -63,8 +63,12 @@ def fetch_code_from_error_trace(state, error_trace: str, repo_handler) -> None:
 
 class FetchCodeInput(BaseModel):
     """Input schema for fetch_code tool."""
-    identifier: str = Field(description="File path (e.g., 'app/views.py') or symbol name to fetch")
-    reason: str = Field(description="Reason for fetching this code (for investigation reasoning)")
+    expression_name: str = Field(
+        description="Symbol name to fetch (e.g., 'sanitize_input', 'User', 'validate_data')"
+    )
+    referring_source_code_path: str = Field(
+        description="File path where this symbol was referenced (e.g., 'app/views.py')"
+    )
 
 
 class FetchCodeToolConfig(FunctionBaseConfig, name="fetch_code"):
@@ -72,9 +76,13 @@ class FetchCodeToolConfig(FunctionBaseConfig, name="fetch_code"):
 
     description: str = Field(
         default=(
-            "Fetches source code by file path or symbol name from the repository. "
-            "Use for known files from SAST trace OR exact symbol names. "
-            "Fastest retrieval method but requires exact identifiers."
+            "Fetches source code for a specific symbol (function, class, macro) from the repository. "
+            "Use when you know the exact symbol name and the file where it's referenced. "
+            "Requires two parameters: "
+            "(1) expression_name: the symbol to fetch (e.g., 'sanitize_input'), "
+            "(2) referring_source_code_path: the file where you saw this symbol (e.g., 'app/views.py'). "
+            "Example: If analyzing 'app/views.py' and you see a call to 'clean_data()', "
+            "call fetch_code(expression_name='clean_data', referring_source_code_path='app/views.py')."
         ),
         description="Tool description",
     )
@@ -95,24 +103,22 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
         logger.error(f"Failed to initialize repo_handler: {e}")
         raise
 
-    def _fetch_code(state: SASTAgentState, identifier: str, reason: str) -> str:
+    def _fetch_code(expression_name: str, referring_source_code_path: str) -> str:
         """
         Fetch source code by symbol name (function, class, macro).
 
-        Use for exact symbol names when you know the identifier.
-        Automatically determines where the symbol was referenced from already-fetched code.
+        This is a STATELESS tool - it does not access or modify agent state.
 
         NOTE: For initial code from SAST error trace (file+line), use the
         fetch_code_from_error_trace() helper function instead.
 
         Examples:
-        - fetch_code(state, 'sanitize_input', 'Need to verify sanitization logic')
-        - fetch_code(state, 'validate_user_data', 'Check validation function')
+        - fetch_code('sanitize_input', 'app/views.py')
+        - fetch_code('validate_user_data', 'lib/validators.py')
 
         Args:
-            state: Agent state (for accessing fetched_files and context)
-            identifier: Symbol name (e.g., 'sanitize_input', 'User', 'MAX_LENGTH')
-            reason: Reason for fetching (for investigation reasoning)
+            expression_name: Symbol name (e.g., 'sanitize_input', 'User', 'MAX_LENGTH')
+            referring_source_code_path: File path where this symbol is referenced
 
         Returns:
             Formatted code with metadata OR error message
@@ -120,60 +126,44 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
         Raises:
             None - all errors returned as error messages in the result string
         """
-        logger.info(f"fetch_code: identifier={identifier}, reason={reason}")
+        logger.info("=" * 80)
+        logger.info("FETCH_CODE TOOL CALLED")
+        logger.info(f"  expression_name: '{expression_name}' (type: {type(expression_name).__name__})")
+        logger.info(
+            f"  referring_source_code_path: '{referring_source_code_path}' "
+            f"(type: {type(referring_source_code_path).__name__})"
+        )
+        logger.info("=" * 80)
 
         # ============================================================
-        # STEP 3: Anti-loop protection - check for duplicates
-        # ============================================================
-        # Check found_symbols (not fetched_files) to allow retries with different params
-        if identifier in state.context.found_symbols:
-            error_msg = (
-                f"Error: '{identifier}' was already successfully fetched.\n"
-                f"The code is already in your context. Review existing fetched files instead."
-            )
-            logger.warning(f"Duplicate fetch attempt: {identifier}")
-            return error_msg
-
-        # ============================================================
-        # STEP 4: Determine referring path from already-fetched code
-        # ============================================================
-        # Search through fetched files to find where this symbol might be referenced
-        referring_path = "unknown"
-        for file_path, code_blocks in state.context.fetched_files.items():
-            for code in code_blocks:
-                if identifier in code:
-                    referring_path = file_path
-                    logger.debug(f"Found '{identifier}' referenced in {file_path}")
-                    break
-            if referring_path != "unknown":
-                break
-
-        # ============================================================
-        # STEP 5: Fetch symbol using extract_missing_functions_or_macros
+        # Fetch symbol using extract_missing_functions_or_macros
         # ============================================================
         try:
             from types import SimpleNamespace
 
             instruction = SimpleNamespace(
-                expression_name=identifier,
-                referring_source_code_path=referring_path,
+                expression_name=expression_name,
+                referring_source_code_path=referring_source_code_path,
             )
 
-            logger.debug(f"Fetching symbol: {identifier} (referring_path={referring_path})")
+            logger.debug(
+                f"Fetching symbol: {expression_name} "
+                f"(referring_path={referring_source_code_path})"
+            )
             missing_code, new_symbols = _repo_handler.extract_missing_functions_or_macros(
                 [instruction], set()
             )
 
-            if not missing_code or identifier not in new_symbols:
+            if not missing_code or expression_name not in new_symbols:
                 error_msg = (
-                    f"Error: Symbol '{identifier}' not found in repository.\n"
+                    f"Error: Symbol '{expression_name}' not found in repository.\n"
                     f"The symbol name might be incorrect or not exist.\n"
+                    f"Referring file: {referring_source_code_path}\n"
                     f"Try:\n"
                     f"  1. Check the exact spelling (case-sensitive)\n"
-                    f"  2. Use search_codebase tool for pattern matching\n"
-                    f"Reason for request: {reason}"
+                    f"  2. Use search_codebase tool for pattern matching"
                 )
-                logger.warning(f"Symbol fetch failed: {identifier}")
+                logger.warning(f"Symbol fetch failed: {expression_name}")
                 return error_msg
 
             # extract_missing_functions_or_macros returns formatted code string
@@ -187,12 +177,10 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
             file_path = file_match.group(1) if file_match else "unknown"
 
             # ============================================================
-            # STEP 7: Extract line_range from code and format structured result
+            # Extract line_range from code and format structured result
             # ============================================================
             # The code from repo_handler includes line numbers in format: "line_number| code"
             # Extract first and last line numbers to get the range
-            import re
-
             line_numbers = re.findall(r"^(\d+)\|", code, re.MULTILINE)
             if line_numbers:
                 line_range = f"{line_numbers[0]}-{line_numbers[-1]}"
@@ -200,26 +188,28 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
                 line_range = "unknown"
 
             # Format structured result with explicit metadata fields
-            result = f"""=== Fetched Code: {identifier} ===
+            result = f"""=== Fetched Code: {expression_name} ===
 File Path: {file_path}
 Line Range: {line_range}
 Type: Symbol
-Reason: {reason}
+Referring File: {referring_source_code_path}
 
 {code}
 
-=== End of {identifier} ==="""
+=== End of {expression_name} ==="""
 
-            logger.info(f"Successfully fetched: {identifier} (file={file_path}, lines={line_range})")
+            logger.info(
+                f"Successfully fetched: {expression_name} (file={file_path}, lines={line_range})"
+            )
             return result
 
         except Exception as e:
             # Handle any unexpected errors
             error_msg = (
-                f"Error: Unexpected failure while fetching '{identifier}'.\n"
+                f"Error: Unexpected failure while fetching '{expression_name}'.\n"
                 f"Exception: {str(e)}\n"
                 f"This may indicate a repo_handler issue or repository access problem.\n"
-                f"Reason for request: {reason}"
+                f"Referring file: {referring_source_code_path}"
             )
             logger.error(f"fetch_code exception: {e}", exc_info=True)
             return error_msg
@@ -236,7 +226,10 @@ Reason: {reason}
     async def fetch_code_fn(input_data: FetchCodeInput) -> str:
         """Async wrapper for fetch_code tool."""
         return fetch_code_tool.invoke(
-            {"identifier": input_data.identifier, "reason": input_data.reason}
+            {
+                "expression_name": input_data.expression_name,
+                "referring_source_code_path": input_data.referring_source_code_path,
+            }
         )
 
     try:

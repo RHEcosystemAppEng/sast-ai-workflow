@@ -35,7 +35,7 @@ from Utils.metrics_utils import categorize_issues_by_status
 # Import agent tools for NAT auto-registration
 from sast_agent_workflow.agent.tools import fetch_code  # noqa: F401
 from sast_agent_workflow.agent.tools import analyze_issue  # noqa: F401
-from sast_agent_workflow.agent.tools import evaluator_tool  # noqa: F401
+from sast_agent_workflow.agent.tools import evaluator  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

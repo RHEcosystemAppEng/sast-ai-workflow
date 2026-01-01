@@ -10,7 +10,7 @@ Importing this module registers all tools with NAT via @register_function decora
 
 from .evaluator import (  # noqa: F401
     EvaluatorToolConfig,
-    register_evaluator_tool,
+    register_evaluator,
 )
 
 # Import NAT-registered tools (side effects - decorator registration)
@@ -22,7 +22,7 @@ from .fetch_code import (  # noqa: F401
 __all__ = [
     # Tool registration functions
     "register_fetch_code_tool",
-    "register_evaluator_tool",
+    "register_evaluator",
     # Tool configs
     "FetchCodeToolConfig",
     "EvaluatorToolConfig",

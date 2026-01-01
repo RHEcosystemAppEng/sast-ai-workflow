@@ -123,6 +123,8 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                     found_symbols=(
                         sorted(per_issue.found_symbols) if per_issue.found_symbols else []
                     ),
+                    #todo: call the fetch_code_from_error_trace function
+                    source_code=dict(per_issue.source_code) if per_issue.source_code else {},
                 ),
             )
 

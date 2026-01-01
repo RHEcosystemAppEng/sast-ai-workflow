@@ -13,6 +13,7 @@ Architecture:
 """
 
 import logging
+from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from typing import List
@@ -28,6 +29,10 @@ from .agent_state import SASTAgentState, ToolError
 from .tools.state_updaters import ToolStateUpdater, get_state_updater
 
 logger = logging.getLogger(__name__)
+
+# Context variable for state injection (used by stateful tools like evaluator)
+# This allows tools to access state without it being passed through NAT's validation
+_current_agent_state: ContextVar[SASTAgentState] = ContextVar("current_agent_state", default=None)
 
 
 def route_next(
@@ -211,13 +216,19 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
         tool_args = tool_call.get("args", {})
         tool_call_id = tool_call.get("id", "unknown")
 
-        logger.debug(f"[{issue_id}] Tool args: {tool_args}")
+        logger.info("=" * 80)
+        logger.info(f"[{issue_id}] TOOL WRAPPER: Extracted args from LLM")
+        logger.info(f"[{issue_id}]   Tool name: {tool_name}")
+        logger.info(f"[{issue_id}]   Tool args from LLM: {tool_args}")
+        logger.info("=" * 80)
 
-        # Inject state into tool_args for all tools
-        # This allows tools to access context (fetched_files, found_symbols, etc.)
-        # without the LLM having to construct or pass the state object
-        tool_args["state"] = state
-        logger.debug(f"[{issue_id}] Injected state into tool_args")
+        # For stateful tools, set context variable so they can access state
+        # This bypasses NAT's validation which strips unknown parameters
+        STATEFUL_TOOLS = {"evaluator"}
+        if tool_name in STATEFUL_TOOLS:
+            # Set context variable for stateful tools to access
+            _current_agent_state.set(state)
+            logger.debug(f"[{issue_id}] Set context variable for stateful tool")
 
         try:
             # Call the NAT tool
@@ -225,6 +236,10 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
                 result = await tool.ainvoke(tool_args)
             else:
                 result = tool.invoke(tool_args)
+
+            # Clear context variable after tool execution
+            if tool_name in STATEFUL_TOOLS:
+                _current_agent_state.set(None)
 
             logger.info(f"[{issue_id}] Tool {tool_name} succeeded")
 
@@ -326,15 +341,20 @@ def create_agent_graph(
     tools_dict = {tool.name: tool for tool in tools}
 
     # Bind tools to LLM for tool calling
-    # NOTE: NIM endpoints may not support tool_choice="auto", so we pass tool_choice=None
-    # to let the model decide without requiring the auto-tool-choice flag
+    # NOTE: Using tool_choice="required" to force tool calls without needing --enable-auto-tool-choice
+    # "required" works better with vLLM servers that don't support "auto" mode
+    # parallel_tool_calls=False forces LLM to generate ONLY ONE tool call per response
     try:
-        bound_llm = llm.bind_tools(tools, tool_choice=None)
-        logger.info("Tools bound to LLM for tool calling (tool_choice=None)")
+        bound_llm = llm.bind_tools(tools, tool_choice="required", parallel_tool_calls=False)
+        logger.info("Tools bound to LLM for tool calling (tool_choice='required', single call mode)")
     except TypeError:
-        # Fallback if tool_choice parameter not supported
-        bound_llm = llm.bind_tools(tools)
-        logger.info("Tools bound to LLM for tool calling (default behavior)")
+        # Fallback if parameters not supported
+        try:
+            bound_llm = llm.bind_tools(tools, tool_choice="required")
+            logger.info("Tools bound to LLM for tool calling (tool_choice='required')")
+        except TypeError:
+            bound_llm = llm.bind_tools(tools)
+            logger.info("Tools bound to LLM for tool calling (default behavior)")
 
     # Create graph
     graph = StateGraph(SASTAgentState)

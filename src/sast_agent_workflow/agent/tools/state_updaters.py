@@ -48,28 +48,28 @@ class FetchCodeStateUpdater:
         """
         Update state with fetched code.
 
-        Stores code in fetched_files, adds identifier to found_symbols ONLY on success,
+        Stores code in fetched_files, adds expression_name to found_symbols ONLY on success,
         and resets error recovery counter on success.
 
         The tool returns error messages starting with "Error:" for failed fetches.
         On error, creates a ToolError and stores in error_state
         to allow retries with different parameters.
         """
-        identifier = tool_args.get("identifier", "unknown")
+        expression_name = tool_args.get("expression_name", "unknown")
 
         # Check if result is an error message
         is_error = result.startswith("Error:")
 
         if not is_error:
             # Success: Store fetched code and update found_symbols
-            state.context.fetched_files[identifier] = [result]
-            state.context.found_symbols.add(identifier)
+            state.context.fetched_files[expression_name] = [result]
+            state.context.found_symbols.append(expression_name)
 
             # Reset error state on success
             state.error_state.error_recovery_attempts = 0
             state.error_state.last_error = None
 
-            logger.debug(f"[{state.issue_id}] Updated state: fetched {identifier}")
+            logger.debug(f"[{state.issue_id}] Updated state: fetched {expression_name}")
         else:
             tool_error = ToolError(
                 tool_name="fetch_code",
@@ -83,12 +83,12 @@ class FetchCodeStateUpdater:
             state.error_state.error_recovery_attempts += 1
 
             logger.debug(
-                f"[{state.issue_id}] Fetch failed for {identifier}, "
+                f"[{state.issue_id}] Fetch failed for {expression_name}, "
                 f"stored in error_state (retries allowed with different params)"
             )
 
 class EvaluatorToolStateUpdater:
-    """State updater for evaluator_tool."""
+    """State updater for evaluator."""
 
     def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
         """
@@ -99,7 +99,7 @@ class EvaluatorToolStateUpdater:
         """
         try:
             eval_dict = json.loads(result)
-            state.analysis.evaluation_result = ComprehensiveEvaluationResponse(**eval_dict)
+            state.analysis.evaluation_result = EvaluatorReport(**eval_dict)
 
             # Set is_final based on evaluation
             state.is_final = eval_dict.get("is_final") == "TRUE"
@@ -183,6 +183,8 @@ class ListFilesStateUpdater:
 # Registry mapping tool names to their state updaters
 STATE_UPDATER_REGISTRY: Dict[str, ToolStateUpdater] = {
     "fetch_code": FetchCodeStateUpdater(),
+    "evaluator": EvaluatorToolStateUpdater(),
+    # Phase 2 tools (ready for when tools are implemented)
     "evaluator": EvaluatorToolStateUpdater(),
     "search_codebase": SearchCodebaseStateUpdater(),
     "list_files": ListFilesStateUpdater(),

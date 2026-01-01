@@ -153,10 +153,8 @@ class EvaluatorReport(BaseModel):
 class InvestigationContext(BaseModel):
     """
     Code and symbols gathered during investigation.
-
     This tracks all the context the agent has fetched to understand the issue.
     """
-
     fetched_files: Dict[str, List[str]] = Field(
         default_factory=dict,
         description="Code gathered during investigation (file_path -> code lines)",
@@ -164,6 +162,10 @@ class InvestigationContext(BaseModel):
     found_symbols: List[str] = Field(
         default_factory=list,
         description="Symbols already fetched (prevents duplicate fetches, deduped on add)",
+    )
+    source_code: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Source code gathered during investigation (file_path -> code lines)",
     )
 
 

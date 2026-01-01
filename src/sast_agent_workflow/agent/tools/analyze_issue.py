@@ -198,11 +198,14 @@ async def register_analyze_issue_tool(config: AnalyzeIssueToolConfig, builder: B
     )
 
     # Create async wrapper for NAT 1.3.1
-    async def analyze_issue_fn(input_data: AnalyzeIssueInput) -> str:
-        """Async wrapper for analyze_issue tool."""
-        return analyze_tool.invoke(
-            {"issue_trace": input_data.issue_trace, "fetched_code": input_data.fetched_code}
-        )
+    async def analyze_issue_fn(input_data: dict) -> str:
+        """
+        Async wrapper for analyze_issue tool.
+
+        Accepts a dict instead of AnalyzeIssueInput to allow passing through
+        the injected 'state' parameter from agent_graph.
+        """
+        return analyze_tool.invoke(input_data)
 
     try:
         # NAT 1.3.1+ uses from_fn with async functions

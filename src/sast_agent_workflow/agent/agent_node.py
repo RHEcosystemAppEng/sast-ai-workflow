@@ -23,7 +23,6 @@ from langchain_openai.chat_models.base import ChatOpenAI
 
 from .agent_state import (
     Claim,
-    EvaluatorReport,
     Evidence,
     ReasoningStateUpdate,
     SASTAgentState,
@@ -466,7 +465,8 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
     )
 
     system_msg = SystemMessage(content=formatted_content)
-
+    logger.info(f"the prompt is:\n"
+                f"{system_msg}")
     # Build user message
     user_msg = HumanMessage(
         content=(
@@ -565,3 +565,84 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
         raise
 
     return state
+
+# async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SASTAgentState:
+#     """
+#     Agent decision node - decides next tool call based on state.
+#
+#     This is the ONLY node that makes decisions. All other nodes (tools, analyze,
+#     comprehensive_evaluation) are executors that update state and return results.
+#
+#     Args:
+#         state: Current investigation state
+#         llm: LLM for decision making
+#
+#     Returns:
+#         Updated state with new tool call decision in messages
+#     """
+#     logger.info(f"[{state.issue_id}] Agent making decision (iteration {state.iteration_count})")
+#
+#     # Build context strings using templates
+#     project_ctx = format_project_context(state.project_context)
+#     error_ctx = format_error_context(state.error_state)
+#     eval_feedback = format_evaluation_feedback(state)
+#     state_summary = format_state_summary(state)
+#
+#     # Build system message
+#     system_msg = SystemMessage(
+#         content=AGENT_SYSTEM_PROMPT.format(
+#             project_context=project_ctx,
+#             state_summary=state_summary,
+#             evaluation_feedback=eval_feedback,
+#             error_context=error_ctx,
+#         )
+#     )
+#
+#     # Build user message
+#     user_msg = HumanMessage(content="What should I do next? Decide ONE tool call.")
+#
+#     # Get LLM decision with tool binding
+#     max_retries = 2
+#     for attempt in range(max_retries):
+#         try:
+#             # Tool definitions will be bound to LLM in graph construction
+#             response = await llm.ainvoke([system_msg] + state.memory.messages[-10:] + [user_msg])
+#
+#             # CLIENT-SIDE WORKAROUND: Filter to single tool call if LLM generated multiple
+#             # This is needed because vLLM server doesn't respect parallel_tool_calls=False
+#             if hasattr(response, "tool_calls") and response.tool_calls:
+#                 if len(response.tool_calls) > 1:
+#                     logger.warning(
+#                         f"[{state.issue_id}] LLM generated {len(response.tool_calls)} tool calls. "
+#                         f"Keeping only the first one as workaround for vLLM limitation."
+#                     )
+#                     # Keep only the first tool call
+#                     response.tool_calls = [response.tool_calls[0]]
+#
+#             # Store reasoning and decision
+#             state.memory.messages.append(user_msg)
+#             state.memory.messages.append(response)
+#
+#             content_preview = response.content[:100] if hasattr(response, "content") else "tool_call"
+#             logger.info(f"[{state.issue_id}] Agent decision: {content_preview}")
+#             break  # Success - exit retry loop
+#
+#         except Exception as e:
+#             error_msg = str(e)
+#             # Check if this is the vLLM "multiple tool calls" error
+#             if "single tool-calls at once" in error_msg and attempt < max_retries - 1:
+#                 logger.warning(
+#                     f"[{state.issue_id}] vLLM rejected multiple tool calls (attempt {attempt + 1}/{max_retries}). "
+#                     f"Retrying with more explicit prompt..."
+#                 )
+#                 # Retry with more explicit single-call instruction
+#                 user_msg = HumanMessage(
+#                     content="IMPORTANT: Call EXACTLY ONE tool. Do not call multiple tools. Choose the single most important tool to call next."
+#                 )
+#                 continue
+#             else:
+#                 # Not a retryable error, or max retries reached
+#                 logger.error(f"[{state.issue_id}] Agent decision failed: {e}")
+#                 raise
+#
+#     return state
