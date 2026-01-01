@@ -34,15 +34,9 @@ functions:
     _type: fetch_code
     description: "Fetch source code by file path or symbol name"
 
-  analyze_issue:
-    _type: analyze_issue
-    description: "Perform security analysis on gathered code context"
-    llm_name: main_llm
-
-  comprehensive_evaluation:
-    _type: comprehensive_evaluation
-    description: "Audit investigation process and logic completeness"
-    llm_name: main_llm
+  evaluator:
+    _type: evaluator
+    description: "Gate tool for investigation verification (ADR-0002)"
 
 llms:
   main_llm:
@@ -76,10 +70,10 @@ workflow:
   description: "SAST agent workflow with agent-based investigation"
 
 general:
-  use_uvloop: true
-  logging:
-    console:
-      _type: console
-      level: INFO
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: INFO
   front_end:
-    type: console
+    _type: console

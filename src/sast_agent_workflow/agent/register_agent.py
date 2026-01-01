@@ -7,9 +7,9 @@ with NAT for LLM/tool access and observability.
 
 Agent Architecture:
 - Custom state (SASTAgentState) with nested investigation context
-- Specialized routing: agent → tools → analyze → evaluate → conditional END
+- Specialized routing: agent → tools → evaluator → END (only after verification)
 - Circuit breakers: max iterations, duplicate calls, error recovery
-- Tools from NAT: fetch_code, analyze_issue, comprehensive_evaluation
+- Tools from NAT: fetch_code, evaluator
 """
 
 import logging
@@ -46,7 +46,7 @@ class SASTInvestigationAgentConfig(AgentBaseConfig, name="sast_investigation_age
 
     # Tool configuration
     tool_names: list[FunctionRef] = Field(
-        default_factory=lambda: ["fetch_code", "analyze_issue", "comprehensive_evaluation"],
+        default_factory=lambda: ["fetch_code", "evaluator"],
         description="Tools available to the agent for SAST investigation",
     )
 
@@ -218,7 +218,7 @@ async def sast_investigation_agent(config: SASTInvestigationAgentConfig, builder
             logger.error(f"[{issue_id}] Investigation failed with exception: {e}", exc_info=True)
             # Return state with error information
             agent_state.is_final = True
-            agent_state.analysis.verdict = "NEEDS_HUMAN_REVIEW"
+            agent_state.analysis.verdict = "NEEDS_REVIEW"
             agent_state.error_state.last_error = ToolError(
                 tool_name="agent_graph",
                 error_message=str(e),

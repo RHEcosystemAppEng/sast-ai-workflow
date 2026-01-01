@@ -23,7 +23,12 @@ logger = logging.getLogger(__name__)
 class FetchCodeInput(BaseModel):
     """Input schema for fetch_code tool."""
 
-    identifier: str = Field(description="File path (e.g., 'app/views.py') or symbol name to fetch")
+    referring_source_code_path: str = Field(
+        description="Source file path where the reference/symbol appears (e.g., 'modules/cyrus-sasl.c')"
+    )
+    expression_name: str = Field(
+        description="Symbol or expression name to fetch (e.g., 'sasl_bind_mech', 'authtype_requires_creds')"
+    )
     reason: str = Field(description="Reason for fetching this code (for investigation reasoning)")
 
 
@@ -32,9 +37,9 @@ class FetchCodeToolConfig(FunctionBaseConfig, name="fetch_code"):
 
     description: str = Field(
         default=(
-            "Fetches source code by file path or symbol name from the repository. "
-            "Use for known files from SAST trace OR exact symbol names. "
-            "Fastest retrieval method but requires exact identifiers."
+            "Fetches source code definition for a symbol/expression from the repository. "
+            "Provide the file path where you saw the reference and the symbol name to fetch. "
+            "Use this to understand function implementations, macro definitions, etc."
         ),
         description="Tool description",
     )
@@ -55,7 +60,7 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
         logger.error(f"Failed to initialize repo_handler: {e}")
         raise
 
-    def _fetch_code(identifier: str, reason: str) -> str:
+    def _fetch_code(referring_source_code_path: str, expression_name: str, reason: str) -> str:
         """
         Fetch source code by file path or symbol name.
 
@@ -63,17 +68,22 @@ async def register_fetch_code_tool(config: FetchCodeToolConfig, builder: Builder
         with repo_handler that need to be fixed in a separate task.
 
         Args:
-            identifier: File path or symbol name
+            referring_source_code_path: Source file path where the reference appears
+            expression_name: Symbol or expression name to fetch
             reason: Reason for fetching (for logging)
 
         Returns:
             Dummy placeholder response
         """
-        logger.info(f"fetch_code (PLACEHOLDER): identifier={identifier}, reason={reason}")
+        logger.info(
+            f"fetch_code (PLACEHOLDER): referring_path={referring_source_code_path}, "
+            f"expression={expression_name}, reason={reason}"
+        )
 
         # Return dummy response for now
         return f"""=== PLACEHOLDER: Code fetching not implemented ===
-Requested: {identifier}
+Referring source: {referring_source_code_path}
+Expression to fetch: {expression_name}
 Reason: {reason}
 
 TODO: Implement actual code fetching logic.
@@ -92,7 +102,11 @@ The repo_handler integration needs fixes for proper symbol/file resolution.
     async def fetch_code_fn(input_data: FetchCodeInput) -> str:
         """Async wrapper for fetch_code tool."""
         return fetch_code_tool.invoke(
-            {"identifier": input_data.identifier, "reason": input_data.reason}
+            {
+                "referring_source_code_path": input_data.referring_source_code_path,
+                "expression_name": input_data.expression_name,
+                "reason": input_data.reason,
+            }
         )
 
     try:

@@ -6,12 +6,16 @@ individual SAST findings. The agent state is separate from the batch workflow
 tracker (SASTWorkflowTracker) and manages a single issue investigation.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from dto.Issue import Issue
-from dto.LLMResponse import AnalysisResponse
+
+# Type aliases for clarity
+ClaimStatus = Literal["supported", "tentative", "rejected", "conflicting"]
+VerdictType = Literal["TRUE_POSITIVE", "FALSE_POSITIVE", "NEEDS_REVIEW"]
+ToolChoice = Literal["fetch_code", "evaluator"]
 
 
 class ToolError(BaseModel):
@@ -28,83 +32,121 @@ class ToolError(BaseModel):
     timestamp: str = Field(description="ISO format timestamp of the error")
 
 
-class ProjectContext(BaseModel):
-    """
-    Shared project metadata initialized once per workflow.
+class Claim(BaseModel):
+    """Atomic, checkable security-relevant assertion."""
 
-    This context is discovered at the start of the workflow and reused across
-    all issue investigations. Helps the agent understand the project structure
-    and make informed decisions about where to search for code.
-    """
-
-    structure: Dict[str, List[str]] = Field(
-        default_factory=dict,
-        description="Directory tree (3 levels deep), e.g., {'app/': ['views.py', 'models.py']}",
+    claim_id: str = Field(description="Stable identifier for this claim (unique within issue)")
+    text: str = Field(description="The claim itself, phrased as a checkable statement")
+    status: ClaimStatus = Field(description="Current support status of the claim")
+    supporting_evidence_ids: List[str] = Field(
+        default_factory=list, description="Evidence IDs that support this claim"
     )
-    security_files: List[str] = Field(
+
+
+class Evidence(BaseModel):
+    """Concrete citation backing claims."""
+
+    evidence_id: str = Field(description="Stable identifier for this evidence item (unique)")
+    path_or_identifier: str = Field(
+        description="File path or identifier used to fetch this evidence"
+    )
+    excerpt: str = Field(description="Raw code snippet (verbatim)")
+    start_line: Optional[int] = Field(default=None, description="1-based start line, if known")
+    end_line: Optional[int] = Field(default=None, description="1-based end line, if known")
+    why_it_matters: str = Field(description="Why this snippet is relevant to the verdict")
+
+
+class Unknown(BaseModel):
+    """Prioritized unanswered question that blocks a final verdict."""
+
+    unknown_id: str = Field(description="Stable identifier for this unknown (unique)")
+    question: str = Field(description="What we still need to know")
+    priority: int = Field(default=50, description="Higher = more important (used for ordering)")
+    blocking: bool = Field(
+        default=True, description="If true, blocks evaluator-verifiable finalization"
+    )
+
+
+class FetchCodeParams(BaseModel):
+    """Parameters for fetch_code tool."""
+
+    referring_source_code_path: str = Field(
+        description="Source file path where the reference/symbol appears"
+    )
+    expression_name: str = Field(description="Symbol or expression name to fetch")
+    reason: str = Field(description="Why this code needs to be fetched")
+
+
+class EvaluatorParams(BaseModel):
+    """Parameters for evaluator tool (evidence package)."""
+
+    analysis: str = Field(description="Summary of investigation findings")
+    claims: List[Dict[str, Any]] = Field(description="All claims as dicts")
+    evidence: List[Dict[str, Any]] = Field(description="All evidence as dicts")
+    unknowns: List[Dict[str, Any]] = Field(description="Remaining unknowns as dicts")
+    proposed_verdict: Literal["TRUE_POSITIVE", "FALSE_POSITIVE"] = Field(
+        description="Proposed verdict based on evidence"
+    )
+
+
+class ReasoningStateUpdate(BaseModel):
+    """
+    Structured output schema for agent reasoning.
+
+    This is the schema that the LLM outputs using with_structured_output().
+    It contains both the reasoning state update AND the tool decision.
+    """
+
+    analysis: str = Field(
+        description="Detailed analysis of the code and vulnerability based on fetched evidence"
+    )
+    claims: List[Claim] = Field(
         default_factory=list,
-        description="Files matching security patterns (sanitize|validate|clean|escape)",
+        description="Updated list of all claims (atomic, checkable assertions)",
     )
-    frameworks: List[str] = Field(
+    evidence: List[Evidence] = Field(
         default_factory=list,
-        description="Detected frameworks (Django, Flask, Rails, Express, etc.)",
+        description="Updated list of all evidence (code citations with snippets)",
     )
-
-
-class ExplorationGap(BaseModel):
-    """
-    Represents an area of the codebase not yet explored (from process audit).
-    """
-
-    area: Literal["global middleware", "config", "framework defaults", "validators", "other"] = (
-        Field(description="Category of the exploration gap")
-    )
-    reason: str = Field(description="Why this area needs checking")
-    suggested_files: List[str] = Field(
-        default_factory=list, description="Specific files from project_context to investigate"
-    )
-
-
-class RequiredCode(BaseModel):
-    """
-    Specific code that needs to be fetched to verify analysis claims (from logic audit).
-    """
-
-    expression_name: str = Field(description="Function or class name")
-    file_path: str = Field(description="Path where this code is located")
-    reason: str = Field(description="Why this code is needed")
-
-
-class ComprehensiveEvaluationResponse(BaseModel):
-    """
-    Response from comprehensive_evaluation combining process and logic audits.
-    """
-
-    # Final decision
-    is_final: str = Field(description="'TRUE' if investigation complete, 'FALSE' if more needed")
-    verdict_confidence: str = Field(description="'high', 'medium', or 'low'")
-
-    # Process audit (reflection) results
-    exploration_gaps: List[ExplorationGap] = Field(
-        default_factory=list, description="Areas of codebase not yet explored"
-    )
-    has_exploration_gaps: bool = Field(description="True if exploration incomplete")
-
-    # Logic audit (evaluation) results
-    logic_gaps: List[str] = Field(
-        default_factory=list, description="Unverified claims or missing evidence in analysis"
-    )
-    required_code: List[RequiredCode] = Field(
-        default_factory=list, description="Specific functions/classes that need to be examined"
-    )
-
-    # Unified guidance for agent
-    recommendations: List[str] = Field(
+    unknowns: List[Unknown] = Field(
         default_factory=list,
-        description="Prioritized next steps (exploration gaps first, then specific code)",
+        description="Updated list of unknowns (blocking questions that need resolution)",
+    )
+    next_tool: ToolChoice = Field(
+        description="Which tool to call next: 'fetch_code' if unknowns exist, 'evaluator' if ready to verify"
+    )
+    tool_reasoning: str = Field(description="Explanation of why this specific tool is needed now")
+    tool_parameters: Optional[Dict[str, Any]] = Field(
+        default=None, description="Parameters for the tool call (structure depends on next_tool)"
+    )
+
+
+class RequiredNextFetch(BaseModel):
+    """Evaluator-suggested next retrieval action (tool implementation is external)."""
+
+    tool: str = Field(description="Tool name to call next (e.g., fetch_code, search_codebase)")
+    args: Dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
+    reason: str = Field(description="Why this fetch is required")
+
+
+class EvaluatorReport(BaseModel):
+    """Structured gate response from the `evaluator` tool."""
+
+    verification_passed: bool = Field(description="True only if verdict is fully proven")
+    verdict: Optional[Literal["TRUE_POSITIVE", "FALSE_POSITIVE"]] = Field(
+        default=None, description="Final verdict if verification_passed==true"
+    )
+    blocking_gaps: List[str] = Field(
+        default_factory=list, description="What is missing/unknown and blocks verification"
+    )
+    required_next_fetches: List[RequiredNextFetch] = Field(
+        default_factory=list, description="Concrete next retrieval steps"
     )
     justifications: List[str] = Field(
-        default_factory=list, description="Reasoning for why investigation is/isn't final"
+        default_factory=list, description="Evaluator reasoning (auditor-style)"
+    )
+    stop_reason: Optional[str] = Field(
+        default=None, description="Optional stop reason provided by evaluator"
     )
 
 
@@ -127,19 +169,28 @@ class InvestigationContext(BaseModel):
 
 class AnalysisState(BaseModel):
     """
-    Results from security analysis and evaluation.
+    Analysis-driven investigation reasoning state (ADR-0002).
 
-    This tracks the agent's investigative findings and verdicts.
+    The agent maintains explicit claims/evidence/unknowns and is only allowed to
+    finalize after a successful evaluator verification.
     """
 
-    investigation_result: Optional[AnalysisResponse] = Field(
-        default=None, description="Latest security analysis from analyze_issue tool"
+    claims: List[Claim] = Field(default_factory=list, description="Atomic assertions")
+    evidence: List[Evidence] = Field(default_factory=list, description="Concrete citations")
+    unknowns: List[Unknown] = Field(default_factory=list, description="Blocking questions/gaps")
+
+    evaluator_reports: List[EvaluatorReport] = Field(
+        default_factory=list, description="Full history of evaluator gate reports"
     )
-    verdict: Optional[Literal["TRUE_POSITIVE", "FALSE_POSITIVE", "NEEDS_HUMAN_REVIEW"]] = Field(
-        default=None, description="Final verdict (set when is_final=TRUE)"
+    last_evaluator_report: Optional[EvaluatorReport] = Field(
+        default=None, description="Most recent evaluator report"
     )
-    evaluation_result: Optional[ComprehensiveEvaluationResponse] = Field(
-        default=None, description="Latest comprehensive evaluation feedback"
+
+    verdict: Optional[VerdictType] = Field(
+        default=None, description="Final verdict (set only when is_final==True)"
+    )
+    final_justifications: List[str] = Field(
+        default_factory=list, description="Final justification bullets for output"
     )
 
 
@@ -170,14 +221,9 @@ class AgentMemory(BaseModel):
     and conversation history.
     """
 
-    reflection_notes: List[str] = Field(
-        default_factory=list, description="Exploration gaps identified by comprehensive_evaluation"
-    )
-    evaluation_feedback: List[str] = Field(
-        default_factory=list, description="Justifications from comprehensive_evaluation"
-    )
-    messages: List[dict] = Field(
-        default_factory=list, description="LLM conversation history (for agent reasoning)"
+    messages: List[Any] = Field(
+        default_factory=list,
+        description="LLM conversation history (LangChain messages: Human/AI/Tool/System)",
     )
     tool_call_history: List[tuple] = Field(
         default_factory=list,
@@ -229,8 +275,18 @@ class SASTAgentState(BaseModel):
     iteration_count: int = Field(
         default=0, description="Number of tool calls made (circuit breaker at 15)"
     )
-
-    # ==================== SHARED RESOURCES ====================
-    project_context: Optional[ProjectContext] = Field(
-        default=None, description="Reference to shared project metadata"
+    no_progress_streak: int = Field(
+        default=0,
+        description="Consecutive retrieval tool calls that added no new evidence/claims",
+    )
+    guard_attempt_count: int = Field(
+        default=0, description="Number of evaluator attempts (guard attempts)"
+    )
+    guard_rejection_streak: int = Field(
+        default=0,
+        description="Consecutive evaluator rejections without resolving blocking gaps",
+    )
+    stop_reason: Optional[str] = Field(
+        default=None,
+        description="Reason investigation stopped (verified, breaker, guard_rejections, etc.)",
     )

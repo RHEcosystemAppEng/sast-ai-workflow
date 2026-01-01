@@ -14,11 +14,10 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.function import FunctionBaseConfig
 from pydantic import Field
 
-from dto.LLMResponse import FinalStatus
+from dto.LLMResponse import AnalysisResponse, FinalStatus
 from dto.SASTWorkflowModels import SASTWorkflowTracker
 from sast_agent_workflow.agent.agent_graph import create_agent_graph
 from sast_agent_workflow.agent.agent_state import SASTAgentState
-from sast_agent_workflow.agent.project_context import initialize_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +80,12 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
             logger.info("All issues filtered - skipping agent initialization")
             return tracker
 
-        # Initialize project context ONCE (local to this function)
-        project_context = initialize_project_context(tracker.config.REPO_LOCAL_PATH)
-
         # Get LLM
         llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 
         # Get tools from NAT
-        tool_names = ["fetch_code", "analyze_issue", "comprehensive_evaluation"]
+        # NOTE: Retrieval expansion tools can be added once implemented.
+        tool_names = ["fetch_code", "evaluator"]
         tools = await builder.get_tools(
             tool_names=tool_names, wrapper_type=LLMFrameworkEnum.LANGCHAIN
         )
@@ -124,10 +121,9 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                 context=InvestigationContext(
                     fetched_files=dict(per_issue.source_code) if per_issue.source_code else {},
                     found_symbols=(
-                        per_issue.found_symbols.copy() if per_issue.found_symbols else set()
+                        sorted(per_issue.found_symbols) if per_issue.found_symbols else []
                     ),
                 ),
-                project_context=project_context,  # Shared across all issues in this batch
             )
 
             # Run agent investigation with timeout and recursion limit
@@ -148,25 +144,30 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                     final_state = final_state_dict
 
                 # Update tracker with results
-                # Defensive check: ensure investigation_result exists
-                if final_state.analysis.investigation_result is None:
-                    # Create fallback analysis if agent failed before producing one
-                    from dto.LLMResponse import AnalysisResponse, CVEValidationStatus
-
-                    logger.warning(f"[{issue_id}] No investigation result - creating fallback")
-                    final_state.analysis.investigation_result = AnalysisResponse(
-                        investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                        is_final=FinalStatus.TRUE.value,
-                        justifications=["Investigation incomplete - needs manual review"],
-                        prompt="Error - no analysis produced",
+                investigation_result = final_state.analysis.verdict or "NEEDS_REVIEW"
+                justifications = (
+                    final_state.analysis.final_justifications
+                    or (
+                        final_state.analysis.last_evaluator_report.justifications
+                        if final_state.analysis.last_evaluator_report
+                        else []
                     )
-
-                per_issue.analysis_response = final_state.analysis.investigation_result
-                per_issue.source_code = final_state.context.fetched_files
-                per_issue.found_symbols = final_state.context.found_symbols
-                per_issue.analysis_response.is_final = (
-                    FinalStatus.TRUE.value if final_state.is_final else FinalStatus.FALSE.value
+                    or [
+                        f"Investigation stopped: {final_state.stop_reason or 'unknown'}",
+                    ]
                 )
+
+                per_issue.analysis_response = AnalysisResponse(
+                    investigation_result=investigation_result,
+                    is_final=(
+                        FinalStatus.TRUE.value if final_state.is_final else FinalStatus.FALSE.value
+                    ),
+                    justifications=justifications,
+                    prompt="agentic_investigation (ADR-0002)",
+                )
+                per_issue.source_code = final_state.context.fetched_files
+                # PerIssueData expects a Set[str]
+                per_issue.found_symbols = set(final_state.context.found_symbols or [])
 
                 logger.info(
                     f"Investigation complete for {issue_id}: "
@@ -182,7 +183,7 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                 if per_issue.analysis_response:
                     per_issue.analysis_response.is_final = FinalStatus.TRUE.value
                     per_issue.analysis_response.justifications.append(
-                        "Investigation timeout - needs manual review"
+                        "Investigation timeout - NEEDS_REVIEW"
                     )
 
             except Exception as e:
@@ -192,7 +193,7 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                 if per_issue.analysis_response:
                     per_issue.analysis_response.is_final = FinalStatus.TRUE.value
                     per_issue.analysis_response.justifications.append(
-                        f"Investigation error: {str(e)}"
+                        f"Investigation error - NEEDS_REVIEW: {str(e)}"
                     )
 
         # Increment tracker iteration (for compatibility)

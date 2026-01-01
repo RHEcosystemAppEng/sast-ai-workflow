@@ -8,14 +8,14 @@ Architecture:
 - Tools are LangChain BaseTool objects from NAT (stateless, reusable)
 - Agent node uses tool-bound LLM for intelligent tool selection
 - Tool wrapper nodes extract args from LLM calls, invoke NAT tools, and update state
-- Specialized routing: agent → tools → analyze → evaluate → conditional END
-- Circuit breakers: max iterations, duplicate detection, error recovery
+- Specialized routing: agent → tools → agent (until evaluator verification)
+- Circuit breakers: max iterations, duplicate detection, error recovery, stalled progress, guard rejection limit
 """
 
 import logging
 from datetime import datetime
 from functools import partial
-from typing import List, Literal
+from typing import List
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import ToolMessage
@@ -30,44 +30,95 @@ from .tools.state_updaters import ToolStateUpdater, get_state_updater
 logger = logging.getLogger(__name__)
 
 
-def route_agent_decision(state: SASTAgentState) -> str:
+def route_next(
+    state: SASTAgentState,
+    *,
+    max_iterations: int,
+    max_error_recovery: int,
+    enable_duplicate_detection: bool = True,
+) -> str:
     """
-    Route based on agent's tool call decision.
+    Generic router for the agent graph.
 
-    This function is called AFTER the agent node executes. It examines the agent's
-    response (last message) to determine which tool to invoke next.
+    This single routing function handles:
+    - **Agent → Tool** routing: called after the agent decision node; routes based on
+      the last AI message's tool_calls.
+    - **Tool → Next** routing: called after tool wrapper nodes; routes back to agent,
+      or terminates when `is_final` is set (e.g., after evaluator verification or a breaker).
 
-    NOTE: This function should NEVER see is_final=TRUE because:
-    - is_final is only set by comprehensive_evaluation tool
-    - route_after_evaluation checks is_final and routes to END (not agent)
-    - Therefore, if we reach agent node, is_final must be FALSE
+    Why one router works:
+    - After the agent node, the last message will (normally) be an AI message with tool_calls.
+    - After a tool node, the last message will be a ToolMessage and tool_calls will be absent;
+      we can instead consult `tool_call_history` to determine which tool just ran.
 
     Returns:
-        Tool name to invoke, or "agent" to loop back (should not happen)
+        Next node name: a tool name, "agent", "circuit_breaker", or END.
     """
-    if not state.memory.messages:
-        # First call - agent will decide what to do
-        logger.debug(f"[{state.issue_id}] No messages yet, routing to agent")
+    # ---- Case 1: Agent just ran and produced a tool call ----
+    if state.memory.messages:
+        last_message = state.memory.messages[-1]
+        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+            tool_call = last_message.tool_calls[0]
+            tool_name = tool_call["name"]
+            logger.info(f"[{state.issue_id}] Routing to tool: {tool_name}")
+            return tool_name
+
+    # ---- Case 2: A tool just ran (ToolMessage appended), decide what’s next ----
+    if not state.memory.tool_call_history:
+        # Fallback: if we somehow have no history, send back to agent.
+        logger.debug(f"[{state.issue_id}] No tool_call_history yet, routing to agent")
         return "agent"
 
-    last_message = state.memory.messages[-1]
+    last_tool_name = state.memory.tool_call_history[-1][0]
 
-    # Check if LLM made a tool call (normal case)
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        tool_call = last_message.tool_calls[0]
-        tool_name = tool_call["name"]
+    # Apply circuit breakers after EVERY tool call
+    # Circuit breaker 1: Max iterations
+    if state.iteration_count >= max_iterations:
+        logger.warning(
+            f"[{state.issue_id}] Circuit breaker: Max iterations ({max_iterations}) reached"
+        )
+        return "circuit_breaker"
 
-        logger.info(f"[{state.issue_id}] Routing to tool: {tool_name}")
-        return tool_name
+    # Circuit breaker 2: Duplicate calls
+    if enable_duplicate_detection and is_duplicate_call(state):
+        logger.warning(f"[{state.issue_id}] Circuit breaker: Duplicate tool call detected")
+        return "circuit_breaker"
 
-    # Agent responded without tool call - this indicates an LLM error or unexpected behavior
-    # In a properly functioning system, the agent should ALWAYS call a tool
-    logger.error(
-        f"[{state.issue_id}] Agent failed to make tool call. "
-        f"Last message type: {type(last_message).__name__}. "
-        f"This should not happen with tool-bound LLM."
-    )
-    # Fallback: loop back to agent to retry
+    # Circuit breaker 3: Error recovery limit
+    if state.error_state.error_recovery_attempts >= max_error_recovery:
+        logger.warning(
+            f"[{state.issue_id}] Circuit breaker: Max error recovery ({max_error_recovery})"
+        )
+        return "circuit_breaker"
+
+    # Circuit breaker 4: Stalled progress (3 consecutive retrieval calls without new evidence/claims)
+    if state.no_progress_streak >= 3:
+        logger.warning(f"[{state.issue_id}] Circuit breaker: Stalled progress (no_progress_streak)")
+        return "circuit_breaker"
+
+    # Circuit breaker 5: Guard (evaluator) rejection limit
+    if state.guard_rejection_streak >= 3:
+        logger.warning(
+            f"[{state.issue_id}] Circuit breaker: Guard rejection limit (guard_rejection_streak)"
+        )
+        return "circuit_breaker"
+
+    # Circuit breaker 6: Agent repeatedly fails to produce reasoning
+    if state.error_state.last_error and state.error_state.last_error.tool_name == "agent_reasoning":
+        if state.error_state.error_recovery_attempts >= 2:
+            logger.warning(
+                f"[{state.issue_id}] Circuit breaker: Agent failed to produce reasoning 2+ times"
+            )
+            return "circuit_breaker"
+
+    # Normal termination: any tool can theoretically set is_final (today only evaluation does)
+    if state.is_final:
+        logger.info(f"[{state.issue_id}] Investigation complete (is_final=TRUE)")
+        return END
+
+    # All tools loop back to agent until is_final is set.
+    if last_tool_name == "evaluator":
+        logger.info(f"[{state.issue_id}] Evaluator did not verify (continuing)")
     return "agent"
 
 
@@ -103,54 +154,10 @@ async def circuit_breaker_node(state: SASTAgentState) -> SASTAgentState:
     logger.warning(f"[{state.issue_id}] Circuit breaker triggered, forcing termination")
     state.is_final = True
     if not state.analysis.verdict:
-        state.analysis.verdict = "NEEDS_HUMAN_REVIEW"
+        state.analysis.verdict = "NEEDS_REVIEW"
+    if not state.stop_reason:
+        state.stop_reason = "circuit_breaker"
     return state
-
-
-def route_after_evaluation(
-    state: SASTAgentState, max_iterations: int, max_error_recovery: int
-) -> Literal["agent", "circuit_breaker", "END"]:
-    """
-    Route after comprehensive_evaluation based on is_final and circuit breakers.
-
-    This function is PURE - it only inspects state and returns the next node.
-    State modifications happen in the circuit_breaker node.
-
-    Args:
-        state: Current agent state
-        max_iterations: Maximum iterations before circuit breaker
-        max_error_recovery: Maximum consecutive errors before circuit breaker
-
-    Returns:
-        "agent" to continue, "circuit_breaker" for forced termination, or END to terminate
-    """
-    # Circuit breaker 1: Max iterations
-    if state.iteration_count >= max_iterations:
-        logger.warning(
-            f"[{state.issue_id}] Circuit breaker: Max iterations ({max_iterations}) reached"
-        )
-        return "circuit_breaker"
-
-    # Circuit breaker 2: Duplicate calls
-    if is_duplicate_call(state):
-        logger.warning(f"[{state.issue_id}] Circuit breaker: Duplicate tool call detected")
-        return "circuit_breaker"
-
-    # Circuit breaker 3: Error recovery limit
-    if state.error_state.error_recovery_attempts >= max_error_recovery:
-        logger.warning(
-            f"[{state.issue_id}] Circuit breaker: Max error recovery ({max_error_recovery})"
-        )
-        return "circuit_breaker"
-
-    # Normal termination: evaluation says we're done
-    if state.is_final:
-        logger.info(f"[{state.issue_id}] Investigation complete (is_final=TRUE)")
-        return END
-
-    # Continue investigation
-    logger.info(f"[{state.issue_id}] Continuing investigation (is_final=FALSE)")
-    return "agent"
 
 
 def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, tool_name: str):
@@ -177,6 +184,11 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
 
         # Increment iteration counter
         state.iteration_count += 1
+
+        # Snapshot for stalled progress detection
+        before_claims = len(state.analysis.claims)
+        before_evidence = len(state.analysis.evidence)
+        before_unknowns = len(state.analysis.unknowns)
 
         # Extract tool call from last message
         last_message = state.memory.messages[-1]
@@ -222,6 +234,35 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
             if len(state.memory.tool_call_history) > 2:
                 state.memory.tool_call_history = state.memory.tool_call_history[-2:]
 
+            # Update stalled progress counters:
+            # Progress = agent produced new reasoning artifacts OR resolved unknowns
+            after_claims = len(state.analysis.claims)
+            after_evidence = len(state.analysis.evidence)
+            after_unknowns = len(state.analysis.unknowns)
+
+            made_progress = (
+                (after_claims > before_claims)
+                or (after_evidence > before_evidence)
+                or (after_unknowns < before_unknowns)  # Resolved unknowns counts as progress
+            )
+
+            if tool_name not in ["evaluator"]:  # Don't penalize evaluator for not adding reasoning
+                state.no_progress_streak = 0 if made_progress else (state.no_progress_streak + 1)
+
+                if made_progress:
+                    logger.info(
+                        f"[{issue_id}] Progress: claims +{after_claims-before_claims}, "
+                        f"evidence +{after_evidence-before_evidence}, "
+                        f"unknowns {before_unknowns}→{after_unknowns}"
+                    )
+                else:
+                    logger.warning(
+                        f"[{issue_id}] No reasoning progress (streak={state.no_progress_streak}/3)"
+                    )
+            else:
+                # Evaluator doesn't produce claims/evidence directly
+                state.no_progress_streak = 0 if made_progress else state.no_progress_streak
+
         except Exception as e:
             logger.error(f"[{issue_id}] Tool {tool_name} failed: {e}", exc_info=True)
 
@@ -259,8 +300,7 @@ def create_agent_graph(
     Build the per-issue agent investigation graph with NAT tools.
 
     Graph structure:
-        agent (decide with tool-bound LLM) → tool wrapper nodes → agent →
-        analyze → comprehensive_evaluation → conditional (agent OR END)
+        agent (decide with tool-bound LLM) → tool wrapper nodes → agent → ... → evaluator → END
 
     Args:
         llm: Language model for agent decision making
@@ -319,32 +359,26 @@ def create_agent_graph(
     tool_routes["agent"] = "agent"  # Fallback
     tool_routes[END] = END
 
-    graph.add_conditional_edges("agent", route_agent_decision, tool_routes)
+    route_fn = partial(
+        route_next,
+        max_iterations=max_iterations,
+        max_error_recovery=max_error_recovery_attempts,
+        enable_duplicate_detection=enable_duplicate_detection,
+    )
+
+    graph.add_conditional_edges("agent", route_fn, tool_routes)
 
     # Circuit breaker always routes to END after updating state
     graph.add_edge("circuit_breaker", END)
 
     # Tool routing logic
     for tool_name in tools_dict.keys():
-        if tool_name == "analyze_issue":
-            # analyze_issue ALWAYS routes to comprehensive_evaluation
-            graph.add_edge("analyze_issue", "comprehensive_evaluation")
-        elif tool_name == "comprehensive_evaluation":
-            # comprehensive_evaluation routes to agent, circuit_breaker, or END
-            # Using functools.partial to avoid lambda closure issues
-            route_fn = partial(
-                route_after_evaluation,
-                max_iterations=max_iterations,
-                max_error_recovery=max_error_recovery_attempts,
-            )
-            graph.add_conditional_edges(
-                "comprehensive_evaluation",
-                route_fn,
-                {"agent": "agent", "circuit_breaker": "circuit_breaker", END: END},
-            )
-        else:
-            # Other tools (fetch_code, etc.) route back to agent
-            graph.add_edge(tool_name, "agent")
+        # All tools route via the same router so circuit breakers apply uniformly
+        graph.add_conditional_edges(
+            tool_name,
+            route_fn,
+            {"agent": "agent", "circuit_breaker": "circuit_breaker", END: END},
+        )
 
     # Compile graph
     compiled = graph.compile()
