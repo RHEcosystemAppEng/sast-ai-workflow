@@ -34,7 +34,7 @@ class FilterResponse(BaseModel):
         description="'YES' if it matches a known false positive, otherwise 'NO'."
     )
     filter_confidence: float = Field(
-        default=0.5,
+        default=None,
         ge=0.0,
         le=1.0,
         description=(
