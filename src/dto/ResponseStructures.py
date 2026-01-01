@@ -33,6 +33,15 @@ class FilterResponse(BaseModel):
     result: Literal["YES", "NO"] = Field(
         description="'YES' if it matches a known false positive, otherwise 'NO'."
     )
+    filter_confidence: float = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Confidence score (0.0-1.0) indicating how certain the model is "
+            "about its decision (YES or NO)."
+        )
+    )
 
 
 class JudgeLLMResponse(BaseModel):

@@ -37,14 +37,18 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 
 
-def _create_false_positive_response(equal_error_trace: list) -> AnalysisResponse:
+def _create_false_positive_response(
+    equal_error_trace: list,
+    filter_confidence: float,
+    faiss_similarity_score: float | None
+) -> AnalysisResponse:
     """Create analysis response for known false positives."""
     context = (
         "\n".join(equal_error_trace)
         if equal_error_trace
         else NO_MATCHING_TRACE_FOUND
     )
-    
+
     return AnalysisResponse(
         investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
         is_final=FinalStatus.TRUE.value,
@@ -53,6 +57,8 @@ def _create_false_positive_response(equal_error_trace: list) -> AnalysisResponse
             f"The error is similar to one found in the provided context: {context}"
         ],
         short_justifications=KNOWN_ISSUES_SHORT_JUSTIFICATION,
+        filter_confidence=filter_confidence,
+        faiss_similarity_score=faiss_similarity_score,
     )
 
 
@@ -74,26 +80,44 @@ def _process_single_issue(issue_id: str, issue_data, known_issue_retriever, llm_
     try:
         # Get similar known issues from vector store
         similar_known_issues_list = known_issue_retriever.get_relevant_known_issues(
-            issue_data.issue.trace, 
+            issue_data.issue.trace,
             issue_data.issue.issue_type
         )
-        
+
         # Convert similar issues to context string for other tools
         issue_data.similar_known_issues = convert_similar_issues_to_examples_context_string(
             similar_known_issues_list
         )
-        
+
+        # Extract highest FAISS similarity score from similar issues
+        faiss_similarity_score = None
+        if similar_known_issues_list:
+            max_score = max(
+                (issue.similarity_score for issue in similar_known_issues_list if issue.similarity_score is not None),
+                default=None
+            )
+            # Convert numpy float32 to Python float for Pydantic compatibility
+            faiss_similarity_score = float(max_score) if max_score is not None else None
+
         # Check if issue is a known false positive
-        is_finding_known_false_positive, equal_error_trace = is_known_false_positive(
+        is_finding_known_false_positive, equal_error_trace, filter_confidence = is_known_false_positive(
             issue_data.issue, similar_known_issues_list, llm_service
         )
-        
+
         if is_finding_known_false_positive:
-            logger.info(f"Issue {issue_id} identified as known false positive")
-            issue_data.analysis_response = _create_false_positive_response(equal_error_trace)
+            logger.info(f"Issue {issue_id} identified as known false positive (confidence: {filter_confidence:.2f}, FAISS score: {faiss_similarity_score})")
+            issue_data.analysis_response = _create_false_positive_response(
+                equal_error_trace,
+                filter_confidence,
+                faiss_similarity_score
+            )
         else:
-            logger.debug(f"Issue {issue_id} not identified as known false positive")
-                            
+            logger.debug(f"Issue {issue_id} not identified as known false positive (confidence: {filter_confidence:.2f})")
+            # Even for non-FPs, we need to update the analysis_response with confidence score
+            if issue_data.analysis_response:
+                issue_data.analysis_response.filter_confidence = filter_confidence
+                issue_data.analysis_response.faiss_similarity_score = faiss_similarity_score
+
     except Exception as e:
         logger.error(f"Unexpected error processing issue {issue_id} as part of filter: {e}", exc_info=True)
 
