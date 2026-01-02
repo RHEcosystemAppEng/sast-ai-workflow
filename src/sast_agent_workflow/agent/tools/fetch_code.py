@@ -6,6 +6,7 @@ the repo handler. This is the primary code retrieval tool for investigations.
 """
 
 import logging
+from typing import Dict, List
 
 from langchain_core.tools import StructuredTool
 from nat.builder.builder import Builder, LLMFrameworkEnum
@@ -21,45 +22,47 @@ from ..agent_state import SASTAgentState
 logger = logging.getLogger(__name__)
 
 
-def fetch_code_from_error_trace(state, error_trace: str, repo_handler) -> None:
+def fetch_code_from_error_trace(error_trace: str, repo_handler, issue_id: str = "unknown") -> Dict[str, List[str]]:
     """
     Extract and fetch initial code from SAST error trace.
 
-    This is a HELPER FUNCTION (not a tool) called once at investigation start
-    to populate initial code context from the error trace.
+    This is a STATELESS HELPER FUNCTION (not a tool) called once at investigation start
+    to extract initial code context from the error trace.
 
     Uses repo_handler.get_source_code_blocks_from_error_trace() to extract
     file paths and line numbers from the trace and fetch the relevant code.
 
     Args:
-        state: SASTAgentState to update with fetched code
         error_trace: SAST error trace string (format: "file:line:message")
         repo_handler: Repository handler instance for code retrieval
+        issue_id: Issue ID for logging purposes (optional)
 
     Returns:
-        None - updates state.context.fetched_files and state.context.found_symbols in-place
+        Dict[str, List[str]]: Mapping of file paths to code blocks (each as a list for consistency)
+        Returns empty dict if extraction fails or no code found.
     """
-    logger.info(f"[{state.issue_id}] Fetching initial code from error trace")
+    logger.info(f"[{issue_id}] Fetching initial code from error trace")
 
     try:
         result_dict = repo_handler.get_source_code_blocks_from_error_trace(error_trace)
 
         if not result_dict:
-            logger.warning(f"[{state.issue_id}] No code extracted from error trace")
-            return
+            logger.warning(f"[{issue_id}] No code extracted from error trace")
+            return {}
 
-        for file_path, code in result_dict.items():
-            state.context.fetched_files[file_path] = [code]
-            state.context.found_symbols.add(file_path)
-            logger.debug(f"[{state.issue_id}] Fetched from trace: {file_path}")
+        # Convert to Dict[str, List[str]] format (wrap each code string in a list)
+        formatted_result = {file_path: [code] for file_path, code in result_dict.items()}
 
         logger.info(
-            f"[{state.issue_id}] Fetched {len(result_dict)} files from trace: "
-            f"{list(result_dict.keys())}"
+            f"[{issue_id}] Fetched {len(formatted_result)} files from trace: "
+            f"{list(formatted_result.keys())}"
         )
 
+        return formatted_result
+
     except Exception as e:
-        logger.error(f"[{state.issue_id}] Failed to fetch code from trace: {e}", exc_info=True)
+        logger.error(f"[{issue_id}] Failed to fetch code from trace: {e}", exc_info=True)
+        return {}
 
 class FetchCodeInput(BaseModel):
     """Input schema for fetch_code tool."""

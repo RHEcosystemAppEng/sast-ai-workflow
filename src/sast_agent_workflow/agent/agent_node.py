@@ -130,8 +130,15 @@ def format_state_summary(state: SASTAgentState) -> str:
 
     issue_type = state.issue.issue_type
     trace_preview = state.issue.trace if hasattr(state.issue, "trace") else "No trace available"
-    files_count = len(state.context.fetched_files)
-    files_list = ", ".join(list(state.context.fetched_files.keys())[:10])
+
+    # Merge source_code (pre-loaded from trace) and fetched_files (fetched by agent)
+    all_files = {}
+    all_files.update(state.context.source_code)  # Pre-loaded from error trace
+    all_files.update(state.context.fetched_files)  # Fetched during investigation
+
+    files_count = len(all_files)
+    files_list = ", ".join(list(all_files.keys())[:10])
+
     claims_count = len(state.analysis.claims)
     evidence_count = len(state.analysis.evidence)
     blocking_unknowns = sum(1 for u in state.analysis.unknowns if u.blocking)
@@ -289,7 +296,20 @@ async def _robust_structured_output_with_retry(
             if isinstance(llm, ChatNVIDIA):
                 # NVIDIA: with_structured_output may return None on failure
                 structured_llm = llm.with_structured_output(schema)
-                result = await structured_llm.ainvoke(messages)
+
+                # Track LLM call timing
+                import time
+                start_time = time.time()
+                logger.info(f"Calling NVIDIA NIM for structured output (attempt {attempt + 1})...")
+
+                # Add timeout to prevent indefinite hangs (3 minutes max)
+                result = await structured_llm.ainvoke(
+                    messages,
+                    config={"timeout": 180}  # 3 minutes timeout
+                )
+
+                elapsed = time.time() - start_time
+                logger.info(f"NVIDIA NIM response received in {elapsed:.1f}s")
 
                 if result is not None:
                     logger.info(f"Structured output successful (attempt {attempt + 1})")
@@ -452,6 +472,12 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
     formatted_unknowns = format_unknowns_for_prompt(state.analysis.unknowns)
     has_blocking_unknowns = any(u.blocking for u in state.analysis.unknowns)
 
+    # Merge source_code (pre-loaded) and fetched_files (agent-fetched) for display
+    all_code = {}
+    all_code.update(state.context.source_code)  # Pre-loaded from error trace
+    all_code.update(state.context.fetched_files)  # Fetched during investigation
+    formatted_code = format_all_fetched_code(all_code)
+
     # Build system message with ALL context using Template for safe formatting
     template = Template(system_prompt)
     formatted_content = template.safe_substitute(
@@ -462,6 +488,7 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
         evaluator_feedback=evaluator_feedback,
         must_retrieve="TRUE" if has_blocking_unknowns else "FALSE",
         error_context=error_ctx,
+        fetched_code=formatted_code,
     )
 
     system_msg = SystemMessage(content=formatted_content)

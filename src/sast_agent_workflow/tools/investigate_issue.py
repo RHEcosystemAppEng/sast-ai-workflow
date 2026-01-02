@@ -83,6 +83,18 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
         # Get LLM
         llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 
+        # Initialize repo_handler for initial code extraction from error traces
+        from common.config import Config
+        from handlers.repo_handler_factory import repo_handler_factory
+
+        try:
+            global_config = Config()
+            repo_handler = repo_handler_factory(global_config)
+            logger.info(f"Initialized repo_handler for: {global_config.REPO_LOCAL_PATH}")
+        except Exception as e:
+            logger.error(f"Failed to initialize repo_handler: {e}")
+            raise
+
         # Get tools from NAT
         # NOTE: Retrieval expansion tools can be added once implemented.
         tool_names = ["fetch_code", "evaluator"]
@@ -112,9 +124,29 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
             logger.info(f"Investigating issue: {issue_id}")
             logger.info("=" * 60)
 
-            # Create per-issue agent state
+            # Extract initial code from error trace BEFORE creating state
+            from sast_agent_workflow.agent.tools.fetch_code import fetch_code_from_error_trace
             from sast_agent_workflow.agent.agent_state import InvestigationContext
 
+            initial_code = fetch_code_from_error_trace(
+                error_trace=per_issue.issue.trace,
+                repo_handler=repo_handler,
+                issue_id=issue_id,
+            )
+
+            # Log initial code extraction results
+            if initial_code:
+                logger.info(f"[{issue_id}] Initial code extracted from trace: {len(initial_code)} files")
+                for file_path, code_list in initial_code.items():
+                    logger.info(f"[{issue_id}]   - {file_path}")
+                    for code in code_list:
+                        # Log first 500 chars of code for debugging
+                        code_preview = code[:500] if len(code) > 500 else code
+                        logger.debug(f"[{issue_id}] Code preview from {file_path}:\n{code_preview}")
+            else:
+                logger.warning(f"[{issue_id}] No initial code extracted from trace")
+
+            # Create per-issue agent state with pre-loaded code
             agent_state = SASTAgentState(
                 issue_id=issue_id,
                 issue=per_issue.issue,
@@ -123,8 +155,7 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                     found_symbols=(
                         sorted(per_issue.found_symbols) if per_issue.found_symbols else []
                     ),
-                    #todo: call the fetch_code_from_error_trace function
-                    source_code=dict(per_issue.source_code) if per_issue.source_code else {},
+                    source_code=initial_code,  # Pre-loaded code from error trace
                 ),
             )
 
