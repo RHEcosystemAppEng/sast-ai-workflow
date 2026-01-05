@@ -38,6 +38,18 @@ functions:
     _type: evaluator
     description: "Gate tool for investigation verification (ADR-0002)"
 
+  list_files:
+    _type: list_files
+    description: "List files in a directory for discovery"
+
+  read_file:
+    _type: read_file
+    description: "Read contents of a file from the repository"
+
+  search_codebase:
+    _type: search_codebase
+    description: "Search codebase for regex patterns (sanitization, validation, etc.)"
+
 llms:
   main_llm:
     _type: ${LLM_API_TYPE}

@@ -15,7 +15,7 @@ from dto.Issue import Issue
 # Type aliases for clarity
 ClaimStatus = Literal["supported", "tentative", "rejected", "conflicting"]
 VerdictType = Literal["TRUE_POSITIVE", "FALSE_POSITIVE", "NEEDS_REVIEW"]
-ToolChoice = Literal["fetch_code", "evaluator"]
+ToolChoice = Literal["fetch_code", "evaluator", "list_files", "read_file", "search_codebase"]
 
 
 class ToolError(BaseModel):

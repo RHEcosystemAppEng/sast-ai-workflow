@@ -67,10 +67,14 @@ def fetch_code_from_error_trace(error_trace: str, repo_handler, issue_id: str = 
 class FetchCodeInput(BaseModel):
     """Input schema for fetch_code tool."""
     expression_name: str = Field(
-        description="Symbol name to fetch (e.g., 'sanitize_input', 'User', 'validate_data')"
+        description=(
+            "Name of a CODE SYMBOL to fetch - must be a function, macro, class, or variable name. "
+            "NOT a file path. Examples: 'sanitize_input', 'User', 'validate_data', 'malloc', 'BUFFER_SIZE'. "
+            "If you want to read a file, use the read_file tool instead."
+        )
     )
     referring_source_code_path: str = Field(
-        description="File path where this symbol was referenced (e.g., 'app/views.py')"
+        description="File path where this symbol was referenced or called (e.g., 'app/views.py', 'modules/auth.c')"
     )
 
 
@@ -79,13 +83,15 @@ class FetchCodeToolConfig(FunctionBaseConfig, name="fetch_code"):
 
     description: str = Field(
         default=(
-            "Fetches source code for a specific symbol (function, class, macro) from the repository. "
-            "Use when you know the exact symbol name and the file where it's referenced. "
-            "Requires two parameters: "
-            "(1) expression_name: the symbol to fetch (e.g., 'sanitize_input'), "
-            "(2) referring_source_code_path: the file where you saw this symbol (e.g., 'app/views.py'). "
-            "Example: If analyzing 'app/views.py' and you see a call to 'clean_data()', "
-            "call fetch_code(expression_name='clean_data', referring_source_code_path='app/views.py')."
+            "Fetches the DEFINITION of a code symbol (function, class, macro, variable) from the repository. "
+            "IMPORTANT: expression_name must be a SYMBOL NAME (function/macro/class), NOT a file path. "
+            "Use when you need to see how a specific function, macro, or class is implemented. "
+            "Parameters: "
+            "(1) expression_name: SYMBOL name to fetch - e.g., 'sanitize_input', 'malloc', 'User' class (NOT 'auth.c'!), "
+            "(2) referring_source_code_path: file where you saw this symbol referenced - e.g., 'app/views.py', 'modules/auth.c'. "
+            "Example: If 'app/views.py' calls 'clean_data()', use: "
+            "fetch_code(expression_name='clean_data', referring_source_code_path='app/views.py'). "
+            "To read a complete file by path, use the read_file tool instead."
         ),
         description="Tool description",
     )
