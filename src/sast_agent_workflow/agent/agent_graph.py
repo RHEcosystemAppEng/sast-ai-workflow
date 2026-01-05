@@ -16,6 +16,7 @@ import logging
 from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
+from math import log
 from typing import List
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -96,7 +97,37 @@ def route_next(
         )
         return "circuit_breaker"
 
-    # Circuit breaker 4: Stalled progress (3 consecutive retrieval calls without new evidence/claims)
+    # Circuit breaker 4: Stalled progress (3 consecutive agent cycles without new evidence/claims)
+    # Progress tracking: compare current state with snapshot taken before agent updated state
+    current_claims = len(state.analysis.claims)
+    current_evidence = len(state.analysis.evidence)
+    current_unknowns = len(state.analysis.unknowns)
+    
+    made_progress = (
+        (current_claims > state.snapshot_claims_count)
+        or (current_evidence > state.snapshot_evidence_count)
+        or (current_unknowns < state.snapshot_unknowns_count)  # Resolved unknowns counts as progress
+    )
+    
+    # Update progress streak (only for non-evaluator tool calls)
+    if last_tool_name != "evaluator":
+        state.no_progress_streak = 0 if made_progress else (state.no_progress_streak + 1)
+        
+        if made_progress:
+            logger.info(
+                f"[{state.issue_id}] Progress: claims {state.snapshot_claims_count}→{current_claims}, "
+                f"evidence {state.snapshot_evidence_count}→{current_evidence}, "
+                f"unknowns {state.snapshot_unknowns_count}→{current_unknowns}"
+            )
+        else:
+            logger.warning(
+                f"[{state.issue_id}] No reasoning progress (streak={state.no_progress_streak}/3)"
+            )
+    else:
+        # Evaluator doesn't produce claims/evidence directly, don't increment streak
+        if made_progress:
+            state.no_progress_streak = 0
+    
     if state.no_progress_streak >= 3:
         logger.warning(f"[{state.issue_id}] Circuit breaker: Stalled progress (no_progress_streak)")
         return "circuit_breaker"
@@ -108,13 +139,7 @@ def route_next(
         )
         return "circuit_breaker"
 
-    # Circuit breaker 6: Agent repeatedly fails to produce reasoning
-    if state.error_state.last_error and state.error_state.last_error.tool_name == "agent_reasoning":
-        if state.error_state.error_recovery_attempts >= 2:
-            logger.warning(
-                f"[{state.issue_id}] Circuit breaker: Agent failed to produce reasoning 2+ times"
-            )
-            return "circuit_breaker"
+    #         return "circuit_breaker"
 
     # Normal termination: any tool can theoretically set is_final (today only evaluation does)
     if state.is_final:
@@ -190,11 +215,6 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
         # Increment iteration counter
         state.iteration_count += 1
 
-        # Snapshot for stalled progress detection
-        before_claims = len(state.analysis.claims)
-        before_evidence = len(state.analysis.evidence)
-        before_unknowns = len(state.analysis.unknowns)
-
         # Extract tool call from last message
         last_message = state.memory.messages[-1]
         if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
@@ -254,35 +274,6 @@ def create_tool_wrapper_node(tool: BaseTool, state_updater: ToolStateUpdater, to
             state.memory.tool_call_history.append((tool_name, tool_args))
             if len(state.memory.tool_call_history) > 2:
                 state.memory.tool_call_history = state.memory.tool_call_history[-2:]
-
-            # Update stalled progress counters:
-            # Progress = agent produced new reasoning artifacts OR resolved unknowns
-            after_claims = len(state.analysis.claims)
-            after_evidence = len(state.analysis.evidence)
-            after_unknowns = len(state.analysis.unknowns)
-
-            made_progress = (
-                (after_claims > before_claims)
-                or (after_evidence > before_evidence)
-                or (after_unknowns < before_unknowns)  # Resolved unknowns counts as progress
-            )
-
-            if tool_name not in ["evaluator"]:  # Don't penalize evaluator for not adding reasoning
-                state.no_progress_streak = 0 if made_progress else (state.no_progress_streak + 1)
-
-                if made_progress:
-                    logger.info(
-                        f"[{issue_id}] Progress: claims +{after_claims-before_claims}, "
-                        f"evidence +{after_evidence-before_evidence}, "
-                        f"unknowns {before_unknowns}→{after_unknowns}"
-                    )
-                else:
-                    logger.warning(
-                        f"[{issue_id}] No reasoning progress (streak={state.no_progress_streak}/3)"
-                    )
-            else:
-                # Evaluator doesn't produce claims/evidence directly
-                state.no_progress_streak = 0 if made_progress else state.no_progress_streak
 
         except Exception as e:
             logger.error(f"[{issue_id}] Tool {tool_name} failed: {e}", exc_info=True)
@@ -363,7 +354,7 @@ def create_agent_graph(
     # NOTE: Must use async wrapper because agent_decision_node is async
     async def agent_node_wrapper(state: SASTAgentState) -> SASTAgentState:
         """Async wrapper for agent_decision_node to ensure proper await."""
-        return await agent_decision_node(state, bound_llm)
+        return await agent_decision_node(state, bound_llm, tools, max_iterations=max_iterations)
 
     graph.add_node("agent", agent_node_wrapper)
 

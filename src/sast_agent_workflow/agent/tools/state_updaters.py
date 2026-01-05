@@ -94,100 +94,148 @@ class EvaluatorToolStateUpdater:
         """
         Update state with evaluation results.
 
-        Parses JSON result, stores as ComprehensiveEvaluationResponse,
+        Parses JSON result, stores as EvaluatorReport,
         sets is_final flag, and sets verdict if investigation is complete.
         """
         try:
             eval_dict = json.loads(result)
-            state.analysis.evaluation_result = EvaluatorReport(**eval_dict)
+            evaluator_report = EvaluatorReport(**eval_dict)
+            state.analysis.last_evaluator_report = evaluator_report
 
-            # Set is_final based on evaluation
-            state.is_final = eval_dict.get("is_final") == "TRUE"
+            # Set is_final based on verification_passed
+            state.is_final = evaluator_report.verification_passed
 
-            # Set verdict if final and we have investigation result
-            if state.is_final and state.analysis.investigation_result:
-                state.analysis.verdict = state.analysis.investigation_result.investigation_result
+            # Set verdict if final
+            if state.is_final and evaluator_report.verdict:
+                state.analysis.verdict = evaluator_report.verdict
+                logger.info(
+                    f"[{state.issue_id}] Evaluator verified: verdict={evaluator_report.verdict}"
+                )
+            elif not state.is_final:
+                logger.info(
+                    f"[{state.issue_id}] Evaluator rejected: "
+                    f"{len(evaluator_report.blocking_gaps)} blocking gaps, "
+                    f"{len(evaluator_report.required_next_fetches)} required fetches"
+                )
 
             logger.debug(
                 f"[{state.issue_id}] Updated state: is_final={state.is_final}, "
-                f"exploration_gaps={len(state.analysis.evaluation_result.exploration_gaps)}"
+                f"verification_passed={evaluator_report.verification_passed}"
             )
         except (json.JSONDecodeError, Exception) as e:
-            logger.error(f"[{state.issue_id}] Failed to parse evaluation result: {e}")
+            logger.error(f"[{state.issue_id}] Failed to parse evaluation result: {result} \nError: {e}")
             # Don't raise - let the tool wrapper handle this as an error
 
 
 class SearchCodebaseStateUpdater:
-    """
-    State updater for search_codebase tool (Phase 2).
-
-    This updater will be implemented when search_codebase tool is added.
-    """
+    """State updater for search_codebase tool."""
 
     def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
         """
         Update state with search results.
 
-        Parses search results (file paths and matching code snippets)
-        and adds them to fetched_files.
+        Search results are added to fetched_files as formatted strings
+        (already formatted by the tool with file paths and line numbers).
         """
-        try:
-            # Expected format: {"file_path": ["snippet1", "snippet2"], ...}
-            search_results = json.loads(result)
-
-            for file_path, snippets in search_results.items():
-                # Merge with existing snippets if file was already fetched
-                if file_path in state.context.fetched_files:
-                    state.context.fetched_files[file_path].extend(snippets)
-                else:
-                    state.context.fetched_files[file_path] = snippets
-
-                state.context.found_symbols.add(file_path)
-
-            logger.debug(
-                f"[{state.issue_id}] Updated state: search found " f"{len(search_results)} files"
+        pattern = tool_args.get("pattern", "search")
+        
+        logger.info(f"[{state.issue_id}] SearchCodebaseStateUpdater called: pattern='{pattern}', result_len={len(result)}")
+        
+        # Check if search was successful (not an error message)
+        is_error = result.startswith("Error:") or result.startswith("No matches found")
+        
+        if not is_error:
+            # Store the formatted search results
+            # Use pattern as identifier since results span multiple files
+            identifier = f"search_results_{pattern[:50]}"  # Truncate pattern for identifier
+            state.context.fetched_files[identifier] = [result]
+            state.context.found_symbols.append(identifier)
+            
+            # Reset error state on success
+            state.error_state.error_recovery_attempts = 0
+            state.error_state.last_error = None
+            
+            logger.info(
+                f"[{state.issue_id}] Search results stored: identifier='{identifier}', "
+                f"total_fetched_files={len(state.context.fetched_files)}"
             )
-        except (json.JSONDecodeError, Exception) as e:
-            logger.error(f"[{state.issue_id}] Failed to parse search results: {e}")
+        else:
+            # Log but don't treat as error (no matches is a valid result)
+            logger.info(f"[{state.issue_id}] Search completed: {result[:100]}")
 
 
 class ListFilesStateUpdater:
-    """
-    State updater for list_files tool (Phase 2).
-
-    This updater will be implemented when list_files tool is added.
-    """
+    """State updater for list_files tool."""
 
     def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
         """
         Update state with file listing.
 
-        Stores discovered file paths in project context for reference.
+        File listings are stored in fetched_files for agent reference.
+        These help the agent understand directory structure and find related files.
         """
-        try:
-            # Expected format: {"files": ["path1", "path2", ...]}
-            file_list_dict = json.loads(result)
-            discovered_files = file_list_dict.get("files", [])
+        directory = tool_args.get("directory", ".")
+        
+        # Check if listing was successful
+        is_error = result.startswith("Error:")
+        
+        if not is_error:
+            # Store the formatted directory listing
+            identifier = f"directory_list_{directory.replace('/', '_')}"
+            state.context.fetched_files[identifier] = [result]
+            state.context.found_symbols.append(identifier)
+            
+            logger.debug(f"[{state.issue_id}] Directory listed: {directory}")
+        else:
+            logger.debug(f"[{state.issue_id}] List files error: {result[:100]}")
 
-            # Note: SASTAgentState doesn't currently have a discovered_files field
-            # This would need to be added to ProjectContext when implementing
-            # For now, just log
-            logger.debug(
-                f"[{state.issue_id}] Discovered {len(discovered_files)} files "
-                f"(state update pending ProjectContext extension)"
+
+class ReadFileStateUpdater:
+    """State updater for read_file tool."""
+
+    def update_state(self, state: SASTAgentState, tool_args: Dict[str, Any], result: str) -> None:
+        """
+        Update state with file contents.
+
+        File contents are stored in fetched_files similar to fetch_code tool.
+        """
+        file_path = tool_args.get("file_path", "unknown")
+        
+        # Check if read was successful
+        is_error = result.startswith("Error:")
+        
+        if not is_error:
+            # Store the file contents
+            state.context.fetched_files[file_path] = [result]
+            state.context.found_symbols.append(file_path)
+            
+            # Reset error state on success
+            state.error_state.error_recovery_attempts = 0
+            state.error_state.last_error = None
+            
+            logger.debug(f"[{state.issue_id}] File read: {file_path}")
+        else:
+            tool_error = ToolError(
+                tool_name="read_file",
+                error_message=result,
+                attempted_args=tool_args,
+                timestamp=datetime.utcnow().isoformat(),
             )
-        except (json.JSONDecodeError, Exception) as e:
-            logger.error(f"[{state.issue_id}] Failed to parse file list: {e}")
+            
+            state.error_state.errors.append(tool_error)
+            state.error_state.last_error = tool_error
+            state.error_state.error_recovery_attempts += 1
+            
+            logger.debug(f"[{state.issue_id}] Read file error: {result[:100]}")
 
 
 # Registry mapping tool names to their state updaters
 STATE_UPDATER_REGISTRY: Dict[str, ToolStateUpdater] = {
     "fetch_code": FetchCodeStateUpdater(),
     "evaluator": EvaluatorToolStateUpdater(),
-    # Phase 2 tools (ready for when tools are implemented)
-    "evaluator": EvaluatorToolStateUpdater(),
     "search_codebase": SearchCodebaseStateUpdater(),
     "list_files": ListFilesStateUpdater(),
+    "read_file": ReadFileStateUpdater(),
 }
 
 

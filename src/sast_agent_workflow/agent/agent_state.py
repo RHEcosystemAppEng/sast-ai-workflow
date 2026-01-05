@@ -153,8 +153,10 @@ class EvaluatorReport(BaseModel):
 class InvestigationContext(BaseModel):
     """
     Code and symbols gathered during investigation.
+
     This tracks all the context the agent has fetched to understand the issue.
     """
+
     fetched_files: Dict[str, List[str]] = Field(
         default_factory=dict,
         description="Code gathered during investigation (file_path -> code lines)",
@@ -280,6 +282,19 @@ class SASTAgentState(BaseModel):
     no_progress_streak: int = Field(
         default=0,
         description="Consecutive retrieval tool calls that added no new evidence/claims",
+    )
+    # Progress tracking snapshots (used by router to detect stalled progress)
+    snapshot_claims_count: int = Field(
+        default=0,
+        description="Snapshot of claims count for progress detection",
+    )
+    snapshot_evidence_count: int = Field(
+        default=0,
+        description="Snapshot of evidence count for progress detection",
+    )
+    snapshot_unknowns_count: int = Field(
+        default=0,
+        description="Snapshot of unknowns count for progress detection",
     )
     guard_attempt_count: int = Field(
         default=0, description="Number of evaluator attempts (guard attempts)"

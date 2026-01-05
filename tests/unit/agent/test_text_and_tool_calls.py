@@ -8,7 +8,6 @@ to get validated Pydantic models for reasoning state updates.
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from langchain_core.messages import AIMessage
 
 from dto.Issue import Issue
 from sast_agent_workflow.agent.agent_node import (
@@ -16,7 +15,6 @@ from sast_agent_workflow.agent.agent_node import (
     agent_decision_node,
 )
 from sast_agent_workflow.agent.agent_state import (
-    AgentMemory,
     AnalysisState,
     Claim,
     ErrorState,
@@ -25,6 +23,7 @@ from sast_agent_workflow.agent.agent_state import (
     ReasoningStateUpdate,
     SASTAgentState,
     Unknown,
+    AgentMemory,
 )
 
 

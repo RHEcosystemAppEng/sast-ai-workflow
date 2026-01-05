@@ -26,6 +26,7 @@ from sast_agent_workflow.tools import calculate_metrics  # noqa: F401
 from sast_agent_workflow.tools import data_fetcher  # noqa: F401
 from sast_agent_workflow.tools import evaluate_analysis  # noqa: F401
 from sast_agent_workflow.tools import filter  # noqa: F401
+from sast_agent_workflow.tools import investigate_issue  # noqa: F401
 from sast_agent_workflow.tools import judge_llm_analysis  # noqa: F401
 from sast_agent_workflow.tools import pre_process  # noqa: F401
 from sast_agent_workflow.tools import summarize_justifications  # noqa: F401
@@ -34,8 +35,8 @@ from Utils.metrics_utils import categorize_issues_by_status
 
 # Import agent tools for NAT auto-registration
 from sast_agent_workflow.agent.tools import fetch_code  # noqa: F401
-from sast_agent_workflow.agent.tools import analyze_issue  # noqa: F401
 from sast_agent_workflow.agent.tools import evaluator  # noqa: F401
+from sast_agent_workflow.agent.tools import code_exploration  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

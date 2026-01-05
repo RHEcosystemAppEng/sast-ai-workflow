@@ -5,11 +5,9 @@ This test verifies that the agent properly analyzes code and maintains
 Claims, Evidence, and Unknowns state as required by the ADR.
 """
 
-import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from langchain_core.messages import AIMessage
 
 from dto.Issue import Issue
 from sast_agent_workflow.agent.agent_node import (
@@ -186,8 +184,6 @@ def test_format_unknowns_for_prompt_with_blocking():
 async def test_agent_decision_node_enforces_reasoning(sample_state):
     """Test that agent decision node enforces structured output."""
     # Mock LLM that fails to produce structured output (returns None)
-    from sast_agent_workflow.agent.agent_state import ReasoningStateUpdate
-
     mock_llm = MagicMock()
     mock_structured_llm = AsyncMock()
     mock_structured_llm.ainvoke.return_value = (
@@ -208,9 +204,9 @@ async def test_agent_decision_node_enforces_reasoning(sample_state):
 @pytest.mark.asyncio
 async def test_agent_decision_node_accepts_valid_reasoning(sample_state):
     """Test that agent decision node accepts valid structured output."""
+    # Mock LLM that produces valid ReasoningStateUpdate
     from sast_agent_workflow.agent.agent_state import ReasoningStateUpdate
 
-    # Mock LLM that produces valid ReasoningStateUpdate
     mock_llm = MagicMock()
     mock_structured_llm = AsyncMock()
 
@@ -258,8 +254,6 @@ async def test_agent_decision_node_accepts_valid_reasoning(sample_state):
 @pytest.mark.asyncio
 async def test_agent_decision_node_handles_exception(sample_state):
     """Test that agent handles exceptions gracefully."""
-    from sast_agent_workflow.agent.agent_state import ReasoningStateUpdate
-
     # Mock LLM that raises an exception
     mock_llm = MagicMock()
     mock_structured_llm = AsyncMock()

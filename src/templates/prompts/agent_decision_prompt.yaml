@@ -54,11 +54,7 @@ template: |
   
   **AVAILABLE TOOLS:**
   
-  1. **fetch_code(referring_source_code_path, expression_name, reason)** - Fetch symbol definition from codebase
-     - referring_source_code_path: The file path where you saw this symbol referenced
-     - expression_name: The symbol/function name to fetch (e.g., "sasl_bind_mech", "authtype_requires_creds")
-     - reason: Why you need to see this code
-  2. **evaluator(evidence_package)** - Verification gate
+  $available_tools
   
   **WHEN READY TO FINALIZE:**
   
@@ -69,7 +65,7 @@ template: |
   - unknowns: Any remaining questions
   - proposed verdict: TRUE_POSITIVE or FALSE_POSITIVE
   
-  Call evaluator(evidence_package). If the evaluator rejects:
+  Call the evaluator tool with the evidence_package. If the evaluator rejects:
   - Convert its blocking_gaps into new/high-priority unknowns
   - Continue retrieval to fill those gaps
   - Try evaluator again when gaps are resolved
@@ -79,7 +75,7 @@ template: |
   - must_retrieve=$must_retrieve: If TRUE, you MUST fetch code (not call evaluator)
   - Evaluator rejected? Resolve blocking_gaps it identified
   - Error occurred? Try different approach (see error context)
-  - No blocking unknowns? Build evidence_package and call evaluator
+  - No blocking unknowns? Build evidence_package and call the evaluator tool
   
   **HARD CONSTRAINTS:**
   
@@ -165,10 +161,7 @@ template: |
   }
   ```
   
-  **Tool Decision Rules:**
-  - If you have blocking unknowns → next_tool="fetch_code" with referring_source_code_path + expression_name + reason
-  - If no blocking unknowns → next_tool="evaluator" with full evidence_package parameters
-  
-  The tool_parameters structure depends on next_tool:
-  - For fetch_code: {{"referring_source_code_path": "...", "expression_name": "...", "reason": "..."}}
-  - For evaluator: {{"analysis": "...", "claims": [...], "evidence": [...], "unknowns": [...], "proposed_verdict": "TRUE_POSITIVE" or "FALSE_POSITIVE"}}
+  **Important Notes:**
+  - The "next_tool" field must be one of the available tool names listed above
+  - The "tool_parameters" structure varies by tool - refer to the parameter schemas in AVAILABLE TOOLS section
+  - All required parameters for the chosen tool must be included in tool_parameters

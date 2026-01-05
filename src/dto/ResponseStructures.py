@@ -41,9 +41,9 @@ class JudgeLLMResponse(BaseModel):
       as false positive or not a false positive.
     """
 
-    investigation_result: Literal["FALSE POSITIVE", "TRUE POSITIVE"] = Field(
+    investigation_result: Literal["FALSE POSITIVE", "TRUE POSITIVE", "NEEDS REVIEW"] = Field(
         description="The result of the investigation. \
-            Possible values are 'FALSE POSITIVE' or 'TRUE POSITIVE'."
+            Possible values are 'FALSE POSITIVE', 'TRUE POSITIVE', or 'NEEDS REVIEW'."
     )
     justifications: List[str] = Field(
         description="The reasoning that led to the investigation_result decision."

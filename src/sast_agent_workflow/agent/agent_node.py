@@ -9,7 +9,6 @@ import functools
 import json
 import logging
 import os
-import re
 import uuid
 from datetime import datetime
 from string import Template
@@ -26,6 +25,7 @@ from .agent_state import (
     Evidence,
     ReasoningStateUpdate,
     SASTAgentState,
+    ToolChoice,
     ToolError,
     Unknown,
 )
@@ -124,7 +124,7 @@ def format_evaluator_feedback(state: SASTAgentState) -> str:
     )
 
 
-def format_state_summary(state: SASTAgentState) -> str:
+def format_state_summary(state: SASTAgentState, max_iterations: int = 15) -> str:
     """Format current investigation state summary."""
     _, formatting_templates = get_agent_prompts()
 
@@ -159,6 +159,7 @@ def format_state_summary(state: SASTAgentState) -> str:
         blocking_unknowns=blocking_unknowns,
         last_guard=last_guard,
         iteration_count=state.iteration_count,
+        max_iterations=max_iterations,
         is_final=state.is_final,
         errors_count=len(state.error_state.errors),
     )
@@ -267,6 +268,54 @@ def format_unknowns_for_prompt(unknowns: List[Unknown]) -> str:
     return "\n".join(lines)
 
 
+def format_tools_for_prompt(tools: List[Any]) -> str:
+    """
+    Format tools documentation for agent prompt.
+    
+    Extracts tool name, description, and parameter schema from LangChain tools
+    to show the agent what tools are available and how to use them.
+    
+    Args:
+        tools: List of LangChain BaseTool objects
+        
+    Returns:
+        Formatted string with tool documentation
+    """
+    if not tools:
+        return "No tools available."
+    
+    tool_docs = []
+    for tool in tools:
+        tool_docs.append(f"### {tool.name}")
+        tool_docs.append(f"{tool.description}\n")
+        
+        # Get parameter schema from tool
+        if hasattr(tool, 'args_schema') and tool.args_schema:
+            try:
+                schema = tool.args_schema.schema()
+                properties = schema.get('properties', {})
+                required = schema.get('required', [])
+                
+                if properties:
+                    tool_docs.append("**Parameters:**")
+                    for param_name, param_info in properties.items():
+                        param_type = param_info.get('type', 'string')
+                        param_desc = param_info.get('description', 'No description')
+                        required_marker = " (required)" if param_name in required else " (optional)"
+                        tool_docs.append(f"- `{param_name}` ({param_type}){required_marker}: {param_desc}")
+                else:
+                    tool_docs.append("**Parameters:** None")
+            except Exception as e:
+                logger.warning(f"Failed to extract schema for tool {tool.name}: {e}")
+                tool_docs.append("**Parameters:** See tool description above")
+        else:
+            tool_docs.append("**Parameters:** See tool description above")
+        
+        tool_docs.append("")  # Blank line between tools
+    
+    return "\n".join(tool_docs)
+
+
 async def _robust_structured_output_with_retry(
     llm: BaseChatModel,
     messages: List[Any],
@@ -320,13 +369,23 @@ async def _robust_structured_output_with_retry(
                         "Response may not match schema."
                     )
                     if attempt < max_retries - 1:
-                        # Add clarifying message for retry
+                        # Add very explicit formatting instruction
                         messages.append(
                             HumanMessage(
                                 content=(
-                                    "Your previous response did not match the required JSON schema. "
-                                    "Please provide a valid JSON response with ALL required fields: "
-                                    "analysis, claims, evidence, unknowns, next_tool, tool_reasoning, tool_parameters"
+                                    "ERROR: Your previous response was not valid JSON or was missing required fields.\n\n"
+                                    "You MUST respond with a JSON object with this EXACT structure:\n"
+                                    "{\n"
+                                    '  "analysis": "string - your investigation summary",\n'
+                                    '  "claims": [ list of claim objects with claim_id, claim, confidence, evidence_ids ],\n'
+                                    '  "evidence": [ list of evidence objects with evidence_id, path_or_identifier, excerpt, start_line, end_line, why_it_matters ],\n'
+                                    '  "unknowns": [ list of unknown objects with unknown_id, question, priority, blocking ],\n'
+                                    '  "next_tool": "string - tool name from: fetch_code, evaluator, list_files, read_file, search_codebase",\n'
+                                    '  "tool_reasoning": "string - why you chose this tool",\n'
+                                    '  "tool_parameters": { object - parameters for the tool }\n'
+                                    "}\n\n"
+                                    "CRITICAL: All 7 fields are REQUIRED. Do not omit any field. "
+                                    "If a list is empty, use []. If you have no tool to call, use next_tool: 'evaluator'."
                                 )
                             )
                         )
@@ -434,7 +493,9 @@ def _create_tool_call_from_reasoning(
     return tool_call
 
 
-async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SASTAgentState:
+async def agent_decision_node(
+    state: SASTAgentState, llm: BaseChatModel, tools: List[Any] = None, max_iterations: int = 15
+) -> SASTAgentState:
     """
     Agent decision node - performs ANALYSIS and DECISION in one step.
 
@@ -452,11 +513,54 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
     Args:
         state: Current investigation state
         llm: LLM for decision making (already bound with tools in graph)
+        tools: List of available tools (used for documenting in prompt)
+        max_iterations: Maximum iterations allowed (for showing in prompt)
 
     Returns:
         Updated state with new tool call decision in messages
     """
     logger.info(f"[{state.issue_id}] Agent reasoning cycle (iteration {state.iteration_count})")
+
+    # Pre-check: Force evaluator if approaching max_iterations
+    # This prevents the agent from getting stuck in exploration loops
+    if state.iteration_count >= max_iterations - 3:
+        logger.warning(
+            f"[{state.issue_id}] Approaching max iterations ({state.iteration_count}/{max_iterations}). "
+            "Forcing evaluator call to finalize investigation."
+        )
+        
+        # Determine proposed verdict based on current evidence
+        has_evidence = len(state.analysis.evidence) > 0
+        has_blocking_unknowns = any(u.blocking for u in state.analysis.unknowns)
+        proposed_verdict = "NEEDS_REVIEW" if has_blocking_unknowns else (
+            "TRUE_POSITIVE" if has_evidence else "NEEDS_REVIEW"
+        )
+        
+        # Create forced evaluator reasoning
+        forced_reasoning = ReasoningStateUpdate(
+            analysis=(
+                f"Investigation reached iteration {state.iteration_count}/{max_iterations}. "
+                "Finalizing with available evidence."
+            ),
+            claims=state.analysis.claims or [],
+            evidence=state.analysis.evidence or [],
+            unknowns=state.analysis.unknowns or [],
+            next_tool="evaluator",
+            tool_reasoning=f"Forcing evaluation at iteration {state.iteration_count}/{max_iterations}",
+            tool_parameters={
+                "analysis": f"Investigation concluded after {state.iteration_count} iterations",
+                "claims": [c.model_dump() for c in (state.analysis.claims or [])],
+                "evidence": [e.model_dump() for e in (state.analysis.evidence or [])],
+                "unknowns": [u.model_dump() for u in (state.analysis.unknowns or [])],
+                "proposed_verdict": proposed_verdict,
+            }
+        )
+        
+        # Update state and create synthetic tool call
+        tool_call = _create_tool_call_from_reasoning(forced_reasoning, state.issue_id)
+        response = AIMessage(content="[Forced evaluator call]", tool_calls=[tool_call])
+        state.memory.messages.append(response)
+        return state
 
     # Get prompts (lazy-loaded and cached)
     system_prompt, _ = get_agent_prompts()
@@ -464,13 +568,17 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
     # Build rich context including ALL evidence
     error_ctx = format_error_context(state.error_state)
     evaluator_feedback = format_evaluator_feedback(state)
-    state_summary = format_state_summary(state)
+    state_summary = format_state_summary(state, max_iterations=max_iterations)
 
     # Show agent current reasoning state to review/update
     formatted_claims = format_claims_for_prompt(state.analysis.claims)
+    formatted_fetched_code = format_all_fetched_code(state.context.fetched_files)
     formatted_evidence = format_evidence_for_prompt(state.analysis.evidence)
     formatted_unknowns = format_unknowns_for_prompt(state.analysis.unknowns)
     has_blocking_unknowns = any(u.blocking for u in state.analysis.unknowns)
+    
+    # Format available tools documentation
+    available_tools = format_tools_for_prompt(tools) if tools else "No tools documentation available."
 
     # Merge source_code (pre-loaded) and fetched_files (agent-fetched) for display
     all_code = {}
@@ -485,15 +593,15 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
         formatted_claims=formatted_claims,
         formatted_evidence=formatted_evidence,
         formatted_unknowns=formatted_unknowns,
+        fetched_code=formatted_code,
         evaluator_feedback=evaluator_feedback,
         must_retrieve="TRUE" if has_blocking_unknowns else "FALSE",
         error_context=error_ctx,
-        fetched_code=formatted_code,
+        available_tools=available_tools,
     )
 
     system_msg = SystemMessage(content=formatted_content)
-    logger.info(f"the prompt is:\n"
-                f"{system_msg}")
+    logger.info(f"the prompt is:{system_msg.content}")
     # Build user message
     user_msg = HumanMessage(
         content=(
@@ -513,43 +621,68 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
 
         # Use with_structured_output for reliable Pydantic validation
         reasoning = await _robust_structured_output_with_retry(
-            llm=llm, messages=messages, schema=ReasoningStateUpdate, max_retries=2
+            llm=llm, messages=messages, schema=ReasoningStateUpdate, max_retries=3
         )
-
+        
         if reasoning is None:
             # All attempts to get structured reasoning failed
             logger.error(
                 f"[{state.issue_id}] Failed to get structured reasoning after all attempts. "
-                "Recording error and forcing retry."
+                "Checking if we should force evaluator or continue."
             )
 
-            error = ToolError(
-                tool_name="agent_reasoning",
-                error_message=(
-                    "Failed to produce valid structured output. "
-                    "Ensure your response is valid JSON matching the schema: "
-                    "{analysis, claims, evidence, unknowns, next_tool, tool_reasoning, tool_parameters}"
-                ),
-                attempted_args={},
-                timestamp=datetime.now().isoformat(),
-            )
-            state.error_state.errors.append(error)
-            state.error_state.last_error = error
             state.error_state.error_recovery_attempts += 1
 
-            # Create a placeholder response to store in messages
-            response = AIMessage(content="[Structured reasoning failed - see error state]")
-            state.memory.messages.append(user_msg)
-            state.memory.messages.append(response)
-
-            return state
+            # Circuit breaker: If we've had too many error recovery attempts or iterations, force evaluator call
+            if state.error_state.error_recovery_attempts >= 3 or state.iteration_count >= 15:
+                logger.warning(
+                    f"[{state.issue_id}] Too many error recovery attempts ({state.error_state.error_recovery_attempts}) or "
+                    f"iterations ({state.iteration_count}). Forcing evaluator call to exit gracefully."
+                )
+                
+                # Create a minimal valid reasoning to call evaluator
+                reasoning = ReasoningStateUpdate(
+                    analysis=(
+                        "Investigation reached maximum complexity. "
+                        "Submitting current findings for evaluation."
+                    ),
+                    claims=state.analysis.claims,  # Keep existing claims
+                    evidence=state.analysis.evidence,  # Keep existing evidence
+                    unknowns=state.analysis.unknowns,  # Keep existing unknowns
+                    next_tool="evaluator",  # Use string value, not enum-style access
+                    tool_reasoning="Forcing evaluation after repeated reasoning failures",
+                    tool_parameters={
+                        "analysis": "Investigation completed with available evidence",
+                        "claims": [c.model_dump() for c in state.analysis.claims],
+                        "evidence": [e.model_dump() for e in state.analysis.evidence],
+                        "unknowns": [u.model_dump() for u in state.analysis.unknowns],
+                        "proposed_verdict": "NEEDS_REVIEW",
+                    }
+                )
+            else:
+                # Create a placeholder response to store in messages and try again
+                response = AIMessage(content="[Structured reasoning failed - see error state]")
+                state.memory.messages.append(user_msg)
+                state.memory.messages.append(response)
+                return state
 
         # Successfully got structured reasoning!
+        logger.info(f"[{state.issue_id}] Iteration {state.iteration_count}: Structured reasoning received")
+        logger.debug(f"[{state.issue_id}] Claims: {[c.model_dump() for c in reasoning.claims]}")
+        logger.debug(f"[{state.issue_id}] Evidence: {[e.model_dump() for e in reasoning.evidence]}")
+        logger.debug(f"[{state.issue_id}] Unknowns: {[u.model_dump() for u in reasoning.unknowns]}")
         logger.info(
-            f"[{state.issue_id}] Structured reasoning received: "
+            f"[{state.issue_id}] Summary: "
             f"{len(reasoning.claims)} claims, {len(reasoning.evidence)} evidence, "
             f"{len(reasoning.unknowns)} unknowns, next_tool={reasoning.next_tool}"
         )
+        logger.debug(f"[{state.issue_id}] Tool reasoning: {reasoning.tool_reasoning}")
+        logger.debug(f"[{state.issue_id}] Tool parameters: {reasoning.tool_parameters}")
+
+        # Snapshot current state for progress tracking (before updating)
+        state.snapshot_claims_count = len(state.analysis.claims)
+        state.snapshot_evidence_count = len(state.analysis.evidence)
+        state.snapshot_unknowns_count = len(state.analysis.unknowns)
 
         # Update state with validated reasoning
         state.analysis.claims = reasoning.claims
@@ -577,99 +710,7 @@ async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SAST
 
     except Exception as e:
         logger.error(f"[{state.issue_id}] Agent decision node failed: {e}", exc_info=True)
-
-        # Record error
-        error = ToolError(
-            tool_name="agent_reasoning",
-            error_message=f"Unexpected error during reasoning: {str(e)}",
-            attempted_args={},
-            timestamp=datetime.now().isoformat(),
-        )
-        state.error_state.errors.append(error)
-        state.error_state.last_error = error
         state.error_state.error_recovery_attempts += 1
-
         raise
 
     return state
-
-# async def agent_decision_node(state: SASTAgentState, llm: BaseChatModel) -> SASTAgentState:
-#     """
-#     Agent decision node - decides next tool call based on state.
-#
-#     This is the ONLY node that makes decisions. All other nodes (tools, analyze,
-#     comprehensive_evaluation) are executors that update state and return results.
-#
-#     Args:
-#         state: Current investigation state
-#         llm: LLM for decision making
-#
-#     Returns:
-#         Updated state with new tool call decision in messages
-#     """
-#     logger.info(f"[{state.issue_id}] Agent making decision (iteration {state.iteration_count})")
-#
-#     # Build context strings using templates
-#     project_ctx = format_project_context(state.project_context)
-#     error_ctx = format_error_context(state.error_state)
-#     eval_feedback = format_evaluation_feedback(state)
-#     state_summary = format_state_summary(state)
-#
-#     # Build system message
-#     system_msg = SystemMessage(
-#         content=AGENT_SYSTEM_PROMPT.format(
-#             project_context=project_ctx,
-#             state_summary=state_summary,
-#             evaluation_feedback=eval_feedback,
-#             error_context=error_ctx,
-#         )
-#     )
-#
-#     # Build user message
-#     user_msg = HumanMessage(content="What should I do next? Decide ONE tool call.")
-#
-#     # Get LLM decision with tool binding
-#     max_retries = 2
-#     for attempt in range(max_retries):
-#         try:
-#             # Tool definitions will be bound to LLM in graph construction
-#             response = await llm.ainvoke([system_msg] + state.memory.messages[-10:] + [user_msg])
-#
-#             # CLIENT-SIDE WORKAROUND: Filter to single tool call if LLM generated multiple
-#             # This is needed because vLLM server doesn't respect parallel_tool_calls=False
-#             if hasattr(response, "tool_calls") and response.tool_calls:
-#                 if len(response.tool_calls) > 1:
-#                     logger.warning(
-#                         f"[{state.issue_id}] LLM generated {len(response.tool_calls)} tool calls. "
-#                         f"Keeping only the first one as workaround for vLLM limitation."
-#                     )
-#                     # Keep only the first tool call
-#                     response.tool_calls = [response.tool_calls[0]]
-#
-#             # Store reasoning and decision
-#             state.memory.messages.append(user_msg)
-#             state.memory.messages.append(response)
-#
-#             content_preview = response.content[:100] if hasattr(response, "content") else "tool_call"
-#             logger.info(f"[{state.issue_id}] Agent decision: {content_preview}")
-#             break  # Success - exit retry loop
-#
-#         except Exception as e:
-#             error_msg = str(e)
-#             # Check if this is the vLLM "multiple tool calls" error
-#             if "single tool-calls at once" in error_msg and attempt < max_retries - 1:
-#                 logger.warning(
-#                     f"[{state.issue_id}] vLLM rejected multiple tool calls (attempt {attempt + 1}/{max_retries}). "
-#                     f"Retrying with more explicit prompt..."
-#                 )
-#                 # Retry with more explicit single-call instruction
-#                 user_msg = HumanMessage(
-#                     content="IMPORTANT: Call EXACTLY ONE tool. Do not call multiple tools. Choose the single most important tool to call next."
-#                 )
-#                 continue
-#             else:
-#                 # Not a retryable error, or max retries reached
-#                 logger.error(f"[{state.issue_id}] Agent decision failed: {e}")
-#                 raise
-#
-#     return state

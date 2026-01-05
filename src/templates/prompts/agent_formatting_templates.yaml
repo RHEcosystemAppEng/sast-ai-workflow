@@ -61,7 +61,7 @@ state_summary_template: |
     - Last evaluator: $last_guard
 
   **Investigation Status:**
-    - Iteration: $iteration_count/15
+    - Iteration: $iteration_count/$max_iterations
     - is_final: $is_final
     - Errors: $errors_count
 

@@ -412,7 +412,7 @@ class CRepoHandler:
         command = rf'grep -nHr "#define\s*{macro_name}.*" {self.repo_local_path}'
         try:
             result = subprocess.run(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False, shell=True
             )
         except Exception as e:
             logger.error(e)

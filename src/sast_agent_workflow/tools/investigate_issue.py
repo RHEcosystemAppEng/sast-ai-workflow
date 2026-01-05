@@ -96,8 +96,8 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
             raise
 
         # Get tools from NAT
-        # NOTE: Retrieval expansion tools can be added once implemented.
-        tool_names = ["fetch_code", "evaluator"]
+        # Agent has access to code exploration tools for thorough investigation
+        tool_names = ["fetch_code", "evaluator", "list_files", "read_file", "search_codebase"]
         tools = await builder.get_tools(
             tool_names=tool_names, wrapper_type=LLMFrameworkEnum.LANGCHAIN
         )
@@ -112,7 +112,7 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
             llm=llm,
             tools=tools,
             config=tracker.config,
-            max_iterations=15,
+            max_iterations=25,  # Increased from 15 to allow for more thorough investigation
             max_error_recovery_attempts=3,
             enable_duplicate_detection=True,
         )
@@ -164,7 +164,7 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
                 final_state_dict = await agent_graph.ainvoke(
                     agent_state,
                     config={
-                        "recursion_limit": 20,  # Max 20 nodes in path (15 tools + 5 buffer)
+                        "recursion_limit": 25,  # Max 20 nodes in path (20 tools + 5 buffer)
                         "timeout": 300,  # 5 minutes
                     },
                 )
