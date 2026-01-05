@@ -91,8 +91,6 @@ async def register_evaluator(
         Returns:
             Formatted context string with all code blocks
         """
-        # TODO: Validate context format - should we preserve === markers from fetch_code?
-        # Current implementation preserves the structured format for LLM readability
 
         if not state.context.fetched_files:
             logger.warning(f"[{state.issue_id}] No code fetched yet - context is empty")
@@ -156,14 +154,12 @@ async def register_evaluator(
         if not state:
             logger.error("evaluator called without state in context variable")
             return json.dumps({
-                "is_final": "TRUE",
-                "verdict_confidence": "low",
-                "exploration_gaps": [],
-                "has_exploration_gaps": False,
-                "logic_gaps": [],
-                "required_code": [],
-                "recommendations": ["Error: No state provided"],
-                "justifications": ["State injection failed - cannot evaluate"]
+                "verification_passed": True,
+                "verdict": "TRUE_POSITIVE",
+                "blocking_gaps": ["State injection failed"],
+                "required_next_fetches": [],
+                "justifications": ["State injection failed - cannot evaluate"],
+                "stop_reason": "error_no_state"
             }, indent=2)
 
         # Extract other parameters from kwargs with explicit logging
@@ -222,23 +218,14 @@ async def register_evaluator(
 
         if not context:
             logger.warning(f"[{state.issue_id}] Empty context - cannot evaluate completeness")
-            # TODO: Validate error default - should we return is_final=TRUE to avoid infinite loops?
-            # Currently defaulting to FALSE to give agent a chance to fetch code
+            # Return verification_passed=False to give agent a chance to fetch code
             result = {
-                "is_final": "FALSE",
-                "verdict_confidence": "low",
-                "exploration_gaps": [
-                    {
-                        "area": "other",
-                        "reason": "No code context available for evaluation",
-                        "suggested_files": [],
-                    }
-                ],
-                "has_exploration_gaps": True,
-                "logic_gaps": [],
-                "required_code": [],
-                "recommendations": ["Fetch code before evaluating"],
-                "justifications": ["No code context available for evaluation"],
+                "verification_passed": False,
+                "verdict": None,
+                "blocking_gaps": ["No code context available for evaluation"],
+                "required_next_fetches": [],
+                "justifications": ["No code context available for evaluation - need to fetch code first"],
+                "stop_reason": None
             }
             return json.dumps(result, indent=2)
 
@@ -263,53 +250,45 @@ async def register_evaluator(
                 f"[{state.issue_id}] Recommendations: {recommendations_response.recommendations}"
             )
 
-            # STEP 4: Map RecommendationsResponse to ComprehensiveEvaluationResponse format
-            # TODO: Validate verdict_confidence derivation - currently using simple heuristic
-            # If is_final=TRUE, confidence is high; otherwise medium
-            verdict_confidence = "high" if recommendations_response.is_final == "TRUE" else "medium"
+            # STEP 4: Map RecommendationsResponse to EvaluatorReport format
+            # Convert is_final string to verification_passed boolean
+            verification_passed = (recommendations_response.is_final == "TRUE")
 
-            # Convert recommendations to structured ExplorationGap objects
-            # The service returns recommendations as strings, but we need structured objects
-            exploration_gaps = []
-            logic_gaps = []
-            required_code = []
+            # Extract verdict from analysis_verdict parameter (passed by agent)
+            verdict = analysis_verdict if verification_passed else None
 
-            if recommendations_response.is_final == "FALSE":
-                # Investigation not complete - convert recommendations to ExplorationGap objects
-                # Map each recommendation string to an ExplorationGap with default "other" category
-                for recommendation in recommendations_response.recommendations:
-                    exploration_gaps.append(
-                        {
-                            "area": "other",  # Default category for now
-                            "reason": recommendation,
-                            "suggested_files": [],  # Service doesn't provide file suggestions
-                        }
-                    )
+            # Convert recommendations to blocking_gaps (simple string list)
+            blocking_gaps = []
+            required_next_fetches = []
 
-                # Map instructions to required_code format with CORRECT field names
+            if not verification_passed:
+                # Investigation not complete - extract blocking gaps from recommendations
+                blocking_gaps = recommendations_response.recommendations
+
+                # Map instructions to required_next_fetches format
                 # instructions is List[InstructionResponse] with fields:
                 # - expression_name: str
                 # - referring_source_code_path: str
                 for instruction in recommendations_response.instructions:
-                    required_code.append(
+                    required_next_fetches.append(
                         {
-                            "expression_name": instruction.expression_name,  # ✅ Correct field name
-                            "file_path": instruction.referring_source_code_path,  # ✅ Correct field name
-                            "reason": "Required for investigation",
+                            "tool": "fetch_code",
+                            "args": {
+                                "expression_name": instruction.expression_name,
+                                "referring_source_code_path": instruction.referring_source_code_path,
+                                "reason": "Required for investigation"
+                            },
+                            "reason": "Required for investigation"
                         }
                     )
 
-            has_exploration_gaps = len(exploration_gaps) > 0
-
             result = {
-                "is_final": recommendations_response.is_final,
-                "verdict_confidence": verdict_confidence,
-                "exploration_gaps": exploration_gaps,
-                "has_exploration_gaps": has_exploration_gaps,
-                "logic_gaps": logic_gaps,
-                "required_code": required_code,
-                "recommendations": recommendations_response.recommendations,
+                "verification_passed": verification_passed,
+                "verdict": verdict,
+                "blocking_gaps": blocking_gaps,
+                "required_next_fetches": required_next_fetches,
                 "justifications": recommendations_response.justifications,
+                "stop_reason": None
             }
 
             return json.dumps(result, indent=2)
@@ -320,20 +299,17 @@ async def register_evaluator(
                 exc_info=True,
             )
 
-            # TODO: Validate error default - should we return is_final=TRUE to avoid infinite loops?
-            # Currently defaulting to TRUE for safety when evaluation fails
+            # Return verification_passed=True to terminate on error and avoid infinite loops
             result = {
-                "is_final": "TRUE",
-                "verdict_confidence": "low",
-                "exploration_gaps": [],
-                "has_exploration_gaps": False,
-                "logic_gaps": [],
-                "required_code": [],
-                "recommendations": ["Evaluation failed - terminating investigation"],
+                "verification_passed": True,
+                "verdict": analysis_verdict,  # Use verdict from agent
+                "blocking_gaps": [],
+                "required_next_fetches": [],
                 "justifications": [
                     f"Evaluation failed with error: {str(e)}",
-                    "Defaulting to is_final=TRUE for safety",
+                    "Terminating investigation for safety",
                 ],
+                "stop_reason": "error_evaluation_failed"
             }
             return json.dumps(result, indent=2)
 
