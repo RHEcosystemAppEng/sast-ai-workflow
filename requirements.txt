@@ -1,5 +1,5 @@
-aioboto3==15.1.0
-aiobotocore==2.24.0
+aioboto3>=15.1.0
+aiobotocore>=2.24.0
 aiofiles==24.1.0
 aiohappyeyeballs==2.4.4
 aiohttp==3.11.14
@@ -13,8 +13,8 @@ attrs==24.2.0
 Authlib==1.6.5
 beautifulsoup4==4.12.3
 blinker==1.9.0
-boto3==1.39.9
-botocore==1.39.9
+boto3>=1.40.19
+botocore>=1.40.0
 bs4==0.0.2
 cachetools==5.5.2
 certifi==2024.8.30
