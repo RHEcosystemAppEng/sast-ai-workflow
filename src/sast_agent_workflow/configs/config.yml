@@ -1,39 +1,42 @@
 functions:
+  # Outer workflow nodes
   pre_process:
     _type: pre_process
     description: "Pre-processing function that initializes the SAST workflow"
-  
+
   filter:
     _type: filter
     description: "Filter function that filters known false positives and retrieve similar issues"
     llm_name: main_llm
     embedder_llm_name: filter_embedding
-  
-  data_fetcher:
-    _type: data_fetcher
-    description: "Data fetcher function that fetches required source code for analysis"
-  
-  judge_llm_analysis:
-    _type: judge_llm_analysis
-    description: "Judge LLM analysis function that performs LLM-based analysis of SAST issues"
+
+  # Agent-based investigation (replaces old 3-iteration loop)
+  investigate_issue:
+    _type: investigate_issue
+    description: "Agent-based investigation replacing data_fetcher → judge → evaluate loop"
     llm_name: main_llm
-  
-  evaluate_analysis:
-    _type: evaluate_analysis
-    description: "Evaluate analysis function that evaluates the results of the analysis and provides recommendations for the next steps"
-  
+
   summarize_justifications:
     _type: summarize_justifications
     description: "Summarize justifications function that summarizes analysis justifications"
     llm_name: main_llm
-  
+
   calculate_metrics:
     _type: calculate_metrics
     description: "Calculate metrics function that calculates performance metrics for SAST analysis"
-  
+
   write_results:
     _type: write_results
-    description: "Write results function that writes the final SAST analysis results to the outputs specified in the configuration."
+    description: "Write results function that writes the final SAST analysis results"
+
+  # Agent tools (called by investigate_issue internally)
+  fetch_code:
+    _type: fetch_code
+    description: "Fetch source code by file path or symbol name"
+
+  evaluator:
+    _type: evaluator
+    description: "Gate tool for investigation verification (ADR-0002)"
 
 llms:
   main_llm:
@@ -44,7 +47,7 @@ llms:
     temperature: 0
     top_p: 1.0
     max_tokens: 4096
-  
+
 embedders:
   filter_embedding:
     _type: extended_openai
@@ -56,24 +59,21 @@ embedders:
     http_client:
       verify: false
 
-
 workflow:
   _type: sast_agent
   pre_process_function_name: pre_process
   filter_function_name: filter
-  data_fetcher_function_name: data_fetcher
-  judge_llm_analysis_function_name: judge_llm_analysis
-  evaluate_analysis_function_name: evaluate_analysis
+  investigate_issue_function_name: investigate_issue
   summarize_justifications_function_name: summarize_justifications
   calculate_metrics_function_name: calculate_metrics
   write_results_function_name: write_results
-  description: "SAST agent workflow for static application security testing"
+  description: "SAST agent workflow with agent-based investigation"
 
 general:
-  use_uvloop: true
-  logging:
-    console:
-      _type: console
-      level: INFO
+  telemetry:
+    logging:
+      console:
+        _type: console
+        level: INFO
   front_end:
-    type: console
+    _type: console

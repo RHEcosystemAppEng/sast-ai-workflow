@@ -126,8 +126,8 @@ The state is seeded from **preloaded inputs** before any retrieval calls:
 ### Adversarial Evaluation
 
 Finalization is gated by an **Evaluator LLM** that the analysis agent must convince.
-- **Input**: An `evidence_package` containing the analysis narrative plus structured claims/evidence/unknowns.
-- **Skepticism**: The evaluator assumes the agent is missing something and rejects unless the **raw code snippets** explicitly prove the claims.
+- **Input**: An `evidence_package` containing the analysis narrative plus structured claims/evidence/unknowns, **along with the relevant source code (full file content or expanded context)** for all cited evidence.
+- **Skepticism**: The evaluator assumes the agent is missing something and rejects unless the **raw code snippets** and surrounding context explicitly prove the claims.
 - **Gate**: The agent may only finalize a `TRUE_POSITIVE` or `FALSE_POSITIVE` verdict if `verification_passed == true`.
 
 ### Circuit Breakers

@@ -1,0 +1,86 @@
+# Agent node formatting templates
+# These are sub-prompts used to format various parts of the agent's context
+
+project_context_template: |
+  **Directory Structure** (top directories):
+  $directory_list
+
+  **Security-Related Files** ($security_files_count found):
+  $security_files_list
+  $security_files_more
+
+  **Detected Frameworks**:
+  $frameworks_list
+
+project_context_no_context: "No project context available."
+
+error_context_template: |
+  **LAST ERROR:**
+  Tool: $tool_name
+  Args: $attempted_args
+  Error: $error_message
+
+  **Recovery Strategy:**
+  - Do NOT retry the same tool with the same arguments
+  - Try a different tool or different parameters
+  - If fetch_code failed on a symbol name: Try the file path instead
+  - If fetch_code failed on a file: Try a related file from the trace
+  - After 3 consecutive errors: prefer different retrieval parameters; if still stuck, stop with NEEDS_REVIEW
+
+error_context_no_errors: "No previous errors."
+
+evaluator_feedback_template: |
+  **EVALUATOR (GATE) REPORT:**
+
+  verification_passed: $verification_passed
+  verdict: $verdict
+
+  **BLOCKING GAPS:**
+  $blocking_gaps
+
+  **REQUIRED NEXT FETCHES:**
+  $required_next_fetches
+
+  **JUSTIFICATIONS:**
+  $justifications
+
+evaluator_feedback_no_report: "No evaluator report yet."
+
+state_summary_template: |
+  **Issue:** $issue_type
+  **Trace:** 
+  $trace_preview
+
+  **Files Fetched:** $files_count files
+    $files_list
+
+  **Analysis State:**
+    - Claims: $claims_count
+    - Evidence: $evidence_count
+    - Blocking unknowns: $blocking_unknowns
+    - Last evaluator: $last_guard
+
+  **Investigation Status:**
+    - Iteration: $iteration_count/$max_iterations
+    - is_final: $is_final
+    - Errors: $errors_count
+
+# New templates for claims/evidence/unknowns formatting
+
+claims_template: |
+  **EXISTING CLAIMS:**
+  $claims_list
+
+evidence_template: |
+  **EXISTING EVIDENCE:**
+  $evidence_list
+
+unknowns_template: |
+  **BLOCKING UNKNOWNS:**
+  $unknowns_list
+
+fetched_code_template: |
+  ```
+  $code_content
+  ```
+
