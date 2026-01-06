@@ -109,7 +109,7 @@ mypy-extensions==1.0.0
 nest-asyncio==1.6.0
 networkx==3.4.2
 # nvidia-nat and nvidia-nat-langchain installed separately in Containerfile with --pre flag
-numpy==2.3.0
+numpy>=2.3.2,<3.0
 # NVIDIA CUDA packages - only install on Linux and Windows
 nvidia-cublas-cu12==12.4.5.8; sys_platform == "linux" or sys_platform == "win32"
 nvidia-cuda-cupti-cu12==12.4.127; sys_platform == "linux" or sys_platform == "win32"
