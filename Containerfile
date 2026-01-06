@@ -5,7 +5,10 @@ RUN yum install -y clang llvm-devel && yum clean all
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install nvidia-nat packages first with --pre flag to ensure beta versions are available
+RUN pip install --upgrade pip && \
+    pip install --pre nvidia-nat==1.4.0b5 nvidia-nat-langchain==1.4.0b5 && \
+    pip install -r requirements.txt
 
 COPY config ./config/
 COPY src ./src/
