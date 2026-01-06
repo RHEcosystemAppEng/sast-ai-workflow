@@ -7,6 +7,8 @@ Returns is_final decision, exploration gaps, and recommendations.
 
 import json
 import logging
+import os
+import yaml
 from typing import List
 
 from langchain_core.tools import StructuredTool
@@ -16,12 +18,13 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.component_ref import LLMRef
 from nat.data_models.function import FunctionBaseConfig
 from pydantic import BaseModel, Field
+from openai import LengthFinishReasonError
 
 from common.config import Config
 from dto.ResponseStructures import JudgeLLMResponse
 from services.issue_analysis_service import IssueAnalysisService
 from services.vector_store_service import VectorStoreService
-from ..agent_state import SASTAgentState
+from ..agent_state import SASTAgentState, EvaluatorReport, RequiredNextFetch
 
 # Import context variable from agent_graph
 from ..agent_graph import _current_agent_state
@@ -71,15 +74,17 @@ async def register_evaluator(
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     logger.info(f"Initialized LLM: {config.llm_name}")
 
-    # Initialize VectorStoreService and IssueAnalysisService
-    try:
-        global_config = Config()
-        vector_service = VectorStoreService()
-        analysis_service = IssueAnalysisService(config=global_config, vector_service=vector_service)
-        logger.info("Initialized IssueAnalysisService with vector_service")
-    except Exception as e:
-        logger.error(f"Failed to initialize IssueAnalysisService: {e}")
-        raise
+    # ==================== OLD CODE - KEPT FOR REFERENCE ====================
+    # # Initialize VectorStoreService and IssueAnalysisService
+    # try:
+    #     global_config = Config()
+    #     vector_service = VectorStoreService()
+    #     analysis_service = IssueAnalysisService(config=global_config, vector_service=vector_service)
+    #     logger.info("Initialized IssueAnalysisService with vector_service")
+    # except Exception as e:
+    #     logger.error(f"Failed to initialize IssueAnalysisService: {e}")
+    #     raise
+    # ========================================================================
 
     def _extract_context_from_state(state: SASTAgentState) -> str:
         """
@@ -113,25 +118,27 @@ async def register_evaluator(
 
         return context
 
-    def _build_analysis_response(
-        analysis_verdict: str, analysis_justifications: List[str]
-    ) -> JudgeLLMResponse:
-        """
-        Build JudgeLLMResponse from tool inputs.
-
-        Args:
-            analysis_verdict: Current verdict (TRUE_POSITIVE/FALSE_POSITIVE with underscores)
-            analysis_justifications: Justifications from analysis
-
-        Returns:
-            JudgeLLMResponse object for IssueAnalysisService.recommend()
-        """
-
-        verdict_with_space = analysis_verdict.replace("_", " ")
-
-        return JudgeLLMResponse(
-            investigation_result=verdict_with_space, justifications=analysis_justifications
-        )
+    # ==================== OLD CODE - KEPT FOR REFERENCE ====================
+    # def _build_analysis_response(
+    #     analysis_verdict: str, analysis_justifications: List[str]
+    # ) -> JudgeLLMResponse:
+    #     """
+    #     Build JudgeLLMResponse from tool inputs.
+    #
+    #     Args:
+    #         analysis_verdict: Current verdict (TRUE_POSITIVE/FALSE_POSITIVE with underscores)
+    #         analysis_justifications: Justifications from analysis
+    #
+    #     Returns:
+    #         JudgeLLMResponse object for IssueAnalysisService.recommend()
+    #     """
+    #
+    #     verdict_with_space = analysis_verdict.replace("_", " ")
+    #
+    #     return JudgeLLMResponse(
+    #         investigation_result=verdict_with_space, justifications=analysis_justifications
+    #     )
+    # ========================================================================
 
     def _evaluator(**kwargs) -> str:
         """
@@ -229,68 +236,156 @@ async def register_evaluator(
             }
             return json.dumps(result, indent=2)
 
-        # STEP 2: Build JudgeLLMResponse from tool inputs
-        analysis_response = _build_analysis_response(analysis_verdict, analysis_justifications)
+        # ==================== OLD CODE - KEPT FOR REFERENCE ====================
+        # # STEP 2: Build JudgeLLMResponse from tool inputs
+        # analysis_response = _build_analysis_response(analysis_verdict, analysis_justifications)
+        #
+        # # STEP 3: Call IssueAnalysisService.recommend() for evaluation
+        # try:
+        #     logger.info(f"[{state.issue_id}] Calling IssueAnalysisService.recommend()")
+        #
+        #     recommendations_response = analysis_service.recommend(
+        #         issue=state.issue,
+        #         context=context,
+        #         analysis_response=analysis_response,
+        #         main_llm=llm,
+        #     )
+        #
+        #     logger.info(
+        #         f"[{state.issue_id}] Evaluation complete: is_final={recommendations_response.is_final}"
+        #     )
+        #     logger.debug(
+        #         f"[{state.issue_id}] Recommendations: {recommendations_response.recommendations}"
+        #     )
+        #
+        #     # STEP 4: Map RecommendationsResponse to EvaluatorReport format
+        #     # Convert is_final string to verification_passed boolean
+        #     verification_passed = (recommendations_response.is_final == "TRUE")
+        #
+        #     # Extract verdict from analysis_verdict parameter (passed by agent)
+        #     verdict = analysis_verdict if verification_passed else None
+        #
+        #     # Convert recommendations to blocking_gaps (simple string list)
+        #     blocking_gaps = []
+        #     required_next_fetches = []
+        #
+        #     if not verification_passed:
+        #         # Investigation not complete - extract blocking gaps from recommendations
+        #         blocking_gaps = recommendations_response.recommendations
+        #
+        #         # Map instructions to required_next_fetches format
+        #         # instructions is List[InstructionResponse] with fields:
+        #         # - expression_name: str
+        #         # - referring_source_code_path: str
+        #         for instruction in recommendations_response.instructions:
+        #             required_next_fetches.append(
+        #                 {
+        #                     "tool": "fetch_code",
+        #                     "args": {
+        #                         "expression_name": instruction.expression_name,
+        #                         "referring_source_code_path": instruction.referring_source_code_path,
+        #                         "reason": "Required for investigation"
+        #                     },
+        #                     "reason": "Required for investigation"
+        #                 }
+        #             )
+        #
+        #     result = {
+        #         "verification_passed": verification_passed,
+        #         "verdict": verdict,
+        #         "blocking_gaps": blocking_gaps,
+        #         "required_next_fetches": required_next_fetches,
+        #         "justifications": recommendations_response.justifications,
+        #         "stop_reason": None
+        #     }
+        #
+        #     return json.dumps(result, indent=2)
+        #
+        # except Exception as e:
+        #     logger.error(
+        #         f"[{state.issue_id}] Evaluation failed: {e}",
+        #         exc_info=True,
+        #     )
+        #
+        #     # Return verification_passed=True to terminate on error and avoid infinite loops
+        #     result = {
+        #         "verification_passed": True,
+        #         "verdict": analysis_verdict,  # Use verdict from agent
+        #         "blocking_gaps": [],
+        #         "required_next_fetches": [],
+        #         "justifications": [
+        #             f"Evaluation failed with error: {str(e)}",
+        #             "Terminating investigation for safety",
+        #         ],
+        #         "stop_reason": "error_evaluation_failed"
+        #     }
+        #     return json.dumps(result, indent=2)
+        # ========================================================================
 
-        # STEP 3: Call IssueAnalysisService.recommend() for evaluation
+        # STEP 2: Call LLM with structured output to generate EvaluatorReport
         try:
-            logger.info(f"[{state.issue_id}] Calling IssueAnalysisService.recommend()")
+            logger.info(f"[{state.issue_id}] Calling LLM for direct evaluation")
 
-            recommendations_response = analysis_service.recommend(
-                issue=state.issue,
-                context=context,
-                analysis_response=analysis_response,
-                main_llm=llm,
+            # Load evaluation prompt from YAML template
+            prompts_dir = os.path.join(os.path.dirname(__file__), "../../../templates/prompts")
+            prompt_file = os.path.join(prompts_dir, "evaluator_agent_prompt.yaml")
+
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                prompt_data = yaml.safe_load(f)
+                prompt_template = prompt_data.get("template", "")
+
+            # Format prompt with variables
+            formatted_justifications = "\n".join(f"- {j}" for j in analysis_justifications)
+            evaluation_prompt = prompt_template.format(
+                issue_trace=issue_trace,
+                analysis_verdict=analysis_verdict,
+                analysis_justifications=formatted_justifications,
+                context=context
+            )
+
+            # Use LLM structured output to generate EvaluatorReport
+            # Set max_tokens to prevent hitting token limit (leave room for structured output)
+            structured_llm = llm.with_structured_output(EvaluatorReport)
+            evaluator_report: EvaluatorReport = structured_llm.invoke(
+                evaluation_prompt,
+                config={"max_tokens": 2048}  # Limit output to prevent length errors
             )
 
             logger.info(
-                f"[{state.issue_id}] Evaluation complete: is_final={recommendations_response.is_final}"
+                f"[{state.issue_id}] Evaluation complete: verification_passed={evaluator_report.verification_passed}"
             )
             logger.debug(
-                f"[{state.issue_id}] Recommendations: {recommendations_response.recommendations}"
+                f"[{state.issue_id}] Blocking gaps: {evaluator_report.blocking_gaps}"
             )
 
-            # STEP 4: Map RecommendationsResponse to EvaluatorReport format
-            # Convert is_final string to verification_passed boolean
-            verification_passed = (recommendations_response.is_final == "TRUE")
+            # Convert Pydantic model to dict for JSON serialization
+            result = evaluator_report.model_dump()
 
-            # Extract verdict from analysis_verdict parameter (passed by agent)
-            verdict = analysis_verdict if verification_passed else None
+            return json.dumps(result, indent=2)
 
-            # Convert recommendations to blocking_gaps (simple string list)
-            blocking_gaps = []
-            required_next_fetches = []
+        except LengthFinishReasonError as e:
+            # Specific handling for token limit errors
+            logger.warning(
+                f"[{state.issue_id}] Evaluation hit token limit (output too long): {e}"
+            )
 
-            if not verification_passed:
-                # Investigation not complete - extract blocking gaps from recommendations
-                blocking_gaps = recommendations_response.recommendations
-
-                # Map instructions to required_next_fetches format
-                # instructions is List[InstructionResponse] with fields:
-                # - expression_name: str
-                # - referring_source_code_path: str
-                for instruction in recommendations_response.instructions:
-                    required_next_fetches.append(
-                        {
-                            "tool": "fetch_code",
-                            "args": {
-                                "expression_name": instruction.expression_name,
-                                "referring_source_code_path": instruction.referring_source_code_path,
-                                "reason": "Required for investigation"
-                            },
-                            "reason": "Required for investigation"
-                        }
-                    )
-
+            # Return verification_passed=False to allow agent to continue investigating
+            # with more focused context rather than terminating incorrectly
             result = {
-                "verification_passed": verification_passed,
-                "verdict": verdict,
-                "blocking_gaps": blocking_gaps,
-                "required_next_fetches": required_next_fetches,
-                "justifications": recommendations_response.justifications,
+                "verification_passed": False,
+                "verdict": None,
+                "blocking_gaps": [
+                    "Evaluation output exceeded token limit - response too verbose",
+                    "Need more focused investigation to reduce context size"
+                ],
+                "required_next_fetches": [],
+                "justifications": [
+                    "Evaluator response exceeded maximum token limit",
+                    "This typically means the context is too large or justifications too verbose",
+                    "Try to focus on most critical evidence"
+                ],
                 "stop_reason": None
             }
-
             return json.dumps(result, indent=2)
 
         except Exception as e:
