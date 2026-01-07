@@ -23,17 +23,17 @@ jobs:
           PULL_REQUEST_BASE_REF: "${{ github.event.pull_request.base.ref }}"
         run: |-
           # Add the forked repository, where the head branch exists, as a remote
-          git remote add fork "${{ env.PULL_REQUEST_HEAD_REPO_URL }}"
+          git remote add fork "$PULL_REQUEST_HEAD_REPO_URL"
           
           # Fetch the head branch from the fork and the base branch from origin
-          git fetch fork "${{ env.PULL_REQUEST_HEAD_REF }}"
-          git fetch origin "${{ env.PULL_REQUEST_BASE_REF }}"
+          git fetch fork "$PULL_REQUEST_HEAD_REF"
+          git fetch origin "$PULL_REQUEST_BASE_REF"
 
           # Checkout the head branch to work with it
-          git checkout "${{ env.PULL_REQUEST_HEAD_REF }}"
+          git checkout "$PULL_REQUEST_HEAD_REF"
 
           # Create the diff against the base branch from the origin repository
-          git diff "origin/${{ env.PULL_REQUEST_BASE_REF }}" > "diff.txt"
+          git diff "origin/$PULL_REQUEST_BASE_REF" > "diff.txt"
           
           # Format the diff for the action output
           {
