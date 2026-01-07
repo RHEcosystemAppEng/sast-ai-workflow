@@ -11,7 +11,6 @@ import os
 import yaml
 from typing import List
 
-from langchain_core.tools import StructuredTool
 from nat.builder.builder import Builder, LLMFrameworkEnum
 from nat.builder.function_info import FunctionInfo
 from nat.cli.register_workflow import register_function
@@ -20,13 +19,8 @@ from nat.data_models.function import FunctionBaseConfig
 from pydantic import BaseModel, Field
 from openai import LengthFinishReasonError
 
-from common.config import Config
-from dto.ResponseStructures import JudgeLLMResponse
-from services.issue_analysis_service import IssueAnalysisService
-from services.vector_store_service import VectorStoreService
-from ..agent_state import SASTAgentState, EvaluatorReport, RequiredNextFetch
+from ..agent_state import SASTAgentState, EvaluatorReport
 
-# Import context variable from agent_graph
 from ..agent_graph import _current_agent_state
 
 logger = logging.getLogger(__name__)
@@ -35,13 +29,19 @@ logger = logging.getLogger(__name__)
 class EvaluatorToolInput(BaseModel):
     """Input schema for evaluator."""
 
-    issue_trace: str = Field(description="The SAST issue being investigated")
-    analysis_verdict: str = Field(
-        description="Current analysis verdict (TRUE_POSITIVE/FALSE_POSITIVE)"
+    analysis: str = Field(description="Agent's analysis summary")
+    proposed_verdict: str = Field(
+        description="Agent's proposed verdict (TRUE_POSITIVE/FALSE_POSITIVE/NEEDS_REVIEW)"
     )
-    analysis_justifications: List[str] = Field(description="Justifications from analysis")
-    fetched_files: List[str] = Field(description="List of files fetched so far")
-    iteration_count: int = Field(description="Current iteration number")
+    claims: List[dict] = Field(
+        description="Structured claims - atomic assertions about the vulnerability"
+    )
+    evidence: List[dict] = Field(
+        description="Structured evidence - code citations supporting claims"
+    )
+    unknowns: List[dict] = Field(
+        description="Structured unknowns - unresolved questions blocking the verdict"
+    )
 
     # State injection field (NOT provided by LLM, injected by agent_graph wrapper)
     # This field is excluded from tool description but allows NAT to pass it through
@@ -73,18 +73,6 @@ async def register_evaluator(
 
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     logger.info(f"Initialized LLM: {config.llm_name}")
-
-    # ==================== OLD CODE - KEPT FOR REFERENCE ====================
-    # # Initialize VectorStoreService and IssueAnalysisService
-    # try:
-    #     global_config = Config()
-    #     vector_service = VectorStoreService()
-    #     analysis_service = IssueAnalysisService(config=global_config, vector_service=vector_service)
-    #     logger.info("Initialized IssueAnalysisService with vector_service")
-    # except Exception as e:
-    #     logger.error(f"Failed to initialize IssueAnalysisService: {e}")
-    #     raise
-    # ========================================================================
 
     def _extract_context_from_state(state: SASTAgentState) -> str:
         """
@@ -118,28 +106,6 @@ async def register_evaluator(
 
         return context
 
-    # ==================== OLD CODE - KEPT FOR REFERENCE ====================
-    # def _build_analysis_response(
-    #     analysis_verdict: str, analysis_justifications: List[str]
-    # ) -> JudgeLLMResponse:
-    #     """
-    #     Build JudgeLLMResponse from tool inputs.
-    #
-    #     Args:
-    #         analysis_verdict: Current verdict (TRUE_POSITIVE/FALSE_POSITIVE with underscores)
-    #         analysis_justifications: Justifications from analysis
-    #
-    #     Returns:
-    #         JudgeLLMResponse object for IssueAnalysisService.recommend()
-    #     """
-    #
-    #     verdict_with_space = analysis_verdict.replace("_", " ")
-    #
-    #     return JudgeLLMResponse(
-    #         investigation_result=verdict_with_space, justifications=analysis_justifications
-    #     )
-    # ========================================================================
-
     def _evaluator(**kwargs) -> str:
         """
         Evaluate investigation completeness and decide if investigation should terminate.
@@ -169,38 +135,54 @@ async def register_evaluator(
                 "stop_reason": "error_no_state"
             }, indent=2)
 
-        # Extract other parameters from kwargs with explicit logging
-        # This helps diagnose whether parameters are being passed correctly from NAT
+        # Extract parameters from kwargs with explicit logging
+        # Agent sends: analysis, proposed_verdict, claims, evidence, unknowns
 
-        # issue_trace
-        if "issue_trace" in kwargs:
-            issue_trace = kwargs["issue_trace"]
-            logger.debug(f"[{state.issue_id}] issue_trace extracted from kwargs: '{issue_trace[:100]}...'")
+        # analysis (agent's summary - use as issue_trace for prompt)
+        if "analysis" in kwargs:
+            analysis = kwargs["analysis"]
+            logger.debug(f"[{state.issue_id}] analysis extracted from kwargs: '{analysis[:100]}...'")
         else:
-            issue_trace = ""
-            logger.warning(f"[{state.issue_id}] issue_trace NOT in kwargs, using default: ''")
+            analysis = state.issue.trace if hasattr(state.issue, 'trace') else state.issue.issue_type
+            logger.warning(f"[{state.issue_id}] analysis NOT in kwargs, using issue trace from state")
 
-        # analysis_verdict (critical for validation)
-        if "analysis_verdict" in kwargs:
-            analysis_verdict = kwargs["analysis_verdict"]
-            logger.info(f"[{state.issue_id}] analysis_verdict extracted from kwargs: '{analysis_verdict}' (type: {type(analysis_verdict).__name__})")
+        # proposed_verdict (critical for validation)
+        if "proposed_verdict" in kwargs:
+            proposed_verdict = kwargs["proposed_verdict"]
+            logger.info(f"[{state.issue_id}] proposed_verdict extracted from kwargs: '{proposed_verdict}' (type: {type(proposed_verdict).__name__})")
         else:
-            analysis_verdict = "TRUE_POSITIVE"  # Safe default to prevent validation errors
-            logger.warning(f"[{state.issue_id}] analysis_verdict NOT in kwargs, using default: '{analysis_verdict}'")
+            proposed_verdict = "TRUE_POSITIVE"  # Safe default to prevent validation errors
+            logger.warning(f"[{state.issue_id}] proposed_verdict NOT in kwargs, using default: '{proposed_verdict}'")
 
         # Additional check for empty string (which causes validation error)
-        if analysis_verdict == "":
-            logger.error(f"[{state.issue_id}] analysis_verdict is EMPTY STRING - this will cause validation error!")
-            analysis_verdict = "TRUE_POSITIVE"  # Override with safe default
-            logger.warning(f"[{state.issue_id}] Overriding empty analysis_verdict with default: '{analysis_verdict}'")
+        if proposed_verdict == "":
+            logger.error(f"[{state.issue_id}] proposed_verdict is EMPTY STRING - this will cause validation error!")
+            proposed_verdict = "TRUE_POSITIVE"  # Override with safe default
+            logger.warning(f"[{state.issue_id}] Overriding empty proposed_verdict with default: '{proposed_verdict}'")
 
-        # analysis_justifications
-        if "analysis_justifications" in kwargs:
-            analysis_justifications = kwargs["analysis_justifications"]
-            logger.debug(f"[{state.issue_id}] analysis_justifications extracted from kwargs: {len(analysis_justifications)} items")
+        # claims (structured)
+        if "claims" in kwargs:
+            claims = kwargs["claims"]
+            logger.debug(f"[{state.issue_id}] claims extracted from kwargs: {len(claims)} items")
         else:
-            analysis_justifications = []
-            logger.warning(f"[{state.issue_id}] analysis_justifications NOT in kwargs, using default: []")
+            claims = []
+            logger.warning(f"[{state.issue_id}] claims NOT in kwargs, using default: []")
+
+        # evidence (structured)
+        if "evidence" in kwargs:
+            evidence = kwargs["evidence"]
+            logger.debug(f"[{state.issue_id}] evidence extracted from kwargs: {len(evidence)} items")
+        else:
+            evidence = []
+            logger.warning(f"[{state.issue_id}] evidence NOT in kwargs, using default: []")
+
+        # unknowns (structured)
+        if "unknowns" in kwargs:
+            unknowns = kwargs["unknowns"]
+            logger.debug(f"[{state.issue_id}] unknowns extracted from kwargs: {len(unknowns)} items")
+        else:
+            unknowns = []
+            logger.warning(f"[{state.issue_id}] unknowns NOT in kwargs, using default: []")
 
         # fetched_files
         if "fetched_files" in kwargs:
@@ -226,101 +208,15 @@ async def register_evaluator(
         if not context:
             logger.warning(f"[{state.issue_id}] Empty context - cannot evaluate completeness")
             # Return verification_passed=False to give agent a chance to fetch code
-            result = {
-                "verification_passed": False,
-                "verdict": None,
-                "blocking_gaps": ["No code context available for evaluation"],
-                "required_next_fetches": [],
-                "justifications": ["No code context available for evaluation - need to fetch code first"],
-                "stop_reason": None
-            }
-            return json.dumps(result, indent=2)
-
-        # ==================== OLD CODE - KEPT FOR REFERENCE ====================
-        # # STEP 2: Build JudgeLLMResponse from tool inputs
-        # analysis_response = _build_analysis_response(analysis_verdict, analysis_justifications)
-        #
-        # # STEP 3: Call IssueAnalysisService.recommend() for evaluation
-        # try:
-        #     logger.info(f"[{state.issue_id}] Calling IssueAnalysisService.recommend()")
-        #
-        #     recommendations_response = analysis_service.recommend(
-        #         issue=state.issue,
-        #         context=context,
-        #         analysis_response=analysis_response,
-        #         main_llm=llm,
-        #     )
-        #
-        #     logger.info(
-        #         f"[{state.issue_id}] Evaluation complete: is_final={recommendations_response.is_final}"
-        #     )
-        #     logger.debug(
-        #         f"[{state.issue_id}] Recommendations: {recommendations_response.recommendations}"
-        #     )
-        #
-        #     # STEP 4: Map RecommendationsResponse to EvaluatorReport format
-        #     # Convert is_final string to verification_passed boolean
-        #     verification_passed = (recommendations_response.is_final == "TRUE")
-        #
-        #     # Extract verdict from analysis_verdict parameter (passed by agent)
-        #     verdict = analysis_verdict if verification_passed else None
-        #
-        #     # Convert recommendations to blocking_gaps (simple string list)
-        #     blocking_gaps = []
-        #     required_next_fetches = []
-        #
-        #     if not verification_passed:
-        #         # Investigation not complete - extract blocking gaps from recommendations
-        #         blocking_gaps = recommendations_response.recommendations
-        #
-        #         # Map instructions to required_next_fetches format
-        #         # instructions is List[InstructionResponse] with fields:
-        #         # - expression_name: str
-        #         # - referring_source_code_path: str
-        #         for instruction in recommendations_response.instructions:
-        #             required_next_fetches.append(
-        #                 {
-        #                     "tool": "fetch_code",
-        #                     "args": {
-        #                         "expression_name": instruction.expression_name,
-        #                         "referring_source_code_path": instruction.referring_source_code_path,
-        #                         "reason": "Required for investigation"
-        #                     },
-        #                     "reason": "Required for investigation"
-        #                 }
-        #             )
-        #
-        #     result = {
-        #         "verification_passed": verification_passed,
-        #         "verdict": verdict,
-        #         "blocking_gaps": blocking_gaps,
-        #         "required_next_fetches": required_next_fetches,
-        #         "justifications": recommendations_response.justifications,
-        #         "stop_reason": None
-        #     }
-        #
-        #     return json.dumps(result, indent=2)
-        #
-        # except Exception as e:
-        #     logger.error(
-        #         f"[{state.issue_id}] Evaluation failed: {e}",
-        #         exc_info=True,
-        #     )
-        #
-        #     # Return verification_passed=True to terminate on error and avoid infinite loops
-        #     result = {
-        #         "verification_passed": True,
-        #         "verdict": analysis_verdict,  # Use verdict from agent
-        #         "blocking_gaps": [],
-        #         "required_next_fetches": [],
-        #         "justifications": [
-        #             f"Evaluation failed with error: {str(e)}",
-        #             "Terminating investigation for safety",
-        #         ],
-        #         "stop_reason": "error_evaluation_failed"
-        #     }
-        #     return json.dumps(result, indent=2)
-        # ========================================================================
+            result = EvaluatorReport(
+                verification_passed=False,
+                verdict=None,
+                blocking_gaps=["No code context available for evaluation"],
+                required_next_fetches=[],
+                justifications=["No code context available for evaluation - need to fetch code first"],
+                stop_reason=None
+            )
+            return json.dumps(result.model_dump(), indent=2)
 
         # STEP 2: Call LLM with structured output to generate EvaluatorReport
         try:
@@ -334,12 +230,33 @@ async def register_evaluator(
                 prompt_data = yaml.safe_load(f)
                 prompt_template = prompt_data.get("template", "")
 
+            # Format structured data for prompt
+            formatted_claims = "\n".join(
+                f"- [{c.get('claim_id', 'N/A')}] {c.get('text', 'N/A')} "
+                f"(status: {c.get('status', 'N/A')}, evidence_ids: {c.get('supporting_evidence_ids', [])})"
+                for c in claims
+            ) if claims else "No claims yet"
+
+            formatted_evidence = "\n".join(
+                f"- [{e.get('evidence_id', 'N/A')}] {e.get('path_or_identifier', 'N/A')}:{e.get('start_line', '?')}-{e.get('end_line', '?')}\n"
+                f"  Excerpt: {e.get('excerpt', 'N/A')[:200]}...\n"
+                f"  Why: {e.get('why_it_matters', 'N/A')}"
+                for e in evidence
+            ) if evidence else "No evidence yet"
+
+            formatted_unknowns = "\n".join(
+                f"- [{u.get('unknown_id', 'N/A')}] {u.get('question', 'N/A')} "
+                f"(priority: {u.get('priority', 50)}, blocking: {u.get('blocking', True)})"
+                for u in unknowns
+            ) if unknowns else "No unknowns"
+
             # Format prompt with variables
-            formatted_justifications = "\n".join(f"- {j}" for j in analysis_justifications)
             evaluation_prompt = prompt_template.format(
-                issue_trace=issue_trace,
-                analysis_verdict=analysis_verdict,
-                analysis_justifications=formatted_justifications,
+                issue_trace=analysis,  # Use agent's analysis summary as context
+                analysis_verdict=proposed_verdict,  # Use agent's proposed verdict
+                claims=formatted_claims,
+                evidence=formatted_evidence,
+                unknowns=formatted_unknowns,
                 context=context
             )
 
@@ -358,7 +275,6 @@ async def register_evaluator(
                 f"[{state.issue_id}] Blocking gaps: {evaluator_report.blocking_gaps}"
             )
 
-            # Convert Pydantic model to dict for JSON serialization
             result = evaluator_report.model_dump()
 
             return json.dumps(result, indent=2)
@@ -371,22 +287,22 @@ async def register_evaluator(
 
             # Return verification_passed=False to allow agent to continue investigating
             # with more focused context rather than terminating incorrectly
-            result = {
-                "verification_passed": False,
-                "verdict": None,
-                "blocking_gaps": [
+            result = EvaluatorReport(
+                verification_passed=False,
+                verdict=None,
+                blocking_gaps=[
                     "Evaluation output exceeded token limit - response too verbose",
                     "Need more focused investigation to reduce context size"
                 ],
-                "required_next_fetches": [],
-                "justifications": [
+                required_next_fetches=[],
+                justifications=[
                     "Evaluator response exceeded maximum token limit",
                     "This typically means the context is too large or justifications too verbose",
                     "Try to focus on most critical evidence"
                 ],
-                "stop_reason": None
-            }
-            return json.dumps(result, indent=2)
+                stop_reason=None
+            )
+            return json.dumps(result.model_dump(), indent=2)
 
         except Exception as e:
             logger.error(
@@ -395,26 +311,26 @@ async def register_evaluator(
             )
 
             # Return verification_passed=True to terminate on error and avoid infinite loops
-            result = {
-                "verification_passed": True,
-                "verdict": analysis_verdict,  # Use verdict from agent
-                "blocking_gaps": [],
-                "required_next_fetches": [],
-                "justifications": [
+            result = EvaluatorReport(
+                verification_passed=True,
+                verdict=proposed_verdict,  # Use verdict from agent
+                blocking_gaps=[],
+                required_next_fetches=[],
+                justifications=[
                     f"Evaluation failed with error: {str(e)}",
                     "Terminating investigation for safety",
                 ],
-                "stop_reason": "error_evaluation_failed"
-            }
-            return json.dumps(result, indent=2)
+                stop_reason="error_evaluation_failed"
+            )
+            return json.dumps(result.model_dump(), indent=2)
 
     # Create async wrapper for NAT 1.3.1
     async def evaluator_fn(
-        issue_trace: str,
-        analysis_verdict: str,
-        analysis_justifications: List[str],
-        fetched_files: List[str],
-        iteration_count: int,
+        analysis: str,
+        proposed_verdict: str,
+        claims: List[dict],
+        evidence: List[dict],
+        unknowns: List[dict],
         **kwargs  # Captures 'state' injected by agent_graph
     ) -> str:
         """
@@ -427,14 +343,13 @@ async def register_evaluator(
         Using StructuredTool.from_function with **kwargs signature creates empty schema
         that strips all parameters during invoke().
         """
-        # Directly call _evaluator with all parameters
         return _evaluator(
-            issue_trace=issue_trace,
-            analysis_verdict=analysis_verdict,
-            analysis_justifications=analysis_justifications,
-            fetched_files=fetched_files,
-            iteration_count=iteration_count,
-            **kwargs  # Includes 'state' injected by agent_graph
+            analysis=analysis,
+            proposed_verdict=proposed_verdict,
+            claims=claims,
+            evidence=evidence,
+            unknowns=unknowns,
+            **kwargs
         )
 
     try:

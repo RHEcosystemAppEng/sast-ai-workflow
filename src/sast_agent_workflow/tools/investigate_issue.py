@@ -108,11 +108,12 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
         logger.info(f"Loaded {len(tools)} tools: {[t.name for t in tools]}")
 
         # Build agent graph with NAT tools
+        max_iterations = 25  # Increased from 15 to allow for more thorough investigation
         agent_graph = create_agent_graph(
             llm=llm,
             tools=tools,
             config=tracker.config,
-            max_iterations=25,  # Increased from 15 to allow for more thorough investigation
+            max_iterations=max_iterations,
             max_error_recovery_attempts=3,
             enable_duplicate_detection=True,
         )
@@ -161,10 +162,14 @@ async def investigate_issue(config: InvestigateIssueConfig, builder: Builder):
 
             # Run agent investigation with timeout and recursion limit
             try:
+                # Calculate recursion_limit based on max_iterations
+                # Formula: each iteration = agent node + tool node (×2), plus buffer for routing
+                recursion_limit = (max_iterations * 2) + 10  # = (25 * 2) + 10 = 60
+
                 final_state_dict = await agent_graph.ainvoke(
                     agent_state,
                     config={
-                        "recursion_limit": 25,  # Max 20 nodes in path (20 tools + 5 buffer)
+                        "recursion_limit": recursion_limit,
                         "timeout": 300,  # 5 minutes
                     },
                 )

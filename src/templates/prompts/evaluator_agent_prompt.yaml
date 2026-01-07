@@ -6,8 +6,15 @@ template: |
 
   **AGENT'S ANALYSIS:**
   Verdict: {analysis_verdict}
-  Justifications:
-  {analysis_justifications}
+
+  **CLAIMS** (atomic assertions about the vulnerability):
+  {claims}
+
+  **EVIDENCE** (code citations supporting claims):
+  {evidence}
+
+  **UNKNOWNS** (unresolved questions):
+  {unknowns}
 
   **CODE CONTEXT FETCHED:**
   {context}
@@ -23,11 +30,19 @@ template: |
 
   **DECISION CRITERIA:**
 
+  **CRITICAL: CLAIM→EVIDENCE VALIDATION**
+  Every claim MUST be backed by evidence:
+  1. **Check each claim's supporting_evidence_ids** - Do they point to actual evidence items?
+  2. **Verify evidence excerpts** - Is the code snippet actually present in CODE CONTEXT FETCHED?
+  3. **Validate evidence relevance** - Does the evidence actually support the claim it's linked to?
+  4. **Identify unsupported claims** - Claims with no or insufficient evidence are BLOCKING GAPS
+
   **verification_passed = TRUE** when:
-  1. **Core vulnerability claim is provable**: The key assertion (e.g., "input is sanitized" or "no bounds check exists") is backed by concrete code evidence
-  2. **Critical path is traced**: The data flow from source to sink (or lack thereof) is documented with actual code
-  3. **Reasonable certainty achieved**: While not every edge case needs analysis, the main scenario is conclusively proven
-  4. **No blocking contradictions**: The fetched code doesn't contradict the verdict
+  1. **ALL claims have supporting evidence**: Each claim's supporting_evidence_ids list contains valid evidence
+  2. **All evidence is present in context**: Every evidence excerpt can be found in CODE CONTEXT FETCHED
+  3. **Evidence supports the verdict**: The evidence collectively proves TRUE_POSITIVE or FALSE_POSITIVE
+  4. **No blocking unknowns remain**: All unknowns with blocking=true have been resolved
+  5. **No blocking contradictions**: The fetched code doesn't contradict the verdict
 
   **verification_passed = FALSE** ONLY when:
   1. **Missing critical evidence**: A key claim in justifications references code/functions that are NOT in the fetched context

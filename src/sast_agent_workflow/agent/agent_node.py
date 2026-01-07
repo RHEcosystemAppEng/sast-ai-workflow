@@ -445,12 +445,31 @@ def _create_tool_call_from_reasoning(
     """
     tool_name = reasoning.next_tool
 
-    # Extract parameters from reasoning
-    if reasoning.tool_parameters:
-        tool_args = reasoning.tool_parameters
+    # Build tool args based on tool type
+    if tool_name == "evaluator":
+        # ALWAYS build evaluator args from reasoning state to ensure correct structure
+        # Do NOT use tool_parameters because LLM often provides malformed data (claim IDs instead of full objects)
+        tool_args = {
+            "analysis": reasoning.analysis,
+            "claims": [c.model_dump() for c in reasoning.claims],
+            "evidence": [e.model_dump() for e in reasoning.evidence],
+            "unknowns": [u.model_dump() for u in reasoning.unknowns],
+            "proposed_verdict": "TRUE_POSITIVE",  # Default
+        }
+        # Extract proposed_verdict from tool_parameters if provided
+        if reasoning.tool_parameters and "proposed_verdict" in reasoning.tool_parameters:
+            tool_args["proposed_verdict"] = reasoning.tool_parameters["proposed_verdict"]
+
+        logger.debug(
+            f"[{issue_id}] Built evaluator args from reasoning state: "
+            f"{len(tool_args['claims'])} claims, {len(tool_args['evidence'])} evidence, "
+            f"{len(tool_args['unknowns'])} unknowns"
+        )
     elif tool_name == "fetch_code":
-        # Infer fetch_code params from highest priority unknown
-        if reasoning.unknowns:
+        # For fetch_code, use tool_parameters if provided, otherwise infer from unknowns
+        if reasoning.tool_parameters:
+            tool_args = reasoning.tool_parameters
+        elif reasoning.unknowns:
             highest_priority = max(
                 reasoning.unknowns, key=lambda u: u.priority if u.blocking else 0
             )
@@ -468,20 +487,13 @@ def _create_tool_call_from_reasoning(
                 "identifier": "unknown",
                 "reason": reasoning.tool_reasoning or "Investigation requires more context",
             }
-    elif tool_name == "evaluator":
-        # Build evidence package from reasoning state
-        tool_args = {
-            "analysis": reasoning.analysis,
-            "claims": [c.model_dump() for c in reasoning.claims],
-            "evidence": [e.model_dump() for e in reasoning.evidence],
-            "unknowns": [u.model_dump() for u in reasoning.unknowns],
-            "proposed_verdict": "TRUE_POSITIVE",  # Default - should be in tool_parameters
-        }
-        if reasoning.tool_parameters and "proposed_verdict" in reasoning.tool_parameters:
-            tool_args["proposed_verdict"] = reasoning.tool_parameters["proposed_verdict"]
     else:
-        logger.error(f"[{issue_id}] Unknown tool name: {tool_name}")
-        tool_args = {}
+        # For other tools, use tool_parameters if provided
+        if reasoning.tool_parameters:
+            tool_args = reasoning.tool_parameters
+        else:
+            logger.error(f"[{issue_id}] No tool_parameters for tool: {tool_name}")
+            tool_args = {}
 
     tool_call = {
         "name": tool_name,
