@@ -99,10 +99,7 @@ class CRepoHandler:
         """Parse an error trace and extracts relevant functions bodies"""
 
         try:
-            # Use possessive-like pattern with atomic grouping to prevent ReDoS.
-            # Pattern matches C/H file paths followed by line numbers in error traces.
-            # [^\s:]+ is safer than [^\s]+ as it won't match the colon delimiter.
-            source_files = set(re.findall(r"([^\s:]+\.(?:c|h)):(\d+):", error_trace))
+            source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
         except Exception as e:
             logger.warning(f"Failed to parse error trace: {e}")
             return {}
@@ -340,22 +337,17 @@ class CRepoHandler:
         if self.clang_args:
             return self.clang_args
 
-        # Use [^\n]* instead of .* to prevent ReDoS - explicitly matches to end of line.
-        # The MULTILINE flag makes ^ match at line starts, so [^\n]* safely captures rest of line.
-        pattern = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef)\b([^\n]*)", re.MULTILINE)
+        pattern = re.compile(r"^\s*#\s*(if|ifdef|ifndef)\b(.*)", re.MULTILINE)
         macros = set()
         with open(file_path) as f:
             expressions = pattern.findall(f.read())
 
         for expr in expressions:
-            # Use non-overlapping pattern with explicit character classes to prevent backtracking.
-            # This pattern matches: defined(MACRO), defined MACRO, or UPPERCASE_IDENTIFIERS.
             matches = re.findall(
-                r"defined\s*\(\s*(\w+)\s*\)|defined\s+(\w+)|\b([A-Z_][A-Z0-9_]*)\b", expr
+                r"defined\s*\(\s*(\w+)\s*\)|defined\s+(\w+)|\b([A-Z_][A-Z0-9_]*)\b", expr[1]
             )
-            for match_tuple in matches:
-                # Each match_tuple has 3 groups; only one will be non-empty per match
-                for match in match_tuple:
+            if matches:
+                for match in matches[0]:
                     if match:
                         macros.add(f"-D{match}")
 

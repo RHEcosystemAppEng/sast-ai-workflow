@@ -7,57 +7,56 @@ FROM registry.access.redhat.com/ubi9/python-312:1-74.1737470882
 USER 0
 
 # ============================================================================
-# System Dependencies Installation
+# Install all dependencies in a single RUN layer for efficiency
 # ============================================================================
-
-# Install EPEL repository and system packages in a single layer
+#
+# System packages:
 # - git: For cloning repositories (Step 3: prepare-source)
 # - rpm-build: For SRPM processing (Step 3: prepare-source)
 # - curl: For URL validation and downloads (Steps 1, 4, 5)
 # - jq: For JSON processing (Step 7)
 # - file: For file type detection (Step 4: transform-report)
 # - csdiff: For SARIF conversion (Step 4: transform-report)
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
-    dnf install -y --allowerasing \
-    git-2.47.3-1.el9_6 \
-    rpm-build-4.16.1.3-39.el9 \
-    curl-7.76.1-34.el9 \
-    jq-1.6-19.el9 \
-    file-5.39-16.el9 \
-    csdiff-3.5.5-1.el9 \
-    && dnf clean all
-
-# ============================================================================
-# Python Dependencies Installation
-# ============================================================================
-
-# Upgrade pip and install Python packages in a single layer
+#
+# Python packages:
 # - google-api-python-client, google-auth*: For Google Sheets/Drive (Steps 2, 7)
 # - google-cloud-storage: For GCS uploads (Step 8)
 # - packaging: Python package utilities (Step 7)
 # - boto3: For S3/MinIO operations (MLOps Step 7)
 # - dvc, dvc-s3: For DVC data versioning (MLOps Step 4)
-RUN pip install --no-cache-dir --upgrade pip && \
+#
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y --allowerasing \
+        git-2.47.3-1.el9_6 \
+        rpm-build-4.16.1.3-39.el9 \
+        curl-7.76.1-34.el9 \
+        jq-1.6-19.el9 \
+        file-5.39-16.el9 \
+        csdiff-3.5.5-1.el9 && \
+    dnf clean all && \
+    pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-    google-api-python-client==2.187.0 \
-    google-auth==2.41.1 \
-    google-auth-httplib2==0.2.1 \
-    google-auth-oauthlib==1.2.3 \
-    google-cloud-storage==3.6.0 \
-    packaging==25.0 \
-    boto3==1.40.70 \
-    dvc==3.64.0 \
-    dvc-s3==3.2.2
+        google-api-python-client==2.187.0 \
+        google-auth==2.41.1 \
+        google-auth-httplib2==0.2.1 \
+        google-auth-oauthlib==1.2.3 \
+        google-cloud-storage==3.6.0 \
+        packaging==25.0 \
+        boto3==1.40.70 \
+        dvc==3.64.0 \
+        dvc-s3==3.2.2 && \
+    mkdir -p /scripts
 
 # ============================================================================
-# Container Setup
+# Copy pipeline scripts
 # ============================================================================
 
-# Create scripts directory and copy pipeline scripts
-RUN mkdir -p /scripts && chmod 755 /scripts
-COPY deploy/tekton/scripts/*.sh /scripts/
-COPY deploy/tekton/scripts/*.py /scripts/
-RUN chmod +x /scripts/*.sh
+COPY --chmod=755 deploy/tekton/scripts/*.sh /scripts/
+COPY --chmod=644 deploy/tekton/scripts/*.py /scripts/
+
+# ============================================================================
+# Container Configuration
+# ============================================================================
 
 # Set environment variable for environment selection (base/mlops/prod)
 ENV ENVIRONMENT=base
