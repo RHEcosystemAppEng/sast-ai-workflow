@@ -1,7 +1,8 @@
 # SAST AI Workflow Infrastructure Container
 # This container includes all dependencies needed for the Tekton pipeline steps
 
-FROM registry.access.redhat.com/ubi9/python-312
+# Use specific version tag for reproducible builds
+FROM registry.access.redhat.com/ubi9/python-312:1-74.1737470882
 
 USER 0
 
@@ -9,17 +10,15 @@ USER 0
 # System Dependencies Installation
 # ============================================================================
 
-# Install EPEL repository (needed for csdiff/csgrep)
-RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-
-# Install system packages
+# Install EPEL repository and system packages in a single layer
 # - git: For cloning repositories (Step 3: prepare-source)
 # - rpm-build: For SRPM processing (Step 3: prepare-source)
 # - curl: For URL validation and downloads (Steps 1, 4, 5)
 # - jq: For JSON processing (Step 7)
 # - file: For file type detection (Step 4: transform-report)
 # - csdiff: For SARIF conversion (Step 4: transform-report)
-RUN dnf install -y --allowerasing \
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y --allowerasing \
     git-2.47.3-1.el9_6 \
     rpm-build-4.16.1.3-39.el9 \
     curl-7.76.1-34.el9 \
@@ -32,16 +31,14 @@ RUN dnf install -y --allowerasing \
 # Python Dependencies Installation
 # ============================================================================
 
-# Upgrade pip to latest version
-RUN pip install --no-cache-dir --upgrade pip
-
-# Install Python packages for various pipeline steps:
+# Upgrade pip and install Python packages in a single layer
 # - google-api-python-client, google-auth*: For Google Sheets/Drive (Steps 2, 7)
 # - google-cloud-storage: For GCS uploads (Step 8)
 # - packaging: Python package utilities (Step 7)
 # - boto3: For S3/MinIO operations (MLOps Step 7)
 # - dvc, dvc-s3: For DVC data versioning (MLOps Step 4)
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
     google-api-python-client==2.187.0 \
     google-auth==2.41.1 \
     google-auth-httplib2==0.2.1 \
@@ -56,10 +53,8 @@ RUN pip install --no-cache-dir \
 # Container Setup
 # ============================================================================
 
-# Create scripts directory
+# Create scripts directory and copy pipeline scripts
 RUN mkdir -p /scripts && chmod 755 /scripts
-
-# Copy pipeline scripts
 COPY deploy/tekton/scripts/*.sh /scripts/
 COPY deploy/tekton/scripts/*.py /scripts/
 RUN chmod +x /scripts/*.sh
