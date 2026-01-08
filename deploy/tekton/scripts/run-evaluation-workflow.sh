@@ -65,7 +65,7 @@ echo "$EVAL_NODES_NORMALIZED" | tr ',' '\n' | while read -r node; do
   node=$(echo "$node" | xargs)  # trim whitespace
 
   # Skip "all" - it's handled by full workflow in Phase 2
-  [ "$node" = "all" ] && continue
+  [[ "$node" == "all" ]] && continue
 
   # Parse ground truth XLSX file if needed for this evaluation node
   if [[ -f "/shared-data/report-file-path.txt" ]]; then

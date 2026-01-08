@@ -36,7 +36,9 @@ echo ""
 
 # Function to check if command exists
 command_exists() {
-    command -v "$1" >/dev/null 2>&1
+    local cmd="$1"
+    command -v "$cmd" >/dev/null 2>&1
+    return $?
 }
 
 # Function to check prerequisites
@@ -81,6 +83,7 @@ check_prerequisites() {
     fi
     
     echo ""
+    return 0
 }
 
 # Function to check if resources are deployed
@@ -140,9 +143,9 @@ check_deployment() {
     
     # Check if EventListener pod is running
     POD_NAME=$($KUBECTL get pods -n "$NAMESPACE" -l eventlistener=benchmark-mlop-listener -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-    if [ -n "$POD_NAME" ]; then
+    if [[ -n "$POD_NAME" ]]; then
         POD_STATUS=$($KUBECTL get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.phase}')
-        if [ "$POD_STATUS" = "Running" ]; then
+        if [[ "$POD_STATUS" == "Running" ]]; then
             echo -e "${GREEN}✓${NC} EventListener pod is running: $POD_NAME"
         else
             echo -e "${YELLOW}⚠${NC} EventListener pod status: $POD_STATUS"
@@ -152,6 +155,7 @@ check_deployment() {
     fi
     
     echo ""
+    return 0
 }
 
 # Function to display ConfigMap configuration
@@ -159,6 +163,7 @@ show_config() {
     echo -e "${YELLOW}Current Configuration:${NC}"
     $KUBECTL get configmap benchmark-config -n "$NAMESPACE" -o jsonpath='{.data}' | grep -o '"[^"]*"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/^/  /' || echo "  (unable to read)"
     echo ""
+    return 0
 }
 
 # Function to start port-forward
@@ -174,6 +179,7 @@ start_port_forward() {
     
     # Start port-forward
     $KUBECTL port-forward "svc/$SERVICE_NAME" "$LOCAL_PORT:8080" -n "$NAMESPACE"
+    return $?
 }
 
 # Function to send test request
@@ -198,7 +204,7 @@ EOF
 )
     
     echo "Payload:"
-    if [ "$HAS_JQ" = true ]; then
+    if [[ "$HAS_JQ" == true ]]; then
         echo "$PAYLOAD" | jq '.'
     else
         echo "$PAYLOAD"
@@ -217,18 +223,18 @@ EOF
     
     echo "Response Status: $HTTP_STATUS"
     echo "Response Body:"
-    if [ "$HAS_JQ" = true ] && echo "$BODY" | jq '.' >/dev/null 2>&1; then
+    if [[ "$HAS_JQ" == true ]] && echo "$BODY" | jq '.' >/dev/null 2>&1; then
         echo "$BODY" | jq '.'
     else
         echo "$BODY"
     fi
     echo ""
     
-    if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+    if [[ "$HTTP_STATUS" -ge 200 ]] && [[ "$HTTP_STATUS" -lt 300 ]]; then
         echo -e "${GREEN}✓ EventListener accepted the request!${NC}"
         echo ""
         echo "A PipelineRun should have been created. Check with:"
-        if [ "$HAS_TKN" = true ]; then
+        if [[ "$HAS_TKN" == true ]]; then
             echo "  tkn pipelinerun list -n $NAMESPACE"
             echo "  tkn pipelinerun logs -L -f -n $NAMESPACE"
         else
@@ -241,6 +247,7 @@ EOF
         echo "  $KUBECTL logs -l eventlistener=benchmark-mlop-listener -n $NAMESPACE"
     fi
     echo ""
+    return 0
 }
 
 # Function to watch pipeline runs
@@ -248,7 +255,7 @@ watch_pipelineruns() {
     echo -e "${YELLOW}Watching recent benchmark PipelineRuns...${NC}"
     echo ""
     
-    if [ "$HAS_TKN" = true ]; then
+    if [[ "$HAS_TKN" == true ]]; then
         echo "Using tkn to watch PipelineRuns:"
         tkn pipelinerun list -n "$NAMESPACE" -l app.kubernetes.io/component=benchmark-mlop
         echo ""
@@ -277,6 +284,7 @@ watch_pipelineruns() {
     echo -e "${YELLOW}To clean up test PipelineRuns:${NC}"
     echo "  cd ../.. && make eventlistener-clean NAMESPACE=$NAMESPACE"
     echo ""
+    return 0
 }
 
 # Main menu
@@ -348,7 +356,7 @@ show_menu() {
 check_prerequisites
 
 # If script is run with argument, execute that action directly
-if [ $# -gt 0 ]; then
+if [[ $# -gt 0 ]]; then
     case "$1" in
         check|status)
             check_deployment

@@ -1,3 +1,7 @@
+# Note: Using 'latest' tag here is intentional as this image is built from
+# Containerfile.base.dockerfile in the same repository and versioned together.
+# The base image is published via GitHub Actions workflow (build-base-image.yml).
+# hadolint ignore=DL3007
 FROM quay.io/ecosystem-appeng/sast-ai-base-image:latest
 USER 0
 RUN yum install -y clang llvm-devel && yum clean all
