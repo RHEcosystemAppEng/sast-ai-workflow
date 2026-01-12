@@ -235,7 +235,7 @@ class Config:
             required_cfg_files.add(CONFIG_H_PATH)
 
         # Check if HUMAN_VERIFIED_FILE_PATH is accessible if it was provided
-        if self.HUMAN_VERIFIED_FILE_PATH and not self.HUMAN_VERIFIED_FILE_PATH.startswith(("http://", "https://")):
+        if self.HUMAN_VERIFIED_FILE_PATH and not self.HUMAN_VERIFIED_FILE_PATH.startswith(("http://", "https://")):  # NOSONAR - protocol check
             logger.info(f"HUMAN_VERIFIED_FILE_PATH: {self.HUMAN_VERIFIED_FILE_PATH}")
             required_cfg_files.add(HUMAN_VERIFIED_FILE_PATH)
 
