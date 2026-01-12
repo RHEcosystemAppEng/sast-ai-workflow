@@ -22,7 +22,9 @@ def _parse_missing_source_codes(missing_source_codes: str) -> Dict[str, str]:
     if not missing_source_codes:
         return additions
         
-    pattern = re.compile(r"code of\s+(?P<path>.+?)\s+file:\n", re.MULTILINE)
+    # Use atomic grouping equivalent pattern to prevent backtracking
+    # Match "code of" followed by whitespace, then non-whitespace path, then "file:\n"
+    pattern = re.compile(r"code of\s+(?P<path>\S+)\s+file:\n", re.MULTILINE)
     positions = [(m.start(), m.end(), m.group("path")) for m in pattern.finditer(missing_source_codes)]
     
     for idx, (_, end, path) in enumerate(positions):

@@ -23,7 +23,7 @@ class HtmlReportReader(BaseReportReader):
         """
         try:
             # Support only local files
-            if file_path.startswith("https://") or file_path.startswith("http://"):
+            if file_path.startswith("https://") or file_path.startswith("http://"):  # NOSONAR - protocol check, not making request
                 return False
 
             # Check file extension

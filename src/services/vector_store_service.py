@@ -87,7 +87,9 @@ class VectorStoreService:
                 # Extract the lines after the error trace as 'reason_of_false_positive'
                 reason_start_line_index = len(lines) - 1
                 code_block_line_pattern = re.compile(r'#\s*\d+\|')
-                path_line_pattern = re.compile(r'^(.+/)+(.+):(\d+):\s?(.*)')
+                # Use non-capturing group with character class to prevent exponential backtracking
+                # Matches: path/to/file.ext:123: optional text
+                path_line_pattern = re.compile(r'^([^:]+):(\d+):\s?(.*)')
                 
                 for line_index in range(len(lines)-1, -1, -1):
                     if (code_block_line_pattern.match(lines[line_index].strip()) or 

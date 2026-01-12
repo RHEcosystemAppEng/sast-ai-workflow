@@ -60,7 +60,7 @@ class MLflowEvaluationRunner:
 
     def launch_dashboard(self, host: str = "localhost", port: int = 5000):
         """Launch MLflow dashboard."""
-        print(f"\n🚀 Launching MLflow dashboard on http://{host}:{port}")
+        print(f"\n🚀 Launching MLflow dashboard on http://{host}:{port}")  # NOSONAR - localhost only, local dev tool
 
         try:
             # Start MLflow UI
@@ -75,7 +75,7 @@ class MLflowEvaluationRunner:
             sleep(2)
 
             # Open browser
-            webbrowser.open(f"http://{host}:{port}")
+            webbrowser.open(f"http://{host}:{port}")  # NOSONAR - localhost only, local dev tool
 
             print("✅ MLflow dashboard launched!")
             print("Press Ctrl+C to stop the dashboard")
@@ -264,7 +264,7 @@ Examples:
     else:
         print(f"\n🌐 To view the dashboard, run:")
         print(f"   mlflow ui --backend-store-uri {mlflow.get_tracking_uri()}")
-        print(f"   Or visit: http://localhost:5000")
+        print(f"   Or visit: http://localhost:5000")  # NOSONAR - localhost only, local dev tool
 
 
 if __name__ == "__main__":
