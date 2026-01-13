@@ -1,0 +1,276 @@
+# Process Mining Configuration
+# This file contains all configurable parameters for pattern learning and aggregation
+
+PATTERN_AGGREGATION:
+  # True Positive Filtering
+  # Patterns containing these indicators are classified as actual bugs, not false positives
+  true_positive_indicators:
+    - "TRUE POSITIVE"
+    - "SAST is correct"
+    - "SAST is NOT wrong"
+    - "actual bug"
+    - "should be fixed"
+    - "confirmed bug"
+    - "real issue"
+    - "needs fixing"
+
+  # Confidence Formula Weights (must sum to 1.0)
+  confidence_weights:
+    package_coverage: 0.30       
+    frequency: 0.25            
+    consistency: 0.25             
+    evidence_quality: 0.10        
+    structural_specificity: 0.10 
+
+  # Consistency Score Calculation
+  # Dynamically computed as weighted average of:
+  #   - Root cause analysis text similarity (40%)
+  #   - Structural pattern function overlap (40%)
+  #   - Issue type agreement (20%)
+  # Uses pairwise comparisons across all patterns in a group
+  consistency_calculation:
+    rca_weight: 0.4          # Root cause analysis similarity weight
+    function_weight: 0.4     # Function overlap weight (Jaccard)
+    issue_type_weight: 0.2   # Issue type agreement weight (Jaccard)
+
+  # Confidence Calculation Parameters
+  pattern_confidence_fallback: 0.5  # Default when pattern lacks confidence assessment
+
+  # Pattern Inclusion Thresholds
+  min_package_threshold: 2              # Minimum packages required
+  min_confidence_threshold: 0.20        # Minimum confidence for inclusion (lowered for wide coverage)
+  recommended_confidence_threshold: 0.35
+  min_consistency_for_2pkg: 0.30        # Minimum consistency for 2-package patterns
+
+  # Evidence Quality Thresholds
+  evidence_quality:
+    high_threshold: 5      # >= 5 patterns = HIGH quality
+    medium_threshold: 2    # >= 2 patterns = MEDIUM quality (was 1)
+    # Anything below medium_threshold = LOW quality
+
+  # Generalizability Thresholds
+  generalizability:
+    high_threshold: 5      # >= 5 unique packages = HIGH generalizability
+    medium_threshold: 2    # >= 2 unique packages = MEDIUM generalizability
+    # Anything below medium_threshold = LOW generalizability
+
+  # Pattern Matching Thresholds (Multi-Factor Similarity)
+  # These implement the original prompt specification with mode-specific thresholds
+  pattern_matching:
+    # Strong match: both sast_assumption and actual_behavior meet thresholds
+    strong_match:
+      sast_assumption_similarity: 0.50      # Lowered for wide coverage
+      actual_behavior_similarity: 0.50      # Lowered for wide coverage
+
+    # Partial match: very high text similarity (bypasses other checks)
+    partial_match:
+      sast_assumption_similarity: 0.70      # Lowered from 0.85 for more matches
+      actual_behavior_similarity: 0.70      # Lowered from 0.85 for more matches
+
+    # Mechanism match: high mechanism similarity with minimum sast similarity
+    mechanism_match:
+      mechanism_similarity: 0.40            # Lowered for wide coverage
+      min_sast_similarity: 0.25            # Minimum sast similarity required
+
+    # Pattern name matching: similar pattern names indicate same pattern
+    pattern_name_match:
+      similarity_threshold: 0.50            # Pattern names are more standardized
+      min_sast_similarity: 0.20             # Very low bar when names match
+
+  # Issue Type Diversity Penalty
+  # Penalizes patterns that aggregate too many unrelated issue types
+  issue_type_penalty:
+    max_without_penalty: 3        # 1-3 issue types: no penalty
+    penalty_per_extra_type: 0.15  # Each additional issue type reduces confidence by 15%
+
+  # High Coverage Bonuses
+  # Reward patterns that appear across many packages
+  high_coverage_bonus:
+    5_packages: 0.05      # +5% bonus for 5+ packages
+    10_packages: 0.10     # +10% bonus for 10+ packages
+    20_packages: 0.15     # +15% bonus for 20+ packages
+
+  # Output Stratification by Confidence Tier
+  confidence_tiers:
+    high: 0.5       # >= 0.5 confidence
+    medium: 0.4     # >= 0.4 confidence
+    low: 0.3        # >= 0.3 confidence
+
+  # Related Issue Type Groups
+  # Issue types in the same group are considered related per original prompt
+  related_issue_groups:
+    - ['USE_AFTER_FREE', 'MEMORY_LEAK', 'RESOURCE_LEAK']
+    - ['INTEGER_OVERFLOW', 'OVERRUN', 'BUFFER_SIZE', 'NEGATIVE_RETURNS']
+    - ['UNINIT', 'VARARGS']
+    - ['COMPILER_WARNING', 'CPPCHECK_WARNING']
+
+  # API Family Detection Rules
+  # Patterns in function names that identify specific API families
+  api_families:
+    - pattern: g_object
+      family_name: g_object_ref/unref
+    - pattern: g_task
+      family_name: g_task
+    - pattern: g_error
+      family_name: g_error
+    - pattern: pthread
+      family_name: pthreads
+  # Default family_name for unmatched patterns: "general_c"
+
+  # Function Prefix Extraction
+  function_prefix_parts: 2  # Number of underscore-separated parts to extract (e.g., g_task_new -> g_task)
+
+  # Default Directories
+  # Note: When using dataset-specific workflows, patterns are organized as:
+  #   - patterns/train_patterns/ (from train_pattern_data)
+  #   - patterns/test_patterns/ (from test_pattern_data)
+  #   - patterns/validation_patterns/ (from validation_pattern_data)
+  default_patterns_dir: process_mining/data/patterns/
+  default_output_file: process_mining/data/patterns/rhel_c_patterns_final.json
+
+# Pattern Data Preparation Configuration
+PATTERN_PREPARATION:
+  # Default Directories
+  ground_truth_dir: process_mining/data/ground-truth  # Input directory for Excel files
+  output_dir: process_mining/data/pattern_data              # Output directory for prepared pattern data
+
+  # RPM Source Handling
+  rpm_cache_dir: /tmp/rpm_cache  # Cache directory for RPM source downloads
+  default_source_mode: rpm        # Default source fetching mode: "rpm" or "git"
+
+  # False Positive Annotation Values
+  # Excel cell values that indicate a false positive classification
+  false_positive_markers:
+    - "y"
+    - "yes"
+    - "true"
+
+# Train/Validation/Test Split Configuration
+TRAIN_VAL_TEST_SPLIT:
+  # Split Ratios (must sum to 1.0)
+  train_ratio: 0.60        # 60% train (CLI overridable: --train-ratio)
+  validation_ratio: 0.20   # 20% validation (derived from train_ratio)
+  test_ratio: 0.20         # 20% test (derived from train_ratio)
+
+  # Validation Tolerances
+  split_ratio_tolerance: 0.03     # ±3% tolerance for package/issue count split ratio (CLI overridable: --split-tolerance)
+  fp_tp_ratio_tolerance: 0.03     # ±3% tolerance for FP/TP ratio matching (CLI overridable: --fp-tolerance)
+
+  # Random Seed
+  random_seed: 43          # Default random seed for reproducibility (CLI overridable: --random-seed)
+
+  # Known Non-Issue Integration
+  known_non_issue_dir: process_mining/data/ground-truth/known_non_issue  # Directory with ignore.err files
+  require_pairing: false   # If true, exclude packages without both Excel + ignore.err
+
+  # Stratification Settings
+  size_categories:
+    small_max: 5           # Small packages: 1-5 issues
+    medium_max: 20         # Medium packages: 6-20 issues
+    # Large packages: >20 issues
+
+  fp_ratio_buckets:
+    low_max: 0.25          # Low FP ratio: 0-25%
+    high_min: 0.75         # High FP ratio: 75-100%
+    # Medium FP ratio: 25-75%
+
+# Data Processing Configuration
+# Centralizes constants for file handling, column names, and directory structures
+DATA_PROCESSING:
+  # Column Name Mappings (normalized to lowercase for case-insensitive matching)
+  column_names:
+    hint: "hint"
+    comment: "comment"
+    false_positive: "false positive?"
+    finding: "finding"
+    issue_id: "issue id"
+    ai_prediction: "ai prediction"
+
+  # Directory Names
+  directories:
+    full_dataset: "full_dataset"
+    processed_known_non_issues: "processed_known_non_issues"
+    excel_subdir: "excel"
+    known_non_issue_subdir: "known_non_issue"
+
+  # File Patterns
+  file_patterns:
+    excel_extension: ".xlsx"
+    temp_file_prefix: "~"
+    ignore_err_suffix: "_ignore.err"
+
+# Validation Rules Configuration
+# Defines validation requirements and failure categorization
+VALIDATION_RULES:
+  # Excel File Validation
+  excel:
+    required_columns: ["finding", "false positive?"]
+    justification_columns: ["hint", "comment"]  # At least one required with data
+    min_justification_rows: 1  # At least one non-empty justification required
+
+  # ignore.err File Validation
+  ignore_err:
+    require_justification_comments: true
+    justification_marker: "#"
+
+  # Validation Failure Categories
+  failure_categories:
+    no_justification: "no_justification"
+    empty_justification: "empty_justification"
+    missing_fp_column: "missing_fp_column"
+    empty_fp_annotations: "empty_fp_annotations"
+    read_error: "read_error"
+    source_unavailable: "source_code_unavailable"
+    nvr_parse_error: "nvr_parse_error"
+    other: "other"
+
+# Prompt Template Thresholds (for LLM guidance)
+# These values guide the LLM during pattern learning and aggregation
+PATTERN_LEARNING_PROMPTS:
+  # Confidence Ranges
+  confidence_ranges:
+    high: [0.8, 1.0]    # HIGH confidence range
+    medium: [0.5, 0.8]  # MEDIUM confidence range
+    low: [0.0, 0.5]     # LOW confidence range
+
+  # Pattern Aggregation Guidance
+  aggregation:
+    sast_assumption_similarity_threshold: 0.80  # 80% similarity for SAST assumptions
+    actual_behavior_similarity_threshold: 0.80  # 80% similarity for actual behavior
+    code_pattern_overlap_threshold: 0.50        # 50% overlap for code patterns
+    min_package_threshold: 2                    # Minimum packages (matches script default, previously was 5)
+    min_confidence_threshold: 0.7               # Minimum confidence for inclusion
+    min_investigation_steps: 1                  # Minimum investigation steps required
+
+# Batch Pattern Learning Configuration
+BATCH_PATTERN_LEARNING:
+  # Google Cloud Vertex AI Configuration
+  vertex_ai:
+    project_id: "itpc-gcp-eco-eng-claude"
+    region: "us-east5"
+    model: "claude-haiku-4-5@20251001"  # See available models and estimated cost in docs/BATCH_PATTERN_LEARNING_README.md 
+    max_tokens: 16000
+    temperature: 0.0
+
+  # Retry Logic for API calls
+  retry:
+    max_retries: 3
+    retry_delay: 10  # Initial delay in seconds (exponential backoff)
+
+  # Cost Estimation Parameters (USD per 1M tokens - model dependent)
+  # Regional endpoint pricing (us-east5): Sonnet 4.5 includes 10% premium
+  cost_estimation:
+    input_cost_per_million: 3.3   # Sonnet 4.5 regional: $3.00 * 1.10
+    output_cost_per_million: 16.5  # Sonnet 4.5 regional: $15.00 * 1.10
+
+
+  # Processing Configuration
+  processing:
+    default_workers: 5
+    model_suffix: "claude"
+
+  # Path Templates ({dataset} = train/validation/test)
+  paths:
+    prompt_file: "process_mining/prompts/pattern_learning_prompt.md"
+    pattern_data_dir_template: "process_mining/data/pattern_data/{dataset}_pattern_data"
+    output_dir_template: "process_mining/data/patterns/{dataset}_patterns"
