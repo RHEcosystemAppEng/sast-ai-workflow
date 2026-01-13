@@ -93,8 +93,8 @@ class TestPreProcessCore(unittest.IsolatedAsyncioTestCase):
         # testing & assertion
         with self.assertRaises(Exception) as context:
             await TestUtils.run_single_fn(pre_process, self.pre_process_config, self.builder, {})
-            
-            self.assertIn("Failed to read SAST report", str(context.exception))
+        
+        self.assertIn("Failed to read SAST report", str(context.exception))
 
     @patch('sast_agent_workflow.tools.pre_process.repo_handler_factory')
     @patch('sast_agent_workflow.tools.pre_process.read_sast_report')
