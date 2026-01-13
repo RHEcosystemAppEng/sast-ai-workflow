@@ -54,7 +54,7 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
 
     logger.info("Initializing Write_Results function...")
 
-    async def _write_results_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
+    async def _write_results_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
         """
         Write results function for SAST workflow.
 
