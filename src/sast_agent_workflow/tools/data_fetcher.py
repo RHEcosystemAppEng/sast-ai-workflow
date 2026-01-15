@@ -98,7 +98,7 @@ async def data_fetcher(
 
     logger.info("Initializing Data_Fetcher function...")
 
-    async def _data_fetcher_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
+    async def _data_fetcher_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
         """
         Fetch required source code for each issue.
 

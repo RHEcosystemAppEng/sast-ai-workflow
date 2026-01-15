@@ -10,7 +10,7 @@ import json
 import logging
 import sys
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -184,7 +184,7 @@ class BaseEvaluationJsonGenerator(ABC):
             "package_info": package_info,
             "aggregated_metrics": aggregated,
             "metadata": {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "evaluation_dataset": self.dataset_filename
             }
         }

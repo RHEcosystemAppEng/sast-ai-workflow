@@ -485,7 +485,7 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
         }
 
         # Create a temporary file for Excel output
-        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp_file:  # NOSONAR - sync tempfile acceptable in test code
             temp_excel_path = temp_file.name
 
         try:
