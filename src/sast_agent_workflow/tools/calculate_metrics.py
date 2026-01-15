@@ -42,7 +42,7 @@ async def calculate_metrics(
 ):
     logger.info("Initializing Calculate_Metrics function...")
     
-    async def _calculate_metrics_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
+    async def _calculate_metrics_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
         logger.info("Running Calculate_Metrics node - calculating metrics")
         logger.info(f"Calculate_Metrics node processing tracker with {len(tracker.issues)} issues")
         
