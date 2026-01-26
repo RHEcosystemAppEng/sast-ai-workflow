@@ -41,10 +41,10 @@ class TestInvestigateIssue:
     def test__investigate_issue__valid_issue_returns_analysis_response(self):
         # preparation
         mock_config = Mock(spec=Config)
-        mock_config.LLM_URL = "http://test-llm"
+        mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
         mock_config.LLM_API_KEY = "test-key"
         mock_config.LLM_MODEL_NAME = "test-model"
-        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"
+        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
         mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
         mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
@@ -91,10 +91,10 @@ class TestInvestigateIssue:
     def test__investigate_issue__exception_returns_fallback_response(self):
         # preparation
         mock_config = Mock(spec=Config)
-        mock_config.LLM_URL = "http://test-llm"
+        mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
         mock_config.LLM_API_KEY = "test-key"
         mock_config.LLM_MODEL_NAME = "test-model"
-        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"
+        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
         mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
         mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
@@ -136,10 +136,10 @@ class TestInvestigateIssue:
     def test__investigate_issue__false_positive_returns_fp_response(self):
         # preparation
         mock_config = Mock(spec=Config)
-        mock_config.LLM_URL = "http://test-llm"
+        mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
         mock_config.LLM_API_KEY = "test-key"
         mock_config.LLM_MODEL_NAME = "test-model"
-        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"
+        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
         mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
         mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
         mock_config.SIMILARITY_ERROR_THRESHOLD = 3
