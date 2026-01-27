@@ -69,7 +69,7 @@ class TestHtmlReportReader(unittest.TestCase):
         result = self.reader.can_handle("https://example.com/report.html", self.config)
         self.assertFalse(result)
 
-        result = self.reader.can_handle("http://example.com/report.html", self.config)
+        result = self.reader.can_handle("http://example.com/report.html", self.config)  # NOSONAR - Mock URL for testing
         self.assertFalse(result)
 
     def test__can_handle__nonexistent_file_returns_false(self):

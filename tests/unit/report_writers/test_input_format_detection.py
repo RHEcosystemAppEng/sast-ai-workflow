@@ -90,11 +90,11 @@ class TestInputFormatDetection(unittest.TestCase):
         url_test_cases = [
             # URLs with SARIF extensions should still return False
             "https://example.com/report.sarif",
-            "http://scanner.com/results.sarif",
+            "http://scanner.com/results.sarif",  # NOSONAR - Mock URL for testing
             "ftp://files.company.com/report.sarif",
             # URLs with other extensions
             "https://docs.google.com/spreadsheets/d/123/edit",
-            "http://internal.company.com/scans/report.html",
+            "http://internal.company.com/scans/report.html",  # NOSONAR - Mock URL for testing
             "https://api.scanner.com/reports/456.json",
             # URLs with JSON that might contain SARIF
             "https://api.example.com/sarif-report.json",

@@ -10,7 +10,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744  # v3
       - name: "Get diff of the pull request"
         id: get_diff
         shell: bash
@@ -41,7 +41,7 @@ jobs:
             cat "diff.txt";
             echo 'EOF';
           } >> $GITHUB_OUTPUT
-      - uses: rubensflinco/gemini-code-review-action@1.0.5
+      - uses: rubensflinco/gemini-code-review-action@2495314ae2f7e75476de8d647eb6786273548069  # 1.0.5
         name: "Code Review by Gemini AI"
         id: review
         with:

@@ -37,7 +37,7 @@ class TestGoogleSheetsReportReader(unittest.TestCase):
     def test__can_handle__invalid_urls_returns_false(self):
         """Test can_handle returns False for invalid URLs"""
         invalid_urls = [
-            "http://docs.google.com/spreadsheets/d/abc123/edit",  # HTTP not HTTPS
+            "http://docs.google.com/spreadsheets/d/abc123/edit",  # NOSONAR - HTTP not HTTPS (intentional for testing)
             "https://example.com/spreadsheet.xlsx",  # Not Google domain
             "https://drive.google.com/file/d/abc123/view",  # Google Drive, not Sheets
             "/local/file/path.xlsx",  # Local file
