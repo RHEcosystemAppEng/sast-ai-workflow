@@ -36,30 +36,36 @@ EXPECTED_FALSE_POSITIVE_RESULT = AnalysisResponse(
 )
 
 
+def _create_mock_config():
+    """Create a mock Config object for testing LLMService."""
+    mock_config = Mock(spec=Config)
+    mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
+    mock_config.LLM_API_KEY = "test-key"
+    mock_config.LLM_MODEL_NAME = "test-model"
+    mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
+    mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
+    mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
+    mock_config.SIMILARITY_ERROR_THRESHOLD = 3
+    mock_config.RUN_WITH_CRITIQUE = False
+    mock_config.CRITIQUE_LLM_URL = None
+    mock_config.CRITIQUE_LLM_API_KEY = None
+    mock_config.CRITIQUE_LLM_MODEL_NAME = None
+    mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
+    mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
+    mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
+    mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
+    mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
+    mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
+    mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
+    mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
+    return mock_config
+
+
 class TestInvestigateIssue:
 
     def test__investigate_issue__valid_issue_returns_analysis_response(self):
         # preparation
-        mock_config = Mock(spec=Config)
-        mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
-        mock_config.LLM_API_KEY = "test-key"
-        mock_config.LLM_MODEL_NAME = "test-model"
-        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
-        mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
-        mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
-        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
-        mock_config.RUN_WITH_CRITIQUE = False
-        mock_config.CRITIQUE_LLM_URL = None
-        mock_config.CRITIQUE_LLM_API_KEY = None
-        mock_config.CRITIQUE_LLM_MODEL_NAME = None
-        mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
-        mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
-        mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
-        mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
-        mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
-        mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
-        mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
-        mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
+        mock_config = _create_mock_config()
 
         test_issue = Issue(id="test-issue-1")
         test_issue.issue_type = "BUFFER_SIZE"
@@ -90,26 +96,7 @@ class TestInvestigateIssue:
 
     def test__investigate_issue__exception_returns_fallback_response(self):
         # preparation
-        mock_config = Mock(spec=Config)
-        mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
-        mock_config.LLM_API_KEY = "test-key"
-        mock_config.LLM_MODEL_NAME = "test-model"
-        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
-        mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
-        mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
-        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
-        mock_config.RUN_WITH_CRITIQUE = False
-        mock_config.CRITIQUE_LLM_URL = None
-        mock_config.CRITIQUE_LLM_API_KEY = None
-        mock_config.CRITIQUE_LLM_MODEL_NAME = None
-        mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
-        mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
-        mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
-        mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
-        mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
-        mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
-        mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
-        mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
+        mock_config = _create_mock_config()
 
         test_issue = Issue(id="test-issue-1")
         test_issue.issue_type = "BUFFER_SIZE"
@@ -135,26 +122,7 @@ class TestInvestigateIssue:
 
     def test__investigate_issue__false_positive_returns_fp_response(self):
         # preparation
-        mock_config = Mock(spec=Config)
-        mock_config.LLM_URL = "http://test-llm"  # NOSONAR - Mock URL for testing
-        mock_config.LLM_API_KEY = "test-key"
-        mock_config.LLM_MODEL_NAME = "test-model"
-        mock_config.EMBEDDINGS_LLM_URL = "http://test-embed"  # NOSONAR - Mock URL for testing
-        mock_config.EMBEDDINGS_LLM_API_KEY = "test-embed-key"
-        mock_config.EMBEDDINGS_LLM_MODEL_NAME = "test-embed-model"
-        mock_config.SIMILARITY_ERROR_THRESHOLD = 3
-        mock_config.RUN_WITH_CRITIQUE = False
-        mock_config.CRITIQUE_LLM_URL = None
-        mock_config.CRITIQUE_LLM_API_KEY = None
-        mock_config.CRITIQUE_LLM_MODEL_NAME = None
-        mock_config.ANALYSIS_SYSTEM_PROMPT = "Test system prompt"
-        mock_config.ANALYSIS_HUMAN_PROMPT = "Test human prompt"
-        mock_config.FILTER_SYSTEM_PROMPT = "Test filter system"
-        mock_config.FILTER_HUMAN_PROMPT = "Test filter human"
-        mock_config.RECOMMENDATIONS_PROMPT = "Test recommendations prompt"
-        mock_config.JUSTIFICATION_SUMMARY_SYSTEM_PROMPT = "Test summary system"
-        mock_config.JUSTIFICATION_SUMMARY_HUMAN_PROMPT = "Test summary human"
-        mock_config.EVALUATION_PROMPT = "Test evaluation prompt"
+        mock_config = _create_mock_config()
 
         test_issue = Issue(id="test-issue-2")
         test_issue.issue_type = "BUFFER_SIZE"
