@@ -1,5 +1,9 @@
+import argparse
 import json
 import re
+import time
+from collections import deque
+from threading import Lock
 from typing import Dict, List, Optional
 from pathlib import Path
 
@@ -9,6 +13,23 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
+
+
+# Platform configurations
+PLATFORM_CONFIGS = {
+    "local": {
+        "base_url": "http://vllm-public-sast-ai-models.public.apps.lab01.ibmcloud.appeng.rhecoeng.com/v1",
+        "api_key": "API_KEY",
+        "model": "nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
+        "rate_limit": None,  # No rate limit for local
+    },
+    "nim": {
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "api_key": "YOUR_NIM_API_KEY",
+        "model": "qwen/qwen3-next-80b-a3b-thinking",
+        "rate_limit": 30,  # 30 requests per minute
+    },
+}
 
 
 class ClassificationResult:
@@ -41,20 +62,37 @@ class ClassificationResult:
 class PatternBasedClassifier:
     """Classify SAST findings using LLM + issue-type-specific patterns."""
 
+    # Keywords to match issue types from pattern filenames
+    # Supports both old format (*resource_leak*.json) and new format (rhel_c_RESOURCE_LEAK_pattern_summary.json)
     ISSUE_TYPE_KEYWORDS = {
-        'RESOURCE_LEAK': ['resource_leak', 'resourceleak'],
-        'UNINIT': ['uninit'],
-        'OVERRUN': ['overrun'],
-        'INTEGER_OVERFLOW': ['integer_overflow', 'integeroverflow'],
-        'USE_AFTER_FREE': ['use_after_free', 'useafterfree'],
-        'CPPCHECK_WARNING': ['cppcheck_warning', 'cppcheck'],
+        'RESOURCE_LEAK': ['resource_leak', 'resourceleak', '_resource_leak_'],
+        'UNINIT': ['uninit', '_uninit_'],
+        'OVERRUN': ['overrun', '_overrun_'],
+        'INTEGER_OVERFLOW': ['integer_overflow', 'integeroverflow', '_integer_overflow_'],
+        'USE_AFTER_FREE': ['use_after_free', 'useafterfree', '_use_after_free_'],
+        'CPPCHECK_WARNING': ['cppcheck_warning', 'cppcheck', '_cppcheck_warning_'],
+        'ARRAY_VS_SINGLETON': ['array_vs_singleton', 'arrayvs_singleton', '_array_vs_singleton_'],
+        'BAD_FREE': ['bad_free', 'badfree', '_bad_free_'],
+        'BUFFER_SIZE': ['buffer_size', 'buffersize', '_buffer_size_'],
+        'COMPILER_WARNING': ['compiler_warning', 'compilerwarning', '_compiler_warning_'],
+        'COPY_PASTE_ERROR': ['copy_paste_error', 'copypasteerror', '_copy_paste_error_'],
+        'NEGATIVE_RETURNS': ['negative_returns', 'negativereturns', '_negative_returns_'],
+        'OVERLAPPING_COPY': ['overlapping_copy', 'overlappingcopy', '_overlapping_copy_'],
+        'RETURN_LOCAL': ['return_local', 'returnlocal', '_return_local_'],
+        'STRING_NULL': ['string_null', 'stringnull', '_string_null_'],
+        'VARARGS': ['varargs', '_varargs_'],
+        'Y2K38_SAFETY': ['y2k38_safety', 'y2k38safety', '_y2k38_safety_', 'y2k38'],
+        'BAD_CHECK_OF_WAIT_COND': ['bad_check_of_wait_cond', 'badcheckofwaitcond', '_bad_check_of_wait_cond_'],
+        'IDENTICAL_BRANCHES': ['identical_branches', 'identicalbranches', '_identical_branches_'],
+        'LOCK_EVASION': ['lock_evasion', 'lockevasion', '_lock_evasion_'],
     }
 
     def __init__(
         self,
-        base_url: str = "http://vllm-public-sast-ai-models.public.apps.lab01.ibmcloud.appeng.rhecoeng.com/v1",
-        api_key: str = "API_KEY",
-        model: str = "nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
+        platform: str = "local",
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
         max_tokens: int = 8000,
         temperature: float = 0.0,
         baseline_mode: bool = False
@@ -63,29 +101,44 @@ class PatternBasedClassifier:
         Initialize LLM classifier.
 
         Args:
-            base_url: vLLM server URL
-            api_key: API key for authentication
-            model: Model name/ID
+            platform: Platform to use ("local" for self-hosted vLLM, "nim" for NVIDIA NIM)
+            base_url: Override platform's default URL
+            api_key: Override platform's default API key
+            model: Override platform's default model
             max_tokens: Maximum tokens in response
             temperature: Sampling temperature (0.0 = deterministic)
             baseline_mode: If True, run without pattern library (baseline evaluation)
         """
-        self.base_url = base_url
-        self.api_key = api_key
-        self.model = model
+        if platform not in PLATFORM_CONFIGS:
+            raise ValueError(f"Unknown platform: {platform}. Available: {list(PLATFORM_CONFIGS.keys())}")
+
+        config = PLATFORM_CONFIGS[platform]
+        self.platform = platform
+        self.base_url = base_url or config["base_url"]
+        self.api_key = api_key or config["api_key"]
+        self.model = model or config["model"]
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.baseline_mode = baseline_mode
 
         if OPENAI_AVAILABLE:
             self.client = OpenAI(
-                base_url=base_url,
-                api_key=api_key,
+                base_url=self.base_url,
+                api_key=self.api_key,
                 timeout=120.0,
                 max_retries=3
             )
         else:
             self.client = None
+
+        # Rate limiting setup
+        self.rate_limit = config.get("rate_limit")
+        self._request_times: deque = deque()
+        self._rate_limit_lock = Lock()
+
+        print(f"Using platform: {platform} ({self.model})")
+        if self.rate_limit:
+            print(f"Rate limit: {self.rate_limit} requests/minute")
 
         self.patterns_by_issue_type: Dict[str, str] = {}
         self.prompt_template = ""
@@ -94,10 +147,16 @@ class PatternBasedClassifier:
         """
         Load pattern files from directory, auto-detecting by filename.
 
-        Filename convention:
+        Supports both old and new filename conventions:
+        Old format:
         - *resource_leak*.json -> RESOURCE_LEAK
         - *uninit*.json -> UNINIT
         - *overrun*.json -> OVERRUN
+
+        New format (simplified patterns):
+        - rhel_c_RESOURCE_LEAK_pattern_summary.json -> RESOURCE_LEAK
+        - rhel_c_UNINIT_pattern_summary.json -> UNINIT
+        - rhel_c_OVERRUN_pattern_summary.json -> OVERRUN
 
         Args:
             patterns_dir: Path to directory containing pattern JSON files (None for baseline mode)
@@ -158,7 +217,7 @@ class PatternBasedClassifier:
         """
         issue_type = masked_entry.get('issue_type', 'N/A')
 
-        prompt = f"""Please analyze the following SAST (Static Application Security Testing) finding and determine if it is a TRUE_POSITIVE (real security vulnerability) or FALSE_POSITIVE (incorrect/benign finding).
+        prompt = f"""You are analyzing a SAST (Static Application Security Testing) finding to classify it as TRUE_POSITIVE (real security vulnerability) or FALSE_POSITIVE (incorrect/benign finding).
 
 ## SAST Finding
 
@@ -184,42 +243,103 @@ class PatternBasedClassifier:
                 prompt += f"""
 ## Reference Patterns
 
-The following pattern file for {issue_type} issues may be useful for your analysis. It contains known false positive and true positive patterns observed in similar codebases. Cite the pattern IDs if they apply.
-
 ```json
 {patterns_content}
 ```
+
+## Analysis Plan (FOLLOW THESE STEPS IN ORDER)
+
+You MUST follow this analysis plan step-by-step:
+
+1. **Read the Error Trace**: Understand the flow and location of the reported issue.
+
+2. **Read the Source Code Context**: Examine the relevant code attached above.
+
+3. **Check Reference Patterns**: Review the patterns provided above and determine if any pattern matches this finding.
+
+4. **Make Your Decision**:
+   - **If a pattern applies**: Use the pattern to determine TRUE_POSITIVE or FALSE_POSITIVE. The pattern description becomes your justification.
+   - **If no pattern applies**: Continue with your own code analysis to determine the classification.
+
+**CRITICAL**: Always attempt to match patterns FIRST. Only perform independent analysis if no pattern is applicable.
 """
             else:
                 prompt += f"""
-## Note
+## Analysis Plan
 
-No specific patterns available for {issue_type} issues. Please analyze based on the code context alone.
+1. **Read the Error Trace**: Understand the flow and location of the reported issue.
+2. **Read the Source Code Context**: Examine the relevant code attached above.
+3. **Analyze the Code**: Determine if this is a real vulnerability or a false alarm based on the code context.
+
+Note: No specific patterns available for {issue_type} issues.
+"""
+        else:
+            prompt += """
+## Analysis Plan
+
+1. **Read the Error Trace**: Understand the flow and location of the reported issue.
+2. **Read the Source Code Context**: Examine the relevant code attached above.
+3. **Analyze the Code**: Determine if this is a real vulnerability or a false alarm based on the code context.
 """
 
         prompt += """
 ## Your Response
 
-You MUST respond with valid JSON in exactly this format:
+Respond with valid JSON in exactly this format:
 
 ```json
 {
   "classification": "TRUE_POSITIVE" or "FALSE_POSITIVE",
-  "justification": "Your detailed explanation of why this is a true or false positive",
+  "justification": "Your explanation - if a pattern was used, include the pattern ID, its description, and how it matches this specific code",
   "cited_patterns": ["pattern_id_1", "pattern_id_2"]
 }
 ```
 
-CRITICAL REQUIREMENTS:
-1. The "classification" field MUST be exactly "TRUE_POSITIVE" or "FALSE_POSITIVE" - no other values allowed
-2. Output ONLY the JSON block - no text before or after the JSON
-3. If no patterns were cited, use an empty array: "cited_patterns": []
-4. Ensure the JSON is valid and properly formatted
+REQUIREMENTS:
+1. "classification" MUST be exactly "TRUE_POSITIVE" or "FALSE_POSITIVE" - no other values allowed
+2. If you used a pattern for your decision:
+   - The pattern ID MUST be in "cited_patterns"
+   - The "justification" MUST include the pattern ID, its description, AND a brief explanation of how it matches this specific code
+3. If no patterns were used, set "cited_patterns": []
+4. Output ONLY the JSON block - no text before or after the JSON
 
 Your response must start with ```json and end with ```
 """
 
         return prompt
+
+    def _wait_for_rate_limit(self) -> None:
+        """
+        Wait if necessary to respect rate limits.
+
+        Uses a sliding window to track requests in the last 60 seconds.
+        Thread-safe for parallel workers.
+        """
+        if not self.rate_limit:
+            return
+
+        with self._rate_limit_lock:
+            now = time.time()
+            window_start = now - 60.0
+
+            # Remove requests outside the 60-second window
+            while self._request_times and self._request_times[0] < window_start:
+                self._request_times.popleft()
+
+            # If at rate limit, wait until oldest request exits the window
+            if len(self._request_times) >= self.rate_limit:
+                wait_time = self._request_times[0] - window_start + 0.1
+                if wait_time > 0:
+                    print(f"Rate limit reached, waiting {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+                    # Clean up again after waiting
+                    now = time.time()
+                    window_start = now - 60.0
+                    while self._request_times and self._request_times[0] < window_start:
+                        self._request_times.popleft()
+
+            # Record this request
+            self._request_times.append(time.time())
 
     def classify_entry(self, masked_entry: Dict) -> ClassificationResult:
         """
@@ -237,6 +357,9 @@ Your response must start with ```json and end with ```
             if not OPENAI_AVAILABLE or self.client is None:
                 raise RuntimeError("OpenAI SDK not available. Install with: pip install openai")
 
+            # Respect rate limits before making request
+            self._wait_for_rate_limit()
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
@@ -247,6 +370,9 @@ Your response must start with ```json and end with ```
             )
 
             response_text = response.choices[0].message.content
+
+            if response_text is None:
+                raise ValueError("LLM returned empty response (content is None)")
 
             classification, justification, cited_patterns = self._parse_response(response_text)
 
@@ -374,33 +500,44 @@ Your response must start with ```json and end with ```
 
 def main():
     """Test the classifier with a sample entry."""
-    import sys
     from entry_parser import ValidationEntryParser
 
-    if len(sys.argv) < 3:
-        print("Usage: python llm_classifier.py <patterns_dir> <validation_file>")
-        print("")
-        print("  patterns_dir: Directory containing pattern JSON files")
-        print("                Files are auto-detected by name:")
-        print("                  *resource_leak*.json -> RESOURCE_LEAK")
-        print("                  *uninit*.json -> UNINIT")
-        print("                  *overrun*.json -> OVERRUN")
-        print("")
-        print("  validation_file: Path to validation .txt file")
-        sys.exit(1)
+    arg_parser = argparse.ArgumentParser(
+        description="LLM-based SAST finding classifier",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Use local self-hosted Llama model (default)
+  python llm_classifier.py patterns/ validation.txt
 
-    patterns_dir = Path(sys.argv[1])
-    validation_file = Path(sys.argv[2])
+  # Use NVIDIA NIM platform with Qwen3 model
+  python llm_classifier.py patterns/ validation.txt --platform nim
 
-    parser = ValidationEntryParser()
-    entries = parser.parse_file(validation_file)
+Pattern files are auto-detected by name:
+  Old format: *resource_leak*.json -> RESOURCE_LEAK
+  New format: rhel_c_RESOURCE_LEAK_pattern_summary.json -> RESOURCE_LEAK
+        """
+    )
+    arg_parser.add_argument("patterns_dir", type=Path, help="Directory containing pattern JSON files")
+    arg_parser.add_argument("validation_file", type=Path, help="Path to validation .txt file")
+    arg_parser.add_argument(
+        "--platform", "-p",
+        choices=list(PLATFORM_CONFIGS.keys()),
+        default="local",
+        help="LLM platform to use (default: local)"
+    )
+
+    args = arg_parser.parse_args()
+
+    entry_parser = ValidationEntryParser()
+    entries = entry_parser.parse_file(args.validation_file)
 
     if not entries:
         print("No entries found in validation file")
-        sys.exit(1)
+        return
 
-    classifier = PatternBasedClassifier()
-    classifier.load_patterns(patterns_dir)
+    classifier = PatternBasedClassifier(platform=args.platform)
+    classifier.load_patterns(args.patterns_dir)
 
     print(f"\nClassifying entry: {entries[0].entry_id}")
     print(f"Issue type: {entries[0].issue_type}")
@@ -409,7 +546,7 @@ def main():
     result = classifier.classify_entry(entries[0].get_masked_entry())
 
     print(f"\n{'='*80}")
-    print(f"CLASSIFICATION RESULTS")
+    print("CLASSIFICATION RESULTS")
     print(f"{'='*80}")
     print(f"Prediction: {result.predicted_classification}")
     print(f"\nJustification:\n{result.predicted_justification}")

@@ -8,10 +8,11 @@ class EvaluationMetrics:
     def __init__(self):
         self.total = 0
         self.correct = 0
-        self.tp_as_tp = 0 
-        self.tp_as_fp = 0 
-        self.fp_as_fp = 0 
-        self.fp_as_tp = 0 
+        self.tp_as_tp = 0
+        self.tp_as_fp = 0
+        self.fp_as_fp = 0
+        self.fp_as_tp = 0
+        self.errors_skipped = 0  # Count of ERROR entries excluded from metrics 
 
         self.by_issue_type = defaultdict(lambda: {
             'total': 0,
@@ -50,6 +51,11 @@ class EvaluationMetrics:
             initial_classification: Phase 1 classification (before pattern verification)
             classification_changed: Whether Phase 2 changed the classification
         """
+        # Skip ERROR entries - only include TRUE_POSITIVE or FALSE_POSITIVE predictions
+        if predicted.upper() == "ERROR":
+            self.errors_skipped += 1
+            return
+
         self.total += 1
 
         gt_is_tp = "TRUE" in ground_truth.upper()
@@ -182,6 +188,7 @@ class EvaluationMetrics:
             'pattern_citations': pattern_citations,
             'total_entries': self.total,
             'correct_predictions': self.correct,
+            'errors_skipped': self.errors_skipped,
             'phase2_verification': phase2_metrics
         }
 
@@ -195,6 +202,7 @@ class EvaluationMetrics:
 
         print(f"\nOverall Performance:")
         print(f"  Total Entries:     {metrics['total_entries']}")
+        print(f"  Errors Skipped:    {metrics['errors_skipped']}")
         print(f"  Correct:           {metrics['correct_predictions']}")
         print(f"  Accuracy:          {metrics['accuracy']:.2%}")
         print(f"  Precision:         {metrics['precision']:.2%}")

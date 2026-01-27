@@ -10,7 +10,7 @@ Supports two modes:
 Usage:
     # Pattern-based mode (directory of pattern files)
     python pattern_classifier.py \\
-        --patterns ../../data/patterns/train_patterns/generic_patterns/issueType_patterns \\
+        --patterns ../../data/patterns/train_patterns/generic_patterns/issue_type_patterns_summary \\
         --validation-data ../../data/pattern_data/validation_pattern_data \\
         --output process_mining/evaluation/llm_classification/results/pattern_eval.json
 
@@ -30,6 +30,7 @@ Usage:
 import argparse
 import json
 import logging
+import random
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -41,7 +42,7 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).parent))
 
 from entry_parser import ValidationEntryParser, ValidationEntry
-from llm_classifier import PatternBasedClassifier, ClassificationResult
+from llm_classifier import PatternBasedClassifier, ClassificationResult, PLATFORM_CONFIGS
 from metrics import EvaluationMetrics
 
 logging.basicConfig(
@@ -62,7 +63,9 @@ class PatternEvaluator:
         verbose: bool = False,
         workers: int = 1,
         limit: int = None,
-        baseline_mode: bool = False
+        seed: int = 42,
+        baseline_mode: bool = False,
+        platform: str = "local"
     ):
         """
         Initialize evaluator.
@@ -73,8 +76,10 @@ class PatternEvaluator:
             patterns_dir: Directory containing pattern JSON files (None for baseline mode)
             verbose: Enable verbose logging
             workers: Number of parallel workers for LLM classification
-            limit: Maximum number of entries to process (None for all)
+            limit: Maximum number of entries to randomly sample (None for all)
+            seed: Random seed for reproducible sampling when using limit
             baseline_mode: If True, run without pattern library (baseline evaluation)
+            platform: LLM platform to use ("local" or "nim")
         """
         if patterns_dir is None and not baseline_mode:
             raise ValueError("patterns_dir is required when not in baseline mode")
@@ -85,13 +90,15 @@ class PatternEvaluator:
         self.verbose = verbose
         self.workers = workers
         self.limit = limit
+        self.seed = seed
         self.baseline_mode = baseline_mode
+        self.platform = platform
 
         if verbose:
             logging.getLogger().setLevel(logging.DEBUG)
 
         self.parser = ValidationEntryParser()
-        self.classifier = PatternBasedClassifier(baseline_mode=baseline_mode)
+        self.classifier = PatternBasedClassifier(platform=platform, baseline_mode=baseline_mode)
         self.metrics = EvaluationMetrics()
         self.metrics_lock = Lock()
 
@@ -129,8 +136,12 @@ class PatternEvaluator:
         logger.info(f"Found {len(all_entries)} total entries")
 
         if self.limit is not None and self.limit > 0:
-            logger.info(f"Limiting to first {self.limit} entries")
-            all_entries = all_entries[:self.limit]
+            if self.limit < len(all_entries):
+                random.seed(self.seed)
+                all_entries = random.sample(all_entries, self.limit)
+                logger.info(f"Randomly sampled {self.limit} entries (seed={self.seed})")
+            else:
+                logger.info(f"Limit ({self.limit}) >= total entries ({len(all_entries)}), using all")
 
         logger.info(f"Processing {len(all_entries)} entries")
         logger.info(f"  TP: {sum(1 for e in all_entries if 'TRUE' in e.ground_truth_classification)}")
@@ -236,7 +247,10 @@ class PatternEvaluator:
                 "baseline_mode": self.baseline_mode,
                 "validation_data_dir": str(self.validation_data_dir),
                 "total_entries": len(self.results) if not dry_run else 0,
+                "limit": self.limit,
+                "seed": self.seed,
                 "timestamp": datetime.now().isoformat(),
+                "platform": self.platform,
                 "model": self.classifier.model,
                 "dry_run": dry_run
             },
@@ -254,7 +268,7 @@ def parse_args():
 Examples:
   # Pattern-based evaluation (directory of pattern files)
   python pattern_classifier.py \\
-      --patterns ../../data/patterns/train_patterns/generic_patterns/issueType_patterns \\
+      --patterns ../../data/patterns/train_patterns/generic_patterns/issue_type_patterns_summary \\
       --validation-data ../../data/pattern_data/validation_pattern_data \\
       --output process_mining/evaluation/llm_classification/results/pattern_eval.json
 
@@ -266,13 +280,13 @@ Examples:
 
   # Dry run to see what would be processed
   python pattern_classifier.py \\
-      --patterns ../../data/patterns/train_patterns/generic_patterns/issueType_patterns \\
+      --patterns ../../data/patterns/train_patterns/generic_patterns/issue_type_patterns_summary \\
       --validation-data ../../data/pattern_data/validation_pattern_data \\
       --dry-run
 
   # With verbose logging and parallel processing
   python pattern_classifier.py \\
-      --patterns ../../data/patterns/train_patterns/generic_patterns/issueType_patterns \\
+      --patterns ../../data/patterns/train_patterns/generic_patterns/issue_type_patterns_summary \\
       --validation-data ../../data/pattern_data/validation_pattern_data \\
       --output process_mining/evaluation/llm_classification/results/eval.json \\
       --workers 10 \\
@@ -338,7 +352,21 @@ Examples:
         "--limit",
         type=int,
         default=None,
-        help="Maximum number of entries to process (default: all)"
+        help="Maximum number of entries to randomly sample (default: all)"
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducible sampling when using --limit (default: 42)"
+    )
+
+    parser.add_argument(
+        "--platform", "-p",
+        choices=list(PLATFORM_CONFIGS.keys()),
+        default="local",
+        help="LLM platform to use: 'local' for self-hosted Llama, 'nim' for NVIDIA NIM (default: local)"
     )
 
     return parser.parse_args()
@@ -371,7 +399,9 @@ def main():
         verbose=args.verbose,
         workers=args.workers,
         limit=args.limit,
-        baseline_mode=args.baseline
+        seed=args.seed,
+        baseline_mode=args.baseline,
+        platform=args.platform
     )
 
     try:
