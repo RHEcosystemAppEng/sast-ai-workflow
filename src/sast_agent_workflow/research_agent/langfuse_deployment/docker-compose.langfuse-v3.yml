@@ -1,0 +1,199 @@
+# Langfuse v3 Docker Compose Configuration
+# Customized to preserve v2 data and secrets
+
+services:
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    container_name: langfuse-worker
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:3030:3030
+    environment: &langfuse-worker-env
+      NEXTAUTH_URL: http://localhost:3000
+      # Reuse v2 database to preserve data
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/langfuse
+      # Reuse v2 secrets
+      SALT: mysalt-change-in-production
+      ENCRYPTION_KEY: 7ae5c317396535e327698d973bb649737f5cf125038f223bb08a4041dcdf1e44
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      # ClickHouse configuration
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse_secret_password
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      # MinIO (S3-compatible storage) configuration
+      LANGFUSE_USE_AZURE_BLOB: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: minio_secret_password
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: minio_secret_password
+      # IMPORTANT: this endpoint is used by langfuse-web/worker inside the Docker network.
+      # Using localhost here points to the container itself (not the host port mapping),
+      # which causes 500s like "Failed to upload JSON to S3" and results in missing traces.
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      # Batch export configuration (for data exports)
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: "true"
+      LANGFUSE_S3_BATCH_EXPORT_BUCKET: langfuse
+      LANGFUSE_S3_BATCH_EXPORT_REGION: auto
+      LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: minio_secret_password
+      LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: http://minio:9000
+      # Public endpoint for browser download URLs (host-accessible)
+      LANGFUSE_S3_BATCH_EXPORT_PUBLIC_ENDPOINT: http://localhost:9090
+      LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_BATCH_EXPORT_PREFIX: exports/
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: redis_secret_password
+      REDIS_TLS_ENABLED: "false"
+
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    container_name: langfuse-web
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - 3000:3000
+    environment:
+      <<: *langfuse-worker-env
+      # Reuse v2 NextAuth secret
+      NEXTAUTH_SECRET: mysecret-change-in-production
+      # Disable signup for security
+      AUTH_DISABLE_SIGNUP: "false"
+      AUTH_DISABLE_USERNAME_PASSWORD: "false"
+
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:latest
+    container_name: langfuse-clickhouse
+    restart: always
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse_secret_password
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ports:
+      - 127.0.0.1:8123:8123
+      - 127.0.0.1:9000:9000
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: langfuse-minio
+    restart: always
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio_secret_password
+    ports:
+      - 9090:9000
+      - 127.0.0.1:9091:9001
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Ensure required bucket(s) exist for Langfuse v3 S3 uploads.
+  # Without this, Langfuse may error with "Failed to upload JSON to S3" and traces won't appear.
+  minio-init:
+    image: docker.io/minio/mc:latest
+    container_name: langfuse-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      mc alias set langfuse http://minio:9000 minio minio_secret_password &&
+      mc mb -p langfuse/langfuse || true &&
+      mc ls langfuse/langfuse
+      "
+    restart: "no"
+
+  redis:
+    image: docker.io/redis:7
+    container_name: langfuse-redis
+    restart: always
+    command: >
+      --requirepass redis_secret_password
+      --maxmemory-policy noeviction
+    ports:
+      - 127.0.0.1:6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret_password", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: docker.io/postgres:17
+    container_name: langfuse-postgres-v3
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Reuse v2 database name
+      POSTGRES_DB: langfuse
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      # NEW volume for v3 (will migrate v2 data to this)
+      - langfuse_postgres_v3_data:/var/lib/postgresql/data
+
+volumes:
+  langfuse_postgres_v3_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
+    driver: local
