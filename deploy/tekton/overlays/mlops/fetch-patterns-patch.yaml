@@ -1,5 +1,5 @@
 - op: add
-  path: /spec/steps/5
+  path: /spec/steps/6
   value:
     name: fetch-patterns
     image: $(params.BASE_IMAGE)
