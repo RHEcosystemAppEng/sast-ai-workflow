@@ -1,8 +1,9 @@
 # SAST AI Workflow Infrastructure Container
 # This container includes all dependencies needed for the Tekton pipeline steps
 
-# Use specific version tag for reproducible builds
-FROM registry.access.redhat.com/ubi9/python-312:1-74.1737470882
+# Using floating tag intentionally - Red Hat UBI images are security-maintained
+# SonarQube rule docker:S6504 is suppressed in sonar-project.properties
+FROM registry.access.redhat.com/ubi9/python-312:latest
 
 USER 0
 
