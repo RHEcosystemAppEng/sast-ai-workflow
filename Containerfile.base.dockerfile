@@ -1,7 +1,8 @@
 # SAST AI Workflow Infrastructure Container
 # This container includes all dependencies needed for the Tekton pipeline steps
 
-# NOSONAR - Using floating tag is intentional; Red Hat UBI images are security-maintained
+# Using floating tag intentionally - Red Hat UBI images are security-maintained
+# SonarQube rule docker:S6504 is suppressed in sonar-project.properties
 FROM registry.access.redhat.com/ubi9/python-312:latest
 
 USER 0
