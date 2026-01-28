@@ -19,17 +19,26 @@ from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from Utils.file_utils import read_answer_template_file
 from Utils.llm_utils import robust_structured_output
 from .vector_store_service import VectorStoreService
+from .pattern_loader_service import PatternLoaderService
 
 logger = logging.getLogger(__name__)
 
 
 class IssueAnalysisService:
     """Service for analyzing issues and determining false positives"""
-    
-    def __init__(self, config, vector_service: VectorStoreService):
+
+    def __init__(self, config, vector_service: VectorStoreService, pattern_loader: PatternLoaderService = None):
         self.config = config
         self.vector_service = vector_service
         self.max_retry_limit = 3
+        self.pattern_loader = pattern_loader or PatternLoaderService()
+
+        # Load patterns on initialization
+        try:
+            self.pattern_loader.load_patterns()
+        except Exception as e:
+            logger.warning(f"Failed to load patterns during initialization: {e}")
+            logger.info("Pattern-based analysis will be disabled")
     
     def filter_known_issues_from_context(self, issue: Issue, similar_findings_context: str, main_llm: BaseChatModel) -> FilterResponse:
         """
@@ -185,7 +194,18 @@ class IssueAnalysisService:
     def _analyze_issue_with_retry(self, context: str, issue: Issue, main_llm: BaseChatModel):
         """Analyze an issue to determine if it is a false positive or not."""
         user_input = "Investigate if the following problem needs to be fixed or can be considered false positive. " + issue.trace
-        
+
+        # Get patterns for this issue type if available
+        patterns_content = self.pattern_loader.get_patterns_for_issue_type(issue.issue_type)
+
+        # Augment context with patterns if available
+        enhanced_context = context
+        if patterns_content:
+            logger.info(f"Using patterns for issue type: {issue.issue_type}")
+            enhanced_context = f"{context}\n\n## Available Patterns for {issue.issue_type}\n\n{patterns_content}"
+        else:
+            logger.debug(f"No patterns available for issue type: {issue.issue_type}")
+
         # Should not use 'system' for deepseek-r1
         analysis_prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template(self.config.ANALYSIS_SYSTEM_PROMPT),
@@ -194,13 +214,13 @@ class IssueAnalysisService:
 
         analysis_prompt_chain = (
             {
-                "context": RunnableLambda(lambda _: context),
+                "context": RunnableLambda(lambda _: enhanced_context),
                 "cve_error_trace": RunnableLambda(lambda _: issue.trace),
                 "question": RunnablePassthrough()
             }
             | analysis_prompt
         )
-        
+
         actual_prompt = analysis_prompt_chain.invoke(user_input)
         logger.debug(f"Analysis prompt: {actual_prompt.to_string()}")
 
@@ -214,14 +234,19 @@ class IssueAnalysisService:
             )
         except Exception as e:
             logger.error(RED_ERROR_FOR_LLM_REQUEST.format(
-                max_retry_limit=self.max_retry_limit, 
-                function_name="_analyze", 
-                issue_id=issue.id, 
+                max_retry_limit=self.max_retry_limit,
+                function_name="_analyze",
+                issue_id=issue.id,
                 error=e
             ))
             raise e
 
         logger.debug(f"{analysis_response=}")
+
+        # Log if patterns were cited
+        if analysis_response.cited_patterns:
+            logger.info(f"Analysis cited patterns: {analysis_response.cited_patterns}")
+
         return actual_prompt, analysis_response
 
     @retry(stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception))

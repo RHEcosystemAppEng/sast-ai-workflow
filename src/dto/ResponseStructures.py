@@ -57,6 +57,11 @@ class JudgeLLMResponse(BaseModel):
     justifications: List[str] = Field(
         description="The reasoning that led to the investigation_result decision."
     )
+    cited_patterns: List[str] = Field(
+        default_factory=list,
+        description="List of pattern IDs that were cited/used in making the classification decision. \
+            Empty list if no patterns were used."
+    )
     model_config = {"extra": "forbid"}
 
 

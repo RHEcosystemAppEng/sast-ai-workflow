@@ -1,0 +1,30 @@
+- op: add
+  path: /spec/steps/5
+  value:
+    name: fetch-patterns
+    image: $(params.BASE_IMAGE)
+    volumeMounts:
+      - name: shared-data
+        mountPath: /shared-data
+    env:
+      - name: DVC_REPO_URL
+        value: "$(params.DVC_REPO_URL)"
+      - name: DVC_DATA_VERSION
+        value: "$(params.DVC_DATA_VERSION)"
+      - name: S3_ENDPOINT_URL
+        value: "$(params.S3_ENDPOINT_URL)"
+      - name: S3_INPUT_BUCKET_NAME
+        value: "$(params.S3_INPUT_BUCKET_NAME)"
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: sast-ai-s3-input-creds
+            key: aws_access_key_id
+            optional: true
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: sast-ai-s3-input-creds
+            key: aws_secret_access_key
+            optional: true
+    command: ["/scripts/fetch_patterns_mlops.sh"]
