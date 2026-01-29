@@ -99,7 +99,8 @@ class CRepoHandler:
         """Parse an error trace and extracts relevant functions bodies"""
 
         try:
-            source_files = set(re.findall(r"([^\s]+\.(?:c|h)):(\d+):", error_trace))
+            # Match common C/C++ source extensions: .c, .h, .cpp, .hpp, .cc, .hh, .y, .l
+            source_files = set(re.findall(r"([^\s]+\.(?:c|h|cpp|hpp|cc|hh|y|l)):(\d+):", error_trace))
         except Exception as e:
             logger.warning(f"Failed to parse error trace: {e}")
             return {}
@@ -115,9 +116,26 @@ class CRepoHandler:
 
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
+            
+            # Robust path check: if path doesn't exist, try stripping prefixes (like versioned dirs)
             if not os.path.exists(local_file_path):
-                logger.debug(f"Skipping missing file: {local_file_path}")
-                continue
+                # Try stripping leading directories one by one
+                path_parts = file_path.split(os.sep)
+                found = False
+                while len(path_parts) > 1:
+                    path_parts.pop(0)
+                    new_relative_path = os.path.join(*path_parts)
+                    try_path = os.path.join(self.repo_local_path, new_relative_path)
+                    if os.path.exists(try_path):
+                        local_file_path = try_path
+                        file_path = new_relative_path
+                        found = True
+                        logger.debug(f"Matched file by stripping prefix: {file_path}")
+                        break
+                
+                if not found:
+                    logger.debug(f"Skipping missing file: {local_file_path}")
+                    continue
 
             try:
                 source_code = self.get_source_code_by_line_number(local_file_path, line_num)
@@ -379,12 +397,15 @@ class CRepoHandler:
         This method uses `grep` to search for the function's definition."""
 
         file_path, code_line_number = "", ""
+        # Pattern that handles pointer return types where * attaches to function name
+        # Matches: "char *func(", "static int *func(", "void func(", "unsigned long *func("
+        # Key fix: allow \** directly before function name (no space required)
         command = [
             "grep "
-            + "-nHr "
-            + r'"^[a-zA-Z_][a-zA-Z0-9_[:space:]\*]* '
+            + "-nHrE "  # Use extended regex (-E)
+            + r'"^(static[[:space:]]+)?[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\**[[:space:]]*'
             + function_name
-            + r'[[:space:]]*\([^;{]*\)[[:space:]]*" '
+            + r'[[:space:]]*\(" '
             + self.repo_local_path
         ]
 
@@ -412,7 +433,7 @@ class CRepoHandler:
         command = rf'grep -nHr "#define\s*{macro_name}.*" {self.repo_local_path}'
         try:
             result = subprocess.run(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False, shell=True
             )
         except Exception as e:
             logger.error(e)
