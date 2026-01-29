@@ -1,0 +1,27 @@
+---
+# Command/Path Injection Investigation Guidance
+# CWE-78, CWE-88
+
+vuln_type: "Command Injection"
+cwe_ids: ["CWE-78", "CWE-88", "CWE-77"]
+
+guidance: |
+  COMMAND/PATH INJECTION EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. System call: system/popen/exec* function
+  2. Command construction: How is command string built?
+  3. User input inclusion: Where does user data enter command?
+  4. Sanitization: Shell metacharacter filtering? Argument arrays?
+
+  SEARCH PATTERNS:
+    - Dangerous functions: system, popen, execl, execlp, execle, execvp
+    - String building: sprintf, strcat, snprintf building command strings
+    - Safe alternatives: execv, execve (argument arrays)
+    - Metacharacters: ; | & $ ` \ newlines in user input
+
+checklist:
+  - "System call identified (system/popen/exec variant)"
+  - "Command construction traced (sprintf? strcat? direct?)"
+  - "User input path documented (argv? file? network?)"
+  - "Sanitization documented (metachar filter, array usage, escaping)"
