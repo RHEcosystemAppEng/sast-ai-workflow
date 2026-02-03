@@ -48,7 +48,7 @@ Analyze the reported security finding and the provided source code to determine 
 {gathered_code_section}
 
 **PREVIOUS ANALYSIS (if any):**
-{state.get('analysis', 'None - this is the first analysis.')}
+{state.get('analysis') or 'None - this is the first analysis.'}
 {evaluator_feedback_section}
 ---
 
