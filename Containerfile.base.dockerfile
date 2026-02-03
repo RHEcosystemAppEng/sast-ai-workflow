@@ -28,12 +28,12 @@ USER 0
 #
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     dnf install -y --allowerasing \
-        git-2.47.3-1.el9_6 \
-        rpm-build-4.16.1.3-39.el9 \
-        curl-7.76.1-34.el9 \
-        jq-1.6-19.el9 \
-        file-5.39-16.el9 \
-        csdiff-3.5.5-1.el9 && \
+        git \
+        rpm-build \
+        curl \
+        jq \
+        file \
+        csdiff && \
     dnf clean all && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
