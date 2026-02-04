@@ -57,17 +57,17 @@ def build_research_instructions(state: Dict[str, Any]) -> str:
         Formatted instruction string for the research agent
     """
     fetched_files = state.get("fetched_files", {})
-    failed_fetches = state.get("failed_fetches", [])
+    tool_call_history = state.get("tool_call_history", [])
     iteration = state.get("iteration", 1)
 
-    # Build fetched files summary
-    fetched_summary = _build_fetched_summary(fetched_files)
-    failed_summary = _build_failed_summary(failed_fetches)
+    # Build summaries
+    code_bank_files = _build_code_bank_files_summary(fetched_files)
+    tool_history = _build_tool_history(tool_call_history)
 
     if iteration == 1:
-        return _build_initial_instructions(state, fetched_summary, failed_summary)
+        return _build_initial_instructions(state, code_bank_files, tool_history)
     else:
-        return _build_continuation_instructions(state, fetched_summary, failed_summary)
+        return _build_continuation_instructions(state, code_bank_files, tool_history)
 
 
 def _extract_fetch_info(content: str) -> str:
@@ -122,11 +122,11 @@ def _extract_fetch_info(content: str) -> str:
         return "unknown"
 
 
-def _build_fetched_summary(fetched_files: Dict[str, List[str]]) -> str:
+def _build_code_bank_files_summary(fetched_files: Dict[str, List[str]]) -> str:
     """
-    Build summary of fetched files with explicit file:function identifiers.
+    Build summary of files in the CODE BANK.
 
-    Shows what was fetched so the model knows NOT to re-fetch.
+    Shows what code is available so the model knows what's already fetched.
     Only includes actual code fetches (fetch_code, read_file), not search results.
     """
     if not fetched_files:
@@ -148,22 +148,53 @@ def _build_fetched_summary(fetched_files: Dict[str, List[str]]) -> str:
     if not fetched_items:
         return "None"
 
-    # Format as numbered list
-    lines = [f"{i+1}. {item}" for i, item in enumerate(fetched_items)]
-    lines.append(f"\nDo NOT re-fetch any of these.\nFull code is in CODE BANK below.\n")
+    # Format as comma-separated list
+    return ", ".join(fetched_items)
+
+
+def _build_tool_history(tool_call_history: List[str]) -> str:
+    """
+    Build formatted tool call history with strong language for failed calls.
+
+    Separates successful and failed calls, with explicit warnings that
+    retrying failed calls with identical parameters will always fail.
+    """
+    if not tool_call_history:
+        return "None yet."
+
+    successful = []
+    failed = []
+
+    for entry in tool_call_history:
+        if entry.startswith("✓"):
+            successful.append(entry)
+        elif entry.startswith("✗"):
+            failed.append(entry)
+        else:
+            successful.append(entry)  # Default to successful
+
+    lines = []
+
+    if successful:
+        lines.append("Successful (code in CODE BANK):")
+        lines.extend(f"  {s}" for s in successful)
+
+    if failed:
+        if lines:
+            lines.append("")
+        lines.append("FAILED (DO NOT RETRY - same parameters = same failure):")
+        lines.extend(f"  {f}" for f in failed)
+        lines.append("")
+        lines.append("If you need this information, try a DIFFERENT approach:")
+        lines.append("  - Different regex pattern (simpler or broader)")
+        lines.append("  - Different file extension (*.h instead of *.c)")
+        lines.append("  - fetch_code on a specific file you know exists")
 
     return "\n".join(lines)
 
 
-def _build_failed_summary(failed_fetches: List[str]) -> str:
-    """Build summary of failed fetches."""
-    if not failed_fetches:
-        return "None"
-    return "\n".join(f"- {f}" for f in failed_fetches)
-
-
 def _build_initial_instructions(
-    state: Dict[str, Any], fetched_summary: str, failed_summary: str
+    state: Dict[str, Any], code_bank_files: str, tool_history: str
 ) -> str:
     """Build instructions for the first research iteration."""
     issue_description = state.get("issue_description", "N/A")
@@ -171,61 +202,75 @@ def _build_initial_instructions(
     # Get vuln-type specific checklist
     checklist_section = format_checklist(issue_description)
 
-    return f"""You are a code gatherer for SAST vulnerability triage. Your ONLY job is to fetch relevant code using tools.
+    return f"""You are a code gatherer for SAST vulnerability triage. \
+Your ONLY job is to fetch relevant code using tools.
 
 **FINDING:**
 {issue_description}
 
 {checklist_section}
 
-**ALREADY FETCHED:** 
-{fetched_summary}
+**CODE BANK FILES:**
+{code_bank_files}
 
-**UNAVAILABLE:** 
-{failed_summary}
+**TOOL CALL HISTORY:**
+{tool_history}
 
-**RULES:**
-- Call ONE tool per response
-- Use `fetch_code` with `function_name` to get specific functions
-- Use `search_codebase` to find patterns in code
-- Do NOT analyze - just gather code. Analysis happens later.
+Full code is in CODE BANK below.
+
+**CRITICAL RULES:**
+1. Call ONE tool per response to gather code
+2. Use `fetch_code` with `function_name` to get specific functions
+3. Use `search_codebase` to find patterns in code
+4. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
+   - If a search returned "No matches", that pattern does NOT exist in the codebase
+   - Try a DIFFERENT pattern, file type, or approach instead
+5. Do NOT analyze - just gather code. Analysis happens later.
+6. When done gathering code for ALL checklist items, respond with ONLY: RESEARCH_COMPLETE
 
 **RESPONSE FORMAT:**
-Reasoning: [One sentence - which checklist item does this address?]
-[Tool call]"""
+Either:
+  Reasoning: [One sentence - which checklist item does this address?]
+  [Tool call]
+Or (when done):
+  RESEARCH_COMPLETE"""
 
 
 def _build_continuation_instructions(
-    state: Dict[str, Any], fetched_summary: str, failed_summary: str
+    state: Dict[str, Any], code_bank_files: str, tool_history: str
 ) -> str:
     """Build instructions for subsequent research iterations."""
-    issue_description = state.get("issue_description", "N/A")
     required_info = state.get("required_information", [])
     unknowns_list = (
         "\n".join(f"- {u}" for u in required_info) if required_info else "None specified"
     )
 
-    # Get vuln-type specific checklist for reference
-    checklist_section = format_checklist(issue_description)
-
     return f"""Gather more code based on feedback.
 
 **FEEDBACK:** {state.get('evaluation_feedback', 'Need more evidence')}
 
-**MISSING:** 
+**MISSING:**
 {unknowns_list}
 
-**ALREADY FETCHED:** 
-{fetched_summary}
+**CODE BANK FILES:**
+{code_bank_files}
 
-**UNAVAILABLE:** 
-{failed_summary}
+**TOOL CALL HISTORY:**
+{tool_history}
 
-**RULES:**
-- Call ONE tool to get the missing information
-- Do NOT re-fetch items in ALREADY FETCHED list
-- Do NOT re-analyze code in the CODE BANK
+Full code is in CODE BANK below.
+
+**CRITICAL RULES:**
+1. Call ONE tool per response to get the missing information
+2. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
+   - If a search returned "No matches", that pattern does NOT exist in the codebase
+   - Try a DIFFERENT pattern, file type, or approach instead
+3. Do NOT re-analyze code in the CODE BANK
+4. When done gathering code for ALL missing items, respond with ONLY: RESEARCH_COMPLETE
 
 **RESPONSE FORMAT:**
-Reasoning: [One sentence - which checklist item?]
-[Tool call]"""
+Either:
+  Reasoning: [One sentence - which checklist item?]
+  [Tool call]
+Or (when done):
+  RESEARCH_COMPLETE"""

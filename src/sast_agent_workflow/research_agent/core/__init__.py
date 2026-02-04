@@ -14,12 +14,13 @@ from .constants import (
     DEFAULT_MAX_SEARCH_RESULTS,
     DEFAULT_MAX_TOKENS,
     ERROR_MSG_TRUNCATE_CHARS,
-    FAILED_FETCH_SUMMARY_CHARS,
     FAILED_MSG_PREVIEW_CHARS,
     MAX_FUNCTION_SCAN_LINES,
+    MAX_MODEL_CALLS,
     MAX_NO_PROGRESS_STREAK,
     MAX_REJECTION_STREAK,
     MAX_TOOL_RESULT_CHARS,
+    RECURSION_WARNING_THRESHOLD,
     RESEARCH_AGENT_RECURSION_LIMIT,
 )
 
@@ -38,10 +39,7 @@ from .exceptions import (
 )
 
 # LLM Factory
-from .llm import create_llm, create_embedding_llm
-
-# Tools
-from .tools import create_investigation_tools, FetchCodeInput, SearchCodebaseInput
+from .llm import create_embedding_llm, create_llm
 
 # Prompts
 from .prompts import (
@@ -51,6 +49,8 @@ from .prompts import (
     build_research_instructions,
 )
 
+# Tools
+from .tools import FetchCodeInput, SearchCodebaseInput, create_investigation_tools
 
 __all__ = [
     # Constants
@@ -59,12 +59,13 @@ __all__ = [
     "DEFAULT_MAX_SEARCH_RESULTS",
     "DEFAULT_MAX_TOKENS",
     "ERROR_MSG_TRUNCATE_CHARS",
-    "FAILED_FETCH_SUMMARY_CHARS",
     "FAILED_MSG_PREVIEW_CHARS",
     "MAX_FUNCTION_SCAN_LINES",
+    "MAX_MODEL_CALLS",
     "MAX_NO_PROGRESS_STREAK",
     "MAX_REJECTION_STREAK",
     "MAX_TOOL_RESULT_CHARS",
+    "RECURSION_WARNING_THRESHOLD",
     "RESEARCH_AGENT_RECURSION_LIMIT",
     # Exceptions
     "AnalysisError",

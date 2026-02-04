@@ -3,7 +3,7 @@ import logging
 import re
 import time
 import traceback
-from typing import Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 from langchain_core.exceptions import LangChainException
 from langchain_core.runnables import RunnableSerializable
@@ -34,14 +34,18 @@ def robust_structured_output(
     input: str,
     prompt_chain: RunnableSerializable,
     max_retries: int = 1,
+    config: Optional[Dict[str, Any]] = None,
 ) -> BaseModel:
     """
     Determines the type of LLM and delegates to the appropriate handler.
+
+    Args:
+        config: Optional LangChain config dict. Supports 'run_name' for Langfuse tracing.
     """
     if isinstance(llm, ChatOpenAI):
-        return _handle_chat_openai(llm, schema, input, prompt_chain, max_retries)
+        return _handle_chat_openai(llm, schema, input, prompt_chain, max_retries, config)
     elif isinstance(llm, ChatNVIDIA):
-        return _handle_chat_nvidia(llm, schema, input, prompt_chain, max_retries)
+        return _handle_chat_nvidia(llm, schema, input, prompt_chain, max_retries, config)
     else:
         raise ValueError(f"Unsupported LLM type: {type(llm)}")
 
@@ -52,6 +56,7 @@ def _handle_chat_openai(
     input: str,
     prompt_chain: RunnableSerializable,
     max_retries: int,
+    config: Optional[Dict[str, Any]] = None,
 ) -> BaseModel:
     """
     Handles structured output for ChatOpenAI.
@@ -63,7 +68,7 @@ def _handle_chat_openai(
         structured_llm = llm.with_structured_output(schema, method="json_schema", strict=True)
         llm_chain = prompt_chain | structured_llm
 
-        result = llm_chain.invoke(input)
+        result = llm_chain.invoke(input, config=config)
         duration = time.time() - start_time
 
         logger.info("Parsed successfully! Duration: %.2fs", duration)
@@ -83,6 +88,7 @@ def _handle_chat_nvidia(
     input: str,
     prompt_chain: RunnableSerializable,
     max_retries: int,
+    config: Optional[Dict[str, Any]] = None,
 ) -> BaseModel:
     """
     Handles structured output for ChatNVIDIA with retry logic and JSON fallback.
@@ -108,7 +114,7 @@ def _handle_chat_nvidia(
         llm_chain = prompt_chain | structured_llm
 
         try:
-            result = llm_chain.invoke(input)
+            result = llm_chain.invoke(input, config=config)
             if result is not None:
                 logger.info(f"✓ Structured output successful on attempt {attempt + 1}")
                 return result
@@ -142,20 +148,22 @@ def _handle_chat_nvidia(
 
                 # Get raw response from LLM
                 logger.debug(f"Requesting JSON response (attempt {attempt + 1})...")
-                raw_response = llm.invoke(json_prompt)
-                raw_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+                raw_response = llm.invoke(json_prompt, config=config)
+                raw_text = (
+                    raw_response.content if hasattr(raw_response, "content") else str(raw_response)
+                )
 
                 logger.debug(f"Raw response preview: {raw_text[:300]}...")
 
                 # Extract JSON from response
                 # Pattern 1: Markdown code block with ```json
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_text, re.DOTALL)
+                json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
                 if json_match:
                     json_text = json_match.group(1)
                     logger.debug("Extracted JSON from markdown code block")
                 else:
                     # Pattern 2: Raw JSON object
-                    json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                    json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
                     if json_match:
                         json_text = json_match.group(0)
                         logger.debug("Extracted raw JSON from response")
@@ -183,7 +191,8 @@ def _handle_chat_nvidia(
 
                 except (ValueError, TypeError) as validation_error:
                     logger.warning(
-                        f"Attempt {attempt + 1}/{max_retries}: Pydantic validation failed: {validation_error}\n"
+                        f"Attempt {attempt + 1}/{max_retries}: "
+                        f"Pydantic validation failed: {validation_error}\n"
                         f"Parsed data: {str(parsed_data)[:200]}..."
                     )
                     last_exception = f"Pydantic validation failed: {validation_error}"
@@ -203,7 +212,9 @@ def _handle_chat_nvidia(
     # Truncate input to prevent massive error messages that could cause prompt bloat
     input_truncated = input[:500] + "..." if len(input) > 500 else input
     raise LangChainException(
-        ERROR_MESSAGE.format(max_retries=max_retries, exception=last_exception, input_truncated=input_truncated)
+        ERROR_MESSAGE.format(
+            max_retries=max_retries, exception=last_exception, input_truncated=input_truncated
+        )
     )
 
 

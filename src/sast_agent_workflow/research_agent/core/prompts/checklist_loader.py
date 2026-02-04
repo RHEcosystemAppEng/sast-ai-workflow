@@ -10,7 +10,7 @@ This module provides functionality to:
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import yaml
 
@@ -69,7 +69,8 @@ class ChecklistLoader:
                 logger.warning(f"Failed to load checklist from {yaml_file}: {e}")
 
         logger.debug(
-            f"Loaded {len(self._templates)} checklist templates, {len(self._cwe_mapping)} CWE mappings"
+            f"Loaded {len(self._templates)} checklist templates, "
+            f"{len(self._cwe_mapping)} CWE mappings"
         )
 
     def _extract_cwe_from_description(self, description: str) -> Optional[str]:
@@ -186,10 +187,7 @@ class ChecklistLoader:
 {checklist_items}
 
 **INVESTIGATION GUIDANCE:**
-{guidance}
-**STOP WHEN:**
-- All checklist items found OR confirmed absent after searching
-- You've searched for an item 2+ times without finding it"""
+{guidance}"""
 
 
 # Module-level instance for convenience

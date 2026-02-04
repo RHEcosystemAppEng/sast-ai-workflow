@@ -11,9 +11,8 @@ Centralizes magic numbers and configuration values to improve maintainability.
 # Full code is stored in prompt CODE BANK, so tool results are truncated
 MAX_TOOL_RESULT_CHARS = 200
 
-# Truncation limits for error messages and failed fetch summaries
+# Truncation limits for error messages
 ERROR_MSG_TRUNCATE_CHARS = 200  # Error message in tool middleware
-FAILED_FETCH_SUMMARY_CHARS = 150  # Summary in failed_fetches list (enough for full file paths)
 FAILED_MSG_PREVIEW_CHARS = 100  # Failed message preview to model
 
 # =============================================================================
@@ -28,10 +27,17 @@ MAX_NO_PROGRESS_STREAK = 2  # Stop after N iterations without gathering new code
 # =============================================================================
 
 # Recursion limit for research agent (per-iteration tool calls)
-RESEARCH_AGENT_RECURSION_LIMIT = 30
+RESEARCH_AGENT_RECURSION_LIMIT = 80
+
+# Maximum model calls per research iteration
+MAX_MODEL_CALLS = 15
+
+# Threshold for warning LLM about approaching recursion limit
+# When remaining_steps <= this value, the prompt will include an urgency warning
+RECURSION_WARNING_THRESHOLD = 5
 
 # Default max tokens for LLM responses
-DEFAULT_MAX_TOKENS = 4096
+DEFAULT_MAX_TOKENS = 16096
 
 # =============================================================================
 # Tool Defaults
@@ -57,10 +63,12 @@ MAX_FUNCTION_SCAN_LINES = 50
 # - file_search (FileSearchTool)
 # - fetch_code, search_codebase are custom tools
 # Note: brave_search is NOT included as it searches the web, not the repo
-CODE_GATHERING_TOOLS = frozenset({
-    'fetch_code',
-    'read_file',
-    'search_codebase',
-    'list_directory',
-    'file_search',
-})
+CODE_GATHERING_TOOLS = frozenset(
+    {
+        "fetch_code",
+        "read_file",
+        "search_codebase",
+        "list_directory",
+        "file_search",
+    }
+)
