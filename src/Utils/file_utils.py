@@ -5,7 +5,7 @@ import os
 
 import gspread
 import pandas as pd
-from langchain.text_splitter import Language, RecursiveCharacterTextSplitter
+from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from oauth2client.service_account import ServiceAccountCredentials
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
