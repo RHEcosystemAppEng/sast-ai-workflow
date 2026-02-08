@@ -39,6 +39,14 @@ from sast_agent_workflow.tools import (  # noqa: F401, E402
 
 logger = logging.getLogger(__name__)
 
+# Log NAT version on module load
+try:
+    from importlib.metadata import version
+    nat_version = version('nvidia-nat')
+    logger.info(f"NAT version: {nat_version}")
+except Exception as e:
+    logger.warning(f"Could not determine NAT version: {e}")
+
 
 class SASTAgentConfig(FunctionBaseConfig, name="sast_agent"):
     """Configuration for SAST Agent workflow type."""
