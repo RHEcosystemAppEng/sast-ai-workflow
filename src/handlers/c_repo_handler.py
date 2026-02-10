@@ -100,7 +100,9 @@ class CRepoHandler:
 
         try:
             # Match common C/C++ source extensions: .c, .h, .cpp, .hpp, .cc, .hh, .y, .l
-            source_files = set(re.findall(r"([^\s]+\.(?:c|h|cpp|hpp|cc|hh|y|l)):(\d+):", error_trace))
+            source_files = set(
+                re.findall(r"([^\s]+\.(?:c|h|cpp|hpp|cc|hh|y|l)):(\d+):", error_trace)
+            )
         except Exception as e:
             logger.warning(f"Failed to parse error trace: {e}")
             return {}
@@ -116,7 +118,7 @@ class CRepoHandler:
 
             file_path = file_path.removeprefix(self._report_file_prefix)
             local_file_path = os.path.join(self.repo_local_path, file_path)
-            
+
             # Robust path check: if path doesn't exist, try stripping prefixes (like versioned dirs)
             if not os.path.exists(local_file_path):
                 # Try stripping leading directories one by one
@@ -132,7 +134,7 @@ class CRepoHandler:
                         found = True
                         logger.debug(f"Matched file by stripping prefix: {file_path}")
                         break
-                
+
                 if not found:
                     logger.debug(f"Skipping missing file: {local_file_path}")
                     continue
@@ -430,10 +432,19 @@ class CRepoHandler:
         """Locate the file path and line number of a macro's definition within the repository.
         This method uses `grep` to search for the macro's definition."""
         file_path, code_line_number = "", ""
-        command = rf'grep -nHr "#define\s*{macro_name}.*" {self.repo_local_path}'
+        command = [
+            "grep",
+            "-nHr",
+            rf"#define\s*{macro_name}.*",
+            self.repo_local_path,
+        ]
         try:
             result = subprocess.run(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False, shell=True
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
             )
         except Exception as e:
             logger.error(e)
