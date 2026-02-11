@@ -38,7 +38,7 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
     Includes defense verification for FALSE_POSITIVE verdicts.
     """
 
-    async def evaluate(state: InvestigationState) -> InvestigationState:
+    def evaluate(state: InvestigationState) -> InvestigationState:
         """Execute evaluation/critique phase."""
         issue_id = state["issue_id"]
         logger.info(f"[{issue_id}] Evaluation phase")

@@ -15,6 +15,9 @@ MAX_TOOL_RESULT_CHARS = 200
 ERROR_MSG_TRUNCATE_CHARS = 200  # Error message in tool middleware
 FAILED_MSG_PREVIEW_CHARS = 100  # Failed message preview to model
 
+# Substring used to detect "not found" in tool results
+NOT_FOUND = "not found"
+
 # =============================================================================
 # Circuit Breaker Thresholds
 # =============================================================================

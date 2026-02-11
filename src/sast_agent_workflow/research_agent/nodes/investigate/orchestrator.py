@@ -294,11 +294,8 @@ def create_investigate_node(config: Config, llm: BaseChatModel, tools: List[Base
                 # Flush the Langfuse handler after each issue
                 if langfuse_handler:
                     try:
-                        import time
-
                         logger.info(f"[{issue_id}] Flushing Langfuse trace...")
                         langfuse_handler.client.flush()
-                        time.sleep(0.5)
                         logger.info(f"[{issue_id}] Langfuse trace flushed successfully")
                     except Exception as flush_error:
                         logger.warning(

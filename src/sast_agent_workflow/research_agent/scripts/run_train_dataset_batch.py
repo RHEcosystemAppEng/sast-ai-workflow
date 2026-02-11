@@ -45,6 +45,9 @@ ANALYZED_RPM_PATH = "/Users/yfishel/Projects/sast-ai/analyzed_rpm"
 KNOWN_FP_PATH = "/Users/yfishel/Projects/sast-ai/known-false-positives"
 OUTPUT_PATH = "/Users/yfishel/Projects/sast-ai/agent_tests"
 
+# CSV column header for package NVR in train dataset
+PACKAGE_NVR_COLUMN = "Package NVR(Name Version Release)"
+
 
 def parse_nvr(nvr):
     """
@@ -313,7 +316,7 @@ def update_config_for_nvr(workspace_path, nvr_name, csv_path):
     # Find the matching NVR
     matching_row = None
     for row in rows:
-        if row["Package NVR(Name Version Release)"] == nvr_name:
+        if row[PACKAGE_NVR_COLUMN] == nvr_name:
             matching_row = row
             break
 
@@ -321,7 +324,7 @@ def update_config_for_nvr(workspace_path, nvr_name, csv_path):
         print(f"✗ Error: NVR '{nvr_name}' not found in {csv_path}")
         print("\nAvailable NVRs:")
         for row in rows:
-            print(f"  - {row['Package NVR(Name Version Release)']}")
+            print(f"  - {row[PACKAGE_NVR_COLUMN]}")
         return 1
 
     # Update config
@@ -471,13 +474,10 @@ Examples:
     # Package-specific vars (PROJECT_NAME, etc.) are added in process_package()
     base_env_vars = {
         "TEST_RUN_ID": shared_test_run_id,  # Shared across all packages in this batch
-        "LLM_URL": (
-            "https://qwen3-next-80b-a3b-thinking-sast-test-models.apps.appeng-lab01."
-            "accl-001.lab.rdu2.dc.redhat.com/v1"
-        ),
-        "LLM_API_TYPE": "openai",
-        "LLM_MODEL_NAME": "Qwen/Qwen3-Next-80B-A3B-Thinking",
-        "LLM_API_KEY": "dummy_key",
+        "LLM_URL": os.environ.get("LLM_URL", "https://integrate.api.nvidia.com/v1"),
+        "LLM_API_TYPE": os.environ.get("LLM_API_TYPE", "nim"),
+        "LLM_MODEL_NAME": os.environ.get("LLM_MODEL_NAME", "qwen/qwen3-next-80b-a3b-thinking"),
+        "LLM_API_KEY": os.environ.get("LLM_API_KEY", ""),
         "DISABLE_SSL_VERIFY": "true",
         "LANGFUSE_SECRET_KEY": "sk-lf-bbe9289f-bd69-40ed-8982-14cd3f1d0e1e",
         "LANGFUSE_PUBLIC_KEY": "pk-lf-1beba22d-8a15-4e5c-a9db-296c8301d564",
@@ -493,10 +493,10 @@ Examples:
     # Filter packages based on --packages or --exclude
     if args.packages:
         package_set = set(args.packages)
-        rows = [row for row in all_rows if row["Package NVR(Name Version Release)"] in package_set]
+        rows = [row for row in all_rows if row[PACKAGE_NVR_COLUMN] in package_set]
 
         # Check for any requested packages not found in CSV
-        found_packages = {row["Package NVR(Name Version Release)"] for row in rows}
+        found_packages = {row[PACKAGE_NVR_COLUMN] for row in rows}
         missing = package_set - found_packages
         if missing:
             print("Warning: The following packages were not found in the CSV:")
@@ -508,19 +508,15 @@ Examples:
             print("Error: No matching packages found in CSV file.")
             print("\nAvailable packages:")
             for row in all_rows:
-                print(f"  - {row['Package NVR(Name Version Release)']}")
+                print(f"  - {row[PACKAGE_NVR_COLUMN]}")
             return 1
     elif args.exclude:
         exclude_set = set(args.exclude)
-        rows = [
-            row for row in all_rows if row["Package NVR(Name Version Release)"] not in exclude_set
-        ]
+        rows = [row for row in all_rows if row[PACKAGE_NVR_COLUMN] not in exclude_set]
 
         # Report excluded packages
         excluded = [
-            row["Package NVR(Name Version Release)"]
-            for row in all_rows
-            if row["Package NVR(Name Version Release)"] in exclude_set
+            row[PACKAGE_NVR_COLUMN] for row in all_rows if row[PACKAGE_NVR_COLUMN] in exclude_set
         ]
         if excluded:
             print(f"Excluding packages: {', '.join(excluded)}\n")
@@ -581,12 +577,12 @@ Examples:
         future_to_nvr = {
             executor.submit(
                 process_package,
-                row["Package NVR(Name Version Release)"],
+                row[PACKAGE_NVR_COLUMN],
                 row["Report Link"],
                 base_env_vars,
                 logs_dir,
                 progress,
-            ): row["Package NVR(Name Version Release)"]
+            ): row[PACKAGE_NVR_COLUMN]
             for row in rows
         }
 

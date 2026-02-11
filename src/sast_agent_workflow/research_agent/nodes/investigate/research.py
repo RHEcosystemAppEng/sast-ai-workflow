@@ -27,14 +27,13 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 from typing_extensions import NotRequired
 
-from common.config import Config
-
 from ...core import (
     CODE_GATHERING_TOOLS,
     ERROR_MSG_TRUNCATE_CHARS,
     FAILED_MSG_PREVIEW_CHARS,
     MAX_MODEL_CALLS,
     MAX_TOOL_RESULT_CHARS,
+    NOT_FOUND,
     RESEARCH_AGENT_RECURSION_LIMIT,
     build_code_bank,
     build_research_instructions,
@@ -125,7 +124,7 @@ def _truncate_message(msg: AnyMessage) -> AnyMessage:
         content_str = content if isinstance(content, str) else str(content)
         if len(content_str) > MAX_TOOL_RESULT_CHARS:
             tool_name = getattr(msg, "name", "tool")
-            is_error = "Error:" in content_str or "not found" in content_str.lower()
+            is_error = "Error:" in content_str or NOT_FOUND in content_str.lower()
 
             if is_error:
                 summary = content_str[:MAX_TOOL_RESULT_CHARS] + "..."
@@ -317,20 +316,19 @@ async def code_gathering_middleware(request: ToolCallRequest, handler):
     # Extract content from successful result
     content = result.content if isinstance(result, ToolMessage) else str(result)
     content_lower = content.lower()
-    is_failure = (
-        "Error:" in content or "not found" in content_lower or "no matches found" in content_lower
-    )
 
-    if is_failure:
-        # Tool executed but returned an error/not found - determine reason
-        if "no matches found" in content_lower:
-            reason = "No matches"
-        elif "not found" in content_lower:
-            reason = "Not found"
-        else:
-            reason = "Error"
+    failure_reason = None
+    if "Error:" in content:
+        failure_reason = "Error"
+    elif "no matches found" in content_lower:
+        failure_reason = "No matches"
+    elif NOT_FOUND in content_lower:
+        failure_reason = "Not found"
 
-        history_entry = _format_tool_call(tool_name, tool_args, success=False, reason=reason)
+    if failure_reason:
+        history_entry = _format_tool_call(
+            tool_name, tool_args, success=False, reason=failure_reason
+        )
         return Command(
             update={
                 "tool_call_history": [history_entry],
@@ -372,7 +370,7 @@ async def code_gathering_middleware(request: ToolCallRequest, handler):
 # ============================================================================
 
 
-def create_research_node(llm: BaseChatModel, tools: List[BaseTool], config: Config):
+def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
     """
     Create research node using LangChain v1 create_agent with middleware.
 

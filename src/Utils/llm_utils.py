@@ -157,7 +157,7 @@ def _handle_chat_nvidia(
 
                 # Extract JSON from response
                 # Pattern 1: Markdown code block with ```json
-                json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+                json_match = re.search(r"```(?:json)?\s*(\{[^\}]*\})\s*```", raw_text, re.DOTALL)
                 if json_match:
                     json_text = json_match.group(1)
                     logger.debug("Extracted JSON from markdown code block")

@@ -177,7 +177,7 @@ services:
       retries: 10
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: postgres_secret_password
       # Reuse v2 database name
       POSTGRES_DB: langfuse
       TZ: UTC

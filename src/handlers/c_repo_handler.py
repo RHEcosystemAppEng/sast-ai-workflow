@@ -100,8 +100,12 @@ class CRepoHandler:
 
         try:
             # Match common C/C++ source extensions: .c, .h, .cpp, .hpp, .cc, .hh, .y, .l
+            # Path length capped at 1024 to bound backtracking (ReDoS) on malicious/huge input.
             source_files = set(
-                re.findall(r"([^\s]+\.(?:c|h|cpp|hpp|cc|hh|y|l)):(\d+):", error_trace)
+                re.findall(
+                    r"([^\s]{1,1024}\.(?:cpp|hpp|cc|hh|c|h|y|l)):(\d+):",
+                    error_trace,
+                )
             )
         except Exception as e:
             logger.warning(f"Failed to parse error trace: {e}")

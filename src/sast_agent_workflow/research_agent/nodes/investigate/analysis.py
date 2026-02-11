@@ -21,7 +21,7 @@ def create_analysis_node(llm: BaseChatModel, config: Config):
     This node analyzes gathered code and proposes a verdict.
     """
 
-    async def analyze(state: InvestigationState) -> InvestigationState:
+    def analyze(state: InvestigationState) -> InvestigationState:
         """Execute analysis phase with structured output."""
         is_reanalysis = state.get("needs_reanalysis", False)
         logger.info(f"[{state['issue_id']}] Analysis phase (reanalysis={is_reanalysis})")

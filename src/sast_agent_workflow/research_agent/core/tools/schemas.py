@@ -26,7 +26,7 @@ class FetchCodeInput(BaseModel):
     context_lines: int = Field(
         default=DEFAULT_CONTEXT_LINES,
         description=(
-            f"Number of context lines to include before/after the function "
+            "Number of context lines to include before/after the function "
             f"(default: {DEFAULT_CONTEXT_LINES})"
         ),
     )
@@ -44,7 +44,7 @@ class SearchCodebaseInput(BaseModel):
     file_pattern: str = Field(
         default="*.c",
         description=(
-            "File pattern to search (e.g., '*.c', '*.h', '*.py', '*.java'). " "Default: '*.c'"
+            "File pattern to search (e.g., '*.c', '*.h', '*.py', '*.java'). Default: '*.c'"
         ),
     )
     max_results: int = Field(

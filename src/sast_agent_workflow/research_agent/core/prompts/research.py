@@ -199,8 +199,8 @@ def _build_initial_instructions(
     """Build instructions for the first research iteration."""
     issue_description = state.get("issue_description", "N/A")
 
-    # Get vuln-type specific checklist
-    checklist_section = format_checklist(issue_description)
+    # Get vuln-type specific checklist (named for clarity in template)
+    checklist_section = format_checklist(issue_description)  # NOSONAR S1481: clearer than inlining
 
     return f"""You are a code gatherer for SAST vulnerability triage. \
 Your ONLY job is to fetch relevant code using tools.
