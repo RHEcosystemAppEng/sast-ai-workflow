@@ -105,73 +105,73 @@ def _format_tool_call(tool_name: str, args: dict, success: bool, reason: str = "
     return f"{prefix} {tool_name}({args_str}){suffix}"
 
 
-def _truncate_message(msg: AnyMessage) -> AnyMessage:
+def _truncate_tool_message(msg: ToolMessage) -> Optional[AnyMessage]:
+    """Truncate or summarize a ToolMessage; return None to signal skip (e.g. tool definition)."""
+    content = msg.content
+    if isinstance(content, dict) and content.get("type") == "function":
+        return None
+    content_str = content if isinstance(content, str) else str(content)
+    if len(content_str) <= MAX_TOOL_RESULT_CHARS:
+        return msg
+    tool_name = getattr(msg, "name", "tool")
+    is_error = "Error:" in content_str or NOT_FOUND in content_str.lower()
+    if is_error:
+        summary = content_str[:MAX_TOOL_RESULT_CHARS] + "..."
+    else:
+        lines = content_str.count("\n")
+        chars = len(content_str)
+        summary = f"[{tool_name}: {lines} lines, {chars:,} chars - see CODE BANK in prompt]"
+    return ToolMessage(
+        content=summary,
+        tool_call_id=msg.tool_call_id,
+        name=getattr(msg, "name", None),
+    )
+
+
+def _strip_ai_reasoning(msg: AIMessage) -> Optional[AIMessage]:
+    """Return a new AIMessage with reasoning stripped, or None if nothing to strip."""
+    if hasattr(msg, "additional_kwargs") and msg.additional_kwargs:
+        cleaned_kwargs = {
+            k: v
+            for k, v in msg.additional_kwargs.items()
+            if k not in ("reasoning_content", "reasoning", "thinking")
+        }
+        if len(cleaned_kwargs) < len(msg.additional_kwargs):
+            return AIMessage(
+                content=msg.content,
+                tool_calls=getattr(msg, "tool_calls", []),
+                additional_kwargs=cleaned_kwargs,
+                id=msg.id,
+            )
+    if isinstance(msg.content, list):
+        cleaned_content = [
+            block
+            for block in msg.content
+            if not (isinstance(block, dict) and block.get("type") in ("reasoning", "thinking"))
+        ]
+        if len(cleaned_content) < len(msg.content):
+            return AIMessage(
+                content=cleaned_content,
+                tool_calls=getattr(msg, "tool_calls", []),
+                additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                id=msg.id,
+            )
+    return None
+
+
+def _truncate_message(msg: AnyMessage) -> Optional[AnyMessage]:
     """
-    Truncate a single message if it's too long.
+    Truncate a single message if it's too long. Returns None to signal skip (e.g. tool def).
 
     - ToolMessage: Summarize long results (full code is in prompt CODE BANK)
     - AIMessage: Strip reasoning_content (thinking model bloat)
     - SystemMessage: Skip (handled by dynamic prompt)
     """
-    # Truncate long ToolMessage results
     if isinstance(msg, ToolMessage):
-        content = msg.content
-
-        # Skip tool definition messages (shouldn't be in history)
-        if isinstance(content, dict) and content.get("type") == "function":
-            return None  # Signal to skip
-
-        content_str = content if isinstance(content, str) else str(content)
-        if len(content_str) > MAX_TOOL_RESULT_CHARS:
-            tool_name = getattr(msg, "name", "tool")
-            is_error = "Error:" in content_str or NOT_FOUND in content_str.lower()
-
-            if is_error:
-                summary = content_str[:MAX_TOOL_RESULT_CHARS] + "..."
-            else:
-                # Successful fetch - summarize (full code in CODE BANK)
-                lines = content_str.count("\n")
-                chars = len(content_str)
-                summary = f"[{tool_name}: {lines} lines, {chars:,} chars - see CODE BANK in prompt]"
-
-            return ToolMessage(
-                content=summary,
-                tool_call_id=msg.tool_call_id,
-                name=getattr(msg, "name", None),
-            )
-
-    # Strip reasoning from AIMessage
+        return _truncate_tool_message(msg)
     if isinstance(msg, AIMessage):
-        # Check for reasoning in additional_kwargs
-        if hasattr(msg, "additional_kwargs") and msg.additional_kwargs:
-            cleaned_kwargs = {
-                k: v
-                for k, v in msg.additional_kwargs.items()
-                if k not in ("reasoning_content", "reasoning", "thinking")
-            }
-            if len(cleaned_kwargs) < len(msg.additional_kwargs):
-                return AIMessage(
-                    content=msg.content,
-                    tool_calls=getattr(msg, "tool_calls", []),
-                    additional_kwargs=cleaned_kwargs,
-                    id=msg.id,
-                )
-
-        # Check for reasoning blocks in content (if content is a list)
-        if isinstance(msg.content, list):
-            cleaned_content = [
-                block
-                for block in msg.content
-                if not (isinstance(block, dict) and block.get("type") in ("reasoning", "thinking"))
-            ]
-            if len(cleaned_content) < len(msg.content):
-                return AIMessage(
-                    content=cleaned_content,
-                    tool_calls=getattr(msg, "tool_calls", []),
-                    additional_kwargs=getattr(msg, "additional_kwargs", {}),
-                    id=msg.id,
-                )
-
+        stripped = _strip_ai_reasoning(msg)
+        return stripped if stripped is not None else msg
     return msg
 
 
@@ -273,6 +273,17 @@ async def stateless_model_middleware(request: ModelRequest, handler):
     return await handler(request)
 
 
+def _get_tool_result_failure_reason(content: str, content_lower: str) -> Optional[str]:
+    """Return failure reason string if tool result indicates error/not found, else None."""
+    if "Error:" in content:
+        return "Error"
+    if "no matches found" in content_lower:
+        return "No matches"
+    if NOT_FOUND in content_lower:
+        return "Not found"
+    return None
+
+
 @wrap_tool_call
 async def code_gathering_middleware(request: ToolCallRequest, handler):
     """
@@ -316,14 +327,7 @@ async def code_gathering_middleware(request: ToolCallRequest, handler):
     # Extract content from successful result
     content = result.content if isinstance(result, ToolMessage) else str(result)
     content_lower = content.lower()
-
-    failure_reason = None
-    if "Error:" in content:
-        failure_reason = "Error"
-    elif "no matches found" in content_lower:
-        failure_reason = "No matches"
-    elif NOT_FOUND in content_lower:
-        failure_reason = "Not found"
+    failure_reason = _get_tool_result_failure_reason(content, content_lower)
 
     if failure_reason:
         history_entry = _format_tool_call(
@@ -421,153 +425,156 @@ def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
 
     async def research(state: InvestigationState) -> InvestigationState:
         """Execute research phase using the agent."""
-        logger.info(f"[{state['issue_id']}] Research phase (iteration {state['iteration']})")
-
-        # Generate unique thread_id for checkpointer to track this invocation
-        thread_id = f"{state['issue_id']}_iter{state['iteration']}_{uuid.uuid4().hex[:8]}"
-
-        # Prepare agent state from investigation state
-        agent_state: ResearchAgentState = {
-            "messages": [],
-            "fetched_files": state.get("fetched_files", {}),
-            "tool_call_history": state.get("tool_call_history", []),
-            "issue_id": state["issue_id"],
-            "iteration": state["iteration"],
-            "issue_description": state["issue_description"],
-            "initial_code": state["initial_code"],
-            "evaluation_feedback": state.get("evaluation_feedback", ""),
-            "required_information": state.get("required_information", []),
-        }
-
-        # Config with thread_id for checkpointer state preservation
+        logger.info(
+            "[%s] Research phase (iteration %s)",
+            state["issue_id"],
+            state["iteration"],
+        )
+        thread_id = "%s_iter%s_%s" % (
+            state["issue_id"],
+            state["iteration"],
+            uuid.uuid4().hex[:8],
+        )
+        agent_state = _build_research_agent_state(state)
         invoke_config = {
             "recursion_limit": RESEARCH_AGENT_RECURSION_LIMIT,
             "configurable": {"thread_id": thread_id},
             "run_name": "research_node",
             "type": "actor",
-            "run_type": "agent",  # Langfuse recognizes this as agent span
+            "run_type": "agent",
         }
 
-        # Run research agent
-        # Note: Retry is handled by ModelRetryMiddleware (3 retries, exponential backoff)
         try:
             result = await research_agent.ainvoke(agent_state, config=invoke_config)
+            return _handle_research_success(state, result)
         except GraphRecursionError:
-            # Recursion limit hit - this is expected behavior, not an error
-            # The agent made too many tool calls without completing
             logger.warning(
-                f"[{state['issue_id']}] Research agent hit recursion limit "
-                f"({RESEARCH_AGENT_RECURSION_LIMIT} steps) at iteration {state['iteration']}. "
-                f"Attempting to preserve accumulated code via checkpointer."
+                "[%s] Research agent hit recursion limit (%s steps) at iteration %s. "
+                "Attempting to preserve accumulated code via checkpointer.",
+                state["issue_id"],
+                RESEARCH_AGENT_RECURSION_LIMIT,
+                state["iteration"],
             )
-
-            # Try to retrieve accumulated state via checkpointer
-            # This preserves partial fetches from the current iteration
-            fetched_files_preserved = state.get("fetched_files", {})
-            tool_call_history_preserved = state.get("tool_call_history", [])
-
-            try:
-                preserved_state = research_agent.get_state(
-                    {"configurable": {"thread_id": thread_id}}
-                )
-                if preserved_state and preserved_state.values:
-                    fetched_files_preserved = preserved_state.values.get(
-                        "fetched_files", fetched_files_preserved
-                    )
-                    tool_call_history_preserved = preserved_state.values.get(
-                        "tool_call_history", tool_call_history_preserved
-                    )
-                    logger.info(
-                        f"[{state['issue_id']}] Preserved state via checkpointer: "
-                        f"{len(fetched_files_preserved)} tool results, "
-                        f"{len(tool_call_history_preserved)} tool calls"
-                    )
-            except Exception as state_err:
-                logger.warning(
-                    f"[{state['issue_id']}] Could not retrieve state from "
-                    f"checkpointer: {state_err}. Using input state as fallback."
-                )
-
-            # Build gathered_code from preserved state
-            gathered_code = state.get("gathered_code", "")
-            for tool_name, code_list in fetched_files_preserved.items():
-                for code in code_list:
-                    if code not in gathered_code:
-                        gathered_code += f"\n\n{code}\n"
-
-            return {
-                **state,
-                "research_messages": [],
-                "gathered_code": gathered_code,
-                "fetched_files": fetched_files_preserved,
-                "tool_call_history": tool_call_history_preserved,
-                "stop_reason": (
-                    f"research_recursion_limit_hit (limit={RESEARCH_AGENT_RECURSION_LIMIT})"
-                ),
-            }
+            return _handle_research_recursion_limit(state, research_agent, thread_id)
         except Exception as e:
-            logger.error(f"[{state['issue_id']}] Research agent error: {e}", exc_info=True)
-
-            # Try to preserve state on general errors too
-            fetched_files_preserved = state.get("fetched_files", {})
-            tool_call_history_preserved = state.get("tool_call_history", [])
-
-            try:
-                preserved_state = research_agent.get_state(
-                    {"configurable": {"thread_id": thread_id}}
-                )
-                if preserved_state and preserved_state.values:
-                    fetched_files_preserved = preserved_state.values.get(
-                        "fetched_files", fetched_files_preserved
-                    )
-                    tool_call_history_preserved = preserved_state.values.get(
-                        "tool_call_history", tool_call_history_preserved
-                    )
-            except Exception:
-                pass  # Silently fall back to input state
-
-            # Build gathered_code from preserved state
-            gathered_code = state.get("gathered_code", "")
-            for tool_name, code_list in fetched_files_preserved.items():
-                for code in code_list:
-                    if code not in gathered_code:
-                        gathered_code += f"\n\n{code}\n"
-
-            return {
-                **state,
-                "research_messages": [],
-                "gathered_code": gathered_code,
-                "fetched_files": fetched_files_preserved,
-                "tool_call_history": tool_call_history_preserved,
-                "stop_reason": f"research_error: {str(e)[:100]}",
-            }
-
-        # Extract results from agent state (middleware updates it)
-        fetched_files_updated = result.get("fetched_files", {})
-        tool_call_history_updated = result.get("tool_call_history", [])
-
-        # Build gathered_code from state
-        gathered_code = state.get("gathered_code", "")
-        for tool_name, code_list in fetched_files_updated.items():
-            for code in code_list:
-                # Avoid duplicates
-                if code not in gathered_code:
-                    gathered_code += f"\n\n{code}\n"
-
-        # Log summary
-        logger.info(
-            f"[{state['issue_id']}] Research complete. "
-            f"Total gathered code: {len(gathered_code)} chars, "
-            f"{len(fetched_files_updated)} tools used, "
-            f"{len(tool_call_history_updated)} tool calls"
-        )
-
-        return {
-            **state,
-            "research_messages": result["messages"],
-            "gathered_code": gathered_code,
-            "fetched_files": fetched_files_updated,
-            "tool_call_history": tool_call_history_updated,
-        }
+            logger.error(
+                "[%s] Research agent error: %s",
+                state["issue_id"],
+                e,
+                exc_info=True,
+            )
+            return _handle_research_error(state, research_agent, thread_id, e)
 
     return research
+
+
+def _handle_research_success(state: InvestigationState, result: dict) -> InvestigationState:
+    """Build state from successful research agent result."""
+    fetched = result.get("fetched_files", {})
+    history = result.get("tool_call_history", [])
+    gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
+    logger.info(
+        "[%s] Research complete. Total gathered code: %s chars, %s tools used, %s tool calls",
+        state["issue_id"],
+        len(gathered_code),
+        len(fetched),
+        len(history),
+    )
+    return {
+        **state,
+        "research_messages": result["messages"],
+        "gathered_code": gathered_code,
+        "fetched_files": fetched,
+        "tool_call_history": history,
+    }
+
+
+def _handle_research_recursion_limit(
+    state: InvestigationState, agent, thread_id: str
+) -> InvestigationState:
+    """Build state when research hits recursion limit; preserve via checkpointer."""
+    fetched, history = state.get("fetched_files", {}), state.get("tool_call_history", [])
+    fetched, history, from_checkpointer = _get_preserved_state(
+        agent, thread_id, fetched, history, log_failure=True
+    )
+    if from_checkpointer:
+        logger.info(
+            "[%s] Preserved state via checkpointer: %s tool results, %s tool calls",
+            state["issue_id"],
+            len(fetched),
+            len(history),
+        )
+    gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
+    return {
+        **state,
+        "research_messages": [],
+        "gathered_code": gathered_code,
+        "fetched_files": fetched,
+        "tool_call_history": history,
+        "stop_reason": ("research_recursion_limit_hit (limit=%s)" % RESEARCH_AGENT_RECURSION_LIMIT),
+    }
+
+
+def _handle_research_error(
+    state: InvestigationState, agent, thread_id: str, e: Exception
+) -> InvestigationState:
+    """Build state when research raises; preserve via checkpointer if possible."""
+    fetched, history = state.get("fetched_files", {}), state.get("tool_call_history", [])
+    fetched, history, _ = _get_preserved_state(agent, thread_id, fetched, history)
+    gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
+    return {
+        **state,
+        "research_messages": [],
+        "gathered_code": gathered_code,
+        "fetched_files": fetched,
+        "tool_call_history": history,
+        "stop_reason": "research_error: %s" % str(e)[:100],
+    }
+
+
+def _build_research_agent_state(state: InvestigationState) -> ResearchAgentState:
+    """Build ResearchAgentState from InvestigationState for agent.invoke."""
+    return ResearchAgentState(
+        messages=[],
+        fetched_files=state.get("fetched_files", {}),
+        tool_call_history=state.get("tool_call_history", []),
+        issue_id=state["issue_id"],
+        iteration=state["iteration"],
+        issue_description=state["issue_description"],
+        initial_code=state["initial_code"],
+        evaluation_feedback=state.get("evaluation_feedback", ""),
+        required_information=state.get("required_information", []),
+    )
+
+
+def _get_preserved_state(
+    agent, thread_id: str, fallback_fetched: dict, fallback_history: list, log_failure: bool = False
+):
+    """Get fetched_files and tool_call_history from checkpointer or return fallbacks.
+    Returns (fetched, history, from_checkpointer: bool).
+    If log_failure is True and get_state raises, logs a warning.
+    """
+    try:
+        preserved = agent.get_state({"configurable": {"thread_id": thread_id}})
+        if preserved and preserved.values:
+            return (
+                preserved.values.get("fetched_files", fallback_fetched),
+                preserved.values.get("tool_call_history", fallback_history),
+                True,
+            )
+    except Exception as state_err:
+        if log_failure:
+            logger.warning(
+                "Could not retrieve state from checkpointer: %s. Using input state as fallback.",
+                state_err,
+            )
+    return (fallback_fetched, fallback_history, False)
+
+
+def _merge_gathered_code(existing: str, fetched_files: Dict) -> str:
+    """Append code from fetched_files to existing, avoiding duplicates."""
+    for _tool_name, code_list in fetched_files.items():
+        for code in code_list:
+            if code not in existing:
+                existing += f"\n\n{code}\n"
+    return existing

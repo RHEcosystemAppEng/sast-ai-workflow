@@ -102,23 +102,32 @@ def create_embedding_llm(config: Config) -> BaseChatModel:
 
     model_name = config.EMBEDDINGS_LLM_MODEL_NAME or config.LLM_MODEL_NAME
     base_url = config.EMBEDDINGS_LLM_URL or config.LLM_URL
+    logger.info("Creating embedding LLM: %s", model_name)
 
-    logger.info(f"Creating embedding LLM: {model_name}")
-
-    # Embedding models typically use same API type as main LLM
     if config.LLM_API_TYPE == "openai":
-        return ChatOpenAI(
-            model=model_name,
-            base_url=base_url if base_url else None,
-            api_key=api_key,
-            temperature=0.0,
-        )
-    elif config.LLM_API_TYPE == "nim":
-        return ChatNVIDIA(
-            model=model_name,
-            base_url=base_url,
-            api_key=api_key,
-            temperature=0.0,
-        )
-    else:
-        raise ValueError(f"Unsupported LLM type for embeddings: {config.LLM_API_TYPE}")
+        return _create_openai_embedding_llm(model_name, base_url, api_key)
+    if config.LLM_API_TYPE == "nim":
+        return _create_nim_embedding_llm(model_name, base_url, api_key)
+    raise ValueError("Unsupported LLM type for embeddings: %s" % config.LLM_API_TYPE)
+
+
+def _create_openai_embedding_llm(
+    model_name: str, base_url: Optional[str], api_key: str
+) -> ChatOpenAI:
+    """Build ChatOpenAI instance for embeddings."""
+    return ChatOpenAI(
+        model=model_name,
+        base_url=base_url if base_url else None,
+        api_key=api_key,
+        temperature=0.0,
+    )
+
+
+def _create_nim_embedding_llm(model_name: str, base_url: str, api_key: str) -> ChatNVIDIA:
+    """Build ChatNVIDIA instance for embeddings."""
+    return ChatNVIDIA(
+        model=model_name,
+        base_url=base_url,
+        api_key=api_key,
+        temperature=0.0,
+    )

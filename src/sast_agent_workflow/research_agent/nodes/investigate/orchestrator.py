@@ -8,11 +8,9 @@ This uses a subgraph with three nodes:
 """
 
 import logging
-import os
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from common.config import Config
@@ -20,19 +18,16 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 from handlers.repo_handler_factory import repo_handler_factory
 
 from ...observability.ground_truth_loader import load_ground_truth_verdicts
+from ...observability.langfuse_integration import (
+    add_langfuse_scores,
+    build_langfuse_metadata_for_investigation,
+    issue_langfuse_context,
+    langfuse_score_client_context,
+)
 from .schemas import InvestigationState
 from .subgraph import build_investigation_subgraph
 
 logger = logging.getLogger(__name__)
-
-# Langfuse integration (optional)
-try:
-    from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
-
-    LANGFUSE_AVAILABLE = True
-except ImportError:
-    LANGFUSE_AVAILABLE = False
-    logger.debug("Langfuse not available - tracing disabled")
 
 
 def create_investigate_node(config: Config, llm: BaseChatModel, tools: List[BaseTool]):
@@ -53,345 +48,196 @@ def create_investigate_node(config: Config, llm: BaseChatModel, tools: List[Base
     logger.info("Created investigation subgraph (research → analysis → evaluation)")
 
     async def investigate(state: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """
-        Investigate each non-final issue using ReAct agent.
-
-        Args:
-            state: Tracker with issues to investigate
-
-        Returns:
-            Tracker with investigation results
-        """
+        """Investigate each non-final issue using the research-analysis-evaluation subgraph."""
         logger.info("Investigating issues with ReAct agent...")
-
-        # Initialize repo handler for initial code extraction
         repo_handler = repo_handler_factory(config)
+        issues_to_investigate = _get_issues_to_investigate(state)
+        logger.info("Investigating %s/%s issues", len(issues_to_investigate), len(state.issues))
 
-        # Count issues to investigate
-        issues_to_investigate = {
-            issue_id: per_issue
-            for issue_id, per_issue in state.issues.items()
-            if not per_issue.analysis_response or per_issue.analysis_response.is_final != "TRUE"
-        }
+        ground_truth_verdicts = _load_ground_truth_safe(config)
+        with langfuse_score_client_context() as langfuse_score_client:
+            for issue_id, per_issue in issues_to_investigate.items():
+                logger.info("Investigating %s...", issue_id)
+                with issue_langfuse_context(issue_id, config) as (
+                    langfuse_handler,
+                    issue_session_id,
+                    issue_trace_id,
+                ):
+                    try:
+                        code_context, fetched_initial, gathered_initial = (
+                            _extract_initial_code_and_build_context(
+                                repo_handler, per_issue, issue_id
+                            )
+                        )
+                        initial_state = _build_initial_investigation_state(
+                            issue_id,
+                            per_issue,
+                            code_context,
+                            gathered_initial,
+                            fetched_initial,
+                            config,
+                        )
+                        subgraph_config = _build_subgraph_config(
+                            issue_id, config, langfuse_handler, issue_session_id, per_issue
+                        )
+                        logger.info("Running investigation subgraph for %s...", issue_id)
+                        result = await investigation_subgraph.ainvoke(
+                            initial_state, config=subgraph_config
+                        )
+                        _update_tracker_from_result(per_issue, result, issue_id)
+                        if langfuse_handler and langfuse_score_client and issue_trace_id:
+                            add_langfuse_scores(
+                                langfuse_score_client,
+                                issue_trace_id,
+                                issue_id,
+                                result,
+                                ground_truth_verdicts,
+                            )
+                    except Exception as e:
+                        logger.error("Investigation failed for %s: %s", issue_id, e, exc_info=True)
+                        if per_issue.analysis_response:
+                            per_issue.analysis_response.investigation_result = "NEEDS REVIEW"
+                            per_issue.analysis_response.justifications = [
+                                "Investigation failed: %s" % str(e)
+                            ]
+                            per_issue.analysis_response.is_final = "TRUE"
+        logger.info("Investigation complete")
+        return state
 
-        logger.info(f"Investigating {len(issues_to_investigate)}/{len(state.issues)} issues")
+    return investigate
 
-        # Load ground truth for verdict scoring (if available)
-        ground_truth_verdicts = None
-        try:
-            ground_truth_verdicts = load_ground_truth_verdicts(config)
-            if ground_truth_verdicts:
-                logger.info(
-                    f"Loaded ground truth for {len(ground_truth_verdicts)} issues "
-                    "for Langfuse scoring"
-                )
-        except Exception as e:
-            logger.warning(f"Could not load ground truth for scoring: {e}")
 
-        # Create Langfuse client once for all score operations
-        langfuse_score_client = None
-        if LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
-            try:
-                from langfuse import Langfuse
+def _get_issues_to_investigate(state: SASTWorkflowTracker) -> Dict[str, Any]:
+    """Return dict of issue_id -> per_issue for issues not yet final."""
+    return {
+        issue_id: per_issue
+        for issue_id, per_issue in state.issues.items()
+        if not per_issue.analysis_response or per_issue.analysis_response.is_final != "TRUE"
+    }
 
-                langfuse_score_client = Langfuse(
-                    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-                    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-                    host=os.getenv("LANGFUSE_HOST", "http://localhost:3000"),
-                )
-                logger.info("Langfuse score client initialized for workflow")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Langfuse score client: {e}")
 
-        for issue_id, per_issue in issues_to_investigate.items():
-            logger.info(f"Investigating {issue_id}...")
+def _load_ground_truth_safe(config: Config) -> Optional[dict]:
+    """Load ground truth verdicts; return None on failure."""
+    try:
+        verdicts = load_ground_truth_verdicts(config)
+        if verdicts:
+            logger.info("Loaded ground truth for %s issues for Langfuse scoring", len(verdicts))
+        return verdicts
+    except Exception as e:
+        logger.warning("Could not load ground truth for scoring: %s", e)
+        return None
 
-            # Setup per-issue Langfuse tracing with unique trace ID
-            langfuse_handler: Optional[LangfuseCallbackHandler] = None
-            issue_session_id: Optional[str] = None
-            issue_trace_id: Optional[str] = None
 
-            if LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY"):
-                try:
-                    import uuid
+def _extract_initial_code_and_build_context(repo_handler, per_issue, issue_id: str):
+    """Extract initial code from trace and build code_context, fetched_initial, gathered_initial."""
+    initial_code = repo_handler.get_source_code_blocks_from_error_trace(per_issue.issue.trace)
+    file_count = len(initial_code) if initial_code else 0
+    logger.debug("[%s] Extracted %s files from trace", issue_id, file_count)
 
-                    # Create unique session ID per issue for clean trace separation
-                    issue_session_id = f"{config.PROJECT_NAME}_{config.TEST_RUN_ID}_{issue_id}"
+    code_context = "\n\n".join(
+        ["=== %s ===\n%s" % (fp, code) for fp, code in (initial_code or {}).items()]
+    )
+    if not code_context:
+        code_context = (
+            "(No code could be automatically extracted from the trace. "
+            "The agent will need to fetch code based on the trace information above.)"
+        )
+        logger.debug("[%s] No code extracted from trace - will rely on agent tool calls", issue_id)
 
-                    # Generate unique trace_id per run (32 lowercase hex chars)
-                    issue_trace_id = uuid.uuid4().hex
+    fetched_files_initial = {}
+    gathered_code_initial = ""
+    if initial_code:
+        fetched_files_initial["fetch_code_from_error_trace"] = []
+        for file_path, code in initial_code.items():
+            formatted_block = "=== %s (from error trace) ===\n%s" % (file_path, code)
+            fetched_files_initial["fetch_code_from_error_trace"].append(formatted_block)
+            gathered_code_initial += "\n\n%s\n" % formatted_block
+        logger.info(
+            "[%s] Pre-populated with %s files from error trace (%s chars)",
+            issue_id,
+            len(initial_code),
+            len(gathered_code_initial),
+        )
+    else:
+        logger.info("[%s] No code extracted from trace - starting with empty context", issue_id)
 
-                    # Create CallbackHandler with trace_context to set custom trace ID
-                    langfuse_handler = LangfuseCallbackHandler(
-                        trace_context={"trace_id": issue_trace_id}
-                    )
+    return (code_context, fetched_files_initial, gathered_code_initial)
 
-                    # Log the trace URL for easy access
-                    langfuse_host = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
-                    trace_url = f"{langfuse_host}/trace/{issue_trace_id}"
-                    logger.info(f"[{issue_id}] Langfuse tracing enabled")
-                    logger.info(f"[{issue_id}]   trace_id: {issue_trace_id}")
-                    logger.info(f"[{issue_id}]   session: {issue_session_id}")
-                    logger.info(f"[{issue_id}]   URL: {trace_url}")
-                except Exception as e:
-                    logger.warning(f"[{issue_id}] Failed to initialize Langfuse: {e}")
 
-            try:
-                # Get initial code from SAST trace
-                logger.debug(f"[{issue_id}] Attempting to extract code from error trace...")
-                initial_code = repo_handler.get_source_code_blocks_from_error_trace(
-                    per_issue.issue.trace
-                )
-
-                file_count = len(initial_code) if initial_code else 0
-                logger.debug(f"[{issue_id}] Extracted {file_count} files from trace")
-
-                # Format initial code for display
-                code_context = "\n\n".join(
-                    [
-                        f"=== {file_path} ===\n{code}"
-                        for file_path, code in (initial_code or {}).items()
-                    ]
-                )
-
-                if not code_context:
-                    code_context = (
-                        "(No code could be automatically extracted from the trace. "
-                        "The agent will need to fetch code based on the trace "
-                        "information above.)"
-                    )
-                    logger.debug(
-                        f"[{issue_id}] No code extracted from trace - will rely on agent tool calls"
-                    )
-
-                # Pre-populate fetched_files and gathered_code with initial trace code
-                fetched_files_initial = {}
-                gathered_code_initial = ""
-
-                if initial_code:
-                    fetched_files_initial["fetch_code_from_error_trace"] = []
-
-                    for file_path, code in initial_code.items():
-                        formatted_block = f"=== {file_path} (from error trace) ===\n{code}"
-                        fetched_files_initial["fetch_code_from_error_trace"].append(formatted_block)
-                        gathered_code_initial += f"\n\n{formatted_block}\n"
-
-                    logger.info(
-                        f"[{issue_id}] Pre-populated with {len(initial_code)} files "
-                        f"from error trace ({len(gathered_code_initial)} chars)"
-                    )
-                else:
-                    logger.info(
-                        f"[{issue_id}] No code extracted from trace - starting with empty context"
-                    )
-
-                # Create issue description
-                issue_description = f"""**Issue ID:** {issue_id}
+def _build_initial_investigation_state(
+    issue_id: str,
+    per_issue: Any,
+    code_context: str,
+    gathered_code_initial: str,
+    fetched_files_initial: dict,
+    config: Config,
+) -> InvestigationState:
+    """Build initial InvestigationState for one issue."""
+    issue_description = f"""**Issue ID:** {issue_id}
 **Type:** {per_issue.issue.issue_type}
 **Label:** {per_issue.issue.issue_label}
 **CWE:** {per_issue.issue.issue_cwe}
 
 **Trace:**
 {per_issue.issue.trace}"""
-
-                # Create initial investigation state with pre-populated context
-                initial_state: InvestigationState = {
-                    "issue_id": issue_id,
-                    "issue_description": issue_description,
-                    "initial_code": code_context,
-                    "research_messages": [],
-                    "gathered_code": gathered_code_initial,
-                    "fetched_files": fetched_files_initial,
-                    "tool_call_history": [],
-                    "analysis": "",
-                    "analysis_prompt": "",
-                    "proposed_verdict": "",
-                    "justifications": [],
-                    "confidence": "",
-                    "evaluation_result": "",
-                    "evaluation_feedback": "",
-                    "required_information": [],
-                    "evaluation_rejection_streak": 0,
-                    "no_progress_streak": 0,
-                    "previous_code_length": 0,
-                    "stop_reason": None,
-                    "iteration": 1,
-                    "max_iterations": config.MAX_ANALYSIS_ITERATIONS or 4,
-                    "is_complete": False,
-                    "needs_reanalysis": False,
-                }
-
-                # Prepare config with per-issue Langfuse tracing
-                subgraph_config = {
-                    "recursion_limit": 100,
-                    "runName": f"investigate_{config.PROJECT_NAME}_{issue_id}",
-                }
-
-                # Add per-issue Langfuse tracing if available
-                if langfuse_handler and issue_session_id:
-                    subgraph_config["callbacks"] = [langfuse_handler]
-                    subgraph_config["metadata"] = {
-                        "langfuse_session_id": issue_session_id,
-                        "langfuse_user_id": config.PROJECT_NAME,
-                        "langfuse_tags": [
-                            f"project:{config.PROJECT_NAME}",
-                            f"test_run:{config.TEST_RUN_ID}",
-                            f"model:{config.LLM_MODEL_NAME}",
-                            f"issue:{issue_id}",
-                            f"issue_type:{per_issue.issue.issue_type}",
-                            "stage:investigate",
-                            "method:multi_stage",
-                        ],
-                        "langfuse_release": config.PROJECT_VERSION,
-                        "project_name": config.PROJECT_NAME,
-                        "issue_id": issue_id,
-                        "issue_type": per_issue.issue.issue_type,
-                        "test_run_id": config.TEST_RUN_ID,
-                    }
-
-                # Run investigation subgraph
-                logger.info(f"Running investigation subgraph for {issue_id}...")
-                result = await investigation_subgraph.ainvoke(initial_state, config=subgraph_config)
-
-                # Extract results
-                verdict = result["proposed_verdict"].replace("_", " ")
-                justifications = result["justifications"]
-                analysis_prompt = result.get("analysis_prompt", "")
-                iterations = result["iteration"]
-
-                # Update tracker
-                if per_issue.analysis_response:
-                    per_issue.analysis_response.investigation_result = verdict
-                    per_issue.analysis_response.is_final = "TRUE"
-                    per_issue.analysis_response.justifications = justifications[:5]
-                    per_issue.analysis_response.prompt = analysis_prompt
-
-                logger.info(
-                    f"{issue_id}: {verdict} "
-                    f"(confidence: {result['confidence']}, iterations: {iterations})"
-                )
-
-                # Add Langfuse scores
-                if langfuse_handler and langfuse_score_client and issue_trace_id:
-                    _add_langfuse_scores(
-                        langfuse_score_client,
-                        issue_trace_id,
-                        issue_id,
-                        result,
-                        ground_truth_verdicts,
-                    )
-
-            except Exception as e:
-                logger.error(f"Investigation failed for {issue_id}: {e}", exc_info=True)
-
-                # Mark as NEEDS_REVIEW on error
-                if per_issue.analysis_response:
-                    per_issue.analysis_response.investigation_result = "NEEDS REVIEW"
-                    per_issue.analysis_response.justifications = [f"Investigation failed: {str(e)}"]
-                    per_issue.analysis_response.is_final = "TRUE"
-
-            finally:
-                # Flush the Langfuse handler after each issue
-                if langfuse_handler:
-                    try:
-                        logger.info(f"[{issue_id}] Flushing Langfuse trace...")
-                        langfuse_handler.client.flush()
-                        logger.info(f"[{issue_id}] Langfuse trace flushed successfully")
-                    except Exception as flush_error:
-                        logger.warning(
-                            f"[{issue_id}] Failed to flush Langfuse handler: {flush_error}"
-                        )
-
-        logger.info("Investigation complete")
-        logger.info("All Langfuse traces flushed")
-
-        # Flush score client to ensure all scores are sent
-        if langfuse_score_client:
-            try:
-                logger.info("Flushing Langfuse score client...")
-                langfuse_score_client.flush()
-                logger.info("Langfuse score client flushed successfully")
-            except Exception as e:
-                logger.warning(f"Failed to flush Langfuse score client: {e}")
-
-        return state
-
-    return investigate
+    return {
+        "issue_id": issue_id,
+        "issue_description": issue_description,
+        "initial_code": code_context,
+        "research_messages": [],
+        "gathered_code": gathered_code_initial,
+        "fetched_files": fetched_files_initial,
+        "tool_call_history": [],
+        "analysis": "",
+        "analysis_prompt": "",
+        "proposed_verdict": "",
+        "justifications": [],
+        "confidence": "",
+        "evaluation_result": "",
+        "evaluation_feedback": "",
+        "required_information": [],
+        "evaluation_rejection_streak": 0,
+        "no_progress_streak": 0,
+        "previous_code_length": 0,
+        "stop_reason": None,
+        "iteration": 1,
+        "max_iterations": config.MAX_ANALYSIS_ITERATIONS or 4,
+        "is_complete": False,
+        "needs_reanalysis": False,
+    }
 
 
-def _add_langfuse_scores(
-    langfuse_score_client,
-    issue_trace_id: str,
+def _build_subgraph_config(
     issue_id: str,
-    result: dict,
-    ground_truth_verdicts: dict | None,
-):
-    """Add Langfuse scores for an investigation result."""
-    try:
-        # Score 1: Count tool calls from research_messages
-        tool_call_count = sum(
-            1 for msg in result.get("research_messages", []) if isinstance(msg, ToolMessage)
+    config: Config,
+    langfuse_handler: Optional[Any],
+    issue_session_id: Optional[str],
+    per_issue: Any,
+) -> dict:
+    """Build invoke config for investigation subgraph, with optional Langfuse metadata."""
+    subgraph_config = {
+        "recursion_limit": 100,
+        "runName": f"investigate_{config.PROJECT_NAME}_{issue_id}",
+    }
+    if langfuse_handler and issue_session_id:
+        subgraph_config["callbacks"] = [langfuse_handler]
+        subgraph_config["metadata"] = build_langfuse_metadata_for_investigation(
+            config, issue_session_id, issue_id, per_issue.issue.issue_type
         )
+    return subgraph_config
 
-        logger.info(f"[{issue_id}] Adding Langfuse scores: tool_call_count={tool_call_count}")
 
-        langfuse_score_client.create_score(
-            trace_id=issue_trace_id,
-            name="tool_call_count",
-            value=float(tool_call_count),
-            data_type="NUMERIC",
-            comment="Total tool executions during investigation",
-        )
-
-        # Score 2: Investigation verdict
-        investigation_verdict = result["proposed_verdict"]
-        langfuse_score_client.create_score(
-            trace_id=issue_trace_id,
-            name="verdict",
-            value=investigation_verdict,
-            data_type="CATEGORICAL",
-            comment=f"Investigation verdict: {investigation_verdict}",
-        )
-
-        # Score 3: Ground truth verdict (if available)
-        if ground_truth_verdicts and issue_id in ground_truth_verdicts:
-            ground_truth_verdict = ground_truth_verdicts[issue_id]
-
-            langfuse_score_client.create_score(
-                trace_id=issue_trace_id,
-                name="ground_truth_verdict",
-                value=ground_truth_verdict,
-                data_type="CATEGORICAL",
-                comment="Human-verified ground truth verdict",
-            )
-
-            # Score 4: Verdict correctness comparison
-            is_correct = investigation_verdict == ground_truth_verdict
-
-            logger.info(
-                f"[{issue_id}] Verdict comparison: "
-                f"investigation={investigation_verdict}, "
-                f"ground_truth={ground_truth_verdict}, "
-                f"correct={is_correct}"
-            )
-
-            langfuse_score_client.create_score(
-                trace_id=issue_trace_id,
-                name="verdict_correct",
-                value=1 if is_correct else 0,
-                data_type="BOOLEAN",
-                comment=f"Verdict matches ground truth: {ground_truth_verdict}",
-            )
-        else:
-            if ground_truth_verdicts is None:
-                logger.debug(
-                    f"[{issue_id}] No ground truth available - skipping verdict correctness score"
-                )
-            else:
-                logger.debug(
-                    f"[{issue_id}] No ground truth for this issue - "
-                    "skipping verdict correctness score"
-                )
-
-    except Exception as score_error:
-        logger.warning(f"[{issue_id}] Failed to add Langfuse scores: {score_error}")
+def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> None:
+    """Update per_issue.analysis_response from subgraph result and log."""
+    verdict = result["proposed_verdict"].replace("_", " ")
+    justifications = result["justifications"]
+    analysis_prompt = result.get("analysis_prompt", "")
+    iterations = result["iteration"]
+    if per_issue.analysis_response:
+        per_issue.analysis_response.investigation_result = verdict
+        per_issue.analysis_response.is_final = "TRUE"
+        per_issue.analysis_response.justifications = justifications
+        per_issue.analysis_response.prompt = analysis_prompt
+    logger.info(
+        f"{issue_id}: {verdict} (confidence: {result['confidence']}, iterations: {iterations})"
+    )

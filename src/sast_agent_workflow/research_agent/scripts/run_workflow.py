@@ -17,7 +17,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Add paths for imports
 research_agent_path = Path(__file__).parent.parent  # research_agent/
@@ -26,6 +25,10 @@ sys.path.insert(0, str(research_agent_path))
 sys.path.insert(0, str(src_path))
 
 from core.workflow import build_workflow  # noqa: E402
+from observability.langfuse_integration import (  # noqa: E402
+    build_langfuse_metadata_for_workflow,
+    workflow_langfuse_context,
+)
 
 from common.config import Config  # noqa: E402
 from dto.SASTWorkflowModels import SASTWorkflowTracker  # noqa: E402
@@ -33,14 +36,24 @@ from Utils.log_utils import setup_logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# Langfuse integration (optional)
-try:
-    from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 
-    LANGFUSE_AVAILABLE = True
-except ImportError:
-    LANGFUSE_AVAILABLE = False
-    logger.debug("Langfuse not available - workflow tracing disabled")
+def _resolve_test_run_id(config: Config) -> None:
+    """Set config.TEST_RUN_ID from environment or generate unique id."""
+    env_test_run_id = os.getenv("TEST_RUN_ID")
+    if env_test_run_id:
+        config.TEST_RUN_ID = env_test_run_id
+        logger.info("Using shared TEST_RUN_ID from environment: %s", env_test_run_id)
+    else:
+        config.TEST_RUN_ID = f"test_{int(time.time())}"
+        logger.info("Generated unique TEST_RUN_ID: %s", config.TEST_RUN_ID)
+
+
+def _setup_timestamped_output_path(config: Config) -> None:
+    """Add timestamp prefix to config.OUTPUT_FILE_PATH."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = Path(config.OUTPUT_FILE_PATH)
+    config.OUTPUT_FILE_PATH = str(output_path.parent / f"{timestamp}_{output_path.name}")
+    logger.info("Added timestamp prefix to output file: %s", config.OUTPUT_FILE_PATH)
 
 
 async def main():
@@ -61,91 +74,42 @@ async def main():
     logger.info("=" * 80)
 
     try:
-        # Load configuration (existing Config class)
         logger.info("Loading configuration...")
         config = Config()
+        _resolve_test_run_id(config)
+        _setup_timestamped_output_path(config)
 
-        # Use TEST_RUN_ID from environment (for batch runs) or generate unique one
-        # Format: batch_<timestamp> (from batch script) or test_<timestamp> (standalone)
-        env_test_run_id = os.getenv("TEST_RUN_ID")
-        if env_test_run_id:
-            config.TEST_RUN_ID = env_test_run_id
-            logger.info(f"Using shared TEST_RUN_ID from environment: {env_test_run_id}")
-        else:
-            unique_run_id = f"test_{int(time.time())}"
-            config.TEST_RUN_ID = unique_run_id
-            logger.info(f"Generated unique TEST_RUN_ID: {unique_run_id}")
+        logger.info("Input report: %s", config.INPUT_REPORT_FILE_PATH)
+        logger.info("Repository: %s", config.REPO_LOCAL_PATH)
+        logger.info("Output file: %s", config.OUTPUT_FILE_PATH)
+        logger.info("LLM: %s/%s", config.LLM_API_TYPE, config.LLM_MODEL_NAME)
 
-        # Add timestamp prefix to output file path
-        # Format: YYYYMMDD_HHMMSS_original_filename.xlsx
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = Path(config.OUTPUT_FILE_PATH)
-        timestamped_filename = f"{timestamp}_{output_path.name}"
-        config.OUTPUT_FILE_PATH = str(output_path.parent / timestamped_filename)
-        logger.info(f"Added timestamp prefix to output file: {config.OUTPUT_FILE_PATH}")
-
-        logger.info(f"Input report: {config.INPUT_REPORT_FILE_PATH}")
-        logger.info(f"Repository: {config.REPO_LOCAL_PATH}")
-        logger.info(f"Output file: {config.OUTPUT_FILE_PATH}")
-        logger.info(f"LLM: {config.LLM_API_TYPE}/{config.LLM_MODEL_NAME}")
-
-        # Build workflow graph
         logger.info("\nBuilding workflow graph...")
         workflow = build_workflow(config)
-
-        # Setup Langfuse tracing for entire workflow
-        # NOTE: To enable per-issue separate traces, set LANGFUSE_TRACE_PER_ISSUE=true
-        #       This disables workflow-level tracing and enables issue-level tracing
-        langfuse_handler: Optional[LangfuseCallbackHandler] = None
-        trace_per_issue = os.getenv("LANGFUSE_TRACE_PER_ISSUE", "false").lower() == "true"
-
-        if LANGFUSE_AVAILABLE and os.getenv("LANGFUSE_PUBLIC_KEY") and not trace_per_issue:
-            try:
-                langfuse_handler = LangfuseCallbackHandler()
-                logger.info("✓ Langfuse workflow tracing enabled (single trace for all issues)")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Langfuse: {e}")
-        elif trace_per_issue:
-            logger.info("✓ Langfuse per-issue tracing enabled (separate traces for each issue)")
 
         # Create initial state
         logger.info("\nInitializing workflow state...")
         initial_state = SASTWorkflowTracker(config=config, issues={}, iteration_count=0, metrics={})
 
-        # Prepare workflow config with optional Langfuse tracing
+        # Prepare workflow config with optional Langfuse tracing (handler flushed on context exit)
         workflow_config = {
             "recursion_limit": 100,
             "runName": f"sast_workflow_{config.PROJECT_NAME}_{config.TEST_RUN_ID}",
         }
+        with workflow_langfuse_context() as langfuse_handler:
+            if langfuse_handler:
+                workflow_config["callbacks"] = [langfuse_handler]
+                workflow_session_id = f"{config.PROJECT_NAME}_{config.TEST_RUN_ID}"
+                workflow_config["metadata"] = build_langfuse_metadata_for_workflow(
+                    config, workflow_session_id
+                )
+                logger.info(f"✓ Tracing session: {workflow_session_id}")
 
-        # Add Langfuse tracing to entire workflow
-        if langfuse_handler:
-            workflow_config["callbacks"] = [langfuse_handler]
-            # Include project name in session ID to separate traces by project
-            # This prevents different projects from being merged when using the same TEST_RUN_ID
-            workflow_session_id = f"{config.PROJECT_NAME}_{config.TEST_RUN_ID}"
-            workflow_config["metadata"] = {
-                "langfuse_session_id": workflow_session_id,
-                "langfuse_user_id": config.PROJECT_NAME,
-                "langfuse_tags": [
-                    f"project:{config.PROJECT_NAME}",
-                    f"version:{config.PROJECT_VERSION}",
-                    f"test_run:{config.TEST_RUN_ID}",
-                    f"model:{config.LLM_MODEL_NAME}",
-                    "workflow:sast_pipeline",
-                ],
-                "project_name": config.PROJECT_NAME,
-                "project_version": config.PROJECT_VERSION,
-                "test_run_id": config.TEST_RUN_ID,
-                "llm_model": config.LLM_MODEL_NAME,
-            }
-            logger.info(f"✓ Tracing session: {workflow_session_id}")
+            # Execute workflow
+            logger.info("\nExecuting workflow...")
+            logger.info("-" * 80)
 
-        # Execute workflow
-        logger.info("\nExecuting workflow...")
-        logger.info("-" * 80)
-
-        final_state = await workflow.ainvoke(initial_state, config=workflow_config)
+            final_state = await workflow.ainvoke(initial_state, config=workflow_config)
 
         logger.info("-" * 80)
         logger.info("\nWorkflow execution complete!")

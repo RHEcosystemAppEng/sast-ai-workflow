@@ -346,222 +346,38 @@ def update_config_for_nvr(workspace_path, nvr_name, csv_path):
 
 
 def main():
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(
-        description="Process NVRs from TrainDataset CSV file in parallel",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Run all packages in parallel (default: 4 workers)
-  python run_train_dataset_batch.py
-
-  # Run with 8 parallel workers
-  python run_train_dataset_batch.py --workers 8
-
-  # Run sequentially (1 worker)
-  python run_train_dataset_batch.py --sequential
-
-  # Run only specific packages
-  python run_train_dataset_batch.py --packages at-3.2.5 opencryptoki-3.23.0
-
-  # Exclude specific packages
-  python run_train_dataset_batch.py --exclude mtools-4.0.43
-
-  # Update config only for a specific NVR
-  python run_train_dataset_batch.py --dataset path/to/dataset.csv --config-only --nvr at-3.2.5
-  python run_train_dataset_batch.py --dataset path/to/dataset.csv --config-only \\
-      --nvr tpm2-tss-4.0.1-7.el10
-        """,
-    )
-    parser.add_argument(
-        "--dataset", type=str, required=True, help="Path to the training dataset CSV file"
-    )
-    parser.add_argument(
-        "--config-only",
-        action="store_true",
-        help="Only update the config file, do not run the workflow",
-    )
-    parser.add_argument(
-        "--nvr", type=str, help="Specific NVR to process (required with --config-only)"
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=4,
-        help="Number of parallel workers (default: 4, use 1 for sequential)",
-    )
-    parser.add_argument(
-        "--sequential",
-        action="store_true",
-        help="Run sequentially with 1 worker (shorthand for --workers 1)",
-    )
-    parser.add_argument(
-        "--packages",
-        nargs="+",
-        type=str,
-        help="Specific packages to process (space-separated list of NVRs)",
-    )
-    parser.add_argument(
-        "--exclude", nargs="+", type=str, help="Packages to exclude (space-separated list of NVRs)"
-    )
-    parser.add_argument(
-        "--test-run-id",
-        type=str,
-        help="Use existing TEST_RUN_ID (for continuing a previous batch run)",
-    )
-
+    parser = _create_parser()
     args = parser.parse_args()
+    _validate_args(parser, args)
 
-    # Validate arguments
-    if args.config_only and not args.nvr:
-        parser.error("--config-only requires --nvr to be specified")
-
-    if args.nvr and not args.config_only:
-        parser.error("--nvr requires --config-only flag")
-
-    if args.workers < 1:
-        parser.error("--workers must be at least 1")
-
-    # --sequential overrides --workers
-    if args.sequential:
-        args.workers = 1
-
-    if args.packages and args.exclude:
-        parser.error("--packages and --exclude cannot be used together")
-
-    # Resolve dataset path
-    csv_path = Path(args.dataset)
-    if not csv_path.is_absolute():
-        csv_path = WORKSPACE_PATH / args.dataset
-
-    if not csv_path.exists():
-        print(f"Error: Dataset file not found: {csv_path}")
+    csv_path = _resolve_csv_path(args)
+    if csv_path is None:
+        print("Error: Dataset file not found: %s" % Path(args.dataset).resolve())
         return 1
 
-    # Config-only mode
     if args.config_only:
         return update_config_for_nvr(WORKSPACE_PATH, args.nvr, csv_path)
 
-    # Batch mode with parallel execution
-
     logs_base_dir = WORKSPACE_PATH / "logs"
     logs_base_dir.mkdir(exist_ok=True)
-
-    # If --test-run-id is provided, use it and its existing log directory
-    if args.test_run_id:
-        shared_test_run_id = args.test_run_id
-        # Extract timestamp from test_run_id (format: batch_YYYYMMDD_HHMMSS)
-        if shared_test_run_id.startswith("batch_"):
-            run_timestamp = shared_test_run_id[6:]  # Remove "batch_" prefix
-        else:
-            run_timestamp = shared_test_run_id
-        logs_dir = logs_base_dir / f"run_{run_timestamp}"
-        logs_dir.mkdir(exist_ok=True)
-        print(f"Continuing with existing TEST_RUN_ID: {shared_test_run_id}")
-    else:
-        # Create logs directory with timestamped subdirectory for this run
-        run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        logs_dir = logs_base_dir / f"run_{run_timestamp}"
-        logs_dir.mkdir(exist_ok=True)
-        # Generate a shared TEST_RUN_ID for all packages in this batch
-        # This ensures all packages in the same batch run share the same TEST_RUN_ID
-        shared_test_run_id = f"batch_{run_timestamp}"
-
-    # Create run log in the run-specific directory
+    logs_dir, shared_test_run_id = _setup_logs_and_run_id(args, logs_base_dir)
     run_log_file = logs_dir / "batch_run.log"
+    base_env_vars = _build_base_env(shared_test_run_id)
 
-    # Base environment variables for the workflow (shared across all packages)
-    # Package-specific vars (PROJECT_NAME, etc.) are added in process_package()
-    base_env_vars = {
-        "TEST_RUN_ID": shared_test_run_id,  # Shared across all packages in this batch
-        "LLM_URL": os.environ.get("LLM_URL", "https://integrate.api.nvidia.com/v1"),
-        "LLM_API_TYPE": os.environ.get("LLM_API_TYPE", "nim"),
-        "LLM_MODEL_NAME": os.environ.get("LLM_MODEL_NAME", "qwen/qwen3-next-80b-a3b-thinking"),
-        "LLM_API_KEY": os.environ.get("LLM_API_KEY", ""),
-        "DISABLE_SSL_VERIFY": "true",
-        "LANGFUSE_SECRET_KEY": "sk-lf-bbe9289f-bd69-40ed-8982-14cd3f1d0e1e",
-        "LANGFUSE_PUBLIC_KEY": "pk-lf-1beba22d-8a15-4e5c-a9db-296c8301d564",
-        "LANGFUSE_HOST": "http://localhost:3000",
-        "LANGFUSE_TRACE_PER_ISSUE": "true",
-    }
-
-    # Read the CSV file
     with open(csv_path, "r") as f:
         reader = csv.DictReader(f)
         all_rows = list(reader)
 
-    # Filter packages based on --packages or --exclude
-    if args.packages:
-        package_set = set(args.packages)
-        rows = [row for row in all_rows if row[PACKAGE_NVR_COLUMN] in package_set]
+    rows, err = _filter_rows(all_rows, args)
+    if err is not None:
+        return err
 
-        # Check for any requested packages not found in CSV
-        found_packages = {row[PACKAGE_NVR_COLUMN] for row in rows}
-        missing = package_set - found_packages
-        if missing:
-            print("Warning: The following packages were not found in the CSV:")
-            for pkg in missing:
-                print(f"  - {pkg}")
-            print()
-
-        if not rows:
-            print("Error: No matching packages found in CSV file.")
-            print("\nAvailable packages:")
-            for row in all_rows:
-                print(f"  - {row[PACKAGE_NVR_COLUMN]}")
-            return 1
-    elif args.exclude:
-        exclude_set = set(args.exclude)
-        rows = [row for row in all_rows if row[PACKAGE_NVR_COLUMN] not in exclude_set]
-
-        # Report excluded packages
-        excluded = [
-            row[PACKAGE_NVR_COLUMN] for row in all_rows if row[PACKAGE_NVR_COLUMN] in exclude_set
-        ]
-        if excluded:
-            print(f"Excluding packages: {', '.join(excluded)}\n")
-    else:
-        rows = all_rows
-
-    num_workers = min(args.workers, len(rows))  # Don't use more workers than packages
-
-    print(f"{'='*80}")
-    print("SAST Batch Processing - Parallel Mode")
-    print(f"{'='*80}")
-    print(f"Workspace: {WORKSPACE_PATH}")
-    print(f"TEST_RUN_ID: {shared_test_run_id}")
-    if args.packages:
-        print(f"Running selected packages: {len(rows)} of {len(all_rows)}")
-    elif args.exclude:
-        excluded_count = len(all_rows) - len(rows)
-        print(f"Running packages: {len(rows)} of {len(all_rows)} (excluding {excluded_count})")
-    else:
-        print(f"Total packages: {len(rows)}")
-    print(f"Parallel workers: {num_workers}")
-    print(f"Logs directory: {logs_dir}")
-    print("Run log:", run_log_file)
-    print(f"{'='*80}\n")
-
-    # Initialize run log (append if continuing existing run)
-    log_mode = "a" if args.test_run_id else "w"
-    with open(run_log_file, log_mode) as run_log:
-        if args.test_run_id:
-            run_log.write(f"\n{'='*80}\n")
-            run_log.write(f"Batch Run Continued: {datetime.now()}\n")
-        else:
-            run_log.write(f"Batch Run Started: {datetime.now()}\n")
-        run_log.write(f"Workspace: {WORKSPACE_PATH}\n")
-        run_log.write(f"TEST_RUN_ID: {shared_test_run_id}\n")
-        if args.packages:
-            run_log.write(f"Selected packages: {len(rows)} of {len(all_rows)}\n")
-            run_log.write(f"Packages: {', '.join(args.packages)}\n")
-        elif args.exclude:
-            run_log.write(f"Running packages: {len(rows)} of {len(all_rows)}\n")
-            run_log.write(f"Excluded: {', '.join(args.exclude)}\n")
-        else:
-            run_log.write(f"Total packages: {len(rows)}\n")
-        run_log.write(f"Parallel workers: {num_workers}\n")
-        run_log.write("=" * 80 + "\n\n")
+    num_workers = min(args.workers, len(rows))
+    print("=" * 80)
+    _print_batch_header(
+        args, rows, all_rows, num_workers, logs_dir, run_log_file, shared_test_run_id
+    )
+    _init_run_log(run_log_file, args, rows, all_rows, num_workers, shared_test_run_id)
 
     # Progress tracker for thread-safe progress updates
     progress = ProgressTracker(len(rows))
@@ -670,6 +486,208 @@ Examples:
         run_log.write(f"\nBatch Run Completed: {datetime.now()}\n")
 
     return 0 if (failed + errors) == 0 else 1
+
+
+def _create_parser():
+    """Create and return the argument parser for batch script."""
+    parser = argparse.ArgumentParser(
+        description="Process NVRs from TrainDataset CSV file in parallel",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run all packages in parallel (default: 4 workers)
+  python run_train_dataset_batch.py
+
+  # Run with 8 parallel workers
+  python run_train_dataset_batch.py --workers 8
+
+  # Run sequentially (1 worker)
+  python run_train_dataset_batch.py --sequential
+
+  # Run only specific packages
+  python run_train_dataset_batch.py --packages at-3.2.5 opencryptoki-3.23.0
+
+  # Exclude specific packages
+  python run_train_dataset_batch.py --exclude mtools-4.0.43
+
+  # Update config only for a specific NVR
+  python run_train_dataset_batch.py --dataset path/to/dataset.csv --config-only --nvr at-3.2.5
+  python run_train_dataset_batch.py --dataset path/to/dataset.csv --config-only \\
+      --nvr tpm2-tss-4.0.1-7.el10
+        """,
+    )
+    parser.add_argument(
+        "--dataset", type=str, required=True, help="Path to the training dataset CSV file"
+    )
+    parser.add_argument(
+        "--config-only",
+        action="store_true",
+        help="Only update the config file, do not run the workflow",
+    )
+    parser.add_argument(
+        "--nvr", type=str, help="Specific NVR to process (required with --config-only)"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel workers (default: 4, use 1 for sequential)",
+    )
+    parser.add_argument(
+        "--sequential",
+        action="store_true",
+        help="Run sequentially with 1 worker (shorthand for --workers 1)",
+    )
+    parser.add_argument(
+        "--packages",
+        nargs="+",
+        type=str,
+        help="Specific packages to process (space-separated list of NVRs)",
+    )
+    parser.add_argument(
+        "--exclude", nargs="+", type=str, help="Packages to exclude (space-separated list of NVRs)"
+    )
+    parser.add_argument(
+        "--test-run-id",
+        type=str,
+        help="Use existing TEST_RUN_ID (for continuing a previous batch run)",
+    )
+    return parser
+
+
+def _validate_args(parser, args):
+    """Validate parsed args; calls parser.error() on failure."""
+    if args.config_only and not args.nvr:
+        parser.error("--config-only requires --nvr to be specified")
+    if args.nvr and not args.config_only:
+        parser.error("--nvr requires --config-only flag")
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
+    if args.sequential:
+        args.workers = 1
+    if args.packages and args.exclude:
+        parser.error("--packages and --exclude cannot be used together")
+
+
+def _resolve_csv_path(args) -> Optional[Path]:
+    """Resolve dataset path; returns None if file not found (caller should print and return 1)."""
+    csv_path = Path(args.dataset)
+    if not csv_path.is_absolute():
+        csv_path = WORKSPACE_PATH / args.dataset
+    return csv_path if csv_path.exists() else None
+
+
+def _setup_logs_and_run_id(args, logs_base_dir: Path):
+    """Return (logs_dir, shared_test_run_id)."""
+    if args.test_run_id:
+        shared_test_run_id = args.test_run_id
+        run_timestamp = (
+            shared_test_run_id[6:]
+            if shared_test_run_id.startswith("batch_")
+            else shared_test_run_id
+        )
+        logs_dir = logs_base_dir / ("run_%s" % run_timestamp)
+        logs_dir.mkdir(exist_ok=True)
+        print("Continuing with existing TEST_RUN_ID: %s" % shared_test_run_id)
+        return (logs_dir, shared_test_run_id)
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    logs_dir = logs_base_dir / ("run_%s" % run_timestamp)
+    logs_dir.mkdir(exist_ok=True)
+    shared_test_run_id = "batch_%s" % run_timestamp
+    return (logs_dir, shared_test_run_id)
+
+
+def _build_base_env(shared_test_run_id: str) -> dict:
+    """Build base environment variables for the workflow."""
+    return {
+        "TEST_RUN_ID": shared_test_run_id,
+        "LLM_URL": os.environ.get("LLM_URL", "https://integrate.api.nvidia.com/v1"),
+        "LLM_API_TYPE": os.environ.get("LLM_API_TYPE", "nim"),
+        "LLM_MODEL_NAME": os.environ.get("LLM_MODEL_NAME", "qwen/qwen3-next-80b-a3b-thinking"),
+        "LLM_API_KEY": os.environ.get("LLM_API_KEY", ""),
+        "DISABLE_SSL_VERIFY": "true",
+        "LANGFUSE_SECRET_KEY": "sk-lf-bbe9289f-bd69-40ed-8982-14cd3f1d0e1e",
+        "LANGFUSE_PUBLIC_KEY": "pk-lf-1beba22d-8a15-4e5c-a9db-296c8301d564",
+        "LANGFUSE_HOST": "http://localhost:3000",
+        "LANGFUSE_TRACE_PER_ISSUE": "true",
+    }
+
+
+def _filter_rows(all_rows: list, args):
+    """Filter rows by --packages or --exclude. Returns (rows, None) or (None, error_code 1)."""
+    if args.packages:
+        package_set = set(args.packages)
+        rows = [row for row in all_rows if row[PACKAGE_NVR_COLUMN] in package_set]
+        found_packages = {row[PACKAGE_NVR_COLUMN] for row in rows}
+        missing = package_set - found_packages
+        if missing:
+            print("Warning: The following packages were not found in the CSV:")
+            for pkg in missing:
+                print("  - %s" % pkg)
+            print()
+        if not rows:
+            print("Error: No matching packages found in CSV file.")
+            print("\nAvailable packages:")
+            for row in all_rows:
+                print("  - %s" % row[PACKAGE_NVR_COLUMN])
+            return (None, 1)
+        return (rows, None)
+    if args.exclude:
+        exclude_set = set(args.exclude)
+        rows = [row for row in all_rows if row[PACKAGE_NVR_COLUMN] not in exclude_set]
+        excluded = [
+            row[PACKAGE_NVR_COLUMN] for row in all_rows if row[PACKAGE_NVR_COLUMN] in exclude_set
+        ]
+        if excluded:
+            print("Excluding packages: %s\n" % ", ".join(excluded))
+        return (rows, None)
+    return (all_rows, None)
+
+
+def _print_batch_header(
+    args, rows, all_rows, num_workers, logs_dir, run_log_file, shared_test_run_id
+):
+    """Print batch run header to stdout."""
+    print("SAST Batch Processing - Parallel Mode")
+    print("=" * 80)
+    print("Workspace: %s" % WORKSPACE_PATH)
+    print("TEST_RUN_ID: %s" % shared_test_run_id)
+    if args.packages:
+        print("Running selected packages: %s of %s" % (len(rows), len(all_rows)))
+    elif args.exclude:
+        print(
+            "Running packages: %s of %s (excluding %s)"
+            % (len(rows), len(all_rows), len(all_rows) - len(rows))
+        )
+    else:
+        print("Total packages: %s" % len(rows))
+    print("Parallel workers: %s" % num_workers)
+    print("Logs directory: %s" % logs_dir)
+    print("Run log: %s" % run_log_file)
+    print("=" * 80 + "\n")
+
+
+def _init_run_log(run_log_file, args, rows, all_rows, num_workers, shared_test_run_id):
+    """Initialize or append to batch run log file."""
+    log_mode = "a" if args.test_run_id else "w"
+    with open(run_log_file, log_mode) as run_log:
+        if args.test_run_id:
+            run_log.write("\n" + "=" * 80 + "\n")
+            run_log.write("Batch Run Continued: %s\n" % datetime.now())
+        else:
+            run_log.write("Batch Run Started: %s\n" % datetime.now())
+        run_log.write("Workspace: %s\n" % WORKSPACE_PATH)
+        run_log.write("TEST_RUN_ID: %s\n" % shared_test_run_id)
+        if args.packages:
+            run_log.write("Selected packages: %s of %s\n" % (len(rows), len(all_rows)))
+            run_log.write("Packages: %s\n" % ", ".join(args.packages))
+        elif args.exclude:
+            run_log.write("Running packages: %s of %s\n" % (len(rows), len(all_rows)))
+            run_log.write("Excluded: %s\n" % ", ".join(args.exclude))
+        else:
+            run_log.write("Total packages: %s\n" % len(rows))
+        run_log.write("Parallel workers: %s\n" % num_workers)
+        run_log.write("=" * 80 + "\n\n")
 
 
 if __name__ == "__main__":

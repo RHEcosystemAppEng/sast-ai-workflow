@@ -97,10 +97,7 @@ class CRepoHandler:
 
     def get_source_code_blocks_from_error_trace(self, error_trace: str) -> dict:
         """Parse an error trace and extracts relevant functions bodies"""
-
         try:
-            # Match common C/C++ source extensions: .c, .h, .cpp, .hpp, .cc, .hh, .y, .l
-            # Path length capped at 1024 to bound backtracking (ReDoS) on malicious/huge input.
             source_files = set(
                 re.findall(
                     r"([^\s]{1,1024}\.(?:cpp|hpp|cc|hh|c|h|y|l)):(\d+):",
@@ -108,55 +105,62 @@ class CRepoHandler:
                 )
             )
         except Exception as e:
-            logger.warning(f"Failed to parse error trace: {e}")
+            logger.warning("Failed to parse error trace: %s", e)
             return {}
 
-        error_code_sources = defaultdict(set)
-
+        error_code_sources: defaultdict[str, set[str]] = defaultdict(set)
         for file_path, line_number in source_files:
-            try:
-                line_num = int(line_number)
-            except ValueError:
-                logger.warning(f"Invalid line number '{line_number}' for file {file_path}")
-                continue
-
-            file_path = file_path.removeprefix(self._report_file_prefix)
-            local_file_path = os.path.join(self.repo_local_path, file_path)
-
-            # Robust path check: if path doesn't exist, try stripping prefixes (like versioned dirs)
-            if not os.path.exists(local_file_path):
-                # Try stripping leading directories one by one
-                path_parts = file_path.split(os.sep)
-                found = False
-                while len(path_parts) > 1:
-                    path_parts.pop(0)
-                    new_relative_path = os.path.join(*path_parts)
-                    try_path = os.path.join(self.repo_local_path, new_relative_path)
-                    if os.path.exists(try_path):
-                        local_file_path = try_path
-                        file_path = new_relative_path
-                        found = True
-                        logger.debug(f"Matched file by stripping prefix: {file_path}")
-                        break
-
-                if not found:
-                    logger.debug(f"Skipping missing file: {local_file_path}")
-                    continue
-
-            try:
-                source_code = self.get_source_code_by_line_number(local_file_path, line_num)
-                if source_code:
-                    error_code_sources[file_path].add(source_code)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to extract source code from {local_file_path}:{line_num}: {e}"
-                )
-                continue
+            result = self._get_source_for_trace_entry(file_path, line_number)
+            if result:
+                fpath, code = result
+                error_code_sources[fpath].add(code)
 
         return {
             full_file_path: "\n".join(code_sections)
             for full_file_path, code_sections in error_code_sources.items()
         }
+
+    def _get_source_for_trace_entry(
+        self, file_path: str, line_number: str
+    ) -> tuple[str, str] | None:
+        """Parse one trace entry; return (file_path, source_code) or None if skip/invalid."""
+        try:
+            line_num = int(line_number)
+        except ValueError:
+            logger.warning("Invalid line number '%s' for file %s", line_number, file_path)
+            return None
+        resolved = self._resolve_local_file_path(file_path)
+        if resolved is None:
+            return None
+        local_file_path, file_path = resolved
+        try:
+            source_code = self.get_source_code_by_line_number(local_file_path, line_num)
+        except Exception as e:
+            logger.warning(
+                "Failed to extract source code from %s:%s: %s",
+                local_file_path,
+                line_num,
+                e,
+            )
+            return None
+        return (file_path, source_code) if source_code else None
+
+    def _resolve_local_file_path(self, file_path: str) -> tuple[str, str] | None:
+        """Resolve file_path to (local_file_path, file_path). Returns None if not found."""
+        file_path = file_path.removeprefix(self._report_file_prefix)
+        local_file_path = os.path.join(self.repo_local_path, file_path)
+        if os.path.exists(local_file_path):
+            return (local_file_path, file_path)
+        path_parts = file_path.split(os.sep)
+        while len(path_parts) > 1:
+            path_parts.pop(0)
+            new_relative_path = os.path.join(*path_parts)
+            try_path = os.path.join(self.repo_local_path, new_relative_path)
+            if os.path.exists(try_path):
+                logger.debug("Matched file by stripping prefix: %s", new_relative_path)
+                return (try_path, new_relative_path)
+        logger.debug("Skipping missing file: %s", local_file_path)
+        return None
 
     def get_source_code_by_line_number(self, file_path: str, line: int) -> str:
         """Extract the full source code section

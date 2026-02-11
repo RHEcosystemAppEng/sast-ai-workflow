@@ -107,106 +107,41 @@ def _handle_chat_nvidia(
     last_exception = None
 
     for attempt in range(max_retries):
-        # ===================================================================
-        # STEP 1: Try native structured output first
-        # ===================================================================
         structured_llm = llm.with_structured_output(schema)
         llm_chain = prompt_chain | structured_llm
 
         try:
             result = llm_chain.invoke(input, config=config)
             if result is not None:
-                logger.info(f"✓ Structured output successful on attempt {attempt + 1}")
+                logger.info("✓ Structured output successful on attempt %s", attempt + 1)
                 return result
-            else:
-                logger.warning(
-                    f"Attempt {attempt + 1}/{max_retries}: with_structured_output() returned None. "
-                    "Falling back to JSON mode with manual parsing..."
-                )
 
-                # ===================================================================
-                # STEP 2: FALLBACK - JSON mode with manual parsing
-                # ===================================================================
-
-                # Get schema as JSON for instructions
-                schema_json = schema.schema_json(indent=2)
-
-                # Build explicit JSON request prompt
-                json_prompt = (
-                    f"{input}\n\n"
-                    f"═══════════════════════════════════════════════════════════\n"
-                    f"CRITICAL: You MUST respond with VALID JSON matching this schema:\n"
-                    f"═══════════════════════════════════════════════════════════\n"
-                    f"{schema_json}\n"
-                    f"═══════════════════════════════════════════════════════════\n\n"
-                    f"REQUIREMENTS:\n"
-                    f"1. Your ENTIRE response must be valid JSON\n"
-                    f"2. Include ALL required fields from the schema\n"
-                    f"3. Do not include any text before or after the JSON\n"
-                    f"4. You may wrap JSON in markdown code block: ```json {{...}} ```\n"
-                )
-
-                # Get raw response from LLM
-                logger.debug(f"Requesting JSON response (attempt {attempt + 1})...")
-                raw_response = llm.invoke(json_prompt, config=config)
-                raw_text = (
-                    raw_response.content if hasattr(raw_response, "content") else str(raw_response)
-                )
-
-                logger.debug(f"Raw response preview: {raw_text[:300]}...")
-
-                # Extract JSON from response
-                # Pattern 1: Markdown code block with ```json
-                json_match = re.search(r"```(?:json)?\s*(\{[^\}]*\})\s*```", raw_text, re.DOTALL)
-                if json_match:
-                    json_text = json_match.group(1)
-                    logger.debug("Extracted JSON from markdown code block")
-                else:
-                    # Pattern 2: Raw JSON object
-                    json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-                    if json_match:
-                        json_text = json_match.group(0)
-                        logger.debug("Extracted raw JSON from response")
-                    else:
-                        # Pattern 3: Assume entire response is JSON
-                        json_text = raw_text.strip()
-                        logger.debug("Using entire response as JSON")
-
-                # Parse JSON and construct Pydantic object
-                try:
-                    parsed_data = json.loads(json_text)
-                    result = schema(**parsed_data)
-                    logger.info(
-                        f"✓ JSON fallback successful on attempt {attempt + 1} "
-                        f"({len(json_text)} chars parsed)"
-                    )
-                    return result
-
-                except json.JSONDecodeError as json_error:
-                    logger.warning(
-                        f"Attempt {attempt + 1}/{max_retries}: JSON parsing failed: {json_error}\n"
-                        f"JSON text preview: {json_text[:200]}..."
-                    )
-                    last_exception = f"JSON parsing failed: {json_error}"
-
-                except (ValueError, TypeError) as validation_error:
-                    logger.warning(
-                        f"Attempt {attempt + 1}/{max_retries}: "
-                        f"Pydantic validation failed: {validation_error}\n"
-                        f"Parsed data: {str(parsed_data)[:200]}..."
-                    )
-                    last_exception = f"Pydantic validation failed: {validation_error}"
+            logger.warning(
+                "Attempt %s/%s: with_structured_output() returned None. "
+                "Falling back to JSON mode with manual parsing...",
+                attempt + 1,
+                max_retries,
+            )
+            fallback_result, fallback_error = _run_json_fallback(
+                llm, schema, input, config, attempt, max_retries
+            )
+            if fallback_result is not None:
+                return fallback_result
+            if fallback_error is not None:
+                last_exception = fallback_error
 
         except Exception as e:
             last_exception = e
             logger.warning(
-                f"Attempt {attempt + 1}/{max_retries}: Unexpected error: "
-                f"{type(e).__name__}: {str(e)[:100]}"
+                "Attempt %s/%s: Unexpected error: %s: %s",
+                attempt + 1,
+                max_retries,
+                type(e).__name__,
+                str(e)[:100],
             )
 
-        # Log retry attempt
         if attempt < max_retries - 1:
-            logger.info(f"Retrying... (attempt {attempt + 2}/{max_retries})")
+            logger.info("Retrying... (attempt %s/%s)", attempt + 2, max_retries)
         logger.warning(WARNING_MESSAGE.format(model_type=schema.__name__))
 
     # Truncate input to prevent massive error messages that could cause prompt bloat
@@ -216,6 +151,83 @@ def _handle_chat_nvidia(
             max_retries=max_retries, exception=last_exception, input_truncated=input_truncated
         )
     )
+
+
+def _run_json_fallback(
+    llm: ChatNVIDIA,
+    schema: Type[BaseModel],
+    input: str,
+    config: Optional[Dict[str, Any]],
+    attempt: int,
+    max_retries: int,
+) -> tuple[Optional[BaseModel], Optional[Any]]:
+    """
+    Run one JSON fallback attempt: request JSON from LLM, extract and parse.
+    Returns (result, None) on success, (None, last_exception) on failure.
+    """
+    json_prompt = _build_json_fallback_prompt(input, schema)
+    logger.debug("Requesting JSON response (attempt %s)...", attempt + 1)
+    raw_response = llm.invoke(json_prompt, config=config)
+    raw_text = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
+    logger.debug("Raw response preview: %s...", raw_text[:300])
+
+    json_text = _extract_json_from_response(raw_text)
+    try:
+        parsed_data = json.loads(json_text)
+        result = schema(**parsed_data)
+        logger.info(
+            "✓ JSON fallback successful on attempt %s (%s chars parsed)",
+            attempt + 1,
+            len(json_text),
+        )
+        return (result, None)
+    except json.JSONDecodeError as json_error:
+        logger.warning(
+            "Attempt %s/%s: JSON parsing failed: %s\nJSON text preview: %s...",
+            attempt + 1,
+            max_retries,
+            json_error,
+            json_text[:200],
+        )
+        return (None, f"JSON parsing failed: {json_error}")
+    except (ValueError, TypeError) as validation_error:
+        logger.warning(
+            "Attempt %s/%s: Pydantic validation failed: %s\nParsed data: %s...",
+            attempt + 1,
+            max_retries,
+            validation_error,
+            str(parsed_data)[:200],
+        )
+        return (None, f"Pydantic validation failed: {validation_error}")
+
+
+def _build_json_fallback_prompt(input: str, schema: Type[BaseModel]) -> str:
+    """Build prompt that explicitly requests JSON matching the given schema."""
+    schema_json = schema.schema_json(indent=2)
+    return (
+        f"{input}\n\n"
+        f"═══════════════════════════════════════════════════════════\n"
+        f"CRITICAL: You MUST respond with VALID JSON matching this schema:\n"
+        f"═══════════════════════════════════════════════════════════\n"
+        f"{schema_json}\n"
+        f"═══════════════════════════════════════════════════════════\n\n"
+        f"REQUIREMENTS:\n"
+        f"1. Your ENTIRE response must be valid JSON\n"
+        f"2. Include ALL required fields from the schema\n"
+        f"3. Do not include any text before or after the JSON\n"
+        f"4. You may wrap JSON in markdown code block: ```json {{...}} ```\n"
+    )
+
+
+def _extract_json_from_response(raw_text: str) -> str:
+    """Extract JSON string from LLM response (markdown block, raw object, or whole response)."""
+    json_match = re.search(r"```(?:json)?\s*(\{[^\}]*\})\s*```", raw_text, re.DOTALL)
+    if json_match:
+        return json_match.group(1)
+    json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+    if json_match:
+        return json_match.group(0)
+    return raw_text.strip()
 
 
 def format_source_code_for_analysis(source_code: Dict[str, List[str]]) -> str:
