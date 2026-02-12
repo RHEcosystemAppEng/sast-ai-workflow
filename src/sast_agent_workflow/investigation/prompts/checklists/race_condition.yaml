@@ -1,0 +1,27 @@
+---
+# Race Condition (TOCTOU) Investigation Guidance
+# CWE-367
+
+vuln_type: "Race Condition"
+cwe_ids: ["CWE-367", "CWE-362", "CWE-366"]
+
+guidance: |
+  RACE CONDITION (TOCTOU) EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Check operation: access(), stat(), file existence check
+  2. Use operation: open(), read(), write(), execute
+  3. Time gap: Code between check and use
+  4. Protection: O_CREAT|O_EXCL flags? File locking? Atomics?
+
+  SEARCH PATTERNS:
+    - TOCTOU pairs: access() then open(), stat() then operation
+    - File operations: open, fopen, creat with flags
+    - Atomic operations: O_EXCL, O_CREAT, flock, fcntl
+    - Signal safety: Signal handlers with shared data
+
+checklist:
+  - "Check operation documented (access/stat call)"
+  - "Use operation documented (open/read/write)"
+  - "Gap between operations documented (lines of code, control flow)"
+  - "Atomic protections checked (flags, locks, or absent)"
