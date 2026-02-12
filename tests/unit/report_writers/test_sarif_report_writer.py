@@ -5,7 +5,9 @@ Unit tests for the sarif_report_writer module's core functionality.
 import json
 import os
 import tempfile
+import tomllib
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 from common.config import Config
@@ -19,6 +21,20 @@ from report_writers.sarif_report_writer import (
     generate_sarif_report_with_ai_analysis,
 )
 from tests.nat_tests.test_utils import TestUtils
+
+
+def get_expected_version_from_pyproject():
+    """
+    Dynamically read the project version from pyproject.toml.
+
+    This ensures tests remain valid when the version changes,
+    rather than hardcoding version numbers in assertions.
+    """
+    # Path from tests/unit/report_writers/ up to project root
+    pyproject_path = Path(__file__).parent.parent.parent.parent / "pyproject.toml"
+    with open(pyproject_path, "rb") as f:
+        pyproject_data = tomllib.load(f)
+    return pyproject_data["project"]["version"]
 
 
 class SarifTestBase(unittest.TestCase):
@@ -313,7 +329,7 @@ class TestUpdateToolInfo(SarifTestBase):
 
         # Verify main fields are updated
         self.assertEqual(driver["name"], "sast-ai")
-        self.assertEqual(driver["version"], "2.0.0")  # Read from pyproject.toml
+        self.assertEqual(driver["version"], get_expected_version_from_pyproject())  # Read from pyproject.toml
         self.assertEqual(
             driver["informationUri"], "https://github.com/RHEcosystemAppEng/sast-ai-workflow"
         )
@@ -348,7 +364,7 @@ class TestUpdateToolInfo(SarifTestBase):
         _update_tool_info(self.sarif_data, self.mock_config)
 
         driver = self.sarif_data["runs"][0]["tool"]["driver"]
-        self.assertEqual(driver["version"], "2.0.0")  # Read from pyproject.toml
+        self.assertEqual(driver["version"], get_expected_version_from_pyproject())  # Read from pyproject.toml
 
     def test_given_multiple_runs_when_updating_tool_then_updates_all_runs(self):
         """Test that all runs are updated when multiple runs exist."""
