@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.messages import ToolMessage
+from langfuse.api import ScoreDataType
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ def langfuse_score_client_context():
                 client.flush()
                 logger.info("Langfuse score client flushed successfully")
             except Exception as e:
-                logger.warning("Failed to flush Langfuse score client: %s", e)
+                logger.warning(f"Failed to flush Langfuse score client: {e}")
 
 
 @contextmanager
@@ -126,7 +127,7 @@ def workflow_langfuse_context():
                 handler.client.flush()
                 logger.info("Langfuse workflow trace flushed")
             except Exception as e:
-                logger.warning("Failed to flush Langfuse workflow handler: %s", e)
+                logger.warning(f"Failed to flush Langfuse workflow handler: {e}")
 
 
 def create_langfuse_workflow_handler() -> Optional[Any]:
@@ -144,7 +145,7 @@ def create_langfuse_workflow_handler() -> Optional[Any]:
         logger.info("Langfuse workflow tracing enabled (single trace for all issues)")
         return handler
     except Exception as e:
-        logger.warning("Failed to initialize Langfuse: %s", e)
+        logger.warning(f"Failed to initialize Langfuse: {e}")
         return None
 
 
@@ -194,7 +195,7 @@ def create_langfuse_score_client_safe() -> Optional[Any]:
         logger.info("Langfuse score client initialized for workflow")
         return client
     except Exception as e:
-        logger.warning("Failed to initialize Langfuse score client: %s", e)
+        logger.warning(f"Failed to initialize Langfuse score client: {e}")
         return None
 
 
@@ -209,15 +210,15 @@ def setup_issue_langfuse(
     ):
         return (None, None, None)
     try:
-        issue_session_id = "%s_%s_%s" % (config.PROJECT_NAME, config.TEST_RUN_ID, issue_id)
+        issue_session_id = f"{config.PROJECT_NAME}_{config.TEST_RUN_ID}_{issue_id}"
         issue_trace_id = uuid.uuid4().hex
         handler = LangfuseCallbackHandler(trace_context={"trace_id": issue_trace_id})
-        logger.info("[%s] Langfuse tracing enabled", issue_id)
-        logger.info("[%s]   trace_id: %s", issue_id, issue_trace_id)
-        logger.info("[%s]   session: %s", issue_id, issue_session_id)
+        logger.info(f"[{issue_id}] Langfuse tracing enabled")
+        logger.info(f"[{issue_id}]   trace_id: {issue_trace_id}")
+        logger.info(f"[{issue_id}]   session: {issue_session_id}")
         return (handler, issue_session_id, issue_trace_id)
     except Exception as e:
-        logger.warning("[%s] Failed to initialize Langfuse: %s", issue_id, e)
+        logger.warning(f"[{issue_id}] Failed to initialize Langfuse: {e}")
         return (None, None, None)
 
 
@@ -226,11 +227,11 @@ def flush_issue_langfuse(langfuse_handler: Optional[Any], issue_id: str) -> None
     if not langfuse_handler:
         return
     try:
-        logger.info("[%s] Flushing Langfuse trace...", issue_id)
+        logger.info(f"[{issue_id}] Flushing Langfuse trace...")
         langfuse_handler.client.flush()
-        logger.info("[%s] Langfuse trace flushed successfully", issue_id)
+        logger.info(f"[{issue_id}] Langfuse trace flushed successfully")
     except Exception as flush_error:
-        logger.warning("[%s] Failed to flush Langfuse handler: %s", issue_id, flush_error)
+        logger.warning(f"[{issue_id}] Failed to flush Langfuse handler: {flush_error}")
 
 
 def add_langfuse_scores(
@@ -245,13 +246,13 @@ def add_langfuse_scores(
         tool_call_count = sum(
             1 for msg in result.get("research_messages", []) if isinstance(msg, ToolMessage)
         )
-        logger.info("[%s] Adding Langfuse scores: tool_call_count=%s", issue_id, tool_call_count)
+        logger.info(f"[{issue_id}] Adding Langfuse scores: tool_call_count={tool_call_count}")
 
         langfuse_score_client.create_score(
             trace_id=issue_trace_id,
             name="tool_call_count",
             value=float(tool_call_count),
-            data_type="NUMERIC",
+            data_type=ScoreDataType.NUMERIC,
             comment="Total tool executions during investigation",
         )
 
@@ -260,8 +261,8 @@ def add_langfuse_scores(
             trace_id=issue_trace_id,
             name="verdict",
             value=investigation_verdict,
-            data_type="CATEGORICAL",
-            comment="Investigation verdict: %s" % investigation_verdict,
+            data_type=ScoreDataType.CATEGORICAL,
+            comment=f"Investigation verdict: {investigation_verdict}",
         )
 
         if ground_truth_verdicts and issue_id in ground_truth_verdicts:
@@ -270,33 +271,30 @@ def add_langfuse_scores(
                 trace_id=issue_trace_id,
                 name="ground_truth_verdict",
                 value=ground_truth_verdict,
-                data_type="CATEGORICAL",
+                data_type=ScoreDataType.CATEGORICAL,
                 comment="Human-verified ground truth verdict",
             )
             is_correct = investigation_verdict == ground_truth_verdict
             logger.info(
-                "[%s] Verdict comparison: investigation=%s, ground_truth=%s, correct=%s",
-                issue_id,
-                investigation_verdict,
-                ground_truth_verdict,
-                is_correct,
+                f"[{issue_id}] Verdict comparison: investigation={investigation_verdict}, "
+                f"ground_truth={ground_truth_verdict}, correct={is_correct}"
             )
             langfuse_score_client.create_score(
                 trace_id=issue_trace_id,
                 name="verdict_correct",
                 value=1 if is_correct else 0,
-                data_type="BOOLEAN",
-                comment="Verdict matches ground truth: %s" % ground_truth_verdict,
+                data_type=ScoreDataType.BOOLEAN,
+                comment=f"Verdict matches ground truth: {ground_truth_verdict}",
             )
         else:
             if ground_truth_verdicts is None:
                 logger.debug(
-                    "[%s] No ground truth available - skipping verdict correctness score", issue_id
+                    f"[{issue_id}] No ground truth available - skipping verdict correctness score"
                 )
             else:
                 logger.debug(
-                    "[%s] No ground truth for this issue - skipping verdict correctness score",
-                    issue_id,
+                    f"[{issue_id}] No ground truth for this issue "
+                    f"- skipping verdict correctness score"
                 )
     except Exception as score_error:
-        logger.warning("[%s] Failed to add Langfuse scores: %s", issue_id, score_error)
+        logger.warning(f"[{issue_id}] Failed to add Langfuse scores: {score_error}")
