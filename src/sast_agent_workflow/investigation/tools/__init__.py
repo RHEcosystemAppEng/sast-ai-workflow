@@ -1,6 +1,11 @@
-"""Investigation tools for autonomous code searching and fetching.
+"""Investigation tools for autonomous code searching and fetching."""
 
-Tools will be added in subsequent PRs.
-"""
+from .factory import create_investigation_tools
+from .schemas import FetchCodeInput, ReadFileInput, SearchCodebaseInput
 
-__all__ = []
+__all__ = [
+    "create_investigation_tools",
+    "FetchCodeInput",
+    "ReadFileInput",
+    "SearchCodebaseInput",
+]
