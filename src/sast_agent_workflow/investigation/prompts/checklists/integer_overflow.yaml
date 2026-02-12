@@ -1,0 +1,27 @@
+---
+# Integer Overflow Investigation Guidance
+# CWE-190, CWE-191
+
+vuln_type: "Integer Overflow"
+cwe_ids: ["CWE-190", "CWE-191", "CWE-680"]
+
+guidance: |
+  INTEGER OVERFLOW EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Arithmetic operation: What calculation can overflow? (size * count)
+  2. Operand sources: Are operands user-controlled?
+  3. Usage of result: How is overflowed value used? (malloc size? array index?)
+  4. Overflow checks: Are there wraparound/MAX checks?
+
+  SEARCH PATTERNS:
+    - Multiplication before allocation: malloc(size * count), calloc alternatives
+    - Size calculations: len + offset, width * height, num_items * item_size
+    - Signedness issues: Signed int used where unsigned expected
+    - Type conversions: size_t to int, long to short
+
+checklist:
+  - "Arithmetic operation identified (multiplication, addition, etc.)"
+  - "Operand sources documented (user-controlled or bounded?)"
+  - "Result usage documented (allocation size? array index?)"
+  - "Overflow protection checked (present or absent)"
