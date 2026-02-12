@@ -1,0 +1,26 @@
+---
+# Buffer Overflow Investigation Guidance
+# CWE-119, CWE-120, CWE-121, CWE-122
+
+vuln_type: "Buffer Overflow"
+cwe_ids: ["CWE-119", "CWE-120", "CWE-121", "CWE-122"]
+
+guidance: |
+  BUFFER OVERFLOW EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Source size: How long can input be? (user-controlled length? max size?)
+  2. Destination buffer size: char buf[SIZE] or malloc(SIZE)?
+  3. Copy operation: strcpy/memcpy/sprintf - with or without length param?
+  4. Length validation: Is there a check BEFORE copy? (if len < SIZE)
+
+  SEARCH PATTERNS:
+    - Dangerous functions: strcpy, strcat, sprintf, gets, memcpy without bounds
+    - Buffer declarations: Array sizes, malloc/calloc sizes
+    - Bounds checks: if statements comparing length to buffer size
+
+checklist:
+  - "Buffer size documented (stack array or heap allocation)"
+  - "Input source identified (and max possible length)"
+  - "Copy operation details retrieved (bounded or unbounded?)"
+  - "Validation presence confirmed (checked or unchecked?)"
