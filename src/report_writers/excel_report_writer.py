@@ -1,13 +1,13 @@
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 from typing import List, Tuple
 
 import gspread
 import xlsxwriter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
-from tornado.gen import sleep
 from tqdm import tqdm
 
 from common.config import Config
@@ -53,7 +53,7 @@ def write_to_excel_file(
             workbook.close()
 
             pbar.update(1)
-            sleep(1)
+            time.sleep(1)
     except Exception as e:
         logger.error("Error occurred during Excel writing: %s", str(e))
 
@@ -120,7 +120,7 @@ def write_summary_results_to_aggregate_google_sheet(
 )
 def write_ai_report_google_sheet(data, config: Config):
     """
-    This function updates a Google Sheet with AI analysis results (AI prediction and Hint only).
+    This function updates a Google Sheet with AI analysis results (AI prediction and Hint).
     Includes a retry mechanism for API errors.
 
     Note:
@@ -134,7 +134,7 @@ def write_ai_report_google_sheet(data, config: Config):
         config: A Config object containing settings, including the input report Google Sheet URL
                 and service account credentials path.
     """
-    header_data = ["AI prediction", "Hint"]
+    header_data = ["AI Verdict", "Hint"]
 
     sheet = get_google_sheet(config.INPUT_REPORT_FILE_PATH, config.SERVICE_ACCOUNT_JSON_PATH)
     if not sheet:
@@ -169,7 +169,7 @@ def write_ai_report_google_sheet(data, config: Config):
         start_row_for_data = 2  # Assuming data starts from the second row (after headers)
         batch_update_data = []
 
-        for _, summary_info in data:
+        for issue, summary_info in data:
             row_values = [
                 summary_info.llm_response.investigation_result.title(),
                 summary_info.llm_response.short_justifications,
@@ -216,12 +216,12 @@ def write_ai_report_worksheet(data, workbook, config: Config):
     worksheet.set_column(2, 4, 40)
     worksheet.set_column(5, 6, 25)
     cell_format = workbook.add_format({"valign": "top", "text_wrap": True})
-
+    
     header_data = [
         "Issue ID",
         "Issue Name",
         "Error",
-        "Investigation Result",
+        "AI Verdict",
         "Hint",
         "Justifications",
         "Recommendations",
@@ -239,15 +239,25 @@ def write_ai_report_worksheet(data, workbook, config: Config):
         worksheet.write(idx + 1, 0, issue.id, cell_format)
         worksheet.write(idx + 1, 1, issue.issue_type, cell_format)
         worksheet.write(idx + 1, 2, issue.trace, cell_format)
-        worksheet.write(idx + 1, 3, summary_info.llm_response.investigation_result, cell_format)
+        
+        # AI Verdict (column 3)
+        ai_verdict = summary_info.llm_response.investigation_result
+        worksheet.write(idx + 1, 3, ai_verdict, cell_format)
+        
+        # Hint (column 4)
         worksheet.write(idx + 1, 4, summary_info.llm_response.short_justifications, cell_format)
+        
+        # Justifications (column 5)
         worksheet.write(
             idx + 1, 5, "\n\n".join(summary_info.llm_response.justifications), cell_format
         )
+        
+        # Recommendations (column 6)
         worksheet.write(
             idx + 1, 6, "\n\n".join(summary_info.llm_response.recommendations), cell_format
         )
 
+        # Answer Relevancy (column 7)
         ar = get_percentage_value(summary_info.metrics.get("answer_relevancy", 0))
         worksheet.write(
             idx + 1,

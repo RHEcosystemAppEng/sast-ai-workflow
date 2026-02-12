@@ -1,5 +1,6 @@
 PROJECT_NAME: ""
 PROJECT_VERSION: ""
+TEST_RUN_ID: ""
 
 LLM_URL: "http://<<please-set-llm-url>>"
 LLM_API_TYPE: "nim"

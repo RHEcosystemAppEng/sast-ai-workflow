@@ -1,0 +1,27 @@
+---
+# Generic Investigation Guidance
+# Fallback for unknown or unclassified vulnerability types
+
+vuln_type: "Generic"
+cwe_ids: []
+
+guidance: |
+  GENERIC EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Input source: Where does untrusted/user data enter?
+  2. Data flow: How does data reach the vulnerable operation?
+  3. Vulnerable operation: What dangerous function/pattern is used?
+  4. Validation: Are there any protective checks?
+
+  SEARCH PATTERNS:
+    - User input sources: argc/argv, fgets, scanf, recv, getenv
+    - Data transformations: String operations, pointer arithmetic, type casts
+    - Dangerous operations: Based on SAST finding description
+    - Validation patterns: if checks, bounds tests, sanitization functions
+
+checklist:
+  - "Input source identified"
+  - "Data flow traced to vulnerable point"
+  - "Vulnerable operation details retrieved"
+  - "Validation mechanisms documented"
