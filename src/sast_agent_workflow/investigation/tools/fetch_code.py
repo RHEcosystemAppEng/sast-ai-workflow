@@ -40,25 +40,22 @@ def create_fetch_code_tool(repo_handler, repo_path: Path) -> StructuredTool:
 
     def _fetch_code(
         file_path: str,
-        function_name: Optional[str] = None,
+        function_name: str,
         context_lines: int = DEFAULT_CONTEXT_LINES,
     ) -> str:
         """
-        Fetch source code from a file, optionally extracting a specific function.
+        Fetch source code for a specific function from a file.
 
         Uses hybrid approach:
         1. Try sophisticated repo_handler extraction for functions
         2. Fallback to simple file reading (POC approach) if that fails
         """
-        logger.info(
-            f"fetch_code: {file_path}" + (f" function={function_name}" if function_name else "")
-        )
+        logger.info(f"fetch_code: {file_path} function={function_name}")
 
-        # Try sophisticated approach first (for functions)
-        if function_name:
-            result = _try_sophisticated_extraction(repo_handler, file_path, function_name)
-            if result:
-                return result
+        # Try sophisticated approach first
+        result = _try_sophisticated_extraction(repo_handler, file_path, function_name)
+        if result:
+            return result
 
         # Fallback to simple file reading
         return _simple_file_extraction(repo_path, file_path, function_name, context_lines)
@@ -67,19 +64,19 @@ def create_fetch_code_tool(repo_handler, repo_path: Path) -> StructuredTool:
         func=_fetch_code,
         name="fetch_code",
         description=(
-            "Fetch source code from a file, optionally extracting a specific function.\n\n"
+            "Fetch source code for a specific function from a file.\n\n"
             "Use this when you need to:\n"
             "- Retrieve implementation of functions mentioned in SAST trace\n"
             "- Examine code around source/sink points\n"
-            "- Get full context of a specific function\n"
-            "- Read entire files for analysis\n\n"
+            "- Get full context of a specific function\n\n"
             "Parameters:\n"
             "- file_path: Relative path (e.g., 'src/main.c', 'lib/auth.c')\n"
-            "- function_name: Optional (e.g., 'validate_input')\n"
+            "- function_name: Required function name (e.g., 'validate_input')\n"
             f"- context_lines: Context around function (default: {DEFAULT_CONTEXT_LINES})\n\n"
             "Examples:\n"
             "- fetch_code(file_path='src/auth.c', function_name='sanitize_input')\n"
-            "- fetch_code(file_path='include/defs.h')  # Get entire file"
+            "- fetch_code(file_path='lib/utils.c', function_name='process_data')\n\n"
+            "Note: For reading entire files, use read_file tool instead."
         ),
         args_schema=FetchCodeInput,
     )
