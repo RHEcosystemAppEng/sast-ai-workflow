@@ -194,10 +194,15 @@ def _extract_function_simple(
     function_start = None
     brace_count = 0
     in_function = False
+    # Pattern to match function definition (not just calls)
+    # Looks for function_name followed by ( but not preceded by assignment or member access
+    func_def_pattern = re.compile(
+        r'(?<![=.>-])\b' + re.escape(function_name) + r'\s*\('
+    )
 
     for i, line in enumerate(lines):
-        # Simple heuristic: function starts with function_name followed by (
-        if function_name in line and "(" in line and not in_function:
+        # Match function definition, not function calls
+        if func_def_pattern.search(line) and not in_function:
             function_start = max(0, i - context_lines)
             in_function = True
             brace_count = 0
