@@ -4,7 +4,6 @@ Investigation Tools Factory - Creates all investigation tools.
 Uses langchain_community tools where possible:
 - ListDirectoryTool: List directory contents
 - FileSearchTool: Search for files by name pattern
-- BraveSearch: Web search for CVEs, vulnerability documentation
 
 Custom tools retained for specialized functionality:
 - fetch_code: Sophisticated function extraction with context
@@ -13,7 +12,6 @@ Custom tools retained for specialized functionality:
 """
 
 import logging
-import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,7 +20,6 @@ from langchain_community.tools.file_management import (
     ListDirectoryTool,
     FileSearchTool,
 )
-from langchain_community.tools.brave_search.tool import BraveSearch
 
 from common.config import Config
 from handlers.repo_handler_factory import repo_handler_factory
@@ -46,7 +43,6 @@ def create_investigation_tools(config: Config) -> List[BaseTool]:
     Uses langchain_community tools where possible:
     - ListDirectoryTool: List directory contents (sandboxed to repo)
     - FileSearchTool: Search for files by name pattern (sandboxed to repo)
-    - BraveSearch: Web search for CVEs, vulnerability docs (optional, requires API key)
 
     Args:
         config: Config instance with repository settings
@@ -75,11 +71,6 @@ def create_investigation_tools(config: Config) -> List[BaseTool]:
     # Add langchain_community file tools (sandboxed to repo root)
     tools.append(_create_list_directory_tool(repo_path_str))
     tools.append(_create_file_search_tool(repo_path_str))
-
-    # BraveSearch - web search for CVEs, vulnerability documentation (optional)
-    brave_tool = _create_brave_search_tool(config)
-    if brave_tool:
-        tools.append(brave_tool)
 
     logger.info(f"Created {len(tools)} investigation tools")
     return tools
@@ -215,36 +206,3 @@ def _create_file_search_tool(repo_path_str: str) -> FileSearchTool:
             "- file_search(pattern='*.config') - Find all config files"
         ),
     )
-
-
-def _create_brave_search_tool(config: Config) -> BraveSearch | None:
-    """Create BraveSearch tool if API key is available."""
-    brave_api_key = os.environ.get("BRAVE_API_KEY") or getattr(config, "BRAVE_API_KEY", None)
-
-    if not brave_api_key:
-        logger.info("BraveSearch tool disabled (no BRAVE_API_KEY)")
-        return None
-
-    brave_search_tool = BraveSearch.from_api_key(
-        api_key=brave_api_key,
-        search_kwargs={"count": 5},  # Limit results for efficiency
-    )
-
-    # Override description for security research context
-    brave_search_tool.description = (
-        "Search the web for security information.\n\n"
-        "Use this when you need to:\n"
-        "- Look up CVE details and vulnerability information\n"
-        "- Find documentation on specific security functions or libraries\n"
-        "- Research known bypasses or attack patterns\n"
-        "- Verify if a sanitization method is considered secure\n\n"
-        "Parameters:\n"
-        "- query: Search query string\n\n"
-        "Examples:\n"
-        "- brave_search(query='CVE-2024-1234 bypass')\n"
-        "- brave_search(query='DOMPurify XSS bypass')\n"
-        "- brave_search(query='mysql_real_escape_string SQL injection')"
-    )
-
-    logger.info("BraveSearch tool enabled (BRAVE_API_KEY found)")
-    return brave_search_tool
