@@ -2,8 +2,8 @@
 
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Optional
 
 from langchain_core.tools import StructuredTool
@@ -16,6 +16,14 @@ from sast_agent_workflow.investigation.constants import (
 from .schemas import FetchCodeInput
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Instruction:
+    """Instruction for extracting code from repository."""
+
+    expression_name: str
+    referring_source_code_path: str
 
 
 def create_fetch_code_tool(repo_handler, repo_path: Path) -> StructuredTool:
@@ -87,7 +95,7 @@ def _try_sophisticated_extraction(
         Formatted code string if successful, None otherwise
     """
     try:
-        instruction = SimpleNamespace(
+        instruction = Instruction(
             expression_name=function_name,
             referring_source_code_path=file_path,
         )
