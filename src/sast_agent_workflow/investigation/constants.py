@@ -47,7 +47,7 @@ DEFAULT_MAX_TOKENS = 16096
 # =============================================================================
 
 # Default context lines around functions in fetch_code
-DEFAULT_CONTEXT_LINES = 10
+DEFAULT_CONTEXT_LINES = 2
 
 # Maximum results for search operations
 DEFAULT_MAX_SEARCH_RESULTS = 20
