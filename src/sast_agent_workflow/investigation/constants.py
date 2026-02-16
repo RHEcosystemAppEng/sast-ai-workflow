@@ -56,6 +56,20 @@ DEFAULT_MAX_SEARCH_RESULTS = 20
 MAX_FUNCTION_SCAN_LINES = 50
 
 # =============================================================================
+# Evaluation Results
+# =============================================================================
+
+NEEDS_MORE_RESEARCH = "NEEDS_MORE_RESEARCH"
+
+# =============================================================================
+# Langfuse Trace Names (used as run_name for observability)
+# =============================================================================
+
+LANGFUSE_RESEARCH_TRACE_NAME = "research_node"
+LANGFUSE_ANALYSIS_TRACE_NAME = "analysis_node"
+LANGFUSE_EVALUATION_TRACE_NAME = "evaluation_node"
+
+# =============================================================================
 # Code Gathering Tools
 # =============================================================================
 
