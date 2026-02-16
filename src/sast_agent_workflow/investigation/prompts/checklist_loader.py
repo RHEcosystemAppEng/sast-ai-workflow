@@ -11,8 +11,29 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import yaml
+from jsonschema import ValidationError, validate
 
 logger = logging.getLogger(__name__)
+
+# Schema for checklist YAML files
+_CHECKLIST_SCHEMA = {
+    "type": "object",
+    "required": ["vuln_type", "cwe_ids", "guidance", "checklist"],
+    "properties": {
+        "vuln_type": {"type": "string"},
+        "cwe_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "guidance": {"type": "string"},
+        "checklist": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+        },
+    },
+    "additionalProperties": False,
+}
 
 
 class ChecklistLoader:
@@ -49,8 +70,10 @@ class ChecklistLoader:
                 with open(yaml_file, "r") as f:
                     data = yaml.safe_load(f)
 
+                validate(instance=data, schema=_CHECKLIST_SCHEMA)
+
                 template_key = yaml_file.stem
-                cwe_ids = data.get("cwe_ids", [])
+                cwe_ids = data["cwe_ids"]
 
                 # Cache the template
                 self._templates[template_key] = data
@@ -63,6 +86,8 @@ class ChecklistLoader:
                         cwe_num = cwe.upper().replace("CWE-", "")
                         self._cwe_mapping[cwe_num] = template_key
 
+            except ValidationError as e:
+                logger.warning(f"Schema validation failed for {yaml_file}: {e.message}")
             except Exception as e:
                 logger.warning(f"Failed to load checklist from {yaml_file}: {e}")
 
