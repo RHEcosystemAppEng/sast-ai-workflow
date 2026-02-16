@@ -29,6 +29,9 @@ MAX_NO_PROGRESS_STREAK = 2  # Stop after N iterations without gathering new code
 # Agent Configuration
 # =============================================================================
 
+# Recursion limit for the overall investigation subgraph
+INVESTIGATION_SUBGRAPH_RECURSION_LIMIT = 100
+
 # Recursion limit for research agent (per-iteration tool calls)
 RESEARCH_AGENT_RECURSION_LIMIT = 80
 
