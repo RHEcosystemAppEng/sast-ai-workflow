@@ -39,6 +39,7 @@ class InvestigationState(TypedDict):
     """State for investigation subgraph."""
 
     issue_id: str
+    issue_cwe: str
     issue_description: str
     initial_code: str
 

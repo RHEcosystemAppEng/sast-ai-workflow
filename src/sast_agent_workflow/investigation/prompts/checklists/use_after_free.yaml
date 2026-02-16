@@ -1,0 +1,27 @@
+---
+# Use-After-Free Investigation Guidance
+# CWE-416
+
+vuln_type: "Use After Free"
+cwe_ids: ["CWE-416", "CWE-825"]
+
+guidance: |
+  USE-AFTER-FREE EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Free location: Where is free(ptr) called?
+  2. Subsequent usage: Where is ptr accessed AFTER free?
+  3. Pointer lifecycle: Who allocates? Who frees? Who uses?
+  4. Nulling: Is ptr set to NULL after free()?
+
+  SEARCH PATTERNS:
+    - Free calls: free(pointer_name)
+    - Usage after free: All uses of pointer_name after free()
+    - Ownership: Function that allocates, functions that use, function that frees
+    - Reference counting: ref_count, get/put patterns
+
+checklist:
+  - "Free location(s) documented (file:line)"
+  - "Subsequent usage location(s) documented (file:line)"
+  - "Temporal ordering confirmed (use definitely happens after free)"
+  - "Protection mechanisms checked (nulling, ownership transfer, refcount)"

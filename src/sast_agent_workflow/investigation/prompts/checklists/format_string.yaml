@@ -1,0 +1,26 @@
+---
+# Format String Vulnerability Investigation Guidance
+# CWE-134
+
+vuln_type: "Format String"
+cwe_ids: ["CWE-134"]
+
+guidance: |
+  FORMAT STRING VULNERABILITY EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Format function: printf/fprintf/sprintf/syslog/etc.
+  2. Format parameter source: Is format arg user-controlled?
+  3. Data flow: Trace format string from input to printf
+  4. Validation: Is there format string sanitization?
+
+  SEARCH PATTERNS:
+    - Format functions: printf, fprintf, sprintf, snprintf, syslog, err, warn
+    - User input in format position: func(user_input, ...) not func("%s", user_input)
+    - Dangerous specifiers: %n, %s with no argument
+
+checklist:
+  - "Format function call retrieved"
+  - "Format parameter origin traced (user input confirmed/refuted)"
+  - "Data flow documented (input -> buffer -> format)"
+  - "Sanitization checked (present or absent)"
