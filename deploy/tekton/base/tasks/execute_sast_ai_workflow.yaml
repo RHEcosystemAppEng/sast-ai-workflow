@@ -232,10 +232,7 @@ spec:
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: LLM_API_TYPE
-          valueFrom:
-            secretKeyRef:
-              name: sast-ai-default-llm-creds
-              key: llm_api_type
+          value: "$(params.LLM_API_TYPE)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -246,16 +243,6 @@ spec:
             secretKeyRef:
               name: sast-ai-default-llm-creds
               key: embeddings_llm_api_key
-        - name: LLM_MODEL_NAME
-          valueFrom:
-            secretKeyRef:
-              name: sast-ai-default-llm-creds
-              key: llm_model_name
-        - name: EMBEDDINGS_LLM_MODEL_NAME
-          valueFrom:
-            secretKeyRef:
-              name: sast-ai-default-llm-creds
-              key: embedding_llm_model_name
         - name: SERVICE_ACCOUNT_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
         - name: ANALYSIS_SYSTEM_PROMPT
@@ -324,7 +311,16 @@ spec:
         #!/usr/bin/env sh
         set -ex
         echo "=== STEP 6: RUN SAST AI ANALYSIS ==="
-        
+
+        # Debug: Log all LLM-related environment variables
+        echo "=== DEBUG: LLM Environment Variables Received ==="
+        echo "LLM_URL: ${LLM_URL}"
+        echo "LLM_MODEL_NAME: ${LLM_MODEL_NAME}"
+        echo "LLM_API_TYPE: ${LLM_API_TYPE}"
+        echo "EMBEDDINGS_LLM_URL: ${EMBEDDINGS_LLM_URL}"
+        echo "EMBEDDINGS_LLM_MODEL_NAME: ${EMBEDDINGS_LLM_MODEL_NAME}"
+        echo "=== END DEBUG ==="
+
         # Load the repo path from step 4
         if [ -f "/shared-data/env.txt" ]; then
           source /shared-data/env.txt
