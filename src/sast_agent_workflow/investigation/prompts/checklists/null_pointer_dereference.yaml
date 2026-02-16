@@ -1,0 +1,27 @@
+---
+# Null Pointer Dereference Investigation Guidance
+# CWE-476
+
+vuln_type: "Null Pointer Dereference"
+cwe_ids: ["CWE-476"]
+
+guidance: |
+  NULL POINTER DEREFERENCE EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Pointer source: malloc/calloc/strdup/function return
+  2. Dereference location: Where is pointer accessed?
+  3. Null check: Is return value checked before use?
+  4. Error handling: What happens on allocation failure?
+
+  SEARCH PATTERNS:
+    - Allocations: malloc, calloc, realloc, strdup (all can return NULL)
+    - Function returns: Functions returning pointer types
+    - Dereferences: ptr->, *ptr, ptr[index]
+    - Null checks: if (!ptr), if (ptr == NULL), assert(ptr)
+
+checklist:
+  - "Pointer source documented (allocation or return)"
+  - "Dereference location documented (file:line)"
+  - "NULL check presence confirmed (checked or unchecked)"
+  - "Error handling documented (abort? continue? log?)"
