@@ -8,11 +8,10 @@ from typing import Optional
 
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.constants import (
+from ..constants import (
     DEFAULT_CONTEXT_LINES,
     MAX_FUNCTION_SCAN_LINES,
 )
-
 from .schemas import FetchCodeInput
 
 logger = logging.getLogger(__name__)
@@ -193,9 +192,7 @@ def _extract_function_simple(
     in_function = False
     # Pattern to match function definition (not just calls)
     # Looks for function_name followed by ( but not preceded by assignment or member access
-    func_def_pattern = re.compile(
-        r'(?<![=.>-])\b' + re.escape(function_name) + r'\s*\('
-    )
+    func_def_pattern = re.compile(r"(?<![=.>-])\b" + re.escape(function_name) + r"\s*\(")
 
     for i, line in enumerate(lines):
         # Match function definition, not function calls

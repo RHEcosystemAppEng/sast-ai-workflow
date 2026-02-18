@@ -15,9 +15,7 @@ def create_read_file_tool(repo_path: Path) -> StructuredTool:
     """Create read_file tool (reads file contents with line numbers)."""
 
     def _read_file(
-        file_path: str,
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None
+        file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None
     ) -> str:
         """Read file contents with optional line range."""
         logger.info(f"read_file: {file_path} (lines {start_line}-{end_line})")
@@ -28,7 +26,7 @@ def create_read_file_tool(repo_path: Path) -> StructuredTool:
             repo_name = repo_path.name
             if file_path.startswith(f"{repo_name}/"):
                 original_file_path = file_path
-                file_path = file_path[len(repo_name)+1:]
+                file_path = file_path[len(repo_name) + 1 :]
                 logger.debug(f"Stripped package prefix: '{original_file_path}' -> '{file_path}'")
 
             target_file = repo_path / file_path
@@ -40,7 +38,7 @@ def create_read_file_tool(repo_path: Path) -> StructuredTool:
             if not target_file.is_file():
                 return f"Error: '{file_path}' is not a file"
 
-            with open(target_file, 'r', encoding='utf-8', errors='replace') as f:
+            with open(target_file, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
 
             total_lines = len(lines)
@@ -93,7 +91,8 @@ def create_read_file_tool(repo_path: Path) -> StructuredTool:
             "Examples:\n"
             "- read_file(file_path='src/config.h') - Read entire file\n"
             "- read_file(file_path='src/auth.c', start_line=50, end_line=100) - Read lines 50-100\n"
-            "- read_file(file_path='include/defs.h', start_line=1, end_line=50) - Read first 50 lines"
+            "- read_file(file_path='include/defs.h', start_line=1, end_line=50) "
+            "- Read first 50 lines"
         ),
         args_schema=ReadFileInput,
     )

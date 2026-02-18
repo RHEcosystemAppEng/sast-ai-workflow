@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from sast_agent_workflow.investigation.constants import (
+from ..constants import (
     DEFAULT_CONTEXT_LINES,
     DEFAULT_MAX_SEARCH_RESULTS,
 )

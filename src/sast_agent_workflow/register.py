@@ -25,8 +25,8 @@ from Utils.metrics_utils import categorize_issues_by_status
 # Constants for timing and token tracking
 DEFAULT_TOKEN_METRICS_PATH = "/shared-data/token_usage.json"
 
-# Import tools for automatic registration (used for side effects)
-from sast_agent_workflow.tools import (  # noqa: F401, E402
+# Import nodes for automatic registration (used for side effects)
+from sast_agent_workflow.nodes import (  # noqa: F401, E402
     calculate_metrics,
     data_fetcher,
     evaluate_analysis,
@@ -42,7 +42,8 @@ logger = logging.getLogger(__name__)
 # Log NAT version on module load
 try:
     from importlib.metadata import version
-    nat_version = version('nvidia-nat')
+
+    nat_version = version("nvidia-nat")
     logger.info(f"NAT version: {nat_version}")
 except Exception as e:
     logger.warning(f"Could not determine NAT version: {e}")

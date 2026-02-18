@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 
-from sast_agent_workflow.investigation.observability.langfuse_integration import (
+from sast_agent_workflow.nodes.sub_agents.investigation.observability.langfuse_integration import (
     LangfuseMetadata,
     _investigation_tags,
     _workflow_tags,
@@ -27,7 +27,7 @@ from sast_agent_workflow.investigation.observability.langfuse_integration import
     workflow_langfuse_context,
 )
 
-_MOD = "sast_agent_workflow.investigation.observability.langfuse_integration"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.observability.langfuse_integration"
 
 # ---------------------------------------------------------------------------
 # Fixtures

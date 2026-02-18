@@ -15,11 +15,11 @@ import logging
 from pathlib import Path
 from typing import List
 
-from langchain_core.tools import BaseTool
 from langchain_community.tools.file_management import (
-    ListDirectoryTool,
     FileSearchTool,
+    ListDirectoryTool,
 )
+from langchain_core.tools import BaseTool
 
 from common.config import Config
 from handlers.repo_handler_factory import repo_handler_factory
@@ -114,7 +114,8 @@ def _create_file_search_tool(repo_path_str: str) -> FileSearchTool:
             "Use search_codebase for searching within file contents.\n\n"
             "Examples:\n"
             "- file_search(pattern='*.c') - Find all C source files\n"
-            "- file_search(pattern='*sanitize*', dir_path='src') - Find files with 'sanitize' in name\n"
+            "- file_search(pattern='*sanitize*', dir_path='src') "
+            "- Find files with 'sanitize' in name\n"
             "- file_search(pattern='*.config') - Find all config files"
         ),
     )

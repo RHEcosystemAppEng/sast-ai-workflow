@@ -54,7 +54,9 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
 
     logger.info("Initializing Write_Results function...")
 
-    async def _write_results_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
+    async def _write_results_fn(
+        tracker: SASTWorkflowTracker,
+    ) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
         """
         Write results function for SAST workflow.
 
@@ -99,7 +101,7 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
             logger.error(f"Failed to print conclusion: {e}")
 
         # Write metrics to JSON for orchestrator/database if requested
-        output_file = os.getenv('WORKFLOW_JSON_OUTPUT', None)
+        output_file = os.getenv("WORKFLOW_JSON_OUTPUT", None)
         if output_file and tracker.metrics:
             try:
                 write_workflow_metrics_json(tracker.metrics, output_file)
