@@ -220,7 +220,7 @@ class TestCalculateMetricsCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics["recall"], 1.0)  # 1/(1+0) = 1.0
         self.assertAlmostEqual(
             metrics["f1_score"], 0.6666666666666666
-        )  # 2*(0.5*1.0)/(0.5+1.0) = 0.667
+        )  # NOSONAR 2*(0.5*1.0)/(0.5+1.0) = 0.667
 
         cm = metrics["confusion_matrix"]
         self.assertEqual(cm["true_positives"], 1)  # AI correctly identified true positive
