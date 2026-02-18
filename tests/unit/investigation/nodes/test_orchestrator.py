@@ -11,10 +11,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from sast_agent_workflow.investigation.constants import (
+from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
     INVESTIGATION_SUBGRAPH_RECURSION_LIMIT,
 )
-from sast_agent_workflow.investigation.nodes.orchestrator import (
+from sast_agent_workflow.nodes.sub_agents.investigation.nodes.orchestrator import (
     _build_initial_investigation_state,
     _build_subgraph_config,
     _extract_initial_code_and_build_context,
@@ -24,7 +24,7 @@ from sast_agent_workflow.investigation.nodes.orchestrator import (
     create_investigate_node,
 )
 
-_MOD = "sast_agent_workflow.investigation.nodes.orchestrator"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.nodes.orchestrator"
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -207,7 +207,7 @@ class TestExtractInitialCode:
 
     def test__builds_code_context_from_trace(self, mock_repo_handler, mock_per_issue_pending):
         """Should build code_context string from extracted files."""
-        code_context, fetched, gathered = _extract_initial_code_and_build_context(
+        code_context, _, _ = _extract_initial_code_and_build_context(
             mock_repo_handler, mock_per_issue_pending, "issue-1"
         )
 
