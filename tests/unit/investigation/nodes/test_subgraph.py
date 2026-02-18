@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-_MOD = "sast_agent_workflow.investigation.nodes.subgraph"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.nodes.subgraph"
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -45,7 +45,7 @@ def compiled_graph(mock_llm, mock_tools, mock_config):
         patch(f"{_MOD}.create_evaluation_node", return_value=MagicMock()),
         patch(f"{_MOD}.create_circuit_breaker_node", return_value=MagicMock()),
     ):
-        from sast_agent_workflow.investigation.nodes.subgraph import (
+        from sast_agent_workflow.nodes.sub_agents.investigation.nodes.subgraph import (
             build_investigation_subgraph,
         )
 
@@ -142,7 +142,7 @@ class TestIncrementIteration:
             mock_graph.compile.return_value = MagicMock()
             mock_state_graph.return_value = mock_graph
 
-            from sast_agent_workflow.investigation.nodes.subgraph import (
+            from sast_agent_workflow.nodes.sub_agents.investigation.nodes.subgraph import (
                 build_investigation_subgraph,
             )
 
@@ -204,7 +204,7 @@ class TestRouteAfterIncrement:
             mock_graph.compile.return_value = MagicMock()
             mock_state_graph.return_value = mock_graph
 
-            from sast_agent_workflow.investigation.nodes.subgraph import (
+            from sast_agent_workflow.nodes.sub_agents.investigation.nodes.subgraph import (
                 build_investigation_subgraph,
             )
 
