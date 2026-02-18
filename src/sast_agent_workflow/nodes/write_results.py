@@ -54,9 +54,9 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
 
     logger.info("Initializing Write_Results function...")
 
-    async def _write_results_fn(
+    async def _write_results_fn(  # NOSONAR - async required by NAT framework
         tracker: SASTWorkflowTracker,
-    ) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
+    ) -> SASTWorkflowTracker:
         """
         Write results function for SAST workflow.
 
@@ -141,7 +141,7 @@ def _create_evaluation_summary_from_metrics(summary_data, config, metrics):
 
     try:
         # Build EvaluationSummary-like object from existing metrics
-        evaluation_summary = _create_mock_evaluation_summary(summary_data, config, metrics)
+        evaluation_summary = _create_mock_evaluation_summary(metrics)
         logger.info(WRITE_RESULTS_SUMMARY_SUCCESS)
         return evaluation_summary
 
@@ -155,7 +155,7 @@ def _create_evaluation_summary_from_metrics(summary_data, config, metrics):
             return None
 
 
-def _create_mock_evaluation_summary(summary_data, config, metrics):
+def _create_mock_evaluation_summary(metrics):
     """
     Create a mock EvaluationSummary object from pre-calculated metrics.
 

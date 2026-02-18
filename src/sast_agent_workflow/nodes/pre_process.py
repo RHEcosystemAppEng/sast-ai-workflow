@@ -46,9 +46,9 @@ async def pre_process(config: PreProcessConfig, builder: Builder):
 
     logger.info("Initializing Pre_Process function...")
 
-    async def _pre_process_fn(
+    async def _pre_process_fn(  # NOSONAR - async required by NAT framework
         empty_input: dict,
-    ) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
+    ) -> SASTWorkflowTracker:
         """
         Pre-processing function for SAST workflow.
         """

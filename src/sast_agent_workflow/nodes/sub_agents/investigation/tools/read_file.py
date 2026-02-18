@@ -11,6 +11,42 @@ from .schemas import ReadFileInput
 logger = logging.getLogger(__name__)
 
 
+def _resolve_file_path(repo_path: Path, file_path: str):
+    """Strip package prefix if present and resolve to absolute path."""
+    repo_name = repo_path.name
+    if file_path.startswith(f"{repo_name}/"):
+        original = file_path
+        file_path = file_path[len(repo_name) + 1 :]
+        logger.debug(f"Stripped package prefix: '{original}' -> '{file_path}'")
+
+    target_file = repo_path / file_path
+    logger.info(f"read_file full resolved path: {target_file.absolute()}")
+    return target_file, file_path
+
+
+def _calculate_line_range(total_lines, start_line, end_line):
+    """Compute 0-based start/end indices from 1-based line numbers."""
+    start_idx = max(0, start_line - 1) if start_line is not None else 0
+    end_idx = min(total_lines, end_line) if end_line is not None else total_lines
+    return start_idx, end_idx
+
+
+def _format_file_output(lines, file_path, start_line, end_line, start_idx, end_idx):
+    """Format file contents with line numbers and metadata header."""
+    total_lines = len(lines)
+    result = [f"=== File: {file_path} ===", f"Total Lines: {total_lines}"]
+    if start_line or end_line:
+        result.append(f"Showing Lines: {start_idx + 1}-{end_idx}")
+    result.append("")
+
+    for i in range(start_idx, end_idx):
+        result.append(f"{i + 1:6d}| {lines[i].rstrip()}")
+
+    result.append("")
+    result.append(f"=== End of {file_path} ===")
+    return "\n".join(result)
+
+
 def create_read_file_tool(repo_path: Path) -> StructuredTool:
     """Create read_file tool (reads file contents with line numbers)."""
 
@@ -19,57 +55,19 @@ def create_read_file_tool(repo_path: Path) -> StructuredTool:
     ) -> str:
         """Read file contents with optional line range."""
         logger.info(f"read_file: {file_path} (lines {start_line}-{end_line})")
-
         try:
-            # Strip package prefix if present (e.g., "at-3.2.5/lib/file.c" -> "lib/file.c")
-            # The repo root already includes the package name, so paths shouldn't duplicate it
-            repo_name = repo_path.name
-            if file_path.startswith(f"{repo_name}/"):
-                original_file_path = file_path
-                file_path = file_path[len(repo_name) + 1 :]
-                logger.debug(f"Stripped package prefix: '{original_file_path}' -> '{file_path}'")
-
-            target_file = repo_path / file_path
-            logger.info(f"read_file full resolved path: {target_file.absolute()}")
+            target_file, file_path = _resolve_file_path(repo_path, file_path)
 
             if not target_file.exists():
                 return f"Error: File '{file_path}' does not exist"
-
             if not target_file.is_file():
                 return f"Error: '{file_path}' is not a file"
 
             with open(target_file, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
 
-            total_lines = len(lines)
-
-            # Handle line range
-            if start_line is not None:
-                start_idx = max(0, start_line - 1)
-            else:
-                start_idx = 0
-
-            if end_line is not None:
-                end_idx = min(total_lines, end_line)
-            else:
-                end_idx = total_lines
-
-            # Format output with line numbers
-            result_lines = [f"=== File: {file_path} ==="]
-            result_lines.append(f"Total Lines: {total_lines}")
-            if start_line or end_line:
-                result_lines.append(f"Showing Lines: {start_idx + 1}-{end_idx}")
-            result_lines.append("")
-
-            for i in range(start_idx, end_idx):
-                line_num = i + 1
-                result_lines.append(f"{line_num:6d}| {lines[i].rstrip()}")
-
-            result_lines.append("")
-            result_lines.append(f"=== End of {file_path} ===")
-
-            return "\n".join(result_lines)
-
+            start_idx, end_idx = _calculate_line_range(len(lines), start_line, end_line)
+            return _format_file_output(lines, file_path, start_line, end_line, start_idx, end_idx)
         except Exception as e:
             logger.error(f"read_file error: {e}", exc_info=True)
             return f"Error: {str(e)}"

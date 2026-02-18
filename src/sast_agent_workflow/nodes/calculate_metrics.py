@@ -47,9 +47,9 @@ class CalculateMetricsConfig(FunctionBaseConfig, name="calculate_metrics"):
 async def calculate_metrics(config: CalculateMetricsConfig, builder: Builder):
     logger.info("Initializing Calculate_Metrics function...")
 
-    async def _calculate_metrics_fn(
+    async def _calculate_metrics_fn(  # NOSONAR - async required by NAT framework
         tracker: SASTWorkflowTracker,
-    ) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
+    ) -> SASTWorkflowTracker:
         logger.info("Running Calculate_Metrics node - calculating metrics")
         logger.info(f"Calculate_Metrics node processing tracker with {len(tracker.issues)} issues")
 

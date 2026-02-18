@@ -86,6 +86,26 @@ def _fetch_additional_source_code(
         logger.error(f"Failed processing instructions for issue {issue_id}: {e}")
 
 
+def _process_issue_fetch(repo_handler, per_issue, issue_id, iteration_count):
+    """Process a single issue's data fetch based on iteration."""
+    if not isinstance(per_issue, PerIssueData):
+        logger.warning(f"Skipping issue {issue_id}: unexpected data type {type(per_issue)}")
+        return
+
+    if per_issue.source_code is None:
+        per_issue.source_code = {}
+
+    analysis_response = per_issue.analysis_response
+    if analysis_response and analysis_response.is_final == FinalStatus.TRUE.value:
+        logger.info(f"Skipping issue {issue_id}: already final")
+        return
+
+    if iteration_count == 0:
+        _fetch_initial_source_code(repo_handler, per_issue, issue_id)
+    elif analysis_response:
+        _fetch_additional_source_code(repo_handler, per_issue, issue_id, analysis_response)
+
+
 class DataFetcherConfig(FunctionBaseConfig, name="data_fetcher"):
     """
     Data fetcher function for SAST workflow.
@@ -103,9 +123,9 @@ async def data_fetcher(config: DataFetcherConfig, builder: Builder):
 
     logger.info("Initializing Data_Fetcher function...")
 
-    async def _data_fetcher_fn(
+    async def _data_fetcher_fn(  # NOSONAR - async required by NAT framework
         tracker: SASTWorkflowTracker,
-    ) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
+    ) -> SASTWorkflowTracker:
         """
         Fetch required source code for each issue.
 
@@ -129,28 +149,7 @@ async def data_fetcher(config: DataFetcherConfig, builder: Builder):
                 raise RuntimeError(f"Repository handler initialization failed: {e}") from e
 
         for issue_id, per_issue in tracker.issues.items():
-            if not isinstance(per_issue, PerIssueData):
-                logger.warning(f"Skipping issue {issue_id}: unexpected data type {type(per_issue)}")
-                continue
-
-            # Ensure source_code mapping exists
-            if per_issue.source_code is None:
-                per_issue.source_code = {}
-
-            # If an earlier node (e.g., filter) already marked this issue final, skip fetching
-            analysis_response = per_issue.analysis_response
-            if analysis_response and analysis_response.is_final == FinalStatus.TRUE.value:
-                logger.info(f"Skipping issue {issue_id}: already final")
-                continue
-
-            # Fetch data based on iteration
-            if tracker.iteration_count == 0:
-                _fetch_initial_source_code(repo_handler, per_issue, issue_id)
-            else:
-                if analysis_response:
-                    _fetch_additional_source_code(
-                        repo_handler, per_issue, issue_id, analysis_response
-                    )
+            _process_issue_fetch(repo_handler, per_issue, issue_id, tracker.iteration_count)
 
         logger.info("Data_Fetcher node completed")
         return tracker
