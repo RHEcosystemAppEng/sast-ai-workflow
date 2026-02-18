@@ -10,15 +10,15 @@ from pathlib import Path
 
 import pytest
 
-import sast_agent_workflow.investigation.prompts.checklist_loader as _checklist_mod
-from sast_agent_workflow.investigation.prompts.checklist_loader import (
+import sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader as _checklist_mod
+from sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader import (
     ChecklistLoader,
     format_checklist,
     get_checklist_for_issue,
     get_checklist_loader,
 )
 
-_MOD = "sast_agent_workflow.investigation.prompts.checklist_loader"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader"
 
 # Derive checklists path from the installed module rather than hardcoded parents[N]
 _CHECKLISTS_DIR = Path(_checklist_mod.__file__).parent / "checklists"

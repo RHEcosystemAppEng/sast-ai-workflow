@@ -7,7 +7,7 @@ _extract_fetch_info, _build_code_bank_files_summary, _build_tool_history.
 
 from unittest.mock import patch
 
-from sast_agent_workflow.investigation.prompts.research import (
+from sast_agent_workflow.nodes.sub_agents.investigation.prompts.research import (
     _build_code_bank_files_summary,
     _build_tool_history,
     _extract_fetch_info,
@@ -15,7 +15,7 @@ from sast_agent_workflow.investigation.prompts.research import (
     build_research_instructions,
 )
 
-_MOD = "sast_agent_workflow.investigation.prompts.research"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.prompts.research"
 
 
 # ---------------------------------------------------------------------------

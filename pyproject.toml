@@ -21,7 +21,7 @@ where = ["src"]
 include = ["*"]
 
 [tool.setuptools.package-data]
-sast_agent_workflow = ["investigation/prompts/checklists/*.yaml"]
+sast_agent_workflow = ["nodes/sub_agents/investigation/prompts/checklists/*.yaml"]
 
 [project.entry-points.'nat.components']
 sast_agent_workflow = "sast_agent_workflow.register"

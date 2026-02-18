@@ -94,11 +94,7 @@ class CircuitBreakerTriggered(InvestigationError):
             reason: Reason the circuit breaker was triggered
         """
         self.reason = reason
-        super().__init__(
-            issue_id,
-            f"Circuit breaker triggered: {reason}",
-            recoverable=False
-        )
+        super().__init__(issue_id, f"Circuit breaker triggered: {reason}", recoverable=False)
 
 
 class AnalysisError(InvestigationError):

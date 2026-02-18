@@ -1,7 +1,7 @@
 """
 Integration tests comparing the filter tool and capture_known_issues function.
 
-This module tests that the tool filter from sast_agent_workflow.tools.filter
+This module tests that the tool filter from sast_agent_workflow.nodes.filter
 produces the same filtering results as the existing capture_known_issues function
 from FilterKnownIssues that is used in the run_script.
 
@@ -20,7 +20,7 @@ from dto.Issue import Issue
 from dto.LLMResponse import CVEValidationStatus, FinalStatus
 from dto.ResponseStructures import KnownFalsePositive
 from FilterKnownIssues import capture_known_issues
-from sast_agent_workflow.tools.filter import FilterConfig, filter
+from sast_agent_workflow.nodes.filter import FilterConfig, filter
 from tests.nat_tests.test_utils import TestUtils
 
 
@@ -96,8 +96,8 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
         # Scenario 3: issue3 - no similar issues
         self.mock_similar_issues_issue3 = []
 
-    @patch("sast_agent_workflow.tools.filter.LLMService")
-    @patch("sast_agent_workflow.tools.filter.create_known_issue_retriever")
+    @patch("sast_agent_workflow.nodes.filter.LLMService")
+    @patch("sast_agent_workflow.nodes.filter.create_known_issue_retriever")
     @patch("FilterKnownIssues.create_known_issue_retriever")
     @patch("FilterKnownIssues.read_known_errors_file")
     async def test_given_same_issues_when_both_methods_applied_then_same_known_false_positives_identified(  # noqa: E501
@@ -166,10 +166,10 @@ class TestFilterToolIntegration(unittest.IsolatedAsyncioTestCase):
         # testing
         with (
             patch(
-                "sast_agent_workflow.tools.filter.is_known_false_positive", side_effect=mock_is_fp
+                "sast_agent_workflow.nodes.filter.is_known_false_positive", side_effect=mock_is_fp
             ),
             patch(
-                "sast_agent_workflow.tools.filter.convert_similar_issues_to_examples_context_string",  # noqa: E501
+                "sast_agent_workflow.nodes.filter.convert_similar_issues_to_examples_context_string",  # noqa: E501
                 side_effect=mock_convert_context,
             ),
             patch(

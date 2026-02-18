@@ -9,11 +9,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sast_agent_workflow.investigation.observability.ground_truth_loader import (
+from sast_agent_workflow.nodes.sub_agents.investigation.observability.ground_truth_loader import (
     load_ground_truth_verdicts,
 )
 
-_MOD = "sast_agent_workflow.investigation.observability.ground_truth_loader"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.observability.ground_truth_loader"
 
 # ---------------------------------------------------------------------------
 # Fixtures

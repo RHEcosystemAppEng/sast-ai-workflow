@@ -9,7 +9,7 @@ from nat.builder.builder import Builder
 
 from common.config import Config
 from dto.SASTWorkflowModels import SASTWorkflowTracker
-from sast_agent_workflow.tools.write_results import WriteResultsConfig, write_results
+from sast_agent_workflow.nodes.write_results import WriteResultsConfig, write_results
 from tests.nat_tests.test_utils import TestUtils
 
 
@@ -50,10 +50,10 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
-            patch("sast_agent_workflow.tools.write_results.EvaluationSummary") as mock_eval_summary,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.EvaluationSummary") as mock_eval_summary,
         ):
 
             mock_summary_data = [(issues[0], Mock()), (issues[1], Mock())]
@@ -104,9 +104,9 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
         original_tracker.iteration_count = 5
 
         with (
-            patch("sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"),
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results"),
-            patch("sast_agent_workflow.tools.write_results.EvaluationSummary"),
+            patch("sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"),
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results"),
+            patch("sast_agent_workflow.nodes.write_results.EvaluationSummary"),
         ):
 
             # testing
@@ -140,9 +140,9 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
         ):
 
             # testing
@@ -163,9 +163,9 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
         ):
 
             mock_convert.return_value = []  # Empty summary data
@@ -210,9 +210,9 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
         ):
 
             mock_convert.return_value = []  # No final issues to convert
@@ -250,10 +250,10 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
-            patch("sast_agent_workflow.tools.write_results.EvaluationSummary"),
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.EvaluationSummary"),
         ):
 
             mock_convert.return_value = [(issues[0], Mock())]
@@ -294,15 +294,15 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
             patch(
-                "sast_agent_workflow.tools.write_results.get_human_verified_results"
+                "sast_agent_workflow.nodes.write_results.get_human_verified_results"
             ) as mock_get_ground_truth,
-            patch("sast_agent_workflow.tools.write_results.EvaluationSummary") as mock_eval_summary,
+            patch("sast_agent_workflow.nodes.write_results.EvaluationSummary") as mock_eval_summary,
             patch(
-                "sast_agent_workflow.tools.write_results._create_mock_evaluation_summary"
+                "sast_agent_workflow.nodes.write_results._create_mock_evaluation_summary"
             ) as mock_create_mock,
         ):
 
@@ -362,13 +362,13 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
             patch(
-                "sast_agent_workflow.tools.write_results.get_human_verified_results"
+                "sast_agent_workflow.nodes.write_results.get_human_verified_results"
             ) as mock_get_ground_truth,
-            patch("sast_agent_workflow.tools.write_results.EvaluationSummary") as mock_eval_summary,
+            patch("sast_agent_workflow.nodes.write_results.EvaluationSummary") as mock_eval_summary,
         ):
 
             mock_convert.return_value = [(issues[0], Mock())]
@@ -410,13 +410,13 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert,
-            patch("sast_agent_workflow.tools.write_results.write_analysis_results") as mock_writer,
+            patch("sast_agent_workflow.nodes.write_results.write_analysis_results") as mock_writer,
             patch(
-                "sast_agent_workflow.tools.write_results.get_human_verified_results"
+                "sast_agent_workflow.nodes.write_results.get_human_verified_results"
             ) as mock_get_ground_truth,
-            patch("sast_agent_workflow.tools.write_results.EvaluationSummary") as mock_eval_summary,
+            patch("sast_agent_workflow.nodes.write_results.EvaluationSummary") as mock_eval_summary,
         ):
 
             mock_convert.return_value = [(issues[0], Mock())]
@@ -485,7 +485,9 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
         }
 
         # Create a temporary file for Excel output
-        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp_file:  # NOSONAR - sync tempfile acceptable in test code
+        with tempfile.NamedTemporaryFile(
+            suffix=".xlsx", delete=False
+        ) as temp_file:  # NOSONAR - sync tempfile acceptable in test code
             temp_excel_path = temp_file.name
 
         try:
@@ -499,7 +501,7 @@ class TestWriteResultsCore(unittest.IsolatedAsyncioTestCase):
             self.mock_config.SHOW_FINAL_JUDGE_CONTEXT = False
 
             with patch(
-                "sast_agent_workflow.tools.write_results.convert_tracker_to_summary_data"
+                "sast_agent_workflow.nodes.write_results.convert_tracker_to_summary_data"
             ) as mock_convert:
                 # Create realistic summary_data that matches what ExcelWriter expects
                 mock_summary_info_1 = Mock()
