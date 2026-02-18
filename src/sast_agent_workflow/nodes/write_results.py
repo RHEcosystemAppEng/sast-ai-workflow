@@ -54,7 +54,9 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
 
     logger.info("Initializing Write_Results function...")
 
-    async def _write_results_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:  # NOSONAR - async required by NAT framework interface
+    async def _write_results_fn(  # NOSONAR - async required by NAT framework
+        tracker: SASTWorkflowTracker,
+    ) -> SASTWorkflowTracker:
         """
         Write results function for SAST workflow.
 
@@ -99,7 +101,7 @@ async def write_results(config: WriteResultsConfig, builder: Builder):
             logger.error(f"Failed to print conclusion: {e}")
 
         # Write metrics to JSON for orchestrator/database if requested
-        output_file = os.getenv('WORKFLOW_JSON_OUTPUT', None)
+        output_file = os.getenv("WORKFLOW_JSON_OUTPUT", None)
         if output_file and tracker.metrics:
             try:
                 write_workflow_metrics_json(tracker.metrics, output_file)
@@ -139,7 +141,7 @@ def _create_evaluation_summary_from_metrics(summary_data, config, metrics):
 
     try:
         # Build EvaluationSummary-like object from existing metrics
-        evaluation_summary = _create_mock_evaluation_summary(summary_data, config, metrics)
+        evaluation_summary = _create_mock_evaluation_summary(metrics)
         logger.info(WRITE_RESULTS_SUMMARY_SUCCESS)
         return evaluation_summary
 
@@ -153,7 +155,7 @@ def _create_evaluation_summary_from_metrics(summary_data, config, metrics):
             return None
 
 
-def _create_mock_evaluation_summary(summary_data, config, metrics):
+def _create_mock_evaluation_summary(metrics):
     """
     Create a mock EvaluationSummary object from pre-calculated metrics.
 

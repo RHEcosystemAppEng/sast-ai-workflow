@@ -7,7 +7,9 @@ justifications formatting, and anti-loop guidance.
 
 import pytest
 
-from sast_agent_workflow.investigation.prompts.evaluation import build_evaluation_prompt
+from sast_agent_workflow.nodes.sub_agents.investigation.prompts.evaluation import (
+    build_evaluation_prompt,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
