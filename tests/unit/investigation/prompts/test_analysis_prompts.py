@@ -7,7 +7,9 @@ feedback, and state field interpolation.
 
 import pytest
 
-from sast_agent_workflow.investigation.prompts.analysis import build_analysis_prompt
+from sast_agent_workflow.nodes.sub_agents.investigation.prompts.analysis import (
+    build_analysis_prompt,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures

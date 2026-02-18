@@ -35,6 +35,20 @@ class AnalysisResultOutput(BaseModel):
     )
 
 
+class EvaluationResult(BaseModel):
+    """Simplified structured output from evaluation LLM."""
+
+    result: Literal["APPROVED", "NEEDS_MORE_RESEARCH"] = Field(
+        description="Whether the analysis is sufficient"
+    )
+    feedback: str = Field(
+        description="Detailed feedback on the analysis quality and confidence assessment"
+    )
+    required_information: List[str] = Field(
+        default_factory=list, description="What additional information is needed"
+    )
+
+
 class InvestigationState(TypedDict):
     """State for investigation subgraph."""
 

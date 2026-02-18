@@ -7,8 +7,7 @@ from typing import Optional
 
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.constants import DEFAULT_MAX_SEARCH_RESULTS
-
+from ..constants import DEFAULT_MAX_SEARCH_RESULTS
 from .schemas import SearchCodebaseInput
 
 logger = logging.getLogger(__name__)
