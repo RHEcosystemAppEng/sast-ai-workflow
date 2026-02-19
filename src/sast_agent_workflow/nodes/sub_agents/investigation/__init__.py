@@ -10,10 +10,12 @@ Main entry points:
   read_file, search_codebase) used by the research agent
 """
 
-from .nodes import create_investigate_node
+from .orchestrator import create_investigate_node
+from .subgraph import build_investigation_subgraph
 from .tools import create_investigation_tools
 
 __all__ = [
     "create_investigate_node",
+    "build_investigation_subgraph",
     "create_investigation_tools",
 ]

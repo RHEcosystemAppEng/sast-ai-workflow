@@ -14,7 +14,7 @@ import pytest
 from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
     INVESTIGATION_SUBGRAPH_RECURSION_LIMIT,
 )
-from sast_agent_workflow.nodes.sub_agents.investigation.nodes.orchestrator import (
+from sast_agent_workflow.nodes.sub_agents.investigation.orchestrator import (
     _build_initial_investigation_state,
     _build_subgraph_config,
     _extract_initial_code_and_build_context,
@@ -24,7 +24,7 @@ from sast_agent_workflow.nodes.sub_agents.investigation.nodes.orchestrator impor
     create_investigate_node,
 )
 
-_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.nodes.orchestrator"
+_MOD = "sast_agent_workflow.nodes.sub_agents.investigation.orchestrator"
 
 # ---------------------------------------------------------------------------
 # Fixtures

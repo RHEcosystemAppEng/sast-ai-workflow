@@ -21,13 +21,13 @@ The investigation package implements a **research → analysis → evaluation** 
 │  investigation/                                                     │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │  ORCHESTRATOR  (nodes/orchestrator.py)                        │  │
+│  │  ORCHESTRATOR  (orchestrator.py)                               │  │
 │  │  Loops over non-final issues, invokes subgraph per issue      │  │
 │  └───────────────────────────┬───────────────────────────────────┘  │
 │                              │                                      │
 │       ┌──────────────────────┼───────────────────────┐              │
 │       │  INVESTIGATION       │ SUBGRAPH              │              │
-│       │  (nodes/subgraph.py) ▼                       │              │
+│       │  (subgraph.py)       ▼                       │              │
 │       │                                              │              │
 │       │  ┌─────────────┐  ┌──────────────┐  ┌──────┐ │              │
 │       │  │  RESEARCH   │─▶│   ANALYSIS   │─▶│ EVAL │ │              │
@@ -51,8 +51,8 @@ The investigation package implements a **research → analysis → evaluation** 
 
 | Component | Directory | Role |
 |-----------|-----------|------|
-| **Orchestrator** | `nodes/orchestrator.py` | Entry point -- loops over non-final issues, invokes the subgraph, writes verdicts back |
-| **Subgraph** | `nodes/subgraph.py` | Builds the Research → Analysis → Evaluation StateGraph loop |
+| **Orchestrator** | `orchestrator.py` | Entry point -- loops over non-final issues, invokes the subgraph, writes verdicts back |
+| **Subgraph** | `subgraph.py` | Builds the Research → Analysis → Evaluation StateGraph loop |
 | **Tools** | `tools/` | Code-gathering tools the ReAct agent calls (fetch_code, read_file, search_codebase) |
 | **Prompts** | `prompts/` | Prompt builders for each node + per-vulnerability-type YAML checklists |
 | **Observability** | `observability/` | Langfuse tracing/scoring and ground-truth verdict loading |
