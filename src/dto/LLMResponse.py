@@ -8,6 +8,7 @@ from dto.ResponseStructures import InstructionResponse
 class CVEValidationStatus(Enum):
     TRUE_POSITIVE = "TRUE POSITIVE"
     FALSE_POSITIVE = "FALSE POSITIVE"
+    NEEDS_REVIEW = "NEEDS REVIEW"
 
 
 class FinalStatus(Enum):
@@ -29,7 +30,10 @@ class AnalysisResponse:
     faiss_similarity_score: float | None = None
 
     def is_true_positive(self) -> bool:
-        return self.investigation_result == CVEValidationStatus.TRUE_POSITIVE.value
+        return self.investigation_result in (
+            CVEValidationStatus.TRUE_POSITIVE.value,
+            CVEValidationStatus.NEEDS_REVIEW.value,
+        )
 
     def is_second_analysis_needed(self):
         return (
