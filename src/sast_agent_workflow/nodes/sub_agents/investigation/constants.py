@@ -42,9 +42,6 @@ MAX_MODEL_CALLS = 15
 # When remaining_steps <= this value, the prompt will include an urgency warning
 RECURSION_WARNING_THRESHOLD = 5
 
-# Default max tokens for LLM responses
-DEFAULT_MAX_TOKENS = 16096
-
 # =============================================================================
 # Tool Defaults
 # =============================================================================
