@@ -28,10 +28,8 @@ DEFAULT_TOKEN_METRICS_PATH = "/shared-data/token_usage.json"
 # Import nodes for automatic registration (used for side effects)
 from sast_agent_workflow.nodes import (  # noqa: F401, E402
     calculate_metrics,
-    data_fetcher,
-    evaluate_analysis,
     filter,
-    judge_llm_analysis,
+    investigate,
     pre_process,
     summarize_justifications,
     write_results,
@@ -54,13 +52,7 @@ class SASTAgentConfig(FunctionBaseConfig, name="sast_agent"):
 
     pre_process_function_name: str = Field(description="Function name for Pre_Process node")
     filter_function_name: str = Field(description="Function name for Filter node")
-    data_fetcher_function_name: str = Field(description="Function name for Data_Fetcher node")
-    judge_llm_analysis_function_name: str = Field(
-        description="Function name for Judge_LLM_Analysis node"
-    )
-    evaluate_analysis_function_name: str = Field(
-        description="Function name for Evaluate_Analysis node"
-    )
+    investigate_function_name: str = Field(description="Function name for Investigate node")
     summarize_justifications_function_name: str = Field(
         description="Function name for Summarize_Justifications node"
     )
@@ -92,9 +84,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     # Access all the placeholder functions (get_function is async in NAT 1.3.1+)
     pre_process_fn = await builder.get_function(name=config.pre_process_function_name)
     filter_fn = await builder.get_function(name=config.filter_function_name)
-    data_fetcher_fn = await builder.get_function(name=config.data_fetcher_function_name)
-    judge_llm_analysis_fn = await builder.get_function(name=config.judge_llm_analysis_function_name)
-    evaluate_analysis_fn = await builder.get_function(name=config.evaluate_analysis_function_name)
+    investigate_fn = await builder.get_function(name=config.investigate_function_name)
     summarize_justifications_fn = await builder.get_function(
         name=config.summarize_justifications_function_name
     )
@@ -114,23 +104,11 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
         logger.info("Running Filter node")
         return await filter_fn.ainvoke(tracker)
 
-    @token_callback.track_node_timing("data_fetcher")
-    async def data_fetcher_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """Data_Fetcher node that fetches data."""
-        logger.info("Running Data_Fetcher node")
-        return await data_fetcher_fn.ainvoke(tracker)
-
-    @token_callback.track_node_timing("judge_llm_analysis")
-    async def judge_llm_analysis_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """Judge_LLM_Analysis node that performs LLM analysis."""
-        logger.info("Running Judge_LLM_Analysis node")
-        return await judge_llm_analysis_fn.ainvoke(tracker)
-
-    @token_callback.track_node_timing("evaluate_analysis")
-    async def evaluate_analysis_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
-        """Evaluate_Analysis node that evaluates analysis results."""
-        logger.info("Running Evaluate_Analysis node")
-        return await evaluate_analysis_fn.ainvoke(tracker)
+    @token_callback.track_node_timing("investigate")
+    async def investigate_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
+        """Investigate node that autonomously investigates issues."""
+        logger.info("Running Investigate node")
+        return await investigate_fn.ainvoke(tracker)
 
     @token_callback.track_node_timing("summarize_justifications")
     async def summarize_justifications_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
@@ -154,9 +132,7 @@ async def register_sast_agent(config: SASTAgentConfig, builder: Builder):
     graph = build_sast_workflow_graph(
         pre_process_node=pre_process_node,
         filter_node=filter_node,
-        data_fetcher_node=data_fetcher_node,
-        judge_llm_analysis_node=judge_llm_analysis_node,
-        evaluate_analysis_node=evaluate_analysis_node,
+        investigate_node=investigate_node,
         summarize_justifications_node=summarize_justifications_node,
         calculate_metrics_node=calculate_metrics_node,
         write_results_node=write_results_node,
