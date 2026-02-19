@@ -14,12 +14,12 @@ from langgraph.graph import END, StateGraph
 
 from common.config import Config
 
-from .analysis import create_analysis_node
-from .circuit_breaker import create_circuit_breaker_node
-from .evaluation import create_evaluation_node
-from .research import create_research_node
-from .router import should_continue
-from .schemas import InvestigationState
+from .nodes.analysis import create_analysis_node
+from .nodes.circuit_breaker import create_circuit_breaker_node
+from .nodes.evaluation import create_evaluation_node
+from .nodes.research import create_research_node
+from .nodes.router import should_continue
+from .nodes.schemas import InvestigationState
 
 logger = logging.getLogger(__name__)
 
