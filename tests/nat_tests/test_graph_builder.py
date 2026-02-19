@@ -88,9 +88,9 @@ class TestGraphBuilder:
         actual_edges = graph_structure.edges
         assert len(actual_edges) > 0, "Graph should have edges between nodes"
 
-        actual_edges_tuples = set(
+        actual_edges_tuples = {
             (edge.source, edge.target) for edge in actual_edges if not edge.conditional
-        )
+        }
         assert expected_linear_edges == actual_edges_tuples, (
             f"Expected edges {expected_linear_edges} and "
             f"actual edges {actual_edges_tuples} are not the same"
