@@ -52,7 +52,7 @@ class TestEvidenceStrength:
 
         # Verify score is calculated
         assert 0.0 <= evidence_strength <= 1.0
-        assert details['faiss_score'] == 0.85
+        assert details['faiss_score'] == pytest.approx(0.85)
         assert details['files_fetched_count'] == 3
         assert details['evidence_count'] == 3  # 1 CVE + 1 file ref + 1 code block
 
@@ -78,8 +78,8 @@ class TestEvidenceStrength:
         evidence_strength, details = calculate_evidence_strength(per_issue_data)
 
         # Should return 0.0 when no evidence
-        assert evidence_strength == 0.0
-        assert details['faiss_score'] == 0.0
+        assert evidence_strength == pytest.approx(0.0)
+        assert details['faiss_score'] == pytest.approx(0.0)
         assert details['files_fetched_count'] == 0
         assert details['evidence_count'] == 0
 
@@ -110,7 +110,7 @@ class TestEvidenceStrength:
         evidence_strength, details = calculate_evidence_strength(per_issue_data)
 
         # Files score should be capped at 1.0
-        assert details['files_score'] == 1.0
+        assert details['files_score'] == pytest.approx(1.0)
         # Overall strength should still be <= 1.0
         assert evidence_strength <= 1.0
 
@@ -156,7 +156,7 @@ class TestInvestigationDepth:
 
         depth_score, details = calculate_investigation_depth(per_issue_data)
 
-        assert depth_score == 0.0
+        assert depth_score == pytest.approx(0.0)
         assert details['symbols_explored'] == 0
         assert details['explicit_depth'] == 0
 
@@ -199,8 +199,8 @@ class TestFinalConfidence:
         # Final confidence should be percentage (0-100)
         assert 0.0 <= breakdown.final_confidence <= 100.0
         # Component scores remain in 0-1 scale
-        assert breakdown.filter_confidence == 0.9
-        assert breakdown.agent_confidence == 0.85
+        assert breakdown.filter_confidence == pytest.approx(0.9)
+        assert breakdown.agent_confidence == pytest.approx(0.85)
         assert 0.0 <= breakdown.evidence_strength <= 1.0
         assert 0.0 <= breakdown.investigation_depth <= 1.0
 
@@ -299,7 +299,7 @@ class TestMockDataInjection:
         inject_mock_confidence_data(per_issue_data)
 
         # Should inject high confidence for final decisions
-        assert per_issue_data.analysis_response.agent_confidence == 0.9
+        assert per_issue_data.analysis_response.agent_confidence == pytest.approx(0.9)
 
     def test_inject_agent_confidence_for_non_final_decision(self):
         """Test that mock agent_confidence is injected for non-final decisions."""
@@ -323,7 +323,7 @@ class TestMockDataInjection:
         inject_mock_confidence_data(per_issue_data)
 
         # Should inject lower confidence for non-final decisions
-        assert per_issue_data.analysis_response.agent_confidence == 0.7
+        assert per_issue_data.analysis_response.agent_confidence == pytest.approx(0.7)
 
     def test_inject_fetched_files_from_source_code(self):
         """Test that fetched_files is populated from source_code."""
@@ -390,13 +390,13 @@ class TestAggregateMetrics:
         assert aggregate['total_issues'] == 3
         # Check per-issue scores mapping exists
         assert 'per_issue_scores' in aggregate
-        assert aggregate['per_issue_scores']['issue-1'] == 90.0
-        assert aggregate['per_issue_scores']['issue-2'] == 70.0
-        assert aggregate['per_issue_scores']['issue-3'] == 40.0
+        assert aggregate['per_issue_scores']['issue-1'] == pytest.approx(90.0)
+        assert aggregate['per_issue_scores']['issue-2'] == pytest.approx(70.0)
+        assert aggregate['per_issue_scores']['issue-3'] == pytest.approx(40.0)
         # Check aggregate stats (percentages)
         assert aggregate['mean_confidence'] == pytest.approx((90.0 + 70.0 + 40.0) / 3, abs=0.1)
-        assert aggregate['min_confidence'] == 40.0
-        assert aggregate['max_confidence'] == 90.0
+        assert aggregate['min_confidence'] == pytest.approx(40.0)
+        assert aggregate['max_confidence'] == pytest.approx(90.0)
         assert aggregate['high_confidence_count'] == 1  # >= 80%
         assert aggregate['medium_confidence_count'] == 1  # 50-80%
         assert aggregate['low_confidence_count'] == 1  # < 50%
@@ -407,7 +407,7 @@ class TestAggregateMetrics:
 
         assert 'per_issue_scores' in aggregate
         assert aggregate['per_issue_scores'] == {}
-        assert aggregate['mean_confidence'] == 0.0
-        assert aggregate['min_confidence'] == 0.0
-        assert aggregate['max_confidence'] == 0.0
+        assert aggregate['mean_confidence'] == pytest.approx(0.0)
+        assert aggregate['min_confidence'] == pytest.approx(0.0)
+        assert aggregate['max_confidence'] == pytest.approx(0.0)
         assert aggregate['total_issues'] == 0
