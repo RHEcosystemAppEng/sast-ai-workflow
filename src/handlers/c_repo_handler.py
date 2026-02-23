@@ -388,6 +388,7 @@ class CRepoHandler:
             + self.repo_local_path
         ]
 
+        result = None
         try:
             result = subprocess.run(
                 command,
@@ -400,7 +401,7 @@ class CRepoHandler:
         except Exception as e:
             logger.error(e)
 
-        if result.stdout:
+        if result and result.stdout:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]
 
         return file_path, code_line_number
@@ -410,6 +411,7 @@ class CRepoHandler:
         This method uses `grep` to search for the macro's definition."""
         file_path, code_line_number = "", ""
         command = rf'grep -nHr "#define\s*{macro_name}.*" {self.repo_local_path}'
+        result = None
         try:
             result = subprocess.run(
                 command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False
@@ -417,7 +419,7 @@ class CRepoHandler:
         except Exception as e:
             logger.error(e)
 
-        if result.stdout:
+        if result and result.stdout:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]
 
         return file_path, code_line_number
