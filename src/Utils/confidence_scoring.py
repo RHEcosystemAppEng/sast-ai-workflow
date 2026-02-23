@@ -36,12 +36,16 @@ MAX_SYMBOLS_FOR_NORMALIZATION = 5
 
 @dataclass
 class ConfidenceScoreBreakdown:
-    """Detailed breakdown of confidence score components."""
-    final_confidence: float
-    filter_confidence: float
-    agent_confidence: float
-    evidence_strength: float
-    investigation_depth: float
+    """Detailed breakdown of confidence score components.
+
+    final_confidence is a percentage (0-100).
+    Component scores are kept in 0.0-1.0 scale for internal use.
+    """
+    final_confidence: float  # Percentage (0-100)
+    filter_confidence: float  # 0.0-1.0
+    agent_confidence: float  # 0.0-1.0
+    evidence_strength: float  # 0.0-1.0
+    investigation_depth: float  # 0.0-1.0
 
     # Evidence strength sub-components
     faiss_score: Optional[float] = None
@@ -149,11 +153,13 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     Formula:
     Final = (0.20 × Filter) + (0.50 × Agent) + (0.20 × Evidence) + (0.10 × Investigation)
 
+    Component scores are kept in 0.0-1.0 scale. Final confidence is converted to percentage (0-100).
+
     Args:
         per_issue_data: PerIssueData object containing all analysis information
 
     Returns:
-        ConfidenceScoreBreakdown object with final score and component breakdown
+        ConfidenceScoreBreakdown object with final score as percentage and components as 0-1 values
     """
     # Component 1: Filter Confidence (20%)
     filter_confidence = 0.0
@@ -173,21 +179,24 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     # Component 4: Investigation Depth (10%)
     investigation_depth, investigation_details = calculate_investigation_depth(per_issue_data)
 
-    # Calculate weighted final confidence
-    final_confidence = (
+    # Calculate weighted final confidence (0-1 scale)
+    final_confidence_raw = (
         FILTER_WEIGHT * filter_confidence +
         AGENT_WEIGHT * agent_confidence +
         EVIDENCE_WEIGHT * evidence_strength +
         INVESTIGATION_WEIGHT * investigation_depth
     )
 
+    # Convert ONLY final confidence to percentage (0-100)
+    final_confidence = final_confidence_raw * 100.0
+
     # Create breakdown object
     breakdown = ConfidenceScoreBreakdown(
-        final_confidence=final_confidence,
-        filter_confidence=filter_confidence,
-        agent_confidence=agent_confidence,
-        evidence_strength=evidence_strength,
-        investigation_depth=investigation_depth,
+        final_confidence=final_confidence,  # Percentage (0-100)
+        filter_confidence=filter_confidence,  # Keep as 0-1
+        agent_confidence=agent_confidence,  # Keep as 0-1
+        evidence_strength=evidence_strength,  # Keep as 0-1
+        investigation_depth=investigation_depth,  # Keep as 0-1
         faiss_score=evidence_details.get('faiss_score'),
         files_fetched_count=evidence_details.get('files_fetched_count', 0),
         evidence_count=evidence_details.get('evidence_count', 0),
@@ -195,7 +204,7 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     )
 
     logger.debug(
-        f"Confidence calculation: final={final_confidence:.3f}, "
+        f"Confidence calculation: final={final_confidence:.1f}%, "
         f"filter={filter_confidence:.3f}, agent={agent_confidence:.3f}, "
         f"evidence={evidence_strength:.3f}, investigation={investigation_depth:.3f}"
     )
@@ -251,10 +260,11 @@ def calculate_aggregate_confidence_metrics(
         confidence_scores: Dict mapping issue_id to ConfidenceScoreBreakdown
 
     Returns:
-        Dictionary of aggregate metrics
+        Dictionary of aggregate metrics and per-issue scores (percentages 0-100)
     """
     if not confidence_scores:
         return {
+            'per_issue_scores': {},
             'mean_confidence': 0.0,
             'min_confidence': 0.0,
             'max_confidence': 0.0,
@@ -264,18 +274,25 @@ def calculate_aggregate_confidence_metrics(
             'total_issues': 0
         }
 
+    # Extract per-issue scores for storage in tracker.metrics
+    per_issue_scores = {
+        issue_id: breakdown.final_confidence
+        for issue_id, breakdown in confidence_scores.items()
+    }
+
     final_scores = [breakdown.final_confidence for breakdown in confidence_scores.values()]
 
     mean_confidence = sum(final_scores) / len(final_scores)
     min_confidence = min(final_scores)
     max_confidence = max(final_scores)
 
-    # Categorize by confidence level
-    high_confidence_count = sum(1 for score in final_scores if score >= 0.8)
-    medium_confidence_count = sum(1 for score in final_scores if 0.5 <= score < 0.8)
-    low_confidence_count = sum(1 for score in final_scores if score < 0.5)
+    # Categorize by confidence level (percentage thresholds)
+    high_confidence_count = sum(1 for score in final_scores if score >= 80.0)
+    medium_confidence_count = sum(1 for score in final_scores if 50.0 <= score < 80.0)
+    low_confidence_count = sum(1 for score in final_scores if score < 50.0)
 
     return {
+        'per_issue_scores': per_issue_scores,  # issue_id -> percentage mapping
         'mean_confidence': mean_confidence,
         'min_confidence': min_confidence,
         'max_confidence': max_confidence,

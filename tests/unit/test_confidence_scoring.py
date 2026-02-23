@@ -196,21 +196,24 @@ class TestFinalConfidence:
 
         # Verify breakdown structure
         assert isinstance(breakdown, ConfidenceScoreBreakdown)
-        assert 0.0 <= breakdown.final_confidence <= 1.0
+        # Final confidence should be percentage (0-100)
+        assert 0.0 <= breakdown.final_confidence <= 100.0
+        # Component scores remain in 0-1 scale
         assert breakdown.filter_confidence == 0.9
         assert breakdown.agent_confidence == 0.85
-        assert breakdown.evidence_strength > 0.0
-        assert breakdown.investigation_depth > 0.0
+        assert 0.0 <= breakdown.evidence_strength <= 1.0
+        assert 0.0 <= breakdown.investigation_depth <= 1.0
 
-        # Verify weighted formula is applied
-        # Final = 0.20*filter + 0.50*agent + 0.20*evidence + 0.10*investigation
-        expected = (
+        # Verify weighted formula is applied and converted to percentage
+        # Final = (0.20*filter + 0.50*agent + 0.20*evidence + 0.10*investigation) * 100
+        expected_raw = (
             0.20 * 0.9 +
             0.50 * 0.85 +
             0.20 * breakdown.evidence_strength +
             0.10 * breakdown.investigation_depth
         )
-        assert abs(breakdown.final_confidence - expected) < 0.001
+        expected_percentage = expected_raw * 100.0
+        assert abs(breakdown.final_confidence - expected_percentage) < 0.1
 
     def test_final_confidence_stored_in_per_issue_data(self):
         """Test that final confidence can be stored in PerIssueData."""
@@ -240,9 +243,9 @@ class TestFinalConfidence:
         # Store in PerIssueData (mimicking what calculate_metrics does)
         per_issue_data.final_confidence_score = breakdown.final_confidence
 
-        # Verify it's stored correctly
+        # Verify it's stored correctly as percentage (0-100)
         assert per_issue_data.final_confidence_score is not None
-        assert 0.0 <= per_issue_data.final_confidence_score <= 1.0
+        assert 0.0 <= per_issue_data.final_confidence_score <= 100.0
         assert per_issue_data.final_confidence_score == breakdown.final_confidence
 
     def test_final_confidence_with_missing_components(self):
@@ -267,8 +270,8 @@ class TestFinalConfidence:
 
         breakdown = calculate_final_confidence(per_issue_data)
 
-        # Should still return valid score (likely low due to missing data)
-        assert 0.0 <= breakdown.final_confidence <= 1.0
+        # Should still return valid percentage (likely low due to missing data)
+        assert 0.0 <= breakdown.final_confidence <= 100.0
 
 
 class TestMockDataInjection:
@@ -360,21 +363,21 @@ class TestAggregateMetrics:
         """Test aggregate statistics across multiple issues."""
         breakdowns = {
             "issue-1": ConfidenceScoreBreakdown(
-                final_confidence=0.9,
-                filter_confidence=0.9,
+                final_confidence=90.0,  # Percentage (0-100)
+                filter_confidence=0.9,  # Component scores stay 0-1
                 agent_confidence=0.9,
                 evidence_strength=0.8,
                 investigation_depth=0.7
             ),
             "issue-2": ConfidenceScoreBreakdown(
-                final_confidence=0.7,
+                final_confidence=70.0,
                 filter_confidence=0.7,
                 agent_confidence=0.7,
                 evidence_strength=0.6,
                 investigation_depth=0.5
             ),
             "issue-3": ConfidenceScoreBreakdown(
-                final_confidence=0.4,
+                final_confidence=40.0,
                 filter_confidence=0.5,
                 agent_confidence=0.4,
                 evidence_strength=0.3,
@@ -385,17 +388,25 @@ class TestAggregateMetrics:
         aggregate = calculate_aggregate_confidence_metrics(breakdowns)
 
         assert aggregate['total_issues'] == 3
-        assert aggregate['mean_confidence'] == pytest.approx((0.9 + 0.7 + 0.4) / 3, abs=0.01)
-        assert aggregate['min_confidence'] == 0.4
-        assert aggregate['max_confidence'] == 0.9
-        assert aggregate['high_confidence_count'] == 1  # >= 0.8
-        assert aggregate['medium_confidence_count'] == 1  # 0.5-0.8
-        assert aggregate['low_confidence_count'] == 1  # < 0.5
+        # Check per-issue scores mapping exists
+        assert 'per_issue_scores' in aggregate
+        assert aggregate['per_issue_scores']['issue-1'] == 90.0
+        assert aggregate['per_issue_scores']['issue-2'] == 70.0
+        assert aggregate['per_issue_scores']['issue-3'] == 40.0
+        # Check aggregate stats (percentages)
+        assert aggregate['mean_confidence'] == pytest.approx((90.0 + 70.0 + 40.0) / 3, abs=0.1)
+        assert aggregate['min_confidence'] == 40.0
+        assert aggregate['max_confidence'] == 90.0
+        assert aggregate['high_confidence_count'] == 1  # >= 80%
+        assert aggregate['medium_confidence_count'] == 1  # 50-80%
+        assert aggregate['low_confidence_count'] == 1  # < 50%
 
     def test_aggregate_metrics_empty_input(self):
         """Test aggregate metrics with no issues."""
         aggregate = calculate_aggregate_confidence_metrics({})
 
+        assert 'per_issue_scores' in aggregate
+        assert aggregate['per_issue_scores'] == {}
         assert aggregate['mean_confidence'] == 0.0
         assert aggregate['min_confidence'] == 0.0
         assert aggregate['max_confidence'] == 0.0
