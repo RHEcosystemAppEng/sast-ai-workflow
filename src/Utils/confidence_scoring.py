@@ -89,8 +89,8 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
             evidence_count += justification.count('```') // 2  # Pairs of backticks
             # Count CVE references
             evidence_count += justification.count('CVE-')
-            # Count file:line references (e.g., "file.c:123")
-            evidence_count += len(re.findall(r'\w+\.\w+:\d+', justification))
+            # Count file:line references (e.g., "file.c:123") with bounded regex to prevent ReDoS
+            evidence_count += len(re.findall(r'[a-zA-Z0-9_./\-]{1,100}\.[a-zA-Z0-9]{1,10}:\d{1,10}', justification))
 
     evidence_score = min(evidence_count / MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION, 1.0)
 
