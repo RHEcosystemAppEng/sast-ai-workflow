@@ -201,6 +201,7 @@ def _build_initial_investigation_state(
         "is_complete": False,
         "needs_reanalysis": False,
         "reanalysis_count": 0,
+        "total_tool_calls": 0,
     }
 
 
@@ -231,6 +232,7 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
     analysis_prompt = result.get("analysis_prompt", "")
     iterations = result["iteration"]
     reanalysis_count = result.get("reanalysis_count", 0)
+    total_tool_calls = result.get("total_tool_calls", 0)
     if per_issue.analysis_response:
         per_issue.analysis_response.investigation_result = verdict
         per_issue.analysis_response.is_final = "TRUE"
@@ -238,5 +240,6 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
         per_issue.analysis_response.prompt = analysis_prompt
     logger.info(
         f"{issue_id}: {verdict} (confidence: {result['confidence']}, "
-        f"iterations: {iterations}, reanalysis: {reanalysis_count})"
+        f"iterations: {iterations}, reanalysis: {reanalysis_count}, "
+        f"tool_calls: {total_tool_calls})"
     )
