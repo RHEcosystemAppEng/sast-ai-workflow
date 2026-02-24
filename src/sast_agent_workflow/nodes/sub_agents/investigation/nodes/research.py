@@ -458,11 +458,19 @@ def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
     return research
 
 
+def _count_tool_calls(state: InvestigationState, messages: list) -> int:
+    """Accumulate total tool calls from new messages onto the running state total."""
+    new_calls = sum(1 for m in messages if isinstance(m, ToolMessage))
+    return state.get("total_tool_calls", 0) + new_calls
+
+
 def _handle_research_success(state: InvestigationState, result: dict) -> InvestigationState:
     """Build state from successful research agent result."""
     fetched = result.get("fetched_files", {})
     history = result.get("tool_call_history", [])
+    messages = result.get("messages", [])
     gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
+    total_tool_calls = _count_tool_calls(state, messages)
     issue = state["issue_id"]
     logger.info(
         f"[{issue}] Research complete. Total gathered "
@@ -472,10 +480,11 @@ def _handle_research_success(state: InvestigationState, result: dict) -> Investi
     )
     return {
         **state,
-        "research_messages": result["messages"],
+        "research_messages": messages,
         "gathered_code": gathered_code,
         "fetched_files": fetched,
         "tool_call_history": history,
+        "total_tool_calls": total_tool_calls,
     }
 
 
@@ -484,7 +493,7 @@ def _handle_research_recursion_limit(
 ) -> InvestigationState:
     """Build state when research hits recursion limit; preserve via checkpointer."""
     fetched, history = state.get("fetched_files", {}), state.get("tool_call_history", [])
-    fetched, history, from_checkpointer = _get_preserved_state(
+    fetched, history, messages, from_checkpointer = _get_preserved_state(
         agent, thread_id, fetched, history, log_failure=True
     )
     if from_checkpointer:
@@ -493,12 +502,14 @@ def _handle_research_recursion_limit(
             f"{len(history)} tool calls"
         )
     gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
+    total_tool_calls = _count_tool_calls(state, messages)
     return {
         **state,
         "research_messages": [],
         "gathered_code": gathered_code,
         "fetched_files": fetched,
         "tool_call_history": history,
+        "total_tool_calls": total_tool_calls,
         "stop_reason": f"research_recursion_limit_hit (limit={RESEARCH_AGENT_RECURSION_LIMIT})",
     }
 
@@ -508,14 +519,16 @@ def _handle_research_error(
 ) -> InvestigationState:
     """Build state when research raises; preserve via checkpointer if possible."""
     fetched, history = state.get("fetched_files", {}), state.get("tool_call_history", [])
-    fetched, history, _ = _get_preserved_state(agent, thread_id, fetched, history)
+    fetched, history, messages, _ = _get_preserved_state(agent, thread_id, fetched, history)
     gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
+    total_tool_calls = _count_tool_calls(state, messages)
     return {
         **state,
         "research_messages": [],
         "gathered_code": gathered_code,
         "fetched_files": fetched,
         "tool_call_history": history,
+        "total_tool_calls": total_tool_calls,
         "stop_reason": f"research_error: {str(e)[:100]}",
     }
 
@@ -538,8 +551,8 @@ def _build_research_agent_state(state: InvestigationState) -> ResearchAgentState
 def _get_preserved_state(
     agent, thread_id: str, fallback_fetched: dict, fallback_history: list, log_failure: bool = False
 ):
-    """Get fetched_files and tool_call_history from checkpointer or return fallbacks.
-    Returns (fetched, history, from_checkpointer: bool).
+    """Get fetched_files, tool_call_history, and messages from checkpointer or return fallbacks.
+    Returns (fetched, history, messages, from_checkpointer: bool).
     If log_failure is True and get_state raises, logs a warning.
     """
     try:
@@ -548,6 +561,7 @@ def _get_preserved_state(
             return (
                 preserved.values.get("fetched_files", fallback_fetched),
                 preserved.values.get("tool_call_history", fallback_history),
+                preserved.values.get("messages", []),
                 True,
             )
     except Exception as state_err:
@@ -557,7 +571,7 @@ def _get_preserved_state(
                 f"checkpointer: {state_err}. Using "
                 f"input state as fallback."
             )
-    return (fallback_fetched, fallback_history, False)
+    return (fallback_fetched, fallback_history, [], False)
 
 
 def _merge_gathered_code(existing: str, fetched_files: Dict) -> str:
