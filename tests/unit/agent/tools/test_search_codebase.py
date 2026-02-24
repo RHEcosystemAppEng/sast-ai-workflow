@@ -367,6 +367,7 @@ class TestSearchFile:
 
         _search_file(test_file, regex, tmp_path, results, max_results=10)
 
+        assert len(results) > 0
         assert results[0]["file"] == "src/test.c"
 
     def test_search_file_strips_whitespace(self, tmp_path):
@@ -379,6 +380,7 @@ class TestSearchFile:
 
         _search_file(test_file, regex, tmp_path, results, max_results=10)
 
+        assert len(results) > 0
         assert results[0]["content"] == "malloc"
 
 
