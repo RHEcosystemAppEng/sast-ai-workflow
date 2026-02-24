@@ -605,13 +605,13 @@ class TestAddLangfuseScores:
     def test__creates_tool_call_count_and_verdict_scores(
         self, mock_langfuse_client, sample_result_with_tool_calls
     ):
-        """Should create tool_call_count and verdict scores."""
+        """Should create tool_call_count, reanalysis_count, stop_reason, and verdict scores."""
         add_langfuse_scores(
             mock_langfuse_client, "trace-1", "def1", sample_result_with_tool_calls, None
         )
 
         calls = mock_langfuse_client.create_score.call_args_list
-        assert len(calls) == 2
+        assert len(calls) == 4
 
         # First call: tool_call_count
         assert calls[0] == call(
@@ -622,8 +622,26 @@ class TestAddLangfuseScores:
             comment="Total tool executions during investigation",
         )
 
-        # Second call: verdict
+        # Second call: reanalysis_count
         assert calls[1] == call(
+            trace_id="trace-1",
+            name="reanalysis_count",
+            value=0.0,
+            data_type="NUMERIC",
+            comment="Times evaluation triggered reanalysis without new research",
+        )
+
+        # Third call: stop_reason
+        assert calls[2] == call(
+            trace_id="trace-1",
+            name="stop_reason",
+            value="completed",
+            data_type="CATEGORICAL",
+            comment="Investigation exit reason: completed",
+        )
+
+        # Fourth call: verdict
+        assert calls[3] == call(
             trace_id="trace-1",
             name="verdict",
             value="TRUE_POSITIVE",
@@ -659,11 +677,12 @@ class TestAddLangfuseScores:
         )
 
         calls = mock_langfuse_client.create_score.call_args_list
-        # tool_call_count + verdict + ground_truth_verdict + verdict_correct
-        assert len(calls) == 4
+        # tool_call_count + reanalysis_count + stop_reason + verdict +
+        #  ground_truth_verdict + verdict_correct
+        assert len(calls) == 6
 
         # ground_truth_verdict
-        assert calls[2] == call(
+        assert calls[4] == call(
             trace_id="trace-1",
             name="ground_truth_verdict",
             value="TRUE_POSITIVE",
@@ -672,7 +691,7 @@ class TestAddLangfuseScores:
         )
 
         # verdict_correct (TRUE_POSITIVE == TRUE_POSITIVE => 1)
-        assert calls[3] == call(
+        assert calls[5] == call(
             trace_id="trace-1",
             name="verdict_correct",
             value=1,
@@ -691,10 +710,10 @@ class TestAddLangfuseScores:
         )
 
         calls = mock_langfuse_client.create_score.call_args_list
-        assert len(calls) == 4
+        assert len(calls) == 6
 
         # verdict_correct (TRUE_POSITIVE != FALSE_POSITIVE => 0)
-        assert calls[3] == call(
+        assert calls[5] == call(
             trace_id="trace-1",
             name="verdict_correct",
             value=0,
@@ -705,24 +724,24 @@ class TestAddLangfuseScores:
     def test__skips_ground_truth_when_verdicts_is_none(
         self, mock_langfuse_client, sample_result_with_tool_calls
     ):
-        """Should only create 2 scores when ground_truth_verdicts is None."""
+        """Should only create 4 scores when ground_truth_verdicts is None."""
         add_langfuse_scores(
             mock_langfuse_client, "trace-1", "def1", sample_result_with_tool_calls, None
         )
 
-        assert mock_langfuse_client.create_score.call_count == 2
+        assert mock_langfuse_client.create_score.call_count == 4
 
     def test__skips_ground_truth_when_issue_not_in_verdicts(
         self, mock_langfuse_client, sample_result_with_tool_calls
     ):
-        """Should only create 2 scores when issue_id is not in ground_truth_verdicts."""
+        """Should only create 4 scores when issue_id is not in ground_truth_verdicts."""
         ground_truth = {"def999": "TRUE_POSITIVE"}
 
         add_langfuse_scores(
             mock_langfuse_client, "trace-1", "def1", sample_result_with_tool_calls, ground_truth
         )
 
-        assert mock_langfuse_client.create_score.call_count == 2
+        assert mock_langfuse_client.create_score.call_count == 4
 
     def test__handles_empty_research_messages(self, mock_langfuse_client):
         """Should handle result with empty research_messages list."""
@@ -741,6 +760,53 @@ class TestAddLangfuseScores:
 
         first_call = mock_langfuse_client.create_score.call_args_list[0]
         assert first_call[1]["value"] == pytest.approx(0.0)
+
+    def test__reanalysis_count_from_result(self, mock_langfuse_client):
+        """Should use reanalysis_count from result when present."""
+        result = {
+            "proposed_verdict": "TRUE_POSITIVE",
+            "research_messages": [],
+            "reanalysis_count": 3,
+        }
+
+        add_langfuse_scores(mock_langfuse_client, "trace-1", "def1", result, None)
+
+        reanalysis_call = mock_langfuse_client.create_score.call_args_list[1]
+        assert reanalysis_call == call(
+            trace_id="trace-1",
+            name="reanalysis_count",
+            value=3.0,
+            data_type="NUMERIC",
+            comment="Times evaluation triggered reanalysis without new research",
+        )
+
+    def test__stop_reason_from_result(self, mock_langfuse_client):
+        """Should use stop_reason from result when present."""
+        result = {
+            "proposed_verdict": "NEEDS_REVIEW",
+            "research_messages": [],
+            "stop_reason": "max_iterations",
+        }
+
+        add_langfuse_scores(mock_langfuse_client, "trace-1", "def1", result, None)
+
+        stop_reason_call = mock_langfuse_client.create_score.call_args_list[2]
+        assert stop_reason_call == call(
+            trace_id="trace-1",
+            name="stop_reason",
+            value="max_iterations",
+            data_type="CATEGORICAL",
+            comment="Investigation exit reason: max_iterations",
+        )
+
+    def test__stop_reason_defaults_to_completed(self, mock_langfuse_client):
+        """Should default stop_reason to 'completed' when None or missing."""
+        result = {"proposed_verdict": "TRUE_POSITIVE", "research_messages": []}
+
+        add_langfuse_scores(mock_langfuse_client, "trace-1", "def1", result, None)
+
+        stop_reason_call = mock_langfuse_client.create_score.call_args_list[2]
+        assert stop_reason_call[1]["value"] == "completed"
 
     def test__handles_create_score_exception(self, mock_langfuse_client):
         """Should catch and log exception if create_score raises."""
