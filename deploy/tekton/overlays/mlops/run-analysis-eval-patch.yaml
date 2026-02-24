@@ -61,6 +61,8 @@
     env:
       - name: PROJECT_VERSION
         value: "$(params.PROJECT_VERSION)"
+      - name: TEKTON_RESULTS_DIR
+        value: "/tekton/results"
     command: ["/scripts/write_evaluation_results.sh"]
 # STEP 9: Upload token metrics to S3/MinIO
 - op: add
