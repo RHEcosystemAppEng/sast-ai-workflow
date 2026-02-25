@@ -213,7 +213,7 @@ class TestCompileSearchRegex:
 
     def test_case_insensitive_flag(self):
         """Test that regex is case-insensitive."""
-        regex, error = _compile_search_regex("test")
+        regex, _ = _compile_search_regex("test")
 
         assert regex.search("TEST") is not None
         assert regex.search("TeSt") is not None
