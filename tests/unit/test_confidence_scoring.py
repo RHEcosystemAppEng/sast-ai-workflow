@@ -3,6 +3,7 @@ Unit tests for confidence scoring utilities.
 """
 
 import pytest
+from unittest.mock import patch
 from dto.SASTWorkflowModels import PerIssueData
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
@@ -12,7 +13,20 @@ from Utils.confidence_scoring import (
     calculate_final_confidence,
     inject_mock_confidence_data,
     calculate_aggregate_confidence_metrics,
-    ConfidenceScoreBreakdown
+    ConfidenceScoreBreakdown,
+    _validate_weight_configuration
+)
+from common.constants import (
+    CONFIDENCE_WEIGHT_FILTER,
+    CONFIDENCE_WEIGHT_AGENT,
+    CONFIDENCE_WEIGHT_EVIDENCE,
+    CONFIDENCE_WEIGHT_INVESTIGATION,
+    EVIDENCE_WEIGHT_FAISS_SCORE,
+    EVIDENCE_WEIGHT_FILES_FETCHED,
+    EVIDENCE_WEIGHT_EVIDENCE_COUNT,
+    CONFIDENCE_MAX_FILES_FOR_NORMALIZATION,
+    CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION,
+    CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION,
 )
 
 
@@ -205,12 +219,12 @@ class TestFinalConfidence:
         assert 0.0 <= breakdown.investigation_depth <= 1.0
 
         # Verify weighted formula is applied and converted to percentage
-        # Final = (0.20*filter + 0.50*agent + 0.20*evidence + 0.10*investigation) * 100
+        # Final = (FILTER_WEIGHT*filter + AGENT_WEIGHT*agent + EVIDENCE_WEIGHT*evidence + INVESTIGATION_WEIGHT*investigation) * 100
         expected_raw = (
-            0.20 * 0.9 +
-            0.50 * 0.85 +
-            0.20 * breakdown.evidence_strength +
-            0.10 * breakdown.investigation_depth
+            CONFIDENCE_WEIGHT_FILTER * 0.9 +
+            CONFIDENCE_WEIGHT_AGENT * 0.85 +
+            CONFIDENCE_WEIGHT_EVIDENCE * breakdown.evidence_strength +
+            CONFIDENCE_WEIGHT_INVESTIGATION * breakdown.investigation_depth
         )
         expected_percentage = expected_raw * 100.0
         assert abs(breakdown.final_confidence - expected_percentage) < 0.1
@@ -411,3 +425,116 @@ class TestAggregateMetrics:
         assert aggregate['min_confidence'] == pytest.approx(0.0)
         assert aggregate['max_confidence'] == pytest.approx(0.0)
         assert aggregate['total_issues'] == 0
+
+
+class TestConfigurationLoading:
+    """Test that weights are properly loaded from configuration."""
+
+    def test_main_component_weights_loaded_from_constants(self):
+        """Test that main confidence weights are loaded from common.constants."""
+        # Verify weights are imported and have expected values
+        assert CONFIDENCE_WEIGHT_FILTER == pytest.approx(0.20)
+        assert CONFIDENCE_WEIGHT_AGENT == pytest.approx(0.50)
+        assert CONFIDENCE_WEIGHT_EVIDENCE == pytest.approx(0.20)
+        assert CONFIDENCE_WEIGHT_INVESTIGATION == pytest.approx(0.10)
+
+    def test_main_component_weights_sum_to_one(self):
+        """Test that main component weights sum to 1.0."""
+        total_weight = (
+            CONFIDENCE_WEIGHT_FILTER +
+            CONFIDENCE_WEIGHT_AGENT +
+            CONFIDENCE_WEIGHT_EVIDENCE +
+            CONFIDENCE_WEIGHT_INVESTIGATION
+        )
+        assert total_weight == pytest.approx(1.0)
+
+    def test_evidence_sub_weights_loaded_from_constants(self):
+        """Test that evidence sub-component weights are loaded from common.constants."""
+        assert EVIDENCE_WEIGHT_FAISS_SCORE == pytest.approx(0.40)
+        assert EVIDENCE_WEIGHT_FILES_FETCHED == pytest.approx(0.30)
+        assert EVIDENCE_WEIGHT_EVIDENCE_COUNT == pytest.approx(0.30)
+
+    def test_evidence_sub_weights_sum_to_one(self):
+        """Test that evidence sub-component weights sum to 1.0."""
+        total_weight = (
+            EVIDENCE_WEIGHT_FAISS_SCORE +
+            EVIDENCE_WEIGHT_FILES_FETCHED +
+            EVIDENCE_WEIGHT_EVIDENCE_COUNT
+        )
+        assert total_weight == pytest.approx(1.0)
+
+    def test_normalization_caps_loaded_from_constants(self):
+        """Test that normalization caps are loaded from common.constants."""
+        assert CONFIDENCE_MAX_FILES_FOR_NORMALIZATION == 10
+        assert CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION == 5
+        assert CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION == 5
+
+    def test_weights_applied_correctly_in_calculation(self):
+        """Test that loaded weights are correctly applied in confidence calculation."""
+        issue = Issue(
+            id="test-config-weights",
+            issue_type="OVERFLOW",
+            severity="high",
+            trace="test trace",
+            file_path="test.c",
+            line_number=100
+        )
+
+        analysis_response = AnalysisResponse(
+            investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
+            is_final=FinalStatus.TRUE.value,
+            filter_confidence=0.8,
+            agent_confidence=0.9,
+            faiss_similarity_score=0.7
+        )
+
+        per_issue_data = PerIssueData(
+            issue=issue,
+            analysis_response=analysis_response,
+            fetched_files=["test.c"],
+            found_symbols={"func1"},
+            exploration_depth=1
+        )
+
+        breakdown = calculate_final_confidence(per_issue_data)
+
+        # Manually calculate expected result using constants
+        evidence_strength, _ = calculate_evidence_strength(per_issue_data)
+        investigation_depth, _ = calculate_investigation_depth(per_issue_data)
+
+        expected_raw = (
+            CONFIDENCE_WEIGHT_FILTER * 0.8 +
+            CONFIDENCE_WEIGHT_AGENT * 0.9 +
+            CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
+            CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
+        )
+        expected_percentage = expected_raw * 100.0
+
+        # Verify the calculation matches expected result
+        assert breakdown.final_confidence == pytest.approx(expected_percentage, abs=0.1)
+
+    def test_runtime_validation_passes_with_valid_weights(self):
+        """Test that runtime validation passes with valid weight configuration."""
+        # Should not raise any exception with current valid configuration
+        _validate_weight_configuration()
+
+    def test_runtime_validation_fails_with_invalid_main_weights(self):
+        """Test that runtime validation fails when main weights don't sum to 1.0."""
+        # Patch main weights to invalid values
+        with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_FILTER', 0.25):
+            with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_AGENT', 0.50):
+                with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_EVIDENCE', 0.20):
+                    with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_INVESTIGATION', 0.10):
+                        # Sum = 1.05, should fail
+                        with pytest.raises(ValueError, match="Main confidence weights must sum to 1.0"):
+                            _validate_weight_configuration()
+
+    def test_runtime_validation_fails_with_invalid_evidence_weights(self):
+        """Test that runtime validation fails when evidence sub-weights don't sum to 1.0."""
+        # Patch evidence weights to invalid values
+        with patch('Utils.confidence_scoring.EVIDENCE_WEIGHT_FAISS_SCORE', 0.50):
+            with patch('Utils.confidence_scoring.EVIDENCE_WEIGHT_FILES_FETCHED', 0.30):
+                with patch('Utils.confidence_scoring.EVIDENCE_WEIGHT_EVIDENCE_COUNT', 0.30):
+                    # Sum = 1.10, should fail
+                    with pytest.raises(ValueError, match="Evidence sub-weights must sum to 1.0"):
+                        _validate_weight_configuration()

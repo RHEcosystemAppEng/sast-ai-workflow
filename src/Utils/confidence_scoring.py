@@ -2,10 +2,13 @@
 Confidence scoring utilities for SAST workflow.
 
 Implements weighted confidence score calculation based on 4 components:
-- Filter Confidence (20%): Initial filtering decision confidence
-- Agent Confidence (50%): LLM's confidence in final verdict
-- Evidence Strength (20%): Quality and quantity of supporting evidence
-- Investigation Depth (10%): Thoroughness of exploration
+- Filter Confidence: Initial filtering decision confidence
+- Agent Confidence: LLM's confidence in final verdict
+- Evidence Strength: Quality and quantity of supporting evidence
+- Investigation Depth: Thoroughness of exploration
+
+Component weights and normalization caps are externalized to common.constants
+for easy tuning without code changes.
 """
 
 import logging
@@ -14,24 +17,68 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 from dto.SASTWorkflowModels import PerIssueData
+from common.constants import (
+    CONFIDENCE_WEIGHT_FILTER,
+    CONFIDENCE_WEIGHT_AGENT,
+    CONFIDENCE_WEIGHT_EVIDENCE,
+    CONFIDENCE_WEIGHT_INVESTIGATION,
+    EVIDENCE_WEIGHT_FAISS_SCORE,
+    EVIDENCE_WEIGHT_FILES_FETCHED,
+    EVIDENCE_WEIGHT_EVIDENCE_COUNT,
+    CONFIDENCE_MAX_FILES_FOR_NORMALIZATION,
+    CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION,
+    CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION,
+)
 
 logger = logging.getLogger(__name__)
 
-# Weights for confidence score components
-FILTER_WEIGHT = 0.20
-AGENT_WEIGHT = 0.50
-EVIDENCE_WEIGHT = 0.20
-INVESTIGATION_WEIGHT = 0.10
 
-# Evidence strength sub-component weights
-FAISS_SCORE_WEIGHT = 0.40
-FILES_FETCHED_WEIGHT = 0.30
-EVIDENCE_COUNT_WEIGHT = 0.30
+def _validate_weight_configuration() -> None:
+    """
+    Validate that confidence scoring weights are properly configured.
 
-# Normalization caps
-MAX_FILES_FOR_NORMALIZATION = 10
-MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION = 5
-MAX_SYMBOLS_FOR_NORMALIZATION = 5
+    Raises:
+        ValueError: If weights don't sum to 1.0
+    """
+    # Tolerance for floating-point rounding errors ONLY (e.g., 0.2 + 0.5 + 0.2 + 0.1 = 0.9999999999999999)
+    # This is NOT intended to allow misconfigured weights - any real configuration error will exceed this threshold
+    FLOATING_POINT_TOLERANCE = 1e-9
+
+    # Validate main component weights sum to 1.0
+    main_weights_sum = (
+        CONFIDENCE_WEIGHT_FILTER +
+        CONFIDENCE_WEIGHT_AGENT +
+        CONFIDENCE_WEIGHT_EVIDENCE +
+        CONFIDENCE_WEIGHT_INVESTIGATION
+    )
+
+    if abs(main_weights_sum - 1.0) > FLOATING_POINT_TOLERANCE:
+        raise ValueError(
+            f"Main confidence weights must sum to 1.0, got {main_weights_sum}. "
+            f"Check CONFIDENCE_WEIGHT_* constants in common.constants"
+        )
+
+    # Validate evidence sub-component weights sum to 1.0
+    evidence_weights_sum = (
+        EVIDENCE_WEIGHT_FAISS_SCORE +
+        EVIDENCE_WEIGHT_FILES_FETCHED +
+        EVIDENCE_WEIGHT_EVIDENCE_COUNT
+    )
+
+    if abs(evidence_weights_sum - 1.0) > FLOATING_POINT_TOLERANCE:
+        raise ValueError(
+            f"Evidence sub-weights must sum to 1.0, got {evidence_weights_sum}. "
+            f"Check EVIDENCE_WEIGHT_* constants in common.constants"
+        )
+
+    logger.debug(
+        f"Confidence weight validation passed: "
+        f"main_sum={main_weights_sum}, evidence_sum={evidence_weights_sum}"
+    )
+
+
+# Validate configuration at module import time to fail fast
+_validate_weight_configuration()
 
 
 @dataclass
@@ -60,10 +107,10 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
     """
     Calculate evidence strength component (0.0 to 1.0).
 
-    Components:
-    - FAISS similarity: 40% (highest similarity score from vector search)
-    - Files fetched: 30% (number of source files retrieved)
-    - Evidence count: 30% (code snippets, CVEs, references in justification)
+    Components (weights from common.constants):
+    - FAISS similarity: EVIDENCE_WEIGHT_FAISS_SCORE (highest similarity score from vector search)
+    - Files fetched: EVIDENCE_WEIGHT_FILES_FETCHED (number of source files retrieved)
+    - Evidence count: EVIDENCE_WEIGHT_EVIDENCE_COUNT (code snippets, CVEs, references in justification)
 
     Args:
         per_issue_data: PerIssueData object containing analysis information
@@ -77,9 +124,9 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
         per_issue_data.analysis_response.faiss_similarity_score is not None):
         faiss_score = float(per_issue_data.analysis_response.faiss_similarity_score)
 
-    # 2. Files Fetched (normalize to 0-1, cap at MAX_FILES_FOR_NORMALIZATION)
+    # 2. Files Fetched (normalize to 0-1, cap at CONFIDENCE_MAX_FILES_FOR_NORMALIZATION)
     files_fetched_count = len(per_issue_data.fetched_files)
-    files_score = min(files_fetched_count / MAX_FILES_FOR_NORMALIZATION, 1.0)
+    files_score = min(files_fetched_count / CONFIDENCE_MAX_FILES_FOR_NORMALIZATION, 1.0)
 
     # 3. Evidence Count (parse justifications for code blocks, CVEs, file references)
     evidence_count = 0
@@ -92,13 +139,13 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
             # Count file:line references (e.g., "file.c:123") with bounded regex to prevent ReDoS
             evidence_count += len(re.findall(r'[a-zA-Z0-9_./\-]{1,100}\.[a-zA-Z0-9]{1,10}:\d{1,10}', justification))
 
-    evidence_score = min(evidence_count / MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION, 1.0)
+    evidence_score = min(evidence_count / CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION, 1.0)
 
-    # Weighted combination of evidence components
+    # Weighted combination of evidence components (weights from common.constants)
     evidence_strength = (
-        FAISS_SCORE_WEIGHT * faiss_score +
-        FILES_FETCHED_WEIGHT * files_score +
-        EVIDENCE_COUNT_WEIGHT * evidence_score
+        EVIDENCE_WEIGHT_FAISS_SCORE * faiss_score +
+        EVIDENCE_WEIGHT_FILES_FETCHED * files_score +
+        EVIDENCE_WEIGHT_EVIDENCE_COUNT * evidence_score
     )
 
     details = {
@@ -116,7 +163,7 @@ def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, 
     """
     Calculate investigation depth component (0.0 to 1.0).
 
-    Metrics:
+    Metrics (normalization cap from common.constants):
     - Number of symbols explored (from found_symbols set)
     - Explicit exploration depth counter
 
@@ -130,9 +177,9 @@ def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, 
     symbols_explored = len(per_issue_data.found_symbols)
     explicit_depth = per_issue_data.exploration_depth
 
-    # Combine both metrics (average of normalized values)
-    symbols_score = min(symbols_explored / MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
-    depth_score = min(explicit_depth / MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
+    # Combine both metrics (average of normalized values, cap from common.constants)
+    symbols_score = min(symbols_explored / CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
+    depth_score = min(explicit_depth / CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
 
     investigation_depth = (symbols_score + depth_score) / 2.0
 
@@ -150,8 +197,9 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     """
     Calculate final confidence score using weighted formula.
 
-    Formula:
-    Final = (0.20 × Filter) + (0.50 × Agent) + (0.20 × Evidence) + (0.10 × Investigation)
+    Formula (weights from common.constants):
+    Final = (CONFIDENCE_WEIGHT_FILTER × Filter) + (CONFIDENCE_WEIGHT_AGENT × Agent) +
+            (CONFIDENCE_WEIGHT_EVIDENCE × Evidence) + (CONFIDENCE_WEIGHT_INVESTIGATION × Investigation)
 
     Component scores are kept in 0.0-1.0 scale. Final confidence is converted to percentage (0-100).
 
@@ -161,30 +209,30 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     Returns:
         ConfidenceScoreBreakdown object with final score as percentage and components as 0-1 values
     """
-    # Component 1: Filter Confidence (20%)
+    # Component 1: Filter Confidence (weight from common.constants)
     filter_confidence = 0.0
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.filter_confidence is not None):
         filter_confidence = float(per_issue_data.analysis_response.filter_confidence)
 
-    # Component 2: Agent Confidence (50%)
+    # Component 2: Agent Confidence (weight from common.constants)
     agent_confidence = 0.0
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.agent_confidence is not None):
         agent_confidence = float(per_issue_data.analysis_response.agent_confidence)
 
-    # Component 3: Evidence Strength (20%)
+    # Component 3: Evidence Strength (weight from common.constants)
     evidence_strength, evidence_details = calculate_evidence_strength(per_issue_data)
 
-    # Component 4: Investigation Depth (10%)
+    # Component 4: Investigation Depth (weight from common.constants)
     investigation_depth, investigation_details = calculate_investigation_depth(per_issue_data)
 
-    # Calculate weighted final confidence (0-1 scale)
+    # Calculate weighted final confidence (0-1 scale, weights from common.constants)
     final_confidence_raw = (
-        FILTER_WEIGHT * filter_confidence +
-        AGENT_WEIGHT * agent_confidence +
-        EVIDENCE_WEIGHT * evidence_strength +
-        INVESTIGATION_WEIGHT * investigation_depth
+        CONFIDENCE_WEIGHT_FILTER * filter_confidence +
+        CONFIDENCE_WEIGHT_AGENT * agent_confidence +
+        CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
+        CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
     )
 
     # Convert ONLY final confidence to percentage (0-100)
