@@ -14,6 +14,11 @@ from common.constants import (
 )
 from dto.EvaluationSummary import EvaluationSummary
 from dto.SASTWorkflowModels import SASTWorkflowTracker
+from Utils.confidence_scoring import (
+    calculate_aggregate_confidence_metrics,
+    calculate_final_confidence,
+    inject_mock_confidence_data,
+)
 from Utils.file_utils import get_human_verified_results
 from Utils.workflow_utils import convert_tracker_to_summary_data
 
@@ -73,6 +78,10 @@ async def calculate_metrics(config: CalculateMetricsConfig, builder: Builder):
             evaluation_summary = EvaluationSummary(summary_data, tracker.config, ground_truth)
 
             tracker.metrics = _extract_metrics_from_evaluation_summary(evaluation_summary)
+
+            # Calculate confidence scores for all issues
+            confidence_scores = _calculate_confidence_scores(tracker)
+            tracker.metrics['confidence_scores'] = confidence_scores
 
             logger.info(f"Successfully calculated metrics for {len(summary_data)} issues")
 
@@ -154,3 +163,53 @@ def _add_dynamic_metrics(evaluation_summary: EvaluationSummary, metrics: dict, e
                 attr_value = getattr(evaluation_summary, attr_name)
                 if not callable(attr_value):
                     metrics[attr_name] = attr_value
+
+
+def _calculate_confidence_scores(tracker: SASTWorkflowTracker) -> dict:
+    """
+    Calculate confidence scores for all issues in the tracker.
+
+    Stores final_confidence_score (0-100%) directly in each PerIssueData object.
+
+    Returns:
+        Dictionary with per-issue scores and aggregate statistics
+    """
+    logger.info("Calculating confidence scores for all issues")
+
+    confidence_breakdowns = {}
+
+    for issue_id, per_issue_data in tracker.issues.items():
+        try:
+            # TEMPORARY: Inject mock data for missing components
+            # TODO: Remove this once all nodes properly populate confidence data
+            inject_mock_confidence_data(per_issue_data)
+
+            # Calculate confidence score
+            breakdown = calculate_final_confidence(per_issue_data)
+            confidence_breakdowns[issue_id] = breakdown
+
+            # Store final score (percentage 0-100) directly into PerIssueData
+            per_issue_data.final_confidence_score = breakdown.final_confidence
+
+            logger.debug(
+                f"Confidence for {issue_id}: {breakdown.final_confidence:.1f}% "
+                f"(filter={breakdown.filter_confidence:.3f}, agent={breakdown.agent_confidence:.3f}, "
+                f"evidence={breakdown.evidence_strength:.3f}, depth={breakdown.investigation_depth:.3f})"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to calculate confidence for issue {issue_id}: {e}")
+            # Leave final_confidence_score as None on error
+
+    # Calculate aggregate statistics (includes per-issue scores mapping)
+    aggregate_stats = calculate_aggregate_confidence_metrics(confidence_breakdowns)
+
+    logger.info(
+        f"Confidence scoring complete: mean={aggregate_stats['mean_confidence']:.1f}%, "
+        f"high={aggregate_stats['high_confidence_count']}, "
+        f"medium={aggregate_stats['medium_confidence_count']}, "
+        f"low={aggregate_stats['low_confidence_count']}"
+    )
+
+    # Return aggregate stats including per-issue scores mapping
+    return aggregate_stats
