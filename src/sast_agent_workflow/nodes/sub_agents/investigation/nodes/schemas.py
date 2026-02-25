@@ -86,3 +86,5 @@ class InvestigationState(TypedDict):
     max_iterations: int
     is_complete: bool
     needs_reanalysis: bool  # Route back to analysis with feedback (no new research needed)
+    reanalysis_count: int  # How many times evaluation triggered reanalysis
+    total_tool_calls: int  # Cumulative tool calls across all research iterations

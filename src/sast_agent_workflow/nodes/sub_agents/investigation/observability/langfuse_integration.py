@@ -256,6 +256,24 @@ def add_langfuse_scores(
             comment="Total tool executions during investigation",
         )
 
+        reanalysis_count = result.get("reanalysis_count", 0)
+        langfuse_score_client.create_score(
+            trace_id=issue_trace_id,
+            name="reanalysis_count",
+            value=float(reanalysis_count),
+            data_type=ScoreDataType.NUMERIC,
+            comment="Times evaluation triggered reanalysis without new research",
+        )
+
+        stop_reason = result.get("stop_reason") or "completed"
+        langfuse_score_client.create_score(
+            trace_id=issue_trace_id,
+            name="stop_reason",
+            value=stop_reason,
+            data_type=ScoreDataType.CATEGORICAL,
+            comment=f"Investigation exit reason: {stop_reason}",
+        )
+
         investigation_verdict = result["proposed_verdict"]
         langfuse_score_client.create_score(
             trace_id=issue_trace_id,
