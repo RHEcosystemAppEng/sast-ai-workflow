@@ -49,22 +49,27 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
             )
         except Exception as e:
             logger.error(f"[{issue_id}] Evaluation error after retries: {e}", exc_info=True)
-            # Create fallback result
-            result = EvaluationResult(
-                result=NEEDS_MORE_RESEARCH, feedback="", required_information=[]
-            )
+            return {
+                **state,
+                "is_complete": True,
+                "stop_reason": "evaluation_error",
+                "evaluation_feedback": f"Evaluation failed: {e}",
+                "proposed_verdict": "NEEDS_REVIEW",
+            }
 
         # Handle disagreement without missing evidence:
         # When evaluator returns NEEDS_MORE_RESEARCH with empty required_information,
         # it means they disagree with the analysis but have all the code needed.
         # Route back to analysis with feedback instead of requesting more research.
         needs_reanalysis = False
+        reanalysis_count = state.get("reanalysis_count", 0)
         if result.result == NEEDS_MORE_RESEARCH and len(result.required_information) == 0:
             logger.info(
                 f"[{issue_id}] Evaluator disagrees with analysis but has no missing evidence. "
                 "Routing back to analysis with feedback for reconsideration."
             )
             needs_reanalysis = True
+            reanalysis_count += 1
 
         # Track rejection streak
         rejection_streak = state.get("evaluation_rejection_streak", 0)
@@ -103,6 +108,7 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
             "required_information": required_info,
             "is_complete": is_complete,
             "needs_reanalysis": needs_reanalysis,
+            "reanalysis_count": reanalysis_count,
             "evaluation_rejection_streak": rejection_streak,
             "previous_code_length": current_code_length,
             "no_progress_streak": no_progress_streak,

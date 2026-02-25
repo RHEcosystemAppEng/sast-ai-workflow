@@ -108,6 +108,8 @@ def subgraph_result():
         "analysis_prompt": "Analyze CWE-120...",
         "confidence": "HIGH",
         "iteration": 2,
+        "reanalysis_count": 1,
+        "total_tool_calls": 5,
     }
 
 
@@ -326,6 +328,22 @@ class TestBuildInitialInvestigationState:
         assert state["evaluation_rejection_streak"] == 0
         assert state["no_progress_streak"] == 0
 
+    def test__initializes_reanalysis_count_to_zero(self, mock_per_issue_pending, mock_config):
+        """reanalysis_count should be initialized to 0."""
+        state = _build_initial_investigation_state(
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+        )
+
+        assert state["reanalysis_count"] == 0
+
+    def test__initializes_total_tool_calls_to_zero(self, mock_per_issue_pending, mock_config):
+        """total_tool_calls should be initialized to 0."""
+        state = _build_initial_investigation_state(
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+        )
+
+        assert state["total_tool_calls"] == 0
+
 
 # ---------------------------------------------------------------------------
 # _build_subgraph_config
@@ -421,6 +439,28 @@ class TestUpdateTrackerFromResult:
 
         _update_tracker_from_result(per_issue, subgraph_result, "issue-1")
         # Should not raise
+
+    def test__logs_reanalysis_count(self, mock_per_issue_pending, subgraph_result, caplog):
+        """Should include reanalysis_count in the log message."""
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
+
+        log_text = caplog.text
+        assert "reanalysis" in log_text.lower()
+        assert "1" in log_text
+
+    def test__logs_total_tool_calls(self, mock_per_issue_pending, subgraph_result, caplog):
+        """Should include total_tool_calls in the log message."""
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
+
+        log_text = caplog.text
+        assert "tool_calls" in log_text.lower()
+        assert "5" in log_text
 
 
 # ---------------------------------------------------------------------------
