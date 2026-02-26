@@ -106,7 +106,7 @@ def subgraph_result():
         "proposed_verdict": "FALSE_POSITIVE",
         "justifications": ["Input is sanitized", "No path to sink"],
         "analysis_prompt": "Analyze CWE-120...",
-        "confidence": "HIGH",
+        "confidence": 0.85,
         "iteration": 2,
         "reanalysis_count": 1,
         "total_tool_calls": 5,
@@ -432,6 +432,12 @@ class TestUpdateTrackerFromResult:
 
         assert mock_per_issue_pending.analysis_response.prompt == "Analyze CWE-120..."
 
+    def test__sets_agent_confidence(self, mock_per_issue_pending, subgraph_result):
+        """Should store the float confidence score as agent_confidence."""
+        _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
+
+        assert mock_per_issue_pending.analysis_response.agent_confidence == 0.85
+
     def test__handles_missing_analysis_response(self, subgraph_result):
         """Should not raise when analysis_response is None."""
         per_issue = Mock()
@@ -495,7 +501,7 @@ class TestCreateInvestigateNode:
             "proposed_verdict": "TRUE_POSITIVE",
             "justifications": ["Vulnerable"],
             "analysis_prompt": "prompt",
-            "confidence": "HIGH",
+            "confidence": 0.85,
             "iteration": 1,
         }
         mock_build_sg.return_value = mock_subgraph

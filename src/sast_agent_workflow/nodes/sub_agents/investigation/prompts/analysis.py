@@ -149,9 +149,6 @@ size used in callee functions.
 **REQUIRED OUTPUT:**
 Provide your analysis with the following:
 - **verdict**: TRUE_POSITIVE or FALSE_POSITIVE
-- **confidence**: HIGH (all paths traced, clear evidence),\
- MEDIUM (most paths traced, minor gaps), or LOW \
-(significant uncertainty)
 - **reasoning**: Your step-by-step analysis tracing the \
 data flow
 - **justifications**: List of specific code-based evidence\

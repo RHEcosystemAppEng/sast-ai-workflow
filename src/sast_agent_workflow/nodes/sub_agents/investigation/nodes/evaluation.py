@@ -106,6 +106,7 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
             "evaluation_result": result.result,
             "evaluation_feedback": result.feedback,
             "required_information": required_info,
+            "confidence": result.confidence,
             "is_complete": is_complete,
             "needs_reanalysis": needs_reanalysis,
             "reanalysis_count": reanalysis_count,

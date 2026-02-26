@@ -188,7 +188,7 @@ def _build_initial_investigation_state(
         "analysis_prompt": "",
         "proposed_verdict": "",
         "justifications": [],
-        "confidence": "",
+        "confidence": 0.0,
         "evaluation_result": "",
         "evaluation_feedback": "",
         "required_information": [],
@@ -238,6 +238,7 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
         per_issue.analysis_response.is_final = "TRUE"
         per_issue.analysis_response.justifications = justifications
         per_issue.analysis_response.prompt = analysis_prompt
+        per_issue.analysis_response.agent_confidence = result["confidence"]
     logger.info(
         f"{issue_id}: {verdict} (confidence: {result['confidence']}, "
         f"iterations: {iterations}, reanalysis: {reanalysis_count}, "

@@ -98,7 +98,6 @@ class TestBuildAnalysisPrompt:
         result = build_analysis_prompt(base_state)
 
         assert "verdict" in result
-        assert "confidence" in result
         assert "reasoning" in result
         assert "justifications" in result
 

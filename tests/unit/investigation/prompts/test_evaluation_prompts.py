@@ -1,8 +1,8 @@
 """
 Tests for investigation/prompts/evaluation.py.
 
-Covers: build_evaluation_prompt state interpolation, iteration context,
-justifications formatting, and anti-loop guidance.
+Covers: build_evaluation_prompt state interpolation,
+justifications formatting, checklist verification, and anti-loop guidance.
 """
 
 import pytest
@@ -28,7 +28,6 @@ def base_state():
         "gathered_code": "free(ptr);\nptr->next = NULL;",
         "analysis": "The pointer is freed then dereferenced.",
         "proposed_verdict": "TRUE_POSITIVE",
-        "confidence": "HIGH",
         "justifications": [
             "free(ptr) at line 42",
             "ptr->next access at line 43",
@@ -70,11 +69,13 @@ class TestBuildEvaluationPrompt:
 
         assert "TRUE_POSITIVE" in result
 
-    def test__contains_confidence(self, base_state):
-        """Prompt should include the confidence level."""
+    def test__contains_confidence_scoring_instructions(self, base_state):
+        """Prompt should include confidence scoring instructions for the evaluator."""
         result = build_evaluation_prompt(base_state)
 
-        assert "HIGH" in result
+        assert "0.0" in result
+        assert "1.0" in result
+        assert "confidence" in result.lower()
 
     def test__formats_justifications(self, base_state):
         """Each justification should appear as a bullet point."""
@@ -126,13 +127,45 @@ class TestBuildEvaluationPrompt:
         assert '"result": "NEEDS_MORE_RESEARCH"' in result
 
     def test__contains_anti_loop_guidance(self, base_state):
-        """Prompt should include anti-loop guidance section."""
+        """Prompt should include anti-loop guidance to prevent re-fetching existing code."""
         result = build_evaluation_prompt(base_state)
 
-        assert "ANTI-LOOP GUIDANCE" in result
+        assert "ANTI-LOOP" in result
 
-    def test__defaults_for_optional_fields(self):
-        """Optional fields like rejection_streak should default gracefully."""
+    def test__contains_confidence_in_output_examples(self, base_state):
+        """Output examples should include a confidence field."""
+        result = build_evaluation_prompt(base_state)
+
+        assert '"confidence"' in result
+
+    def test__contains_verification_checklist(self, base_state):
+        """Prompt should include the evaluation checklist steps."""
+        result = build_evaluation_prompt(base_state)
+
+        assert "EVALUATION CHECKLIST" in result
+        assert "Evidence Validation" in result
+        assert "Data Flow Traced" in result
+        assert "Security Controls Examined" in result
+        assert "Confidence Appropriate" in result
+
+    def test__contains_evaluation_guidelines(self, base_state):
+        """Prompt should include verdict-specific evaluation guidelines."""
+        result = build_evaluation_prompt(base_state)
+
+        assert "FALSE_POSITIVE" in result
+        assert "TRUE_POSITIVE" in result
+        assert "BOTH verdicts require equal scrutiny" in result
+
+    def test__contains_required_information_filtering_rule(self, base_state):
+        """Prompt should include the required_information filtering constraint."""
+        result = build_evaluation_prompt(base_state)
+
+        assert "mentioned in justifications" in result
+        assert "NOT in gathered code" in result
+        assert "critical to the verdict" in result
+
+    def test__defaults_for_optional_justifications(self):
+        """Missing justifications should default gracefully."""
         state = {
             "iteration": 1,
             "max_iterations": 3,
@@ -140,9 +173,8 @@ class TestBuildEvaluationPrompt:
             "gathered_code": "char buf[10];",
             "analysis": "Buffer too small.",
             "proposed_verdict": "TRUE_POSITIVE",
-            "confidence": "MEDIUM",
         }
         result = build_evaluation_prompt(state)
 
-        assert "Consecutive rejections: 0" in result
-        assert "Iterations without new code: 0" in result
+        assert "**JUSTIFICATIONS:**" in result
+        assert "APPROVED" in result
