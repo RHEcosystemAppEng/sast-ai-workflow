@@ -68,9 +68,9 @@ def create_analysis_node(llm: BaseChatModel, config: Config):
             return {
                 **state,
                 "analysis": "",
-                "proposed_verdict": "NEEDS_REVIEW",
+                "proposed_verdict": "TRUE_POSITIVE",
                 "justifications": [],
-                "confidence": "LOW",
+                "confidence": 0.0,
                 "required_information": [],
                 "needs_reanalysis": False,  # Reset flag
             }
