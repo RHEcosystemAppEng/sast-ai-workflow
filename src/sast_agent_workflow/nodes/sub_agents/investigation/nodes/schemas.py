@@ -9,12 +9,11 @@ from pydantic import BaseModel, Field
 class AnalysisResultOutput(BaseModel):
     """Structured output from Analysis LLM."""
 
-    verdict: Literal["FALSE_POSITIVE", "TRUE_POSITIVE", "NEEDS_REVIEW"] = Field(
+    verdict: Literal["FALSE_POSITIVE", "TRUE_POSITIVE"] = Field(
         description=(
             "Analysis verdict:\n"
             "- FALSE_POSITIVE: Issue is a false alarm (proven safe)\n"
-            "- TRUE_POSITIVE: Issue is a real vulnerability (proven unsafe)\n"
-            "- NEEDS_REVIEW: Cannot determine yet, need more code"
+            "- TRUE_POSITIVE: Issue is a real vulnerability (proven unsafe)"
         )
     )
     reasoning: str = Field(
@@ -26,8 +25,16 @@ class AnalysisResultOutput(BaseModel):
             "- What security controls were found (if any)"
         )
     )
-    confidence: Literal["HIGH", "MEDIUM", "LOW"] = Field(
-        default="MEDIUM", description="Confidence in the verdict"
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        default=0.0,
+        description=(
+            "Confidence in the verdict (0.0–1.0). "
+            "0.8-1.0: All critical paths traced, clear evidence. "
+            "0.5-0.8: Most paths traced, minor gaps that don't affect verdict. "
+            "0.0-0.5: Significant uncertainty or critical gaps remain."
+        ),
     )
     justifications: List[str] = Field(
         default_factory=list,
@@ -68,7 +75,7 @@ class InvestigationState(TypedDict):
     analysis_prompt: str  # The prompt used for analysis (needed for summarization)
     proposed_verdict: str  # TRUE_POSITIVE or FALSE_POSITIVE
     justifications: List[str]
-    confidence: str  # HIGH, MEDIUM, LOW
+    confidence: float  # 0.0-1.0 score from analysis node
 
     # Evaluation phase
     evaluation_result: str  # APPROVED, NEEDS_MORE_RESEARCH, INSUFFICIENT_DATA

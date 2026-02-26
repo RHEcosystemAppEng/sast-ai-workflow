@@ -148,14 +148,14 @@ sanitization functions either (a) shown and analyzed, or \
 (b) noted as unavailable with uncertainty reflected in \
 the verdict?
 
-4. **Confidence Appropriate**:
-   - HIGH: All critical paths traced, clear evidence \
-— APPROVE
-   - MEDIUM: Most paths traced, minor gaps that don't \
-affect verdict — APPROVE
-   - LOW with sufficient core evidence — APPROVE with note
-   - LOW with critical gaps — NEEDS_MORE_RESEARCH \
-(only if gaps are fillable)
+4. **Confidence Appropriate**: Verify the analysis \
+confidence score is warranted by the evidence:
+   - High (0.8-1.0): All critical paths traced, clear \
+evidence — APPROVE
+   - Medium (0.5-0.8): Most paths traced, minor gaps \
+that don't affect verdict — APPROVE
+   - Low (0.0-0.5): Significant uncertainty or critical \
+gaps → NEEDS_MORE_RESEARCH
 
 ---"""
 
