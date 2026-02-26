@@ -113,6 +113,11 @@ vulnerable state -> FALSE_POSITIVE
 
 **ANALYSIS GUIDELINES:**
 
+**IMPORTANT: Work systematically but efficiently. Complete \
+each step once, then move to the next. Do NOT repeatedly \
+re-check the same conditions or explore endless hypothetical \
+scenarios.**
+
 1. **Code-Based Evidence Only**: Reference specific line \
 numbers. Do not assume behavior - verify it in the code.
 
@@ -153,8 +158,12 @@ Provide your analysis with the following:
  MEDIUM (most paths traced, minor gaps), or LOW \
 (significant uncertainty)
 - **reasoning**: Your step-by-step analysis tracing the \
-data flow
+data flow (be concise, 10-15 sentences maximum)
 - **justifications**: List of specific code-based evidence\
  points with line references
+
+**CRITICAL: Be concise and focused. Complete the mandatory \
+steps efficiently without repeating the same checks. Once \
+you've verified a condition, state your conclusion and move on.**
 
 **Begin your analysis.**"""

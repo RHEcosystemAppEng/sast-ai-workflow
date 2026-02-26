@@ -157,6 +157,10 @@ affect verdict — APPROVE
    - LOW with critical gaps — NEEDS_MORE_RESEARCH \
 (only if gaps are fillable)
 
+**CRITICAL: Be concise and direct. Limit your reasoning to \
+the essential points only. Do NOT repeat the same checks \
+multiple times. Once you've verified a condition, move on.**
+
 ---"""
 
 _EVAL_FOOTER = """
@@ -221,4 +225,12 @@ buffer sizes, etc.",
 Note: For Option 2, required_information must list ONLY \
 items that are (1) mentioned in justifications, \
 (2) NOT in gathered code, and (3) critical to the verdict.
+
+---
+
+**OUTPUT FORMAT REQUIREMENTS:**
+1. Complete your verification steps efficiently
+2. State your conclusion clearly
+3. Output ONLY the JSON response - no additional commentary
+4. Maximum feedback length: 3-5 sentences
 """
