@@ -165,13 +165,19 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     filter_confidence = 0.0
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.filter_confidence is not None):
-        filter_confidence = float(per_issue_data.analysis_response.filter_confidence)
+        raw_filter = float(per_issue_data.analysis_response.filter_confidence)
+        filter_confidence = max(0.0, min(1.0, raw_filter))
+        if raw_filter != filter_confidence:
+            logger.warning(f"Clamped filter_confidence from {raw_filter} to {filter_confidence}")
 
     # Component 2: Agent Confidence (50%)
     agent_confidence = 0.0
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.agent_confidence is not None):
-        agent_confidence = float(per_issue_data.analysis_response.agent_confidence)
+        raw_agent = float(per_issue_data.analysis_response.agent_confidence)
+        agent_confidence = max(0.0, min(1.0, raw_agent))
+        if raw_agent != agent_confidence:
+            logger.warning(f"Clamped agent_confidence from {raw_agent} to {agent_confidence}")
 
     # Component 3: Evidence Strength (20%)
     evidence_strength, evidence_details = calculate_evidence_strength(per_issue_data)
