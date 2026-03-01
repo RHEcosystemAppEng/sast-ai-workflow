@@ -80,8 +80,18 @@ async def calculate_metrics(config: CalculateMetricsConfig, builder: Builder):
             tracker.metrics = _extract_metrics_from_evaluation_summary(evaluation_summary)
 
             # Calculate confidence scores for all issues
-            confidence_scores = _calculate_confidence_scores(tracker)
-            tracker.metrics['confidence_scores'] = confidence_scores
+            try:
+                confidence_scores = _calculate_confidence_scores(tracker)
+                tracker.metrics['confidence_scores'] = confidence_scores
+                logger.info("Confidence scores calculated successfully")
+            except Exception as e:
+                logger.error(f"Failed to calculate confidence scores: {e}")
+                # Leave confidence_scores out of metrics rather than failing entire metrics calculation
+                tracker.metrics['confidence_scores'] = {
+                    'error': f"Confidence calculation failed: {str(e)}",
+                    'per_issue_scores': {},
+                    'total_issues': 0
+                }
 
             logger.info(f"Successfully calculated metrics for {len(summary_data)} issues")
 

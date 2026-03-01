@@ -273,6 +273,94 @@ class TestFinalConfidence:
         # Should still return valid percentage (likely low due to missing data)
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
+    def test_final_confidence_clamps_out_of_range_filter_confidence(self):
+        """Test that out-of-range filter_confidence is clamped to [0,1]."""
+        issue = Issue(
+            id="test-issue-clamp-filter",
+            issue_type="OVERFLOW",
+            severity="high",
+            trace="test trace",
+            file_path="test.c",
+            line_number=100
+        )
+
+        # Set filter_confidence above valid range
+        per_issue_data = PerIssueData(
+            issue=issue,
+            analysis_response=AnalysisResponse(
+                investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
+                is_final=FinalStatus.TRUE.value,
+                filter_confidence=1.5,  # Invalid: > 1.0
+                agent_confidence=0.8
+            )
+        )
+
+        breakdown = calculate_final_confidence(per_issue_data)
+
+        # Filter confidence should be clamped to 1.0
+        assert breakdown.filter_confidence == pytest.approx(1.0)
+        # Final score should still be valid (0-100%)
+        assert 0.0 <= breakdown.final_confidence <= 100.0
+
+    def test_final_confidence_clamps_negative_agent_confidence(self):
+        """Test that negative agent_confidence is clamped to 0."""
+        issue = Issue(
+            id="test-issue-clamp-agent",
+            issue_type="UNDERFLOW",
+            severity="medium",
+            trace="test trace",
+            file_path="test.c",
+            line_number=200
+        )
+
+        # Set agent_confidence below valid range
+        per_issue_data = PerIssueData(
+            issue=issue,
+            analysis_response=AnalysisResponse(
+                investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
+                is_final=FinalStatus.TRUE.value,
+                filter_confidence=0.7,
+                agent_confidence=-0.2  # Invalid: < 0.0
+            )
+        )
+
+        breakdown = calculate_final_confidence(per_issue_data)
+
+        # Agent confidence should be clamped to 0.0
+        assert breakdown.agent_confidence == pytest.approx(0.0)
+        # Final score should still be valid (0-100%)
+        assert 0.0 <= breakdown.final_confidence <= 100.0
+
+    def test_final_confidence_clamps_both_components(self):
+        """Test that both filter and agent confidence are clamped when out of range."""
+        issue = Issue(
+            id="test-issue-clamp-both",
+            issue_type="MEMORY_LEAK",
+            severity="high",
+            trace="test trace",
+            file_path="test.c",
+            line_number=300
+        )
+
+        # Set both components out of range
+        per_issue_data = PerIssueData(
+            issue=issue,
+            analysis_response=AnalysisResponse(
+                investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
+                is_final=FinalStatus.TRUE.value,
+                filter_confidence=2.0,  # Invalid: > 1.0
+                agent_confidence=-1.0   # Invalid: < 0.0
+            )
+        )
+
+        breakdown = calculate_final_confidence(per_issue_data)
+
+        # Both should be clamped
+        assert breakdown.filter_confidence == pytest.approx(1.0)
+        assert breakdown.agent_confidence == pytest.approx(0.0)
+        # Final score should still be valid (0-100%)
+        assert 0.0 <= breakdown.final_confidence <= 100.0
+
 
 class TestMockDataInjection:
     """Test mock data injection for missing components."""
