@@ -36,6 +36,7 @@ llms:
     temperature: 0
     top_p: 1.0
     max_tokens: 16384
+    reasoning_effort: medium
   
 embedders:
   filter_embedding:

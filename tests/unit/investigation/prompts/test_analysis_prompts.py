@@ -85,13 +85,13 @@ class TestBuildAnalysisPrompt:
         assert "EVALUATOR FEEDBACK" not in result
 
     def test__contains_mandatory_analysis_steps(self, base_state):
-        """Prompt should include the mandatory step-by-step instructions."""
+        """Prompt should include the mandatory reasoning checkpoints."""
         result = build_analysis_prompt(base_state)
 
-        assert "Step 1: Identify Source and Sink" in result
-        assert "Step 2: Trace ALL Code" in result
-        assert "Step 3: Analyze Each Control Flow" in result
-        assert "Step 4: Determine Reachability" in result
+        assert "Source" in result
+        assert "Sink" in result
+        assert "Control flow" in result
+        assert "reachable" in result
 
     def test__contains_required_output_section(self, base_state):
         """Prompt should end with the required output format."""

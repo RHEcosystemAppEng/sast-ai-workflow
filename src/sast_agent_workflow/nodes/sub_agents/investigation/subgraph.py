@@ -45,7 +45,7 @@ def build_investigation_subgraph(
         Compiled investigation subgraph
     """
     logger.info("Building investigation subgraph (research → analysis → evaluation)")
-
+    logger.info(f"LLM reasoning effort: {llm.reasoning_effort}")
     # Create nodes
     research = create_research_node(llm, tools)
     analyze = create_analysis_node(llm, config)

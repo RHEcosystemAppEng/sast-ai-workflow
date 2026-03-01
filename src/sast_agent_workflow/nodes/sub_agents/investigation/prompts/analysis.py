@@ -80,90 +80,47 @@ source code to determine if the vulnerability is real \
 _PROMPT_BODY = """
 ---
 
-**MANDATORY ANALYSIS STEPS:**
+**HOW TO REASON (Chain of Draft):**
+Think in brief, bulleted drafts — do NOT write them out. \
+Internalize your reasoning across these checkpoints, \
+then output only the final, polished verdict.
 
-Before reaching a verdict, you MUST complete these steps \
-IN ORDER:
+Draft checkpoints to work through silently:
+- Source: Where does the issue originate?
+- Sink: Where is the vulnerable use?
+- Control flow between source and sink: any \
+`if`/`goto`/`return`/`exit`/`break`/`continue`?
+- Do any guards prevent reaching the sink in the \
+vulnerable state?
+- Is the vulnerable path actually reachable?
 
-**Step 1: Identify Source and Sink**
-- SOURCE: Where does the issue originate? \
-(e.g., variable declaration, user input, allocation)
-- SINK: Where is the vulnerable use? \
-(e.g., line number where uninitialized value is used)
-
-**Step 2: Trace ALL Code Between Source and Sink**
-- List EVERY line of code between source and sink
-- For EACH line, note if it contains: \
-`if`, `goto`, `return`, `exit`, `break`, `continue`
-- DO NOT skip any lines - read them ALL
-
-**Step 3: Analyze Each Control Flow Statement**
-For each `if`/`goto`/`return`/`exit` found, ask:
-- What condition triggers it?
-- Does it exit/skip BEFORE reaching the vulnerable line?
-- Could it act as a guard that prevents the vulnerability?
-
-**Step 4: Determine Reachability**
-- Can the SINK actually be reached without the issue \
-being resolved?
-- If ANY guard prevents reaching the sink in the \
-vulnerable state -> FALSE_POSITIVE
-
----
-
-**ANALYSIS GUIDELINES:**
-
-**IMPORTANT: Work systematically but efficiently. Complete \
-each step once, then move to the next. Do NOT repeatedly \
-re-check the same conditions or explore endless hypothetical \
-scenarios.**
-
-1. **Code-Based Evidence Only**: Reference specific line \
-numbers. Do not assume behavior - verify it in the code.
-
-2. **READ EVERY LINE**: Before saying "there are no \
-guards", you must have examined EVERY line between source \
-and sink. List the control flow statements you found.
-
-3. **Verify Path Reachability**: For TRUE_POSITIVE, prove \
-the vulnerable path is reachable by showing no guard \
-prevents it.
-
-4. **One REACHABLE Vulnerable Path is Enough**: If even \
-one REACHABLE path triggers the vulnerability -> \
-TRUE_POSITIVE.
-
-5. **Syntax Issues are TRUE_POSITIVE**: Syntax errors are \
-always real issues.
-
-6. **Issue-Type Specific Patterns**:
-   - **UNINIT**: Look for `if (condition) goto/return/exit`\
- AFTER the loop/conditional that should initialize, \
-but BEFORE the use. This pattern often guards against \
-uninitialized use.
-   - **RESOURCE_LEAK**: Check if `exit()` is called \
-shortly after - OS cleanup makes this FALSE_POSITIVE \
-for CLI tools.
-   - **NULL_DEREF**: Look for null checks before the \
-dereference.
-   - **OVERRUN**: Track buffer size at declaration vs \
-size used in callee functions.
+**Guidlines to apply during your internal drafts:**
+- Code-based evidence only — reference specific line numbers
+- Read EVERY line between source and sink before \
+concluding "no guards exist"
+- One REACHABLE vulnerable path is enough for TRUE_POSITIVE
+- Syntax issues are always TRUE_POSITIVE
+- Issue-type patterns:
+  - **UNINIT**: `if (condition) goto/return/exit` after \
+the uninitialized assignment but before the use often \
+guards against it
+  - **RESOURCE_LEAK**: `exit()` shortly after → OS \
+cleanup → FALSE_POSITIVE for CLI tools
+  - **NULL_DEREF**: Null checks before the dereference
+  - **OVERRUN**: Buffer size at declaration vs. size \
+used in callee
 
 ---
 
 **REQUIRED OUTPUT:**
-Provide your analysis with the following:
+After completing your internal drafts, provide:
 - **verdict**: TRUE_POSITIVE or FALSE_POSITIVE
 - **confidence**: HIGH (all paths traced, clear evidence),\
  MEDIUM (most paths traced, minor gaps), or LOW \
 (significant uncertainty)
-- **reasoning**: Your step-by-step analysis tracing the \
-data flow (be concise, 10-15 sentences maximum)
-- **justifications**: List of specific code-based evidence\
- points with line references
-
-**CRITICAL: Be concise and focused. Complete the mandatory \
-steps efficiently without repeating the same checks. Once \
-you've verified a condition, state your conclusion and move on.**
+- **reasoning**: 2–3 sentences — your polished conclusion \
+stating what you found and why it leads to the verdict
+- **justifications**: Specific code-based evidence points \
+with line references
 
 **Begin your analysis.**"""

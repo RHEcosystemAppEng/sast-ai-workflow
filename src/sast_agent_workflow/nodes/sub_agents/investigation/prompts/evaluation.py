@@ -98,68 +98,36 @@ for a confident verdict.
 final verdict (APPROVED) or needs more research \
 (NEEDS_MORE_RESEARCH). Be rigorous but pragmatic\
 —investigations should conclude when sufficient evidence \
-exists, not when perfect understanding is achieved."""
+exists, not when perfect understanding is achieved.
+
+**HOW TO REASON (Chain of Draft):**
+Think in brief, bulleted drafts — do NOT write them out. \
+Internalize your reasoning across the checkpoints below, \
+then output only the final JSON decision."""
 
 _EVAL_STANDARDS = """
 
-**VERDICT-SPECIFIC EVALUATION STANDARDS:**
+**Draft checkpoints to work through silently:**
+- Does each justification cite code ACTUALLY PRESENT \
+in "GATHERED CODE"?
+- Is the source-to-sink data flow traced with line refs?
+- For TRUE_POSITIVE verdict: Is there at least one REACHABLE \
+vulnerable path? Do guards (`if … goto/return/exit`) \
+prevent it?
+- For FALSE_POSITIVE verdict: Is there specific code that \
+blocks every vulnerable path?
+- Is the stated confidence appropriate for the evidence?
+  - HIGH / MEDIUM → APPROVE
+  - LOW with fillable critical gaps → NEEDS_MORE_RESEARCH
+  - LOW with sufficient core evidence → APPROVE
 
-For **TRUE_POSITIVE** verdicts — VERIFY THESE THOROUGHLY:
-- The analysis must show at least ONE vulnerable \
-execution path that is ACTUALLY REACHABLE
-- **CRITICAL**: Check if there are guards, early exits, \
-or error handling that PREVENT reaching the vulnerable \
-code
-- Look for patterns like: \
-`if (error_condition) goto exit;` or \
-`if (!valid) return;` BEFORE the vulnerable line
-- For UNINIT findings: Is there a check that ensures \
-initialization before use?
-- For RESOURCE_LEAK: Does the program exit shortly after,\
- making the leak irrelevant?
-- Standard: "Is the vulnerable path actually reachable, \
-or do guards prevent it?"
-
-For **FALSE_POSITIVE** verdicts:
-- Requires evidence that the vulnerability CANNOT occur \
-on ANY reachable path
-- Must identify specific guards/checks that prevent \
-the vulnerability
-- Standard: "What specific code prevents the \
-vulnerability?"
-
-**BOTH verdicts require equal scrutiny.** Do not \
-rubber-stamp TRUE_POSITIVE without verifying reachability.
-
----
-
-**EVALUATION CHECKLIST:**
-
-1. **Evidence Validation**: Does each justification \
-reference code that is ACTUALLY PRESENT in \
-"GATHERED CODE"? Justifications citing code not in \
-context are gaps.
-
-2. **Data Flow Traced**: Is the path from source to sink \
-documented with specific line references?
-
-3. **Security Controls Examined**: Are validation/\
-sanitization functions either (a) shown and analyzed, or \
-(b) noted as unavailable with uncertainty reflected in \
-the verdict?
-
-4. **Confidence Appropriate**:
-   - HIGH: All critical paths traced, clear evidence \
-— APPROVE
-   - MEDIUM: Most paths traced, minor gaps that don't \
-affect verdict — APPROVE
-   - LOW with sufficient core evidence — APPROVE with note
-   - LOW with critical gaps — NEEDS_MORE_RESEARCH \
-(only if gaps are fillable)
-
-**CRITICAL: Be concise and direct. Limit your reasoning to \
-the essential points only. Do NOT repeat the same checks \
-multiple times. Once you've verified a condition, move on.**
+**Domain hints to apply during your internal drafts:**
+- TRUE_POSITIVE: verify reachability — guards like \
+`if (error) goto exit;` before the vulnerable line \
+often flip the verdict
+- FALSE_POSITIVE: identify the specific guard/check; \
+absence of evidence is not evidence of absence
+- Both verdicts require equal scrutiny
 
 ---"""
 
@@ -229,8 +197,9 @@ items that are (1) mentioned in justifications, \
 ---
 
 **OUTPUT FORMAT REQUIREMENTS:**
-1. Complete your verification steps efficiently
-2. State your conclusion clearly
-3. Output ONLY the JSON response - no additional commentary
-4. Maximum feedback length: 3-5 sentences
+1. Internalize all reasoning — write nothing before the JSON
+2. Output ONLY the JSON response — no preamble, \
+no commentary
+3. feedback: 1–2 polished sentences stating your \
+conclusion and the decisive evidence
 """
