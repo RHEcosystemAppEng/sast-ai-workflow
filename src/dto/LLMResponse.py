@@ -28,6 +28,7 @@ class AnalysisResponse:
     evaluation: list = field(default_factory=list)
     filter_confidence: float | None = None
     faiss_similarity_score: float | None = None
+    agent_confidence: float | None = None
 
     def is_true_positive(self) -> bool:
         return self.investigation_result in (
