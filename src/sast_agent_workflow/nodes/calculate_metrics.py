@@ -79,20 +79,6 @@ async def calculate_metrics(config: CalculateMetricsConfig, builder: Builder):
 
             tracker.metrics = _extract_metrics_from_evaluation_summary(evaluation_summary)
 
-            # Calculate confidence scores for all issues
-            try:
-                confidence_scores = _calculate_confidence_scores(tracker)
-                tracker.metrics['confidence_scores'] = confidence_scores
-                logger.info("Confidence scores calculated successfully")
-            except Exception as e:
-                logger.error(f"Failed to calculate confidence scores: {e}")
-                # Leave confidence_scores out of metrics rather than failing entire metrics calculation
-                tracker.metrics['confidence_scores'] = {
-                    'error': f"Confidence calculation failed: {str(e)}",
-                    'per_issue_scores': {},
-                    'total_issues': 0
-                }
-
             logger.info(f"Successfully calculated metrics for {len(summary_data)} issues")
 
         except (AttributeError, ValueError, KeyError) as e:
@@ -105,6 +91,8 @@ async def calculate_metrics(config: CalculateMetricsConfig, builder: Builder):
             logger.error(f"Unexpected error calculating metrics: {e}")
             tracker.metrics = {"error": f"{METRICS_ERROR_UNEXPECTED}: {str(e)}"}
 
+        # Add confidence scores (isolated to preserve existing metrics on error)
+        _add_confidence_scores_to_metrics(tracker)
         logger.info("Calculate_Metrics node completed")
         return tracker
 
@@ -173,6 +161,31 @@ def _add_dynamic_metrics(evaluation_summary: EvaluationSummary, metrics: dict, e
                 attr_value = getattr(evaluation_summary, attr_name)
                 if not callable(attr_value):
                     metrics[attr_name] = attr_value
+
+
+def _add_confidence_scores_to_metrics(tracker: SASTWorkflowTracker) -> None:
+    """
+    Add confidence scores to tracker.metrics if metrics calculation succeeded.
+
+    Args:
+        tracker: SASTWorkflowTracker with existing metrics
+    """
+    # only calculate if metrics exist and don't contain errors
+    if not tracker.metrics or "error" in tracker.metrics:
+        return
+
+    try:
+        confidence_scores = _calculate_confidence_scores(tracker)
+        tracker.metrics['confidence_scores'] = confidence_scores
+        logger.info("Confidence scores calculated successfully")
+    except Exception as e:
+        logger.error(f"Failed to calculate confidence scores: {e}")
+        # preserve existing metrics, just add error to confidence_scores
+        tracker.metrics['confidence_scores'] = {
+            'error': f"Confidence calculation failed: {str(e)}",
+            'per_issue_scores': {},
+            'total_issues': 0
+        }
 
 
 def _calculate_confidence_scores(tracker: SASTWorkflowTracker) -> dict:
