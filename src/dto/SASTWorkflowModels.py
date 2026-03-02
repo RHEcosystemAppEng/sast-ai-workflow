@@ -36,6 +36,18 @@ class PerIssueData(BaseModel):
         default_factory=set,
         description="Set of symbols already found for this issue to avoid re-fetching",
     )
+    fetched_files: List[str] = Field(
+        default_factory=list,
+        description="List of file paths fetched during analysis for evidence gathering",
+    )
+    exploration_depth: int = Field(
+        default=0,
+        description="Number of symbols/functions explored beyond the initial trace",
+    )
+    final_confidence_score: Optional[float] = Field(
+        default=None,
+        description="Final confidence score (0.0-1.0) calculated by calculate_metrics node",
+    )
 
 
 class SASTWorkflowTracker(BaseModel):
