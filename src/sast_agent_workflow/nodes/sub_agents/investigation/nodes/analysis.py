@@ -56,10 +56,7 @@ def create_analysis_node(llm: BaseChatModel, config: Config):
                 config={"run_name": LANGFUSE_ANALYSIS_TRACE_NAME},
             )
 
-            logger.info(
-                f"[{state['issue_id']}] Analysis complete: "
-                f"verdict={result.verdict}, confidence={result.confidence}"
-            )
+            logger.info(f"[{state['issue_id']}] Analysis complete: verdict={result.verdict}")
 
         except Exception as e:
             logger.error(f"[{state['issue_id']}] Analysis error after retries: {e}", exc_info=True)
@@ -70,7 +67,6 @@ def create_analysis_node(llm: BaseChatModel, config: Config):
                 "analysis": "",
                 "proposed_verdict": "NEEDS_REVIEW",
                 "justifications": [],
-                "confidence": "LOW",
                 "required_information": [],
                 "needs_reanalysis": False,  # Reset flag
             }
@@ -82,7 +78,6 @@ def create_analysis_node(llm: BaseChatModel, config: Config):
             "analysis_prompt": analysis_prompt,  # Store prompt for summarization
             "proposed_verdict": result.verdict,
             "justifications": result.justifications,
-            "confidence": result.confidence,
             "required_information": [],
             "needs_reanalysis": False,  # Reset flag after reanalysis
         }

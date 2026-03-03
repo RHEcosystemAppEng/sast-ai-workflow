@@ -26,9 +26,6 @@ class AnalysisResultOutput(BaseModel):
             "- What security controls were found (if any)"
         )
     )
-    confidence: Literal["HIGH", "MEDIUM", "LOW"] = Field(
-        default="MEDIUM", description="Confidence in the verdict"
-    )
     justifications: List[str] = Field(
         default_factory=list,
         description="List of key findings that support the verdict (3-5 bullet points)",
@@ -46,6 +43,17 @@ class EvaluationResult(BaseModel):
     )
     required_information: List[str] = Field(
         default_factory=list, description="What additional information is needed"
+    )
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        default=0.5,
+        description=(
+            "Confidence score based on verification checklist completion. "
+            "0.8-1.0: ALL steps passed, ALL code present, clear evidence. "
+            "0.5-0.8: All steps passed, minor documentation gaps only. "
+            "0.0-0.5: Failed any step — MUST use NEEDS_MORE_RESEARCH."
+        ),
     )
 
 
@@ -68,7 +76,7 @@ class InvestigationState(TypedDict):
     analysis_prompt: str  # The prompt used for analysis (needed for summarization)
     proposed_verdict: str  # TRUE_POSITIVE or FALSE_POSITIVE
     justifications: List[str]
-    confidence: str  # HIGH, MEDIUM, LOW
+    confidence: float  # 0.0-1.0 score from evaluation node
 
     # Evaluation phase
     evaluation_result: str  # APPROVED, NEEDS_MORE_RESEARCH, INSUFFICIENT_DATA

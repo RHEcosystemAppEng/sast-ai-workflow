@@ -47,8 +47,6 @@ def build_evaluation_prompt(state: Dict[str, Any]) -> str:
 
 **PROPOSED VERDICT:** {state['proposed_verdict']}
 
-**CONFIDENCE:** {state['confidence']}
-
 **JUSTIFICATIONS:**
 {justifications_str}
 
@@ -149,13 +147,12 @@ sanitization functions either (a) shown and analyzed, or \
 the verdict?
 
 4. **Confidence Appropriate**:
-   - HIGH: All critical paths traced, clear evidence \
-— APPROVE
-   - MEDIUM: Most paths traced, minor gaps that don't \
-affect verdict — APPROVE
-   - LOW with sufficient core evidence — APPROVE with note
-   - LOW with critical gaps — NEEDS_MORE_RESEARCH \
-(only if gaps are fillable)
+   - High (0.8-1.0): ALL steps passed, ALL code present, \
+clear evidence — APPROVE
+   - Medium (0.5-0.8): Most paths traced, minor gaps that \
+don't affect verdict — APPROVE
+   - Low (0.0-0.5): Failed any step above → MUST use \
+NEEDS_MORE_RESEARCH
 
 ---"""
 
@@ -198,7 +195,8 @@ analysis got wrong
   "result": "APPROVED",
   "feedback": "Explanation of why the analysis is \
 sufficient",
-  "required_information": []
+  "required_information": [],
+  "confidence": 0.85
 }}
 
 **Option 2 - Need more code:**
@@ -206,7 +204,8 @@ sufficient",
   "result": "NEEDS_MORE_RESEARCH",
   "feedback": "Explanation of what code is missing and \
 why it matters",
-  "required_information": ["function_name", "symbol_name"]
+  "required_information": ["function_name", "symbol_name"],
+  "confidence": 0.4
 }}
 
 **Option 3 - Analysis is flawed (trigger reanalysis):**
@@ -215,7 +214,8 @@ why it matters",
   "feedback": "Detailed explanation of what the analysis \
 got wrong - e.g., missed a guard at line X, didn't check \
 buffer sizes, etc.",
-  "required_information": []
+  "required_information": [],
+  "confidence": 0.3
 }}
 
 Note: For Option 2, required_information must list ONLY \
