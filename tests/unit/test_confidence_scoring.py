@@ -145,15 +145,14 @@ class TestInvestigationDepth:
 
         per_issue_data = PerIssueData(
             issue=issue,
-            found_symbols={"malloc", "free", "strcpy"},
-            exploration_depth=3
+            found_symbols={"malloc", "free", "strcpy"}
         )
 
         depth_score, details = calculate_investigation_depth(per_issue_data)
 
         assert 0.0 <= depth_score <= 1.0
         assert details['symbols_explored'] == 3
-        assert details['explicit_depth'] == 3
+        assert details['depth_score'] == pytest.approx(3.0 / 5.0)  # 3 symbols / MAX=5
 
     def test_investigation_depth_no_exploration(self):
         """Test investigation depth with no exploration."""
@@ -172,14 +171,14 @@ class TestInvestigationDepth:
 
         assert depth_score == pytest.approx(0.0)
         assert details['symbols_explored'] == 0
-        assert details['explicit_depth'] == 0
+        assert details['depth_score'] == pytest.approx(0.0)
 
 
 class TestFinalConfidence:
     """Test final confidence calculation."""
 
     def test_final_confidence_calculation(self):
-        """Test complete confidence calculation with all components."""
+        """Test complete confidence calculation with all components (full investigation path)."""
         issue = Issue(
             id="test-issue-6",
             issue_type="OVERRUN",
@@ -191,7 +190,7 @@ class TestFinalConfidence:
 
         analysis_response = AnalysisResponse(
             investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-            is_final=FinalStatus.TRUE.value,
+            is_final=FinalStatus.FALSE.value,  # Investigation ran (not a known FP short-circuit)
             filter_confidence=0.9,
             agent_confidence=0.85,
             faiss_similarity_score=0.8,
@@ -202,8 +201,7 @@ class TestFinalConfidence:
             issue=issue,
             analysis_response=analysis_response,
             fetched_files=["test.c", "lib.c"],
-            found_symbols={"vulnerable_func"},
-            exploration_depth=1
+            found_symbols={"vulnerable_func"}
         )
 
         breakdown = calculate_final_confidence(per_issue_data)
@@ -244,7 +242,7 @@ class TestFinalConfidence:
             issue=issue,
             analysis_response=AnalysisResponse(
                 investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=FinalStatus.TRUE.value,
+                is_final=FinalStatus.FALSE.value,  # Investigation path
                 filter_confidence=0.85,
                 agent_confidence=0.9,
                 faiss_similarity_score=0.75
@@ -261,6 +259,40 @@ class TestFinalConfidence:
         assert per_issue_data.final_confidence_score is not None
         assert 0.0 <= per_issue_data.final_confidence_score <= 100.0
         assert per_issue_data.final_confidence_score == breakdown.final_confidence
+
+    def test_final_confidence_known_fp_short_circuit(self):
+        """Test that known FP (is_final=TRUE) uses filter_confidence directly."""
+        issue = Issue(
+            id="test-issue-known-fp",
+            issue_type="BUFFER_OVERFLOW",
+            severity="high",
+            trace="test trace",
+            file_path="test.c",
+            line_number=200
+        )
+
+        # Simulate filter identifying this as a known FP with high confidence
+        per_issue_data = PerIssueData(
+            issue=issue,
+            analysis_response=AnalysisResponse(
+                investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
+                is_final=FinalStatus.TRUE.value,  # Filter short-circuited (known FP)
+                filter_confidence=0.92,  # High confidence match in vector DB
+                faiss_similarity_score=0.95
+                # Note: No agent_confidence, no investigation data - investigation never ran
+            )
+        )
+
+        breakdown = calculate_final_confidence(per_issue_data)
+
+        # Final confidence should be filter_confidence × 100%
+        assert breakdown.final_confidence == pytest.approx(92.0)  # 0.92 × 100
+        assert breakdown.filter_confidence == pytest.approx(0.92)
+
+        # Investigation components should be zero (didn't run)
+        assert breakdown.agent_confidence == pytest.approx(0.0)
+        assert breakdown.evidence_strength == pytest.approx(0.0)
+        assert breakdown.investigation_depth == pytest.approx(0.0)
 
     def test_final_confidence_with_missing_components(self):
         """Test confidence calculation when some components are missing."""
@@ -520,11 +552,11 @@ class TestConfigurationLoading:
 
     def test_main_component_weights_loaded_from_constants(self):
         """Test that main confidence weights are loaded from common.constants."""
-        # Verify weights are imported and have expected values
+        # Verify weights are imported and have expected values (balanced approach: 20/30/20/30)
         assert CONFIDENCE_WEIGHT_FILTER == pytest.approx(0.20)
-        assert CONFIDENCE_WEIGHT_AGENT == pytest.approx(0.50)
+        assert CONFIDENCE_WEIGHT_AGENT == pytest.approx(0.30)
         assert CONFIDENCE_WEIGHT_EVIDENCE == pytest.approx(0.20)
-        assert CONFIDENCE_WEIGHT_INVESTIGATION == pytest.approx(0.10)
+        assert CONFIDENCE_WEIGHT_INVESTIGATION == pytest.approx(0.30)
 
     def test_main_component_weights_sum_to_one(self):
         """Test that main component weights sum to 1.0."""
@@ -570,7 +602,7 @@ class TestConfigurationLoading:
 
         analysis_response = AnalysisResponse(
             investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-            is_final=FinalStatus.TRUE.value,
+            is_final=FinalStatus.FALSE.value,  # Full investigation path
             filter_confidence=0.8,
             agent_confidence=0.9,
             faiss_similarity_score=0.7
@@ -580,8 +612,7 @@ class TestConfigurationLoading:
             issue=issue,
             analysis_response=analysis_response,
             fetched_files=["test.c"],
-            found_symbols={"func1"},
-            exploration_depth=1
+            found_symbols={"func1"}
         )
 
         breakdown = calculate_final_confidence(per_issue_data)
