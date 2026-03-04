@@ -25,9 +25,15 @@ from common.constants import (
     EVIDENCE_WEIGHT_FAISS_SCORE,
     EVIDENCE_WEIGHT_FILES_FETCHED,
     EVIDENCE_WEIGHT_EVIDENCE_COUNT,
+    INVESTIGATION_WEIGHT_DEPTH,
+    INVESTIGATION_WEIGHT_TOOL_CALLS,
+    INVESTIGATION_WEIGHT_REANALYSIS,
+    INVESTIGATION_WEIGHT_STOP_REASON,
     CONFIDENCE_MAX_FILES_FOR_NORMALIZATION,
     CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION,
     CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION,
+    CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION,
+    CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,9 +77,24 @@ def _validate_weight_configuration() -> None:
             f"Check EVIDENCE_WEIGHT_* constants in common.constants"
         )
 
+    # Validate investigation sub-component weights sum to 1.0
+    investigation_weights_sum = (
+        INVESTIGATION_WEIGHT_DEPTH +
+        INVESTIGATION_WEIGHT_TOOL_CALLS +
+        INVESTIGATION_WEIGHT_REANALYSIS +
+        INVESTIGATION_WEIGHT_STOP_REASON
+    )
+
+    if abs(investigation_weights_sum - 1.0) > FLOATING_POINT_TOLERANCE:
+        raise ValueError(
+            f"Investigation sub-weights must sum to 1.0, got {investigation_weights_sum}. "
+            f"Check INVESTIGATION_WEIGHT_* constants in common.constants"
+        )
+
     logger.debug(
         f"Confidence weight validation passed: "
-        f"main_sum={main_weights_sum}, evidence_sum={evidence_weights_sum}"
+        f"main_sum={main_weights_sum}, evidence_sum={evidence_weights_sum}, "
+        f"investigation_sum={investigation_weights_sum}"
     )
 
 
@@ -101,6 +122,9 @@ class ConfidenceScoreBreakdown:
 
     # Investigation depth components
     symbols_explored: int = 0
+    tool_calls: int = 0
+    reanalysis_count: int = 0
+    stop_reason: Optional[str] = None
 
 
 def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Dict[str, Any]]:
@@ -159,13 +183,53 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
     return evidence_strength, details
 
 
+def _score_stop_reason(stop_reason: Optional[str]) -> float:
+    """
+    Convert categorical stop_reason to numeric confidence score (0.0 to 1.0).
+
+    Stop reasons ranked by quality (higher = better investigation):
+    - 'approved': Investigation completed successfully with approval (1.0)
+    - 'max_iterations': Hit iteration limit but gathered substantial evidence (0.6)
+    - 'no_progress': Investigation stalled with no new information (0.3)
+    - None/unknown: No investigation data available (0.0)
+
+    Args:
+        stop_reason: Reason why investigation ended (from PerIssueData.stop_reason)
+
+    Returns:
+        Normalized score between 0.0 and 1.0
+    """
+    if stop_reason is None:
+        return 0.0
+
+    stop_reason_lower = stop_reason.lower()
+
+    # High confidence: Investigation completed successfully
+    if 'approved' in stop_reason_lower:
+        return 1.0
+
+    # Medium confidence: Hit limits but did thorough research
+    if 'max_iterations' in stop_reason_lower or 'iteration' in stop_reason_lower:
+        return 0.6
+
+    # Low confidence: Investigation stalled without progress
+    if 'no_progress' in stop_reason_lower or 'stalled' in stop_reason_lower:
+        return 0.3
+
+    # Unknown stop reason: default to low confidence
+    logger.warning(f"Unknown stop_reason '{stop_reason}', defaulting to 0.2")
+    return 0.2
+
+
 def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, Dict[str, Any]]:
     """
     Calculate investigation depth component (0.0 to 1.0).
 
-    Metrics (normalization cap from common.constants):
-    - Number of symbols explored (from found_symbols set)
-    - Explicit exploration depth counter
+    Components (weights from common.constants):
+    - INVESTIGATION_WEIGHT_DEPTH: Symbols/functions explored beyond initial trace (25%)
+    - INVESTIGATION_WEIGHT_TOOL_CALLS: Total tool calls during research - more = more thorough (25%)
+    - INVESTIGATION_WEIGHT_REANALYSIS: Reanalysis cycles - indicates iterative refinement (25%)
+    - INVESTIGATION_WEIGHT_STOP_REASON: How investigation ended - clean vs limits (25%)
 
     Args:
         per_issue_data: PerIssueData object containing analysis information
@@ -173,21 +237,39 @@ def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, 
     Returns:
         Tuple of (investigation_depth_score, details_dict)
     """
-    # Use both found_symbols count and explicit exploration_depth
+    # 1. Depth Score: Number of symbols explored (from found_symbols set)
     symbols_explored = len(per_issue_data.found_symbols)
-    explicit_depth = per_issue_data.exploration_depth
+    depth_score = min(symbols_explored / CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
 
-    # Combine both metrics (average of normalized values, cap from common.constants)
-    symbols_score = min(symbols_explored / CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
-    depth_score = min(explicit_depth / CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
+    # 2. Tool Calls Score: Normalize by cap from common.constants
+    tool_calls = per_issue_data.tool_call_count
+    tool_calls_score = min(tool_calls / CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION, 1.0)
 
-    investigation_depth = (symbols_score + depth_score) / 2.0
+    # 3. Reanalysis Score: Normalize by cap from common.constants
+    reanalysis = per_issue_data.reanalysis_count
+    reanalysis_score = min(reanalysis / CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION, 1.0)
+
+    # 4. Stop Reason Score: Convert categorical stop_reason to numeric score
+    stop_reason = per_issue_data.stop_reason
+    stop_reason_score = _score_stop_reason(stop_reason)
+
+    # Weighted combination of investigation components (weights from common.constants)
+    investigation_depth = (
+        INVESTIGATION_WEIGHT_DEPTH * depth_score +
+        INVESTIGATION_WEIGHT_TOOL_CALLS * tool_calls_score +
+        INVESTIGATION_WEIGHT_REANALYSIS * reanalysis_score +
+        INVESTIGATION_WEIGHT_STOP_REASON * stop_reason_score
+    )
 
     details = {
         'symbols_explored': symbols_explored,
-        'explicit_depth': explicit_depth,
-        'symbols_score': symbols_score,
-        'depth_score': depth_score
+        'depth_score': depth_score,
+        'tool_calls': tool_calls,
+        'tool_calls_score': tool_calls_score,
+        'reanalysis': reanalysis,
+        'reanalysis_score': reanalysis_score,
+        'stop_reason': stop_reason,
+        'stop_reason_score': stop_reason_score
     }
 
     return investigation_depth, details
@@ -197,7 +279,12 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     """
     Calculate final confidence score using weighted formula.
 
-    Formula (weights from common.constants):
+    Special case - Known False Positive (filter short-circuit):
+    If the filter node identified this as a known FP (is_final=TRUE), the investigation never ran.
+    In this case, use filter_confidence × 100% directly, as it represents high-confidence match
+    against the vector DB of known false positives.
+
+    Standard case - Full investigation:
     Final = (CONFIDENCE_WEIGHT_FILTER × Filter) + (CONFIDENCE_WEIGHT_AGENT × Agent) +
             (CONFIDENCE_WEIGHT_EVIDENCE × Evidence) + (CONFIDENCE_WEIGHT_INVESTIGATION × Investigation)
 
@@ -217,6 +304,26 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
         filter_confidence = max(0.0, min(1.0, raw_filter))
         if raw_filter != filter_confidence:
             logger.warning(f"Clamped filter_confidence from {raw_filter} to {filter_confidence}")
+
+    # SPECIAL CASE: Known False Positive identified by filter (short-circuit path)
+    # If is_final=TRUE, the filter matched a known FP and investigation never ran
+    # Use filter_confidence directly as the final score (no penalty for skipping investigation)
+    from dto.LLMResponse import FinalStatus
+    if (per_issue_data.analysis_response and
+        per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value):
+        final_confidence = filter_confidence * 100.0
+        logger.debug(
+            f"Known FP short-circuit: using filter_confidence={filter_confidence:.3f} "
+            f"directly (final={final_confidence:.1f}%)"
+        )
+        # Return breakdown with only filter component populated
+        return ConfidenceScoreBreakdown(
+            final_confidence=final_confidence,
+            filter_confidence=filter_confidence,
+            agent_confidence=0.0,
+            evidence_strength=0.0,
+            investigation_depth=0.0
+        )
 
     # Component 2: Agent Confidence (weight from common.constants)
     agent_confidence = 0.0
@@ -254,7 +361,10 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
         faiss_score=evidence_details.get('faiss_score'),
         files_fetched_count=evidence_details.get('files_fetched_count', 0),
         evidence_count=evidence_details.get('evidence_count', 0),
-        symbols_explored=investigation_details.get('symbols_explored', 0)
+        symbols_explored=investigation_details.get('symbols_explored', 0),
+        tool_calls=investigation_details.get('tool_calls', 0),
+        reanalysis_count=investigation_details.get('reanalysis', 0),
+        stop_reason=investigation_details.get('stop_reason')
     )
 
     logger.debug(
@@ -273,7 +383,6 @@ def inject_mock_confidence_data(per_issue_data: PerIssueData) -> None:
     This function should be REMOVED once all nodes properly populate:
     - agent_confidence (from judge/finalize nodes)
     - fetched_files (from data_fetcher node)
-    - exploration_depth (from analysis nodes)
 
     Args:
         per_issue_data: PerIssueData to inject mock data into
@@ -297,11 +406,6 @@ def inject_mock_confidence_data(per_issue_data: PerIssueData) -> None:
     if not per_issue_data.fetched_files and per_issue_data.source_code:
         per_issue_data.fetched_files = list(per_issue_data.source_code.keys())
         logger.debug(f"Injected mock fetched_files from source_code ({len(per_issue_data.fetched_files)} files)")
-
-    # Mock exploration_depth if zero (use found_symbols as proxy)
-    if per_issue_data.exploration_depth == 0 and per_issue_data.found_symbols:
-        per_issue_data.exploration_depth = len(per_issue_data.found_symbols)
-        logger.debug(f"Injected mock exploration_depth from found_symbols ({per_issue_data.exploration_depth})")
 
 
 def calculate_aggregate_confidence_metrics(
