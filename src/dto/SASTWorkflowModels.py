@@ -40,13 +40,21 @@ class PerIssueData(BaseModel):
         default_factory=list,
         description="List of file paths fetched during analysis for evidence gathering",
     )
-    exploration_depth: int = Field(
+    tool_call_count: int = Field(
         default=0,
-        description="Number of symbols/functions explored beyond the initial trace",
+        description="Total number of tool calls made during investigation (research thoroughness)",
+    )
+    reanalysis_count: int = Field(
+        default=0,
+        description="Number of reanalysis cycles performed (iterative refinement indicator)",
+    )
+    stop_reason: Optional[str] = Field(
+        default=None,
+        description="Reason why investigation ended (e.g., 'approved', 'max_iterations', 'no_progress')",
     )
     final_confidence_score: Optional[float] = Field(
         default=None,
-        description="Final confidence score (0.0-1.0) calculated by calculate_metrics node",
+        description="Final confidence score (0.0-100.0) calculated by calculate_metrics node",
     )
 
 
