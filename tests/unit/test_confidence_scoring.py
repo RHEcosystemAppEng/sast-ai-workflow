@@ -3,7 +3,7 @@ Unit tests for confidence scoring utilities.
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock
 from dto.SASTWorkflowModels import PerIssueData
 from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
@@ -14,26 +14,54 @@ from Utils.confidence_scoring import (
     inject_mock_confidence_data,
     calculate_aggregate_confidence_metrics,
     ConfidenceScoreBreakdown,
-    _validate_weight_configuration
+    _validate_weight_configuration,
+    _score_stop_reason,
 )
-from common.constants import (
-    CONFIDENCE_WEIGHT_FILTER,
-    CONFIDENCE_WEIGHT_AGENT,
-    CONFIDENCE_WEIGHT_EVIDENCE,
-    CONFIDENCE_WEIGHT_INVESTIGATION,
-    EVIDENCE_WEIGHT_FAISS_SCORE,
-    EVIDENCE_WEIGHT_FILES_FETCHED,
-    EVIDENCE_WEIGHT_EVIDENCE_COUNT,
-    CONFIDENCE_MAX_FILES_FOR_NORMALIZATION,
-    CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION,
-    CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION,
-)
+from common.config import Config
+
+
+@pytest.fixture
+def mock_config():
+    """Create a mock Config object with confidence scoring configuration."""
+    config = MagicMock(spec=Config)
+
+    # Main component weights (20/30/20/30 balanced approach)
+    config.CONFIDENCE_WEIGHT_FILTER = 0.20
+    config.CONFIDENCE_WEIGHT_AGENT = 0.30
+    config.CONFIDENCE_WEIGHT_EVIDENCE = 0.20
+    config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.30
+
+    # Evidence sub-component weights
+    config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.40
+    config.EVIDENCE_WEIGHT_FILES_FETCHED = 0.30
+    config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30
+
+    # Investigation sub-component weights
+    config.INVESTIGATION_WEIGHT_DEPTH = 0.25
+    config.INVESTIGATION_WEIGHT_TOOL_CALLS = 0.25
+    config.INVESTIGATION_WEIGHT_REANALYSIS = 0.25
+    config.INVESTIGATION_WEIGHT_STOP_REASON = 0.25
+
+    # Normalization caps
+    config.CONFIDENCE_MAX_FILES_FOR_NORMALIZATION = 10
+    config.CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION = 5
+    config.CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION = 5
+    config.CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION = 20
+    config.CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION = 3
+
+    # Stop reason scores
+    config.STOP_REASON_SCORE_APPROVED = 1.0
+    config.STOP_REASON_SCORE_MAX_ITERATIONS = 0.6
+    config.STOP_REASON_SCORE_NO_PROGRESS = 0.3
+    config.STOP_REASON_SCORE_UNKNOWN = 0.2
+
+    return config
 
 
 class TestEvidenceStrength:
     """Test evidence strength calculation."""
 
-    def test_evidence_strength_with_all_components(self):
+    def test_evidence_strength_with_all_components(self, mock_config):
         """Test evidence strength calculation with all components present."""
         # Create issue with full evidence
         issue = Issue(
@@ -62,7 +90,7 @@ class TestEvidenceStrength:
             fetched_files=["test.c", "helper.c", "main.c"]
         )
 
-        evidence_strength, details = calculate_evidence_strength(per_issue_data)
+        evidence_strength, details = calculate_evidence_strength(per_issue_data, mock_config)
 
         # Verify score is calculated
         assert 0.0 <= evidence_strength <= 1.0
@@ -70,7 +98,7 @@ class TestEvidenceStrength:
         assert details['files_fetched_count'] == 3
         assert details['evidence_count'] == 3  # 1 CVE + 1 file ref + 1 code block
 
-    def test_evidence_strength_with_no_evidence(self):
+    def test_evidence_strength_with_no_evidence(self, mock_config):
         """Test evidence strength when no evidence is available."""
         issue = Issue(
             id="test-issue-2",
@@ -89,7 +117,7 @@ class TestEvidenceStrength:
             )
         )
 
-        evidence_strength, details = calculate_evidence_strength(per_issue_data)
+        evidence_strength, details = calculate_evidence_strength(per_issue_data, mock_config)
 
         # Should return 0.0 when no evidence
         assert evidence_strength == pytest.approx(0.0)
@@ -97,7 +125,7 @@ class TestEvidenceStrength:
         assert details['files_fetched_count'] == 0
         assert details['evidence_count'] == 0
 
-    def test_evidence_strength_normalization(self):
+    def test_evidence_strength_normalization(self, mock_config):
         """Test that evidence strength properly normalizes large values."""
         issue = Issue(
             id="test-issue-3",
@@ -121,7 +149,7 @@ class TestEvidenceStrength:
             fetched_files=many_files
         )
 
-        evidence_strength, details = calculate_evidence_strength(per_issue_data)
+        evidence_strength, details = calculate_evidence_strength(per_issue_data, mock_config)
 
         # Files score should be capped at 1.0
         assert details['files_score'] == pytest.approx(1.0)
@@ -132,7 +160,7 @@ class TestEvidenceStrength:
 class TestInvestigationDepth:
     """Test investigation depth calculation."""
 
-    def test_investigation_depth_with_symbols(self):
+    def test_investigation_depth_with_symbols(self, mock_config):
         """Test investigation depth with found symbols."""
         issue = Issue(
             id="test-issue-4",
@@ -148,13 +176,13 @@ class TestInvestigationDepth:
             found_symbols={"malloc", "free", "strcpy"}
         )
 
-        depth_score, details = calculate_investigation_depth(per_issue_data)
+        depth_score, details = calculate_investigation_depth(per_issue_data, mock_config)
 
         assert 0.0 <= depth_score <= 1.0
         assert details['symbols_explored'] == 3
         assert details['depth_score'] == pytest.approx(3.0 / 5.0)  # 3 symbols / MAX=5
 
-    def test_investigation_depth_no_exploration(self):
+    def test_investigation_depth_no_exploration(self, mock_config):
         """Test investigation depth with no exploration."""
         issue = Issue(
             id="test-issue-5",
@@ -167,17 +195,67 @@ class TestInvestigationDepth:
 
         per_issue_data = PerIssueData(issue=issue)
 
-        depth_score, details = calculate_investigation_depth(per_issue_data)
+        depth_score, details = calculate_investigation_depth(per_issue_data, mock_config)
 
         assert depth_score == pytest.approx(0.0)
         assert details['symbols_explored'] == 0
         assert details['depth_score'] == pytest.approx(0.0)
 
 
+class TestStopReasonScoring:
+    """Test _score_stop_reason helper function."""
+
+    def test_score_stop_reason_approved(self, mock_config):
+        """Test that 'approved' stop reason returns highest score."""
+        score = _score_stop_reason("approved", mock_config)
+        assert score == pytest.approx(mock_config.STOP_REASON_SCORE_APPROVED)
+        assert score == pytest.approx(1.0)
+
+    def test_score_stop_reason_max_iterations(self, mock_config):
+        """Test that 'max_iterations' returns medium-high score."""
+        score = _score_stop_reason("max_iterations", mock_config)
+        assert score == pytest.approx(mock_config.STOP_REASON_SCORE_MAX_ITERATIONS)
+        assert score == pytest.approx(0.6)
+
+    def test_score_stop_reason_iteration_variant(self, mock_config):
+        """Test that 'iteration' substring also matches max_iterations."""
+        score = _score_stop_reason("hit_iteration_limit", mock_config)
+        assert score == pytest.approx(mock_config.STOP_REASON_SCORE_MAX_ITERATIONS)
+
+    def test_score_stop_reason_no_progress(self, mock_config):
+        """Test that 'no_progress' returns low score."""
+        score = _score_stop_reason("no_progress", mock_config)
+        assert score == pytest.approx(mock_config.STOP_REASON_SCORE_NO_PROGRESS)
+        assert score == pytest.approx(0.3)
+
+    def test_score_stop_reason_stalled_variant(self, mock_config):
+        """Test that 'stalled' also matches no_progress category."""
+        score = _score_stop_reason("investigation_stalled", mock_config)
+        assert score == pytest.approx(mock_config.STOP_REASON_SCORE_NO_PROGRESS)
+
+    def test_score_stop_reason_none(self, mock_config):
+        """Test that None returns 0.0."""
+        score = _score_stop_reason(None, mock_config)
+        assert score == pytest.approx(0.0)
+
+    def test_score_stop_reason_unknown(self, mock_config):
+        """Test that unknown reasons return default low score."""
+        score = _score_stop_reason("some_unknown_reason", mock_config)
+        assert score == pytest.approx(mock_config.STOP_REASON_SCORE_UNKNOWN)
+        assert score == pytest.approx(0.2)
+
+    def test_score_stop_reason_case_insensitive(self, mock_config):
+        """Test that scoring is case-insensitive."""
+        score_upper = _score_stop_reason("APPROVED", mock_config)
+        score_lower = _score_stop_reason("approved", mock_config)
+        score_mixed = _score_stop_reason("ApProVeD", mock_config)
+        assert score_upper == score_lower == score_mixed == pytest.approx(mock_config.STOP_REASON_SCORE_APPROVED)
+
+
 class TestFinalConfidence:
     """Test final confidence calculation."""
 
-    def test_final_confidence_calculation(self):
+    def test_final_confidence_calculation(self, mock_config):
         """Test complete confidence calculation with all components (full investigation path)."""
         issue = Issue(
             id="test-issue-6",
@@ -204,7 +282,7 @@ class TestFinalConfidence:
             found_symbols={"vulnerable_func"}
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Verify breakdown structure
         assert isinstance(breakdown, ConfidenceScoreBreakdown)
@@ -219,15 +297,15 @@ class TestFinalConfidence:
         # Verify weighted formula is applied and converted to percentage
         # Final = (FILTER_WEIGHT*filter + AGENT_WEIGHT*agent + EVIDENCE_WEIGHT*evidence + INVESTIGATION_WEIGHT*investigation) * 100
         expected_raw = (
-            CONFIDENCE_WEIGHT_FILTER * 0.9 +
-            CONFIDENCE_WEIGHT_AGENT * 0.85 +
-            CONFIDENCE_WEIGHT_EVIDENCE * breakdown.evidence_strength +
-            CONFIDENCE_WEIGHT_INVESTIGATION * breakdown.investigation_depth
+            mock_config.CONFIDENCE_WEIGHT_FILTER * 0.9 +
+            mock_config.CONFIDENCE_WEIGHT_AGENT * 0.85 +
+            mock_config.CONFIDENCE_WEIGHT_EVIDENCE * breakdown.evidence_strength +
+            mock_config.CONFIDENCE_WEIGHT_INVESTIGATION * breakdown.investigation_depth
         )
         expected_percentage = expected_raw * 100.0
         assert abs(breakdown.final_confidence - expected_percentage) < 0.1
 
-    def test_final_confidence_stored_in_per_issue_data(self):
+    def test_final_confidence_stored_in_per_issue_data(self, mock_config):
         """Test that final confidence can be stored in PerIssueData."""
         issue = Issue(
             id="test-issue-storage",
@@ -250,7 +328,7 @@ class TestFinalConfidence:
         )
 
         # Calculate confidence
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Store in PerIssueData (mimicking what calculate_metrics does)
         per_issue_data.final_confidence_score = breakdown.final_confidence
@@ -260,7 +338,7 @@ class TestFinalConfidence:
         assert 0.0 <= per_issue_data.final_confidence_score <= 100.0
         assert per_issue_data.final_confidence_score == breakdown.final_confidence
 
-    def test_final_confidence_known_fp_short_circuit(self):
+    def test_final_confidence_known_fp_short_circuit(self, mock_config):
         """Test that known FP (is_final=TRUE) uses filter_confidence directly."""
         issue = Issue(
             id="test-issue-known-fp",
@@ -283,7 +361,7 @@ class TestFinalConfidence:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Final confidence should be filter_confidence × 100%
         assert breakdown.final_confidence == pytest.approx(92.0)  # 0.92 × 100
@@ -294,7 +372,7 @@ class TestFinalConfidence:
         assert breakdown.evidence_strength == pytest.approx(0.0)
         assert breakdown.investigation_depth == pytest.approx(0.0)
 
-    def test_final_confidence_with_missing_components(self):
+    def test_final_confidence_with_missing_components(self, mock_config):
         """Test confidence calculation when some components are missing."""
         issue = Issue(
             id="test-issue-7",
@@ -314,12 +392,12 @@ class TestFinalConfidence:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Should still return valid percentage (likely low due to missing data)
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
-    def test_final_confidence_clamps_out_of_range_filter_confidence(self):
+    def test_final_confidence_clamps_out_of_range_filter_confidence(self, mock_config):
         """Test that out-of-range filter_confidence is clamped to [0,1]."""
         issue = Issue(
             id="test-issue-clamp-filter",
@@ -341,14 +419,14 @@ class TestFinalConfidence:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Filter confidence should be clamped to 1.0
         assert breakdown.filter_confidence == pytest.approx(1.0)
         # Final score should still be valid (0-100%)
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
-    def test_final_confidence_clamps_negative_agent_confidence(self):
+    def test_final_confidence_clamps_negative_agent_confidence(self, mock_config):
         """Test that negative agent_confidence is clamped to 0."""
         issue = Issue(
             id="test-issue-clamp-agent",
@@ -370,14 +448,14 @@ class TestFinalConfidence:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Agent confidence should be clamped to 0.0
         assert breakdown.agent_confidence == pytest.approx(0.0)
         # Final score should still be valid (0-100%)
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
-    def test_final_confidence_clamps_both_components(self):
+    def test_final_confidence_clamps_both_components(self, mock_config):
         """Test that both filter and agent confidence are clamped when out of range."""
         issue = Issue(
             id="test-issue-clamp-both",
@@ -399,7 +477,7 @@ class TestFinalConfidence:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
         # Both should be clamped
         assert breakdown.filter_confidence == pytest.approx(1.0)
@@ -550,46 +628,46 @@ class TestAggregateMetrics:
 class TestConfigurationLoading:
     """Test that weights are properly loaded from configuration."""
 
-    def test_main_component_weights_loaded_from_constants(self):
-        """Test that main confidence weights are loaded from common.constants."""
-        # Verify weights are imported and have expected values (balanced approach: 20/30/20/30)
-        assert CONFIDENCE_WEIGHT_FILTER == pytest.approx(0.20)
-        assert CONFIDENCE_WEIGHT_AGENT == pytest.approx(0.30)
-        assert CONFIDENCE_WEIGHT_EVIDENCE == pytest.approx(0.20)
-        assert CONFIDENCE_WEIGHT_INVESTIGATION == pytest.approx(0.30)
+    def test_main_component_weights_loaded_from_config(self, mock_config):
+        """Test that main confidence weights are loaded from config."""
+        # Verify weights have expected values (balanced approach: 20/30/20/30)
+        assert mock_config.CONFIDENCE_WEIGHT_FILTER == pytest.approx(0.20)
+        assert mock_config.CONFIDENCE_WEIGHT_AGENT == pytest.approx(0.30)
+        assert mock_config.CONFIDENCE_WEIGHT_EVIDENCE == pytest.approx(0.20)
+        assert mock_config.CONFIDENCE_WEIGHT_INVESTIGATION == pytest.approx(0.30)
 
-    def test_main_component_weights_sum_to_one(self):
+    def test_main_component_weights_sum_to_one(self, mock_config):
         """Test that main component weights sum to 1.0."""
         total_weight = (
-            CONFIDENCE_WEIGHT_FILTER +
-            CONFIDENCE_WEIGHT_AGENT +
-            CONFIDENCE_WEIGHT_EVIDENCE +
-            CONFIDENCE_WEIGHT_INVESTIGATION
+            mock_config.CONFIDENCE_WEIGHT_FILTER +
+            mock_config.CONFIDENCE_WEIGHT_AGENT +
+            mock_config.CONFIDENCE_WEIGHT_EVIDENCE +
+            mock_config.CONFIDENCE_WEIGHT_INVESTIGATION
         )
         assert total_weight == pytest.approx(1.0)
 
-    def test_evidence_sub_weights_loaded_from_constants(self):
-        """Test that evidence sub-component weights are loaded from common.constants."""
-        assert EVIDENCE_WEIGHT_FAISS_SCORE == pytest.approx(0.40)
-        assert EVIDENCE_WEIGHT_FILES_FETCHED == pytest.approx(0.30)
-        assert EVIDENCE_WEIGHT_EVIDENCE_COUNT == pytest.approx(0.30)
+    def test_evidence_sub_weights_loaded_from_config(self, mock_config):
+        """Test that evidence sub-component weights are loaded from config."""
+        assert mock_config.EVIDENCE_WEIGHT_FAISS_SCORE == pytest.approx(0.40)
+        assert mock_config.EVIDENCE_WEIGHT_FILES_FETCHED == pytest.approx(0.30)
+        assert mock_config.EVIDENCE_WEIGHT_EVIDENCE_COUNT == pytest.approx(0.30)
 
-    def test_evidence_sub_weights_sum_to_one(self):
+    def test_evidence_sub_weights_sum_to_one(self, mock_config):
         """Test that evidence sub-component weights sum to 1.0."""
         total_weight = (
-            EVIDENCE_WEIGHT_FAISS_SCORE +
-            EVIDENCE_WEIGHT_FILES_FETCHED +
-            EVIDENCE_WEIGHT_EVIDENCE_COUNT
+            mock_config.EVIDENCE_WEIGHT_FAISS_SCORE +
+            mock_config.EVIDENCE_WEIGHT_FILES_FETCHED +
+            mock_config.EVIDENCE_WEIGHT_EVIDENCE_COUNT
         )
         assert total_weight == pytest.approx(1.0)
 
-    def test_normalization_caps_loaded_from_constants(self):
-        """Test that normalization caps are loaded from common.constants."""
-        assert CONFIDENCE_MAX_FILES_FOR_NORMALIZATION == 10
-        assert CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION == 5
-        assert CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION == 5
+    def test_normalization_caps_loaded_from_config(self, mock_config):
+        """Test that normalization caps are loaded from config."""
+        assert mock_config.CONFIDENCE_MAX_FILES_FOR_NORMALIZATION == 10
+        assert mock_config.CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION == 5
+        assert mock_config.CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION == 5
 
-    def test_weights_applied_correctly_in_calculation(self):
+    def test_weights_applied_correctly_in_calculation(self, mock_config):
         """Test that loaded weights are correctly applied in confidence calculation."""
         issue = Issue(
             id="test-config-weights",
@@ -615,45 +693,72 @@ class TestConfigurationLoading:
             found_symbols={"func1"}
         )
 
-        breakdown = calculate_final_confidence(per_issue_data)
+        breakdown = calculate_final_confidence(per_issue_data, mock_config)
 
-        # Manually calculate expected result using constants
-        evidence_strength, _ = calculate_evidence_strength(per_issue_data)
-        investigation_depth, _ = calculate_investigation_depth(per_issue_data)
+        # Manually calculate expected result using config
+        evidence_strength, _ = calculate_evidence_strength(per_issue_data, mock_config)
+        investigation_depth, _ = calculate_investigation_depth(per_issue_data, mock_config)
 
         expected_raw = (
-            CONFIDENCE_WEIGHT_FILTER * 0.8 +
-            CONFIDENCE_WEIGHT_AGENT * 0.9 +
-            CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
-            CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
+            mock_config.CONFIDENCE_WEIGHT_FILTER * 0.8 +
+            mock_config.CONFIDENCE_WEIGHT_AGENT * 0.9 +
+            mock_config.CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
+            mock_config.CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
         )
         expected_percentage = expected_raw * 100.0
 
         # Verify the calculation matches expected result
         assert breakdown.final_confidence == pytest.approx(expected_percentage, abs=0.1)
 
-    def test_runtime_validation_passes_with_valid_weights(self):
+    def test_runtime_validation_passes_with_valid_weights(self, mock_config):
         """Test that runtime validation passes with valid weight configuration."""
         # Should not raise any exception with current valid configuration
-        _validate_weight_configuration()
+        _validate_weight_configuration(mock_config)
 
     def test_runtime_validation_fails_with_invalid_main_weights(self):
         """Test that runtime validation fails when main weights don't sum to 1.0."""
-        # Patch main weights to invalid values
-        with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_FILTER', 0.25):
-            with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_AGENT', 0.50):
-                with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_EVIDENCE', 0.20):
-                    with patch('Utils.confidence_scoring.CONFIDENCE_WEIGHT_INVESTIGATION', 0.10):
-                        # Sum = 1.05, should fail
-                        with pytest.raises(ValueError, match="Main confidence weights must sum to 1.0"):
-                            _validate_weight_configuration()
+        # Create invalid config
+        invalid_config = MagicMock(spec=Config)
+        invalid_config.CONFIDENCE_WEIGHT_FILTER = 0.25
+        invalid_config.CONFIDENCE_WEIGHT_AGENT = 0.50
+        invalid_config.CONFIDENCE_WEIGHT_EVIDENCE = 0.20
+        invalid_config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.10  # Sum = 1.05
+
+        # Evidence weights (valid to isolate the test)
+        invalid_config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.40
+        invalid_config.EVIDENCE_WEIGHT_FILES_FETCHED = 0.30
+        invalid_config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30
+
+        # Investigation weights (valid to isolate the test)
+        invalid_config.INVESTIGATION_WEIGHT_DEPTH = 0.25
+        invalid_config.INVESTIGATION_WEIGHT_TOOL_CALLS = 0.25
+        invalid_config.INVESTIGATION_WEIGHT_REANALYSIS = 0.25
+        invalid_config.INVESTIGATION_WEIGHT_STOP_REASON = 0.25
+
+        with pytest.raises(ValueError, match="Main confidence weights must sum to 1.0"):
+            _validate_weight_configuration(invalid_config)
 
     def test_runtime_validation_fails_with_invalid_evidence_weights(self):
         """Test that runtime validation fails when evidence sub-weights don't sum to 1.0."""
-        # Patch evidence weights to invalid values
-        with patch('Utils.confidence_scoring.EVIDENCE_WEIGHT_FAISS_SCORE', 0.50):
-            with patch('Utils.confidence_scoring.EVIDENCE_WEIGHT_FILES_FETCHED', 0.30):
-                with patch('Utils.confidence_scoring.EVIDENCE_WEIGHT_EVIDENCE_COUNT', 0.30):
-                    # Sum = 1.10, should fail
-                    with pytest.raises(ValueError, match="Evidence sub-weights must sum to 1.0"):
-                        _validate_weight_configuration()
+        # Create invalid config
+        invalid_config = MagicMock(spec=Config)
+
+        # Main weights (valid to isolate the test)
+        invalid_config.CONFIDENCE_WEIGHT_FILTER = 0.20
+        invalid_config.CONFIDENCE_WEIGHT_AGENT = 0.30
+        invalid_config.CONFIDENCE_WEIGHT_EVIDENCE = 0.20
+        invalid_config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.30
+
+        # Evidence weights (invalid)
+        invalid_config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.50
+        invalid_config.EVIDENCE_WEIGHT_FILES_FETCHED = 0.30
+        invalid_config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30  # Sum = 1.10
+
+        # Investigation weights (valid to isolate the test)
+        invalid_config.INVESTIGATION_WEIGHT_DEPTH = 0.25
+        invalid_config.INVESTIGATION_WEIGHT_TOOL_CALLS = 0.25
+        invalid_config.INVESTIGATION_WEIGHT_REANALYSIS = 0.25
+        invalid_config.INVESTIGATION_WEIGHT_STOP_REASON = 0.25
+
+        with pytest.raises(ValueError, match="Evidence sub-weights must sum to 1.0"):
+            _validate_weight_configuration(invalid_config)
