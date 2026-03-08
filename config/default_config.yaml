@@ -47,6 +47,37 @@ CRITIQUE_LLM_MODEL_NAME: ""
 
 # Embedding Configuration
 EMBEDDINGS_MAX_INPUT_TOKENS: 384
+
+# Confidence Scoring Configuration
+CONFIDENCE_WEIGHT_FILTER: 0.20  # Initial filtering decision confidence
+CONFIDENCE_WEIGHT_AGENT: 0.30  # LLM's internal verdict confidence (HIGH/MEDIUM/LOW)
+CONFIDENCE_WEIGHT_EVIDENCE: 0.20  # Quality and quantity of supporting evidence
+CONFIDENCE_WEIGHT_INVESTIGATION: 0.30  # Investigation thoroughness metrics
+
+# Evidence sub-component weights
+EVIDENCE_WEIGHT_FAISS_SCORE: 0.40  # FAISS vector similarity score
+EVIDENCE_WEIGHT_FILES_FETCHED: 0.30  # Number of source files retrieved
+EVIDENCE_WEIGHT_EVIDENCE_COUNT: 0.30  # Code snippets, CVEs, file references
+
+# Investigation sub-component weights
+INVESTIGATION_WEIGHT_DEPTH: 0.25  # Symbols/functions explored beyond initial trace
+INVESTIGATION_WEIGHT_TOOL_CALLS: 0.25  # Total tool calls during research
+INVESTIGATION_WEIGHT_REANALYSIS: 0.25  # Reanalysis cycles (iterative refinement)
+INVESTIGATION_WEIGHT_STOP_REASON: 0.25  # How investigation ended (approved/limits/no_progress)
+
+# Normalization caps for evidence and investigation metrics
+CONFIDENCE_MAX_FILES_FOR_NORMALIZATION: 10
+CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION: 5
+CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION: 5
+CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION: 20
+CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION: 3
+
+# Stop reason confidence scores (0.0-1.0 scale)
+STOP_REASON_SCORE_APPROVED: 1.0  # Investigation completed successfully
+STOP_REASON_SCORE_MAX_ITERATIONS: 0.6  # Hit iteration limit but gathered evidence
+STOP_REASON_SCORE_NO_PROGRESS: 0.3  # Investigation stalled with no new information
+STOP_REASON_SCORE_UNKNOWN: 0.2  # Unknown stop reason - default low confidence
+
 CHUNK_SIZE: 500
 CHUNK_OVERLAP: 0
 CHUNK_SEPARATORS:

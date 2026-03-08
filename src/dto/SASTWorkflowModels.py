@@ -40,17 +40,17 @@ class PerIssueData(BaseModel):
         default_factory=list,
         description="List of file paths fetched during analysis for evidence gathering",
     )
-    tool_call_count: int = Field(
+    investigation_tool_call_count: int = Field(
         default=0,
-        description="Total number of tool calls made during investigation (research thoroughness)",
+        description="Total number of tool calls made during investigation subgraph (research thoroughness)",
     )
-    reanalysis_count: int = Field(
+    investigation_reanalysis_count: int = Field(
         default=0,
-        description="Number of reanalysis cycles performed (iterative refinement indicator)",
+        description="Number of reanalysis cycles in investigation subgraph (iterative refinement indicator)",
     )
-    stop_reason: Optional[str] = Field(
+    investigation_stop_reason: Optional[str] = Field(
         default=None,
-        description="Reason why investigation ended (e.g., 'approved', 'max_iterations', 'no_progress')",
+        description="Reason why investigation subgraph ended (e.g., 'approved', 'max_iterations', 'no_progress')",
     )
     final_confidence_score: Optional[float] = Field(
         default=None,

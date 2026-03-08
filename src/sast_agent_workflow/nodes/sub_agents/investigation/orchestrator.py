@@ -242,10 +242,10 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
         per_issue.analysis_response.prompt = analysis_prompt
         per_issue.analysis_response.agent_confidence = result["confidence"]
 
-    # Store investigation quality metrics in PerIssueData for confidence scoring
-    per_issue.tool_call_count = total_tool_calls
-    per_issue.reanalysis_count = reanalysis_count
-    per_issue.stop_reason = stop_reason
+    # Store investigation subgraph quality metrics in PerIssueData for confidence scoring
+    per_issue.investigation_tool_call_count = total_tool_calls
+    per_issue.investigation_reanalysis_count = reanalysis_count
+    per_issue.investigation_stop_reason = stop_reason
 
     logger.info(
         f"{issue_id}: {verdict} (confidence: {result['confidence']}, "
