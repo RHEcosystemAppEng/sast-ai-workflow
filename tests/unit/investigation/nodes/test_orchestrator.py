@@ -463,19 +463,19 @@ class TestUpdateTrackerFromResult:
         assert "5" in log_text
 
     def test__stores_tool_call_count_in_per_issue(self, mock_per_issue_pending, subgraph_result):
-        """Should store total_tool_calls in per_issue.tool_call_count."""
+        """Should store total_tool_calls in per_issue.investigation_tool_call_count."""
         _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
 
-        assert mock_per_issue_pending.tool_call_count == 5
+        assert mock_per_issue_pending.investigation_tool_call_count == 5
 
     def test__stores_reanalysis_count_in_per_issue(self, mock_per_issue_pending, subgraph_result):
-        """Should store reanalysis_count in per_issue.reanalysis_count."""
+        """Should store reanalysis_count in per_issue.investigation_reanalysis_count."""
         _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
 
-        assert mock_per_issue_pending.reanalysis_count == 1
+        assert mock_per_issue_pending.investigation_reanalysis_count == 1
 
     def test__stores_stop_reason_in_per_issue(self, mock_per_issue_pending):
-        """Should store stop_reason in per_issue.stop_reason."""
+        """Should store stop_reason in per_issue.investigation_stop_reason."""
         result = {
             "proposed_verdict": "FALSE_POSITIVE",
             "justifications": ["Test"],
@@ -489,13 +489,13 @@ class TestUpdateTrackerFromResult:
 
         _update_tracker_from_result(mock_per_issue_pending, result, "issue-1")
 
-        assert mock_per_issue_pending.stop_reason == "approved"
+        assert mock_per_issue_pending.investigation_stop_reason == "approved"
 
     def test__stores_none_stop_reason_when_missing(self, mock_per_issue_pending, subgraph_result):
         """Should store None for stop_reason when not in result."""
         _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
 
-        assert mock_per_issue_pending.stop_reason is None
+        assert mock_per_issue_pending.investigation_stop_reason is None
 
 
 # ---------------------------------------------------------------------------

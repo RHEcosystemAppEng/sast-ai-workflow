@@ -17,31 +17,18 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 from dto.SASTWorkflowModels import PerIssueData
-from common.constants import (
-    CONFIDENCE_WEIGHT_FILTER,
-    CONFIDENCE_WEIGHT_AGENT,
-    CONFIDENCE_WEIGHT_EVIDENCE,
-    CONFIDENCE_WEIGHT_INVESTIGATION,
-    EVIDENCE_WEIGHT_FAISS_SCORE,
-    EVIDENCE_WEIGHT_FILES_FETCHED,
-    EVIDENCE_WEIGHT_EVIDENCE_COUNT,
-    INVESTIGATION_WEIGHT_DEPTH,
-    INVESTIGATION_WEIGHT_TOOL_CALLS,
-    INVESTIGATION_WEIGHT_REANALYSIS,
-    INVESTIGATION_WEIGHT_STOP_REASON,
-    CONFIDENCE_MAX_FILES_FOR_NORMALIZATION,
-    CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION,
-    CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION,
-    CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION,
-    CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION,
-)
+from dto.LLMResponse import FinalStatus
+from common.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-def _validate_weight_configuration() -> None:
+def _validate_weight_configuration(config: Config) -> None:
     """
     Validate that confidence scoring weights are properly configured.
+
+    Args:
+        config: Config object containing weights from default-config.yaml
 
     Raises:
         ValueError: If weights don't sum to 1.0
@@ -52,43 +39,43 @@ def _validate_weight_configuration() -> None:
 
     # Validate main component weights sum to 1.0
     main_weights_sum = (
-        CONFIDENCE_WEIGHT_FILTER +
-        CONFIDENCE_WEIGHT_AGENT +
-        CONFIDENCE_WEIGHT_EVIDENCE +
-        CONFIDENCE_WEIGHT_INVESTIGATION
+        config.CONFIDENCE_WEIGHT_FILTER +
+        config.CONFIDENCE_WEIGHT_AGENT +
+        config.CONFIDENCE_WEIGHT_EVIDENCE +
+        config.CONFIDENCE_WEIGHT_INVESTIGATION
     )
 
     if abs(main_weights_sum - 1.0) > FLOATING_POINT_TOLERANCE:
         raise ValueError(
             f"Main confidence weights must sum to 1.0, got {main_weights_sum}. "
-            f"Check CONFIDENCE_WEIGHT_* constants in common.constants"
+            f"Check CONFIDENCE_WEIGHT_* values in config/default-config.yaml"
         )
 
     # Validate evidence sub-component weights sum to 1.0
     evidence_weights_sum = (
-        EVIDENCE_WEIGHT_FAISS_SCORE +
-        EVIDENCE_WEIGHT_FILES_FETCHED +
-        EVIDENCE_WEIGHT_EVIDENCE_COUNT
+        config.EVIDENCE_WEIGHT_FAISS_SCORE +
+        config.EVIDENCE_WEIGHT_FILES_FETCHED +
+        config.EVIDENCE_WEIGHT_EVIDENCE_COUNT
     )
 
     if abs(evidence_weights_sum - 1.0) > FLOATING_POINT_TOLERANCE:
         raise ValueError(
             f"Evidence sub-weights must sum to 1.0, got {evidence_weights_sum}. "
-            f"Check EVIDENCE_WEIGHT_* constants in common.constants"
+            f"Check EVIDENCE_WEIGHT_* values in config/default-config.yaml"
         )
 
     # Validate investigation sub-component weights sum to 1.0
     investigation_weights_sum = (
-        INVESTIGATION_WEIGHT_DEPTH +
-        INVESTIGATION_WEIGHT_TOOL_CALLS +
-        INVESTIGATION_WEIGHT_REANALYSIS +
-        INVESTIGATION_WEIGHT_STOP_REASON
+        config.INVESTIGATION_WEIGHT_DEPTH +
+        config.INVESTIGATION_WEIGHT_TOOL_CALLS +
+        config.INVESTIGATION_WEIGHT_REANALYSIS +
+        config.INVESTIGATION_WEIGHT_STOP_REASON
     )
 
     if abs(investigation_weights_sum - 1.0) > FLOATING_POINT_TOLERANCE:
         raise ValueError(
             f"Investigation sub-weights must sum to 1.0, got {investigation_weights_sum}. "
-            f"Check INVESTIGATION_WEIGHT_* constants in common.constants"
+            f"Check INVESTIGATION_WEIGHT_* values in config/default-config.yaml"
         )
 
     logger.debug(
@@ -96,10 +83,6 @@ def _validate_weight_configuration() -> None:
         f"main_sum={main_weights_sum}, evidence_sum={evidence_weights_sum}, "
         f"investigation_sum={investigation_weights_sum}"
     )
-
-
-# Validate configuration at module import time to fail fast
-_validate_weight_configuration()
 
 
 @dataclass
@@ -127,17 +110,18 @@ class ConfidenceScoreBreakdown:
     stop_reason: Optional[str] = None
 
 
-def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Dict[str, Any]]:
+def calculate_evidence_strength(per_issue_data: PerIssueData, config: Config) -> tuple[float, Dict[str, Any]]:
     """
     Calculate evidence strength component (0.0 to 1.0).
 
-    Components (weights from common.constants):
+    Components (weights from config/default-config.yaml):
     - FAISS similarity: EVIDENCE_WEIGHT_FAISS_SCORE (highest similarity score from vector search)
     - Files fetched: EVIDENCE_WEIGHT_FILES_FETCHED (number of source files retrieved)
     - Evidence count: EVIDENCE_WEIGHT_EVIDENCE_COUNT (code snippets, CVEs, references in justification)
 
     Args:
         per_issue_data: PerIssueData object containing analysis information
+        config: Config object containing weights and normalization caps
 
     Returns:
         Tuple of (evidence_strength_score, details_dict)
@@ -148,9 +132,9 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
         per_issue_data.analysis_response.faiss_similarity_score is not None):
         faiss_score = float(per_issue_data.analysis_response.faiss_similarity_score)
 
-    # 2. Files Fetched (normalize to 0-1, cap at CONFIDENCE_MAX_FILES_FOR_NORMALIZATION)
+    # 2. Files Fetched (normalize to 0-1, cap from config)
     files_fetched_count = len(per_issue_data.fetched_files)
-    files_score = min(files_fetched_count / CONFIDENCE_MAX_FILES_FOR_NORMALIZATION, 1.0)
+    files_score = min(files_fetched_count / config.CONFIDENCE_MAX_FILES_FOR_NORMALIZATION, 1.0)
 
     # 3. Evidence Count (parse justifications for code blocks, CVEs, file references)
     evidence_count = 0
@@ -163,13 +147,13 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
             # Count file:line references (e.g., "file.c:123") with bounded regex to prevent ReDoS
             evidence_count += len(re.findall(r'[a-zA-Z0-9_./\-]{1,100}\.[a-zA-Z0-9]{1,10}:\d{1,10}', justification))
 
-    evidence_score = min(evidence_count / CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION, 1.0)
+    evidence_score = min(evidence_count / config.CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION, 1.0)
 
-    # Weighted combination of evidence components (weights from common.constants)
+    # Weighted combination of evidence components (weights from config)
     evidence_strength = (
-        EVIDENCE_WEIGHT_FAISS_SCORE * faiss_score +
-        EVIDENCE_WEIGHT_FILES_FETCHED * files_score +
-        EVIDENCE_WEIGHT_EVIDENCE_COUNT * evidence_score
+        config.EVIDENCE_WEIGHT_FAISS_SCORE * faiss_score +
+        config.EVIDENCE_WEIGHT_FILES_FETCHED * files_score +
+        config.EVIDENCE_WEIGHT_EVIDENCE_COUNT * evidence_score
     )
 
     details = {
@@ -183,18 +167,21 @@ def calculate_evidence_strength(per_issue_data: PerIssueData) -> tuple[float, Di
     return evidence_strength, details
 
 
-def _score_stop_reason(stop_reason: Optional[str]) -> float:
+def _score_stop_reason(stop_reason: Optional[str], config: Config) -> float:
     """
     Convert categorical stop_reason to numeric confidence score (0.0 to 1.0).
 
     Stop reasons ranked by quality (higher = better investigation):
-    - 'approved': Investigation completed successfully with approval (1.0)
-    - 'max_iterations': Hit iteration limit but gathered substantial evidence (0.6)
-    - 'no_progress': Investigation stalled with no new information (0.3)
-    - None/unknown: No investigation data available (0.0)
+    - 'approved': Investigation completed successfully with approval
+    - 'max_iterations': Hit iteration limit but gathered substantial evidence
+    - 'no_progress': Investigation stalled with no new information
+    - None/unknown: No investigation data available
+
+    Scores are defined in config/default-config.yaml for easy tuning.
 
     Args:
-        stop_reason: Reason why investigation ended (from PerIssueData.stop_reason)
+        stop_reason: Reason why investigation ended (from PerIssueData.investigation_stop_reason)
+        config: Config object containing stop reason scores
 
     Returns:
         Normalized score between 0.0 and 1.0
@@ -206,26 +193,26 @@ def _score_stop_reason(stop_reason: Optional[str]) -> float:
 
     # High confidence: Investigation completed successfully
     if 'approved' in stop_reason_lower:
-        return 1.0
+        return config.STOP_REASON_SCORE_APPROVED
 
     # Medium confidence: Hit limits but did thorough research
     if 'max_iterations' in stop_reason_lower or 'iteration' in stop_reason_lower:
-        return 0.6
+        return config.STOP_REASON_SCORE_MAX_ITERATIONS
 
     # Low confidence: Investigation stalled without progress
     if 'no_progress' in stop_reason_lower or 'stalled' in stop_reason_lower:
-        return 0.3
+        return config.STOP_REASON_SCORE_NO_PROGRESS
 
     # Unknown stop reason: default to low confidence
-    logger.warning(f"Unknown stop_reason '{stop_reason}', defaulting to 0.2")
-    return 0.2
+    logger.warning(f"Unknown stop_reason '{stop_reason}', defaulting to {config.STOP_REASON_SCORE_UNKNOWN}")
+    return config.STOP_REASON_SCORE_UNKNOWN
 
 
-def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, Dict[str, Any]]:
+def calculate_investigation_depth(per_issue_data: PerIssueData, config: Config) -> tuple[float, Dict[str, Any]]:
     """
     Calculate investigation depth component (0.0 to 1.0).
 
-    Components (weights from common.constants):
+    Components (weights from config/default-config.yaml):
     - INVESTIGATION_WEIGHT_DEPTH: Symbols/functions explored beyond initial trace (25%)
     - INVESTIGATION_WEIGHT_TOOL_CALLS: Total tool calls during research - more = more thorough (25%)
     - INVESTIGATION_WEIGHT_REANALYSIS: Reanalysis cycles - indicates iterative refinement (25%)
@@ -233,32 +220,33 @@ def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, 
 
     Args:
         per_issue_data: PerIssueData object containing analysis information
+        config: Config object containing weights and normalization caps
 
     Returns:
         Tuple of (investigation_depth_score, details_dict)
     """
     # 1. Depth Score: Number of symbols explored (from found_symbols set)
     symbols_explored = len(per_issue_data.found_symbols)
-    depth_score = min(symbols_explored / CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
+    depth_score = min(symbols_explored / config.CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION, 1.0)
 
-    # 2. Tool Calls Score: Normalize by cap from common.constants
-    tool_calls = per_issue_data.tool_call_count
-    tool_calls_score = min(tool_calls / CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION, 1.0)
+    # 2. Tool Calls Score: Normalize by cap from config
+    tool_calls = per_issue_data.investigation_tool_call_count
+    tool_calls_score = min(tool_calls / config.CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION, 1.0)
 
-    # 3. Reanalysis Score: Normalize by cap from common.constants
-    reanalysis = per_issue_data.reanalysis_count
-    reanalysis_score = min(reanalysis / CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION, 1.0)
+    # 3. Reanalysis Score: Normalize by cap from config
+    reanalysis = per_issue_data.investigation_reanalysis_count
+    reanalysis_score = min(reanalysis / config.CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION, 1.0)
 
     # 4. Stop Reason Score: Convert categorical stop_reason to numeric score
-    stop_reason = per_issue_data.stop_reason
-    stop_reason_score = _score_stop_reason(stop_reason)
+    stop_reason = per_issue_data.investigation_stop_reason
+    stop_reason_score = _score_stop_reason(stop_reason, config)
 
-    # Weighted combination of investigation components (weights from common.constants)
+    # Weighted combination of investigation components (weights from config)
     investigation_depth = (
-        INVESTIGATION_WEIGHT_DEPTH * depth_score +
-        INVESTIGATION_WEIGHT_TOOL_CALLS * tool_calls_score +
-        INVESTIGATION_WEIGHT_REANALYSIS * reanalysis_score +
-        INVESTIGATION_WEIGHT_STOP_REASON * stop_reason_score
+        config.INVESTIGATION_WEIGHT_DEPTH * depth_score +
+        config.INVESTIGATION_WEIGHT_TOOL_CALLS * tool_calls_score +
+        config.INVESTIGATION_WEIGHT_REANALYSIS * reanalysis_score +
+        config.INVESTIGATION_WEIGHT_STOP_REASON * stop_reason_score
     )
 
     details = {
@@ -275,7 +263,7 @@ def calculate_investigation_depth(per_issue_data: PerIssueData) -> tuple[float, 
     return investigation_depth, details
 
 
-def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreBreakdown:
+def calculate_final_confidence(per_issue_data: PerIssueData, config: Config) -> ConfidenceScoreBreakdown:
     """
     Calculate final confidence score using weighted formula.
 
@@ -292,11 +280,12 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
 
     Args:
         per_issue_data: PerIssueData object containing all analysis information
+        config: Config object containing weights from default-config.yaml
 
     Returns:
         ConfidenceScoreBreakdown object with final score as percentage and components as 0-1 values
     """
-    # Component 1: Filter Confidence (weight from common.constants)
+    # Component 1: Filter Confidence (weight from config/default-config.yaml)
     filter_confidence = 0.0
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.filter_confidence is not None):
@@ -308,7 +297,6 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
     # SPECIAL CASE: Known False Positive identified by filter (short-circuit path)
     # If is_final=TRUE, the filter matched a known FP and investigation never ran
     # Use filter_confidence directly as the final score (no penalty for skipping investigation)
-    from dto.LLMResponse import FinalStatus
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value):
         final_confidence = filter_confidence * 100.0
@@ -325,7 +313,7 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
             investigation_depth=0.0
         )
 
-    # Component 2: Agent Confidence (weight from common.constants)
+    # Component 2: Agent Confidence (weight from config/default-config.yaml)
     agent_confidence = 0.0
     if (per_issue_data.analysis_response and
         per_issue_data.analysis_response.agent_confidence is not None):
@@ -334,18 +322,18 @@ def calculate_final_confidence(per_issue_data: PerIssueData) -> ConfidenceScoreB
         if raw_agent != agent_confidence:
             logger.warning(f"Clamped agent_confidence from {raw_agent} to {agent_confidence}")
 
-    # Component 3: Evidence Strength (weight from common.constants)
-    evidence_strength, evidence_details = calculate_evidence_strength(per_issue_data)
+    # Component 3: Evidence Strength (weight from config/default-config.yaml)
+    evidence_strength, evidence_details = calculate_evidence_strength(per_issue_data, config)
 
-    # Component 4: Investigation Depth (weight from common.constants)
-    investigation_depth, investigation_details = calculate_investigation_depth(per_issue_data)
+    # Component 4: Investigation Depth (weight from config/default-config.yaml)
+    investigation_depth, investigation_details = calculate_investigation_depth(per_issue_data, config)
 
-    # Calculate weighted final confidence (0-1 scale, weights from common.constants)
+    # Calculate weighted final confidence (0-1 scale, weights from config/default-config.yaml)
     final_confidence_raw = (
-        CONFIDENCE_WEIGHT_FILTER * filter_confidence +
-        CONFIDENCE_WEIGHT_AGENT * agent_confidence +
-        CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
-        CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
+        config.CONFIDENCE_WEIGHT_FILTER * filter_confidence +
+        config.CONFIDENCE_WEIGHT_AGENT * agent_confidence +
+        config.CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
+        config.CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
     )
 
     # Convert ONLY final confidence to percentage (0-100)
@@ -394,7 +382,6 @@ def inject_mock_confidence_data(per_issue_data: PerIssueData) -> None:
     # Mock agent_confidence if not present (assume high confidence for final decisions)
     if per_issue_data.analysis_response.agent_confidence is None:
         # Use is_final status as heuristic: final decisions get higher confidence
-        from dto.LLMResponse import FinalStatus
         if per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value:
             per_issue_data.analysis_response.agent_confidence = 0.9
             logger.debug("Injected mock agent_confidence=0.9 (final decision)")

@@ -208,7 +208,7 @@ def _calculate_confidence_scores(tracker: SASTWorkflowTracker) -> dict:
             inject_mock_confidence_data(per_issue_data)
 
             # Calculate confidence score
-            breakdown = calculate_final_confidence(per_issue_data)
+            breakdown = calculate_final_confidence(per_issue_data, tracker.config)
             confidence_breakdowns[issue_id] = breakdown
 
             # Store final score (percentage 0-100) directly into PerIssueData
