@@ -462,6 +462,41 @@ class TestUpdateTrackerFromResult:
         assert "tool_calls" in log_text.lower()
         assert "5" in log_text
 
+    def test__stores_tool_call_count_in_per_issue(self, mock_per_issue_pending, subgraph_result):
+        """Should store total_tool_calls in per_issue.investigation_tool_call_count."""
+        _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
+
+        assert mock_per_issue_pending.investigation_tool_call_count == 5
+
+    def test__stores_reanalysis_count_in_per_issue(self, mock_per_issue_pending, subgraph_result):
+        """Should store reanalysis_count in per_issue.investigation_reanalysis_count."""
+        _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
+
+        assert mock_per_issue_pending.investigation_reanalysis_count == 1
+
+    def test__stores_stop_reason_in_per_issue(self, mock_per_issue_pending):
+        """Should store stop_reason in per_issue.investigation_stop_reason."""
+        result = {
+            "proposed_verdict": "FALSE_POSITIVE",
+            "justifications": ["Test"],
+            "analysis_prompt": "Test prompt",
+            "confidence": "HIGH",
+            "iteration": 1,
+            "reanalysis_count": 0,
+            "total_tool_calls": 3,
+            "stop_reason": "approved",
+        }
+
+        _update_tracker_from_result(mock_per_issue_pending, result, "issue-1")
+
+        assert mock_per_issue_pending.investigation_stop_reason == "approved"
+
+    def test__stores_none_stop_reason_when_missing(self, mock_per_issue_pending, subgraph_result):
+        """Should store None for stop_reason when not in result."""
+        _update_tracker_from_result(mock_per_issue_pending, subgraph_result, "issue-1")
+
+        assert mock_per_issue_pending.investigation_stop_reason is None
+
 
 # ---------------------------------------------------------------------------
 # create_investigate_node (integration-style)
