@@ -21,9 +21,48 @@ from dto.Issue import Issue
 from dto.LLMResponse import AnalysisResponse, CVEValidationStatus, FinalStatus
 from common.config import Config
 from sast_agent_workflow.graph_builder import build_sast_workflow_graph
+from Utils.confidence_scoring import calculate_final_confidence, calculate_aggregate_confidence_metrics
 
 
 # mock_confidence_config fixture imported from conftest.py
+
+
+def _create_real_confidence_metrics_node():
+    """
+    Create a calculate_metrics node with real confidence scoring logic.
+
+    Shared helper to avoid duplication across E2E tests.
+    Uses real confidence calculation without inject_mock_confidence_data.
+    """
+
+    async def calculate_metrics_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
+        """Calculate metrics node with real confidence scoring (no mock data injection for E2E test)."""
+        if tracker.metrics is None:
+            tracker.metrics = {}
+
+        try:
+            confidence_breakdowns = {}
+            for issue_id, per_issue_data in tracker.issues.items():
+                # Calculate confidence score directly (no mock injection)
+                breakdown = calculate_final_confidence(per_issue_data, tracker.config)
+                confidence_breakdowns[issue_id] = breakdown
+                # Store final score in PerIssueData
+                per_issue_data.final_confidence_score = breakdown.final_confidence
+
+            # Calculate aggregate statistics
+            aggregate_stats = calculate_aggregate_confidence_metrics(confidence_breakdowns)
+            tracker.metrics['confidence_scores'] = aggregate_stats
+        except Exception as e:
+            tracker.metrics['confidence_scores'] = {
+                'error': f"Confidence calculation failed: {str(e)}",
+                'per_issue_scores': {},
+                'total_issues': 0
+            }
+
+        return tracker
+
+    return calculate_metrics_node
+
 
 @pytest.fixture
 def sample_issues():
@@ -185,37 +224,8 @@ class TestConfidenceScoringEndToEnd:
         5. All scores are in valid range (0-100%)
         6. Different paths (full investigation vs short-circuit) work correctly
         """
-        # Import confidence scoring functions directly (without mock data injection)
-        from Utils.confidence_scoring import calculate_final_confidence, calculate_aggregate_confidence_metrics
-
-        # Create a calculate_metrics node that uses real confidence scoring logic
-        async def calculate_metrics_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
-            """Calculate metrics node with real confidence scoring (no mock data injection for E2E test)."""
-            # Initialize empty metrics if not present
-            if tracker.metrics is None:
-                tracker.metrics = {}
-
-            # Use real confidence scoring logic WITHOUT inject_mock_confidence_data
-            try:
-                confidence_breakdowns = {}
-                for issue_id, per_issue_data in tracker.issues.items():
-                    # Calculate confidence score directly (no mock injection)
-                    breakdown = calculate_final_confidence(per_issue_data, tracker.config)
-                    confidence_breakdowns[issue_id] = breakdown
-                    # Store final score in PerIssueData
-                    per_issue_data.final_confidence_score = breakdown.final_confidence
-
-                # Calculate aggregate statistics
-                aggregate_stats = calculate_aggregate_confidence_metrics(confidence_breakdowns)
-                tracker.metrics['confidence_scores'] = aggregate_stats
-            except Exception as e:
-                tracker.metrics['confidence_scores'] = {
-                    'error': f"Confidence calculation failed: {str(e)}",
-                    'per_issue_scores': {},
-                    'total_issues': 0
-                }
-
-            return tracker
+        # Create calculate_metrics node using shared helper
+        calculate_metrics_node = _create_real_confidence_metrics_node()
 
         # Build the complete workflow graph with real calculate_metrics
         workflow = build_sast_workflow_graph(
@@ -319,8 +329,6 @@ class TestConfidenceScoringEndToEnd:
         - Confidence scores use filter_confidence only
         - All scores are filter_confidence × 100%
         """
-        from Utils.confidence_scoring import calculate_final_confidence, calculate_aggregate_confidence_metrics
-
         # Create filter that marks everything as known FP
         async def filter_all_known_fps(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
             for per_issue in tracker.issues.values():
@@ -339,25 +347,8 @@ class TestConfidenceScoringEndToEnd:
                     pass
             return tracker
 
-        # Create calculate_metrics node with real confidence scoring (no mock injection)
-        async def calculate_metrics_node(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
-            if tracker.metrics is None:
-                tracker.metrics = {}
-            try:
-                confidence_breakdowns = {}
-                for issue_id, per_issue_data in tracker.issues.items():
-                    breakdown = calculate_final_confidence(per_issue_data, tracker.config)
-                    confidence_breakdowns[issue_id] = breakdown
-                    per_issue_data.final_confidence_score = breakdown.final_confidence
-                aggregate_stats = calculate_aggregate_confidence_metrics(confidence_breakdowns)
-                tracker.metrics['confidence_scores'] = aggregate_stats
-            except Exception as e:
-                tracker.metrics['confidence_scores'] = {
-                    'error': f"Confidence calculation failed: {str(e)}",
-                    'per_issue_scores': {},
-                    'total_issues': 0
-                }
-            return tracker
+        # Create calculate_metrics node using shared helper
+        calculate_metrics_node = _create_real_confidence_metrics_node()
 
         # Build workflow
         workflow = build_sast_workflow_graph(
@@ -401,8 +392,6 @@ class TestConfidenceScoringEndToEnd:
         Validates execution order:
         Pre-Process → Filter → Investigation → Summarize → Calculate Metrics → Write Results
         """
-        from Utils.confidence_scoring import calculate_final_confidence, calculate_aggregate_confidence_metrics
-
         # Track call order
         call_order = []
 
@@ -427,26 +416,12 @@ class TestConfidenceScoringEndToEnd:
             call_order.append("write_results")
             return await mock_write_results_node(tracker)
 
-        # Create calculate_metrics with real confidence scoring (no mock injection)
+        # Create calculate_metrics using shared helper
+        calculate_metrics_node_fn = _create_real_confidence_metrics_node()
+
         async def track_calculate_metrics(tracker):
             call_order.append("calculate_metrics")
-            if tracker.metrics is None:
-                tracker.metrics = {}
-            try:
-                confidence_breakdowns = {}
-                for issue_id, per_issue_data in tracker.issues.items():
-                    breakdown = calculate_final_confidence(per_issue_data, tracker.config)
-                    confidence_breakdowns[issue_id] = breakdown
-                    per_issue_data.final_confidence_score = breakdown.final_confidence
-                aggregate_stats = calculate_aggregate_confidence_metrics(confidence_breakdowns)
-                tracker.metrics['confidence_scores'] = aggregate_stats
-            except Exception as e:
-                tracker.metrics['confidence_scores'] = {
-                    'error': f"Confidence calculation failed: {str(e)}",
-                    'per_issue_scores': {},
-                    'total_issues': 0
-                }
-            return tracker
+            return await calculate_metrics_node_fn(tracker)
 
         # Build workflow
         workflow = build_sast_workflow_graph(

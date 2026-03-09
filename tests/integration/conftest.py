@@ -26,7 +26,7 @@ def mock_confidence_config(tmp_path):
     config.WRITE_RESULTS_INCLUDE_NON_FINAL = True
 
     # LLM config
-    config.LLM_URL = "http://mock-llm"
+    config.LLM_URL = "https://mock-llm"
     config.LLM_MODEL_NAME = "mock-model"
     config.LLM_API_KEY = "mock-key"
     config.MAX_ANALYSIS_ITERATIONS = 3
