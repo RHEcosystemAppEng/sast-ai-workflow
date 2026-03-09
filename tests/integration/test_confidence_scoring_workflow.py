@@ -23,47 +23,7 @@ from common.config import Config
 from Utils.confidence_scoring import calculate_final_confidence, ConfidenceScoreBreakdown
 
 
-@pytest.fixture
-def mock_config():
-    """Create a mock Config with confidence scoring configuration."""
-    config = MagicMock(spec=Config)
-
-    # Main component weights (balanced 20/30/20/30)
-    config.CONFIDENCE_WEIGHT_FILTER = 0.20
-    config.CONFIDENCE_WEIGHT_AGENT = 0.30
-    config.CONFIDENCE_WEIGHT_EVIDENCE = 0.20
-    config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.30
-
-    # Evidence sub-component weights
-    config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.40
-    config.EVIDENCE_WEIGHT_FILES_FETCHED = 0.30
-    config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30
-
-    # Investigation sub-component weights
-    config.INVESTIGATION_WEIGHT_DEPTH = 0.25
-    config.INVESTIGATION_WEIGHT_TOOL_CALLS = 0.25
-    config.INVESTIGATION_WEIGHT_REANALYSIS = 0.25
-    config.INVESTIGATION_WEIGHT_STOP_REASON = 0.25
-
-    # Normalization caps
-    config.CONFIDENCE_MAX_FILES_FOR_NORMALIZATION = 10
-    config.CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION = 5
-    config.CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION = 5
-    config.CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION = 20
-    config.CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION = 3
-
-    # Stop reason scores
-    config.STOP_REASON_SCORE_APPROVED = 1.0
-    config.STOP_REASON_SCORE_MAX_ITERATIONS = 0.6
-    config.STOP_REASON_SCORE_NO_PROGRESS = 0.3
-    config.STOP_REASON_SCORE_UNKNOWN = 0.2
-
-    # Other config
-    config.REPO_LOCAL_PATH = "/tmp/test-repo"
-    config.MAX_ANALYSIS_ITERATIONS = 3
-
-    return config
-
+# mock_confidence_config fixture imported from conftest.py
 
 @pytest.fixture
 def sample_issue():
@@ -84,7 +44,7 @@ class TestConfidenceScoringWorkflow:
     """Integration tests for confidence scoring across full workflow."""
 
     def test_full_workflow_with_investigation_captures_all_confidence_components(
-        self, mock_config, sample_issue
+        self, mock_confidence_config, sample_issue
     ):
         """
         Test complete workflow: filter → investigation → confidence calculation.
@@ -133,7 +93,7 @@ class TestConfidenceScoringWorkflow:
         ]
 
         # STEP 4: Calculate confidence score (what calculate_metrics node does)
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # ASSERTIONS
 
@@ -175,7 +135,7 @@ class TestConfidenceScoringWorkflow:
         )
 
     def test_known_fp_short_circuit_uses_filter_confidence_directly(
-        self, mock_config, sample_issue
+        self, mock_confidence_config, sample_issue
     ):
         """
         Test known false positive path: filter identifies known FP and skips investigation.
@@ -206,7 +166,7 @@ class TestConfidenceScoringWorkflow:
         )
 
         # STEP 2: Calculate confidence (investigation was skipped)
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # ASSERTIONS
 
@@ -227,7 +187,7 @@ class TestConfidenceScoringWorkflow:
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
     def test_low_confidence_investigation_with_max_iterations_stop(
-        self, mock_config, sample_issue
+        self, mock_confidence_config, sample_issue
     ):
         """
         Test investigation that hit iteration limit with inconclusive results.
@@ -264,7 +224,7 @@ class TestConfidenceScoringWorkflow:
         per_issue_data.analysis_response.justifications = ["Insufficient evidence for definitive verdict"]
 
         # STEP 4: Calculate confidence
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # ASSERTIONS
 
@@ -282,7 +242,7 @@ class TestConfidenceScoringWorkflow:
             f"Expected moderate confidence for inconclusive investigation, got {breakdown.final_confidence:.1f}%"
         )
 
-    def test_confidence_score_stored_in_tracker(self, mock_config, sample_issue):
+    def test_confidence_score_stored_in_tracker(self, mock_confidence_config, sample_issue):
         """
         Test that final_confidence_score can be stored in PerIssueData.
 
@@ -309,7 +269,7 @@ class TestConfidenceScoringWorkflow:
         )
 
         # Calculate confidence
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # Store in PerIssueData (what calculate_metrics does)
         per_issue_data.final_confidence_score = breakdown.final_confidence
@@ -330,7 +290,7 @@ class TestConfidenceScoringWorkflow:
 class TestConfidenceScoringEdgeCases:
     """Test edge cases and error conditions in confidence scoring."""
 
-    def test_missing_agent_confidence_defaults_to_zero(self, mock_config, sample_issue):
+    def test_missing_agent_confidence_defaults_to_zero(self, mock_confidence_config, sample_issue):
         """
         Test that missing agent_confidence is handled gracefully.
 
@@ -348,13 +308,13 @@ class TestConfidenceScoringEdgeCases:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # Should handle missing agent_confidence gracefully
         assert breakdown.agent_confidence == pytest.approx(0.0)
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
-    def test_out_of_range_agent_confidence_is_clamped(self, mock_config, sample_issue):
+    def test_out_of_range_agent_confidence_is_clamped(self, mock_confidence_config, sample_issue):
         """
         Test that invalid agent_confidence values are clamped to [0, 1].
 
@@ -371,13 +331,13 @@ class TestConfidenceScoringEdgeCases:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # Should clamp to 1.0
         assert breakdown.agent_confidence == pytest.approx(1.0)
         assert 0.0 <= breakdown.final_confidence <= 100.0
 
-    def test_minimal_data_produces_valid_score(self, mock_config, sample_issue):
+    def test_minimal_data_produces_valid_score(self, mock_confidence_config, sample_issue):
         """
         Test that even with minimal data, a valid confidence score is produced.
 
@@ -392,7 +352,7 @@ class TestConfidenceScoringEdgeCases:
             )
         )
 
-        breakdown = calculate_final_confidence(per_issue_data, mock_config)
+        breakdown = calculate_final_confidence(per_issue_data, mock_confidence_config)
 
         # Should produce a valid score (likely low due to missing data)
         assert 0.0 <= breakdown.final_confidence <= 100.0

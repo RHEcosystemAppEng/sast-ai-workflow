@@ -23,61 +23,7 @@ from common.config import Config
 from sast_agent_workflow.graph_builder import build_sast_workflow_graph
 
 
-@pytest.fixture
-def mock_config(tmp_path):
-    """Create a comprehensive mock Config for E2E testing."""
-    config = MagicMock(spec=Config)
-
-    # Basic config
-    config.PROJECT_NAME = "test-project"
-    config.PROJECT_VERSION = "1.0.0"
-    config.REPO_LOCAL_PATH = str(tmp_path)
-    config.INPUT_REPORT_FILE_PATH = str(tmp_path / "report.html")
-    config.OUTPUT_FILE_PATH = str(tmp_path / "output.xlsx")
-    config.WRITE_RESULTS_INCLUDE_NON_FINAL = True
-
-    # LLM config
-    config.LLM_URL = "http://mock-llm"
-    config.LLM_MODEL_NAME = "mock-model"
-    config.LLM_API_KEY = "mock-key"
-    config.MAX_ANALYSIS_ITERATIONS = 3
-
-    # Confidence scoring config (balanced 20/30/20/30)
-    config.CONFIDENCE_WEIGHT_FILTER = 0.20
-    config.CONFIDENCE_WEIGHT_AGENT = 0.30
-    config.CONFIDENCE_WEIGHT_EVIDENCE = 0.20
-    config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.30
-
-    # Evidence sub-weights
-    config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.40
-    config.EVIDENCE_WEIGHT_FILES_FETCHED = 0.30
-    config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30
-
-    # Investigation sub-weights
-    config.INVESTIGATION_WEIGHT_DEPTH = 0.25
-    config.INVESTIGATION_WEIGHT_TOOL_CALLS = 0.25
-    config.INVESTIGATION_WEIGHT_REANALYSIS = 0.25
-    config.INVESTIGATION_WEIGHT_STOP_REASON = 0.25
-
-    # Normalization caps
-    config.CONFIDENCE_MAX_FILES_FOR_NORMALIZATION = 10
-    config.CONFIDENCE_MAX_EVIDENCE_ITEMS_FOR_NORMALIZATION = 5
-    config.CONFIDENCE_MAX_SYMBOLS_FOR_NORMALIZATION = 5
-    config.CONFIDENCE_MAX_TOOL_CALLS_FOR_NORMALIZATION = 20
-    config.CONFIDENCE_MAX_REANALYSIS_FOR_NORMALIZATION = 3
-
-    # Stop reason scores
-    config.STOP_REASON_SCORE_APPROVED = 1.0
-    config.STOP_REASON_SCORE_MAX_ITERATIONS = 0.6
-    config.STOP_REASON_SCORE_NO_PROGRESS = 0.3
-    config.STOP_REASON_SCORE_UNKNOWN = 0.2
-
-    # Other settings
-    config.USE_KNOWN_FALSE_POSITIVE_FILE = False
-    config.CALCULATE_RAGAS_METRICS = False
-
-    return config
-
+# mock_confidence_config fixture imported from conftest.py
 
 @pytest.fixture
 def sample_issues():
@@ -107,12 +53,12 @@ def sample_issues():
 
 
 @pytest.fixture
-def mock_pre_process_node(mock_config, sample_issues):
+def mock_pre_process_node(mock_confidence_config, sample_issues):
     """Mock pre-process node that initializes the workflow."""
     async def pre_process(state: dict) -> SASTWorkflowTracker:
         """Initialize tracker with sample issues."""
         tracker = SASTWorkflowTracker(
-            config=mock_config,
+            config=mock_confidence_config,
             iteration_count=0,
             issues={}
         )
@@ -221,7 +167,7 @@ class TestConfidenceScoringEndToEnd:
     @pytest.mark.asyncio
     async def test_complete_workflow_calculates_confidence_scores(
         self,
-        mock_config,
+        mock_confidence_config,
         mock_pre_process_node,
         mock_filter_node,
         mock_investigate_node,
@@ -360,7 +306,7 @@ class TestConfidenceScoringEndToEnd:
     @pytest.mark.asyncio
     async def test_workflow_with_all_known_fps_short_circuits_correctly(
         self,
-        mock_config,
+        mock_confidence_config,
         mock_pre_process_node,
         mock_summarize_justifications_node,
         mock_write_results_node
@@ -442,7 +388,7 @@ class TestConfidenceScoringEndToEnd:
     @pytest.mark.asyncio
     async def test_workflow_nodes_are_called_in_correct_order(
         self,
-        mock_config,
+        mock_confidence_config,
         mock_pre_process_node,
         mock_filter_node,
         mock_investigate_node,
