@@ -5,7 +5,7 @@ Tests actual file reading with line ranges, encodings, and edge cases.
 import pytest
 from pathlib import Path
 
-from sast_agent_workflow.investigation.tools.read_file import create_read_file_tool
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.read_file import create_read_file_tool
 
 
 @pytest.fixture

@@ -8,14 +8,14 @@ from pathlib import Path
 from unittest.mock import patch
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.tools.search_codebase import (
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.search_codebase import (
     create_search_codebase_tool,
     _compile_search_regex,
     _should_search_file,
     _search_file,
     _format_search_results,
 )
-from sast_agent_workflow.investigation.constants import DEFAULT_MAX_SEARCH_RESULTS
+from sast_agent_workflow.nodes.sub_agents.investigation.constants import DEFAULT_MAX_SEARCH_RESULTS
 
 
 class TestCreateSearchCodebaseTool:

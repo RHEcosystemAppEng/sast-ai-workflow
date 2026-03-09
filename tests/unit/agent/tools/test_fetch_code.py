@@ -7,14 +7,14 @@ from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.tools.fetch_code import (
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.fetch_code import (
     create_fetch_code_tool,
     Instruction,
     _try_sophisticated_extraction,
     _simple_file_extraction,
     _extract_function_simple,
 )
-from sast_agent_workflow.investigation.constants import (
+from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
     DEFAULT_CONTEXT_LINES,
     MAX_FUNCTION_SCAN_LINES,
 )
