@@ -295,10 +295,19 @@ def calculate_final_confidence(per_issue_data: PerIssueData, config: Config) -> 
             logger.warning(f"Clamped filter_confidence from {raw_filter} to {filter_confidence}")
 
     # SPECIAL CASE: Known False Positive identified by filter (short-circuit path)
-    # If is_final=TRUE, the filter matched a known FP and investigation never ran
+    # Investigation was skipped if:
+    # 1. is_final=TRUE from filter (known FP match), AND
+    # 2. agent_confidence is None (investigation analysis never ran), AND
+    # 3. No investigation metrics (investigation node never executed)
     # Use filter_confidence directly as the final score (no penalty for skipping investigation)
-    if (per_issue_data.analysis_response and
-        per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value):
+    investigation_never_ran = (
+        per_issue_data.analysis_response and
+        per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value and
+        per_issue_data.analysis_response.agent_confidence is None and
+        per_issue_data.investigation_tool_call_count == 0
+    )
+
+    if investigation_never_ran:
         final_confidence = filter_confidence * 100.0
         logger.debug(
             f"Known FP short-circuit: using filter_confidence={filter_confidence:.3f} "

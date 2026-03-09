@@ -722,7 +722,7 @@ class TestConfigurationLoading:
         invalid_config.CONFIDENCE_WEIGHT_FILTER = 0.25
         invalid_config.CONFIDENCE_WEIGHT_AGENT = 0.50
         invalid_config.CONFIDENCE_WEIGHT_EVIDENCE = 0.20
-        invalid_config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.10  # Sum = 1.05
+        invalid_config.CONFIDENCE_WEIGHT_INVESTIGATION = 0.10
 
         # Evidence weights (valid to isolate the test)
         invalid_config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.40
@@ -752,7 +752,7 @@ class TestConfigurationLoading:
         # Evidence weights (invalid)
         invalid_config.EVIDENCE_WEIGHT_FAISS_SCORE = 0.50
         invalid_config.EVIDENCE_WEIGHT_FILES_FETCHED = 0.30
-        invalid_config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30  # Sum = 1.10
+        invalid_config.EVIDENCE_WEIGHT_EVIDENCE_COUNT = 0.30
 
         # Investigation weights (valid to isolate the test)
         invalid_config.INVESTIGATION_WEIGHT_DEPTH = 0.25
