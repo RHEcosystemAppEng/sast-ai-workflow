@@ -6,7 +6,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock
 
-from sast_agent_workflow.investigation.tools.fetch_code import create_fetch_code_tool
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.fetch_code import create_fetch_code_tool
 
 
 @pytest.fixture

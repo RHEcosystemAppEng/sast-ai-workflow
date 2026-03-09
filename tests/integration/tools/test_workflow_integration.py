@@ -6,7 +6,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock
 
-from sast_agent_workflow.investigation.tools.factory import create_investigation_tools
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.factory import create_investigation_tools
 from common.config import Config
 
 
@@ -33,7 +33,7 @@ def investigation_tools(mock_config):
         mock_handler = Mock()
         mock_handler.extract_missing_functions_or_macros = Mock(return_value=("", set()))
 
-        from sast_agent_workflow.investigation.tools import factory
+        from sast_agent_workflow.nodes.sub_agents.investigation.tools import factory
         m.setattr(factory, "repo_handler_factory", lambda config: mock_handler)
 
         return create_investigation_tools(mock_config)

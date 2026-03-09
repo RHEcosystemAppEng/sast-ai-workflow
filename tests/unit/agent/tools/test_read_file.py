@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.tools.read_file import create_read_file_tool
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.read_file import create_read_file_tool
 
 
 class TestCreateReadFileTool:

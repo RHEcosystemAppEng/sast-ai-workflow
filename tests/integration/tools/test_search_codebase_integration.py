@@ -5,7 +5,7 @@ Tests actual regex search across real C files.
 import pytest
 from pathlib import Path
 
-from sast_agent_workflow.investigation.tools.search_codebase import create_search_codebase_tool
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.search_codebase import create_search_codebase_tool
 
 
 @pytest.fixture

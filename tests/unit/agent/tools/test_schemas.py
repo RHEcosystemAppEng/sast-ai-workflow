@@ -5,12 +5,12 @@ Tests all Pydantic models with 100% coverage.
 import pytest
 from pydantic import ValidationError
 
-from sast_agent_workflow.investigation.tools.schemas import (
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.schemas import (
     FetchCodeInput,
     SearchCodebaseInput,
     ReadFileInput,
 )
-from sast_agent_workflow.investigation.constants import (
+from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
     DEFAULT_CONTEXT_LINES,
     DEFAULT_MAX_SEARCH_RESULTS,
 )
