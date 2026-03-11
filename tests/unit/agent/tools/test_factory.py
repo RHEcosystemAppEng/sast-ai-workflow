@@ -2,20 +2,24 @@
 Unit tests for investigation tools factory.
 Tests all scenarios with 100% coverage.
 """
-import pytest
+
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-from langchain_core.tools import BaseTool
+from unittest.mock import Mock, patch
+
+import pytest
 from langchain_community.tools.file_management import (
-    ListDirectoryTool,
     FileSearchTool,
+    ListDirectoryTool,
+)
+from langchain_core.tools import BaseTool
+
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.factory import (
+    _create_file_search_tool,
+    _create_list_directory_tool,
+    create_investigation_tools,
 )
 
-from sast_agent_workflow.investigation.tools.factory import (
-    create_investigation_tools,
-    _create_list_directory_tool,
-    _create_file_search_tool,
-)
+_FACTORY = "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory"
 
 
 class TestCreateInvestigationTools:
@@ -38,7 +42,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_list_of_tools(self, mock_config):
         """Test that function returns a list of tools."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -48,7 +54,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_expected_number_of_tools(self, mock_config):
         """Test that all expected tools are created."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -57,7 +65,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_fetch_code_tool(self, mock_config):
         """Test that fetch_code tool is created."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -66,7 +76,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_search_codebase_tool(self, mock_config):
         """Test that search_codebase tool is created."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -75,7 +87,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_read_file_tool(self, mock_config):
         """Test that read_file tool is created."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -84,7 +98,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_list_directory_tool(self, mock_config):
         """Test that list_directory tool is created."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -93,7 +109,9 @@ class TestCreateInvestigationTools:
 
     def test_creates_file_search_tool(self, mock_config):
         """Test that file_search tool is created."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -102,7 +120,9 @@ class TestCreateInvestigationTools:
 
     def test_uses_repo_handler_factory(self, mock_config):
         """Test that repo_handler_factory is called with config."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_handler = Mock()
             mock_factory.return_value = mock_handler
 
@@ -114,13 +134,15 @@ class TestCreateInvestigationTools:
         """Test that repository path is resolved correctly."""
         mock_config.REPO_LOCAL_PATH = str(tmp_path)
 
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
 
             # Patch the individual tool creation functions to capture the repo_path
-            with patch("sast_agent_workflow.investigation.tools.factory.create_fetch_code_tool") as mock_fetch:
-                with patch("sast_agent_workflow.investigation.tools.factory.create_search_codebase_tool") as mock_search:
-                    with patch("sast_agent_workflow.investigation.tools.factory.create_read_file_tool") as mock_read:
+            with patch(f"{_FACTORY}.create_fetch_code_tool") as mock_fetch:
+                with patch(f"{_FACTORY}.create_search_codebase_tool") as mock_search:
+                    with patch(f"{_FACTORY}.create_read_file_tool") as mock_read:
                         mock_fetch.return_value = Mock(name="fetch_code")
                         mock_search.return_value = Mock(name="search_codebase")
                         mock_read.return_value = Mock(name="read_file")
@@ -134,7 +156,9 @@ class TestCreateInvestigationTools:
 
     def test_all_tools_are_base_tool_instances(self, mock_config):
         """Test that all returned tools are BaseTool instances."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -143,7 +167,9 @@ class TestCreateInvestigationTools:
 
     def test_list_directory_tool_is_langchain_community_tool(self, mock_config):
         """Test that list_directory uses langchain_community.ListDirectoryTool."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -152,7 +178,9 @@ class TestCreateInvestigationTools:
 
     def test_file_search_tool_is_langchain_community_tool(self, mock_config):
         """Test that file_search uses langchain_community.FileSearchTool."""
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(mock_config)
 
@@ -340,7 +368,9 @@ class TestToolIntegration:
         config = Mock()
         config.REPO_LOCAL_PATH = str(tmp_path)
 
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(config)
 
@@ -352,7 +382,9 @@ class TestToolIntegration:
         config = Mock()
         config.REPO_LOCAL_PATH = str(tmp_path)
 
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(config)
 
@@ -365,12 +397,14 @@ class TestToolIntegration:
         config = Mock()
         config.REPO_LOCAL_PATH = str(tmp_path)
 
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
 
-            with patch("sast_agent_workflow.investigation.tools.factory.create_fetch_code_tool") as mock_fetch:
-                with patch("sast_agent_workflow.investigation.tools.factory.create_search_codebase_tool") as mock_search:
-                    with patch("sast_agent_workflow.investigation.tools.factory.create_read_file_tool") as mock_read:
+            with patch(f"{_FACTORY}.create_fetch_code_tool") as mock_fetch:
+                with patch(f"{_FACTORY}.create_search_codebase_tool") as mock_search:
+                    with patch(f"{_FACTORY}.create_read_file_tool") as mock_read:
                         mock_fetch.return_value = Mock(name="fetch_code")
                         mock_search.return_value = Mock(name="search_codebase")
                         mock_read.return_value = Mock(name="read_file")
@@ -392,7 +426,9 @@ class TestToolIntegration:
         config = Mock()
         config.REPO_LOCAL_PATH = str(tmp_path)
 
-        with patch("sast_agent_workflow.investigation.tools.factory.repo_handler_factory") as mock_factory:
+        with patch(
+            "sast_agent_workflow.nodes.sub_agents.investigation.tools.factory.repo_handler_factory"
+        ) as mock_factory:
             mock_factory.return_value = Mock()
             tools = create_investigation_tools(config)
 

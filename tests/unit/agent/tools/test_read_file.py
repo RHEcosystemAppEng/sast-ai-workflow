@@ -2,12 +2,16 @@
 Unit tests for read_file tool.
 Tests all scenarios with 100% coverage.
 """
-import pytest
+
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import patch
+
+import pytest
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.tools.read_file import create_read_file_tool
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.read_file import (
+    create_read_file_tool,
+)
 
 
 class TestCreateReadFileTool:
@@ -28,7 +32,7 @@ class TestCreateReadFileTool:
         tool = create_read_file_tool(repo_path)
 
         # Check that the tool accepts the expected parameters
-        assert hasattr(tool, 'args_schema')
+        assert hasattr(tool, "args_schema")
 
 
 class TestReadFileTool:
@@ -65,10 +69,7 @@ class TestReadFileTool:
 
     def test_read_file_with_start_line_only(self, read_file_tool):
         """Test reading file from start_line to end."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": 3
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": 3})
 
         assert "Total Lines: 5" in result
         assert "Showing Lines: 3-5" in result
@@ -80,10 +81,7 @@ class TestReadFileTool:
 
     def test_read_file_with_end_line_only(self, read_file_tool):
         """Test reading file from beginning to end_line."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "end_line": 3
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "end_line": 3})
 
         assert "Total Lines: 5" in result
         assert "Showing Lines: 1-3" in result
@@ -95,11 +93,7 @@ class TestReadFileTool:
 
     def test_read_file_with_line_range(self, read_file_tool):
         """Test reading file with both start_line and end_line."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": 2,
-            "end_line": 4
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": 2, "end_line": 4})
 
         assert "Total Lines: 5" in result
         assert "Showing Lines: 2-4" in result
@@ -133,10 +127,7 @@ class TestReadFileTool:
 
     def test_start_line_beyond_file_length(self, read_file_tool):
         """Test reading with start_line beyond file length."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": 100
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": 100})
 
         # Should return empty range but not error
         assert "Total Lines: 5" in result
@@ -144,10 +135,7 @@ class TestReadFileTool:
 
     def test_end_line_beyond_file_length(self, read_file_tool):
         """Test reading with end_line beyond file length."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "end_line": 100
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "end_line": 100})
 
         # Should read to actual end of file
         assert "Total Lines: 5" in result
@@ -155,10 +143,7 @@ class TestReadFileTool:
 
     def test_negative_start_line(self, read_file_tool):
         """Test reading with negative start_line."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": -1
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": -1})
 
         # max(0, -1 - 1) = 0, should read from beginning
         assert "Total Lines: 5" in result
@@ -166,10 +151,7 @@ class TestReadFileTool:
 
     def test_zero_start_line(self, read_file_tool):
         """Test reading with start_line=0."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": 0
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": 0})
 
         # max(0, 0 - 1) = 0, should read from beginning
         assert "Total Lines: 5" in result
@@ -177,21 +159,14 @@ class TestReadFileTool:
 
     def test_zero_end_line(self, read_file_tool):
         """Test reading with end_line=0."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "end_line": 0
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "end_line": 0})
 
         # min(5, 0) = 0, should return empty
         assert "Total Lines: 5" in result
 
     def test_start_line_equals_end_line(self, read_file_tool):
         """Test reading single line when start equals end."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": 3,
-            "end_line": 3
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": 3, "end_line": 3})
 
         assert "Total Lines: 5" in result
         assert "Showing Lines: 3-3" in result
@@ -201,11 +176,7 @@ class TestReadFileTool:
 
     def test_end_line_before_start_line(self, read_file_tool):
         """Test handling when end_line is before start_line."""
-        result = read_file_tool.invoke({
-            "file_path": "test.c",
-            "start_line": 4,
-            "end_line": 2
-        })
+        result = read_file_tool.invoke({"file_path": "test.c", "start_line": 4, "end_line": 2})
 
         # Should result in empty range
         assert "Total Lines: 5" in result
