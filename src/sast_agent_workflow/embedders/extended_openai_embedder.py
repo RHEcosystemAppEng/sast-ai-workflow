@@ -1,9 +1,5 @@
-"""
-Extended OpenAI embedder (provider and client) to support tiktoken_enabled,
-show_progress_bar, and custom http_client.
-"""
+"""Extended OpenAI embedder (provider and client) with typed http_client support."""
 
-import httpx
 from nat.builder.builder import Builder
 from nat.builder.embedder import EmbedderProviderInfo
 from nat.builder.framework_enum import LLMFrameworkEnum
@@ -13,12 +9,17 @@ from nat.cli.register_workflow import (
 )
 from nat.embedder.openai_embedder import OpenAIEmbedderModelConfig
 
+from sast_agent_workflow.llms.http_client_mixin import HttpClientMixin
 
-class ExtendedOpenAIEmbedderConfig(OpenAIEmbedderModelConfig, name="extended_openai"):
-    """Extended OpenAI embedder config - uses native config with custom http_client handling.
 
-    All extra parameters (tiktoken_enabled, show_progress_bar, etc.) are supported
-    via the parent class's extra="allow" setting.
+class ExtendedOpenAIEmbedderConfig(
+    OpenAIEmbedderModelConfig, HttpClientMixin, name="extended_openai"
+):
+    """Extended OpenAI embedder config with typed http_client support.
+
+    Inherits HttpClientMixin to expose http_client as a validated field.
+    Other OpenAI-native parameters (tiktoken_enabled, show_progress_bar, etc.) are
+    supported via the parent's extra="allow" setting.
     """
 
     pass
@@ -26,7 +27,6 @@ class ExtendedOpenAIEmbedderConfig(OpenAIEmbedderModelConfig, name="extended_ope
 
 @register_embedder_provider(config_type=ExtendedOpenAIEmbedderConfig)
 async def register_extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig, builder: Builder):
-    """Register the extended OpenAI embedder provider."""
     yield EmbedderProviderInfo(
         config=config, description="An OpenAI model for use with an Embedder client."
     )
@@ -38,21 +38,10 @@ async def register_extended_openai_embedder(config: ExtendedOpenAIEmbedderConfig
 async def create_extended_openai_langchain(
     embedder_config: ExtendedOpenAIEmbedderConfig, builder: Builder
 ):
-    """Register the extended OpenAI embedder client with http_client dict conversion.
-
-    This client converts http_client dict config to httpx.Client object,
-    which is required by langchain_openai.OpenAIEmbeddings.
-    """
     from langchain_openai import OpenAIEmbeddings
 
     config_dict = embedder_config.model_dump(exclude={"type"}, by_alias=True)
-
-    # Convert http_client dict to httpx.Client object
-    if "http_client" in config_dict:
-        if config_dict["http_client"]:
-            config_dict["http_client"] = httpx.Client(**config_dict["http_client"])
-        else:
-            del config_dict["http_client"]
+    embedder_config.resolve_httpx_clients(config_dict, include_async=False)
 
     # Force tiktoken_enabled to False for non-OpenAI embedders (e.g., sentence-transformers)
     # tiktoken is designed for OpenAI models and uses GPT tokenization, not BERT-based tokenization
