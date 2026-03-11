@@ -28,6 +28,6 @@ async def register_extended_openai_llm(config: ExtendedOpenAIModelConfig, builde
 async def create_extended_openai_langchain(llm_config: ExtendedOpenAIModelConfig, builder: Builder):
     from langchain_openai import ChatOpenAI
 
-    config_dict = {"stream_usage": True, **llm_config.model_dump(exclude={"type"}, by_alias=True)}
+    config_dict = llm_config.model_dump(exclude={"type", "thinking", "api_type"}, by_alias=True)
     llm_config.resolve_httpx_clients(config_dict, include_async=True)
     yield ChatOpenAI(**config_dict)
