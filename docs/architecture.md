@@ -13,21 +13,22 @@ The SAST AI Workflow supports two execution approaches:
 
 The NAT-based workflow is implemented as a custom `sast_agent` type, registered in `src/sast_agent_workflow/register.py`. This approach provides:
 
-- **Modular Design**: Each analysis step is implemented as a separate tool
+- **Modular Design**: Each analysis step is implemented as a separate node
 - **LangGraph Integration**: Workflow orchestration using LangGraph
 - **Enhanced Configuration**: YAML-based configuration with environment variable overrides
 
 ### Core Components
 
-#### Tools Package (`src/sast_agent_workflow/tools/`)
+#### Nodes (`src/sast_agent_workflow/nodes/`)
 - `pre_process`: Initializes the SAST workflow
-- `filter`: Filters known false positives and retrieves similar issues  
-- `data_fetcher`: Fetches required source code for analysis
-- `judge_llm_analysis`: Performs LLM-based analysis of SAST issues
-- `evaluate_analysis`: Evaluates analysis results and provides next step recommendations
+- `filter`: Filters known false positives and retrieves similar issues
+- `investigate`: Investigates each SAST issue using a multi-stage research → analysis → evaluation subgraph (see [Investigation Package](../src/sast_agent_workflow/nodes/sub_agents/investigation/README.md))
 - `summarize_justifications`: Summarizes analysis justifications
 - `calculate_metrics`: Calculates performance metrics for SAST analysis
 - `write_results`: Writes final analysis results to specified outputs
+
+#### Tools & State Schemas
+- [Tools & Schemas Reference](tools_and_schemas.md) — 5 research tools (purpose, parameters, trade-offs, examples), circuit breaker constants, and full state schema documentation (`SASTWorkflowTracker`, `PerIssueData`, `InvestigationState`)
 
 #### Configuration
 - **Main Config**: `src/sast_agent_workflow/configs/config.yml`
@@ -40,20 +41,17 @@ The NAT-based workflow is implemented as a custom `sast_agent` type, registered 
 
 ### Workflow Execution Flow
 
-The NAT framework uses LangGraph with conditional logic for iterative analysis:
+The NAT framework uses LangGraph with a linear pipeline. All iterative analysis logic is encapsulated inside the `investigate` node:
 
 ```
-Input → pre_process → filter → data_fetcher → judge_llm_analysis → evaluate_analysis
-                                    ↑                                     ↓
-                                    └─────── (conditional loop) ──────────┘
-                                                     ↓
-                              summarize_justifications → calculate_metrics → write_results → Output
+Input → pre_process → filter → investigate → summarize_justifications → calculate_metrics → write_results → Output
 ```
 
-**Conditional Edge Logic** (`graph_builder.py:should_continue_analysis`):
-- Loops back to `data_fetcher` if issues need re-analysis and under `MAX_ANALYSIS_ITERATIONS`
-- Proceeds to `summarize_justifications` when analysis is complete or max iterations reached
-- If `data_fetcher` fails to retrieve new data despite instructions, the issue is marked as final to skip further analysis iterations
+The `investigate` node internally runs a **Research → Analysis → Evaluation loop** per issue, with a circuit breaker for safety limits. See the [Investigation Package README](../src/sast_agent_workflow/nodes/sub_agents/investigation/README.md) for the full inner-loop design.
+
+#### Guides
+- [Langfuse Guide](langfuse_guide.md) — trace reading, cost analysis, debugging
+- [Operations Runbook](operations_runbook.md) — monitoring, alerts, performance tuning
 
 ## Traditional Python Architecture
 
@@ -66,6 +64,5 @@ The traditional approach uses direct Python execution via `run.py`, maintaining 
 | **Execution** | `nat run --config_file ...` | `python run.py` |
 | **Architecture** | Agent-based with LangGraph | Sequential processing |
 | **Configuration** | YAML + Environment variables | Environment variables only |
-| **Modularity** | High (tool-based) | Moderate |
+| **Modularity** | High (node-based) | Moderate |
 | **Testing** | `pytest tests/nat_tests/` | Standard pytest |
-
