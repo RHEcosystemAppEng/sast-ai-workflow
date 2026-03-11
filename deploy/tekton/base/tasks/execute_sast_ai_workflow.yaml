@@ -45,12 +45,20 @@ spec:
     - name: LLM_API_TYPE
       type: string
       default: "nim"
+    - name: LLM_HTTP_CLIENT_VERIFY
+      type: string
+      description: "SSL certificate verification for the LLM endpoint (true/false)"
+      default: "true"
     - name: EMBEDDINGS_LLM_URL
       type: string
       default: ""
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: ""
+    - name: EMBEDDINGS_HTTP_CLIENT_VERIFY
+      type: string
+      description: "SSL certificate verification for the embeddings endpoint (true/false)"
+      default: "true"
     - name: USE_KNOWN_FALSE_POSITIVE_FILE
       type: string
       description: "Whether to use known false positive file for filtering (true/false)"
@@ -233,6 +241,10 @@ spec:
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
         - name: LLM_API_TYPE
           value: "$(params.LLM_API_TYPE)"
+        - name: LLM_HTTP_CLIENT_VERIFY
+          value: "$(params.LLM_HTTP_CLIENT_VERIFY)"
+        - name: EMBEDDINGS_HTTP_CLIENT_VERIFY
+          value: "$(params.EMBEDDINGS_HTTP_CLIENT_VERIFY)"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:
