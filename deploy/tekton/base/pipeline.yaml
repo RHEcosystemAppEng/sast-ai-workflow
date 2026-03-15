@@ -37,7 +37,7 @@ spec:
     - name: LLM_HTTP_CLIENT_VERIFY
       type: string
       description: "SSL certificate verification for the LLM endpoint (true/false)"
-      default: "true"
+      default: "false"
     - name: EMBEDDINGS_LLM_URL
       type: string
       default: "http://<<please-set-embedding-llm-url>>"
@@ -47,7 +47,7 @@ spec:
     - name: EMBEDDINGS_HTTP_CLIENT_VERIFY
       type: string
       description: "SSL certificate verification for the embeddings endpoint (true/false)"
-      default: "true"
+      default: "false"
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: "" 
