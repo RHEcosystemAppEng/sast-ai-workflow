@@ -13,7 +13,7 @@ from sast_agent_workflow.llms.http_client_mixin import HttpClientMixin
 
 
 class ExtendedOpenAIEmbedderConfig(
-    OpenAIEmbedderModelConfig, HttpClientMixin, name="extended_openai"
+    OpenAIEmbedderModelConfig, HttpClientMixin, name="extended_openai_embedder"
 ):
     """Extended OpenAI embedder config with typed http_client support.
 

@@ -41,7 +41,7 @@ llms:
   
 embedders:
   filter_embedding:
-    _type: extended_openai
+    _type: extended_openai_embedder
     api_key: ${EMBEDDINGS_LLM_API_KEY}
     base_url: ${EMBEDDINGS_LLM_URL}
     model_name: ${EMBEDDINGS_LLM_MODEL_NAME}
