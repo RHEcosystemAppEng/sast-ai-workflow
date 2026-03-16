@@ -29,6 +29,29 @@ def generate_code_embeddings(vector_service, embedding_llm):
     return src_db
 
 
+def truncate_text_to_token_limit(text: str, model_name: str, max_tokens: int) -> str:
+    """
+    Truncates text to fit within the embedding model's server-side token limit.
+
+    max_tokens must be passed explicitly — the HuggingFace tokenizer's model_max_length
+    (512 for MPNet) differs from the sentence-transformers max_seq_length (384 for
+    all-mpnet-base-v2) that the TEI server enforces. Use EMBEDDINGS_MAX_INPUT_TOKENS
+    from config.
+
+    Returns the original text unchanged if it is within the limit.
+    """
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    input_ids = tokenizer(text)["input_ids"]
+    if len(input_ids) <= max_tokens:
+        return text
+    logger.warning(
+        f"Text is {len(input_ids)} tokens, exceeding server limit ({max_tokens}). "
+        f"Truncating. First 20 words: {text.split()[:20]}"
+    )
+    truncated_ids = tokenizer(text, truncation=True, max_length=max_tokens)["input_ids"]
+    return tokenizer.decode(truncated_ids, skip_special_tokens=True)
+
+
 def check_text_size_before_embedding(text: str, model_name: str):
     """
     Checks if the text exceeds the maximum allowed tokens for the embedding model.
@@ -48,5 +71,3 @@ def check_text_size_before_embedding(text: str, model_name: str):
                 exceeding the max allowed ({max_tokens}). "
             f"\nFirst 20 words of the text: {text.split()[:20]}"
         )
-    # else:
-    #     logger.info(f"Text is within limit: {token_count} tokens.")

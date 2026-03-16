@@ -2,10 +2,13 @@
 Tests for capture_known_issues function in FilterKnownIssues.py
 Covers LLM vector search for identifying known false positives.
 """
-import pytest
+
 from unittest.mock import Mock, patch
-from src.FilterKnownIssues import capture_known_issues
+
+import pytest
+
 from dto.Issue import Issue
+from src.FilterKnownIssues import capture_known_issues
 
 
 @pytest.fixture
@@ -29,9 +32,9 @@ def mock_document():
     doc = Mock()
     doc.page_content = "Some error trace"
     doc.metadata = {
-        'reason_of_false_positive': 'duplicate variable',
-        'issue_type': 'USE_AFTER_FREE',
-        'issue_cwe': 'CWE-416'
+        "reason_of_false_positive": "duplicate variable",
+        "issue_type": "USE_AFTER_FREE",
+        "issue_cwe": "CWE-416",
     }
     return doc
 
@@ -65,25 +68,31 @@ def setup_llm_service_with_vector_store(vector_store):
 
 
 class TestCaptureKnownIssues:
-    def test__capture_known_issues__faiss_failure_logs_error(self, caplog, mock_config, valid_known_issues):
+    def test__capture_known_issues__faiss_failure_logs_error(
+        self, caplog, mock_config, valid_known_issues
+    ):
         # preparation
         mock_llm_service = Mock()
         mock_vector_service = Mock()
-        mock_vector_service.create_known_issues_vector_store.side_effect = Exception("FAISS embedding failed")
+        mock_vector_service.create_known_issues_vector_store.side_effect = Exception(
+            "FAISS embedding failed"
+        )
         mock_llm_service.vector_service = mock_vector_service
         mock_llm_service.embedding_llm = Mock()
 
         issue_list = [Issue(id="issue1")]
 
         # testing
-        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=valid_known_issues):
-            with caplog.at_level('ERROR'):
+        with patch("src.FilterKnownIssues.read_known_errors_file", return_value=valid_known_issues):
+            with caplog.at_level("ERROR"):
                 with pytest.raises(Exception, match="FAISS embedding failed"):
                     capture_known_issues(mock_llm_service, issue_list, mock_config)
 
                 # assertion
                 mock_vector_service.create_known_issues_vector_store.assert_called_once_with(
-                    valid_known_issues, mock_llm_service.embedding_llm
+                    valid_known_issues,
+                    mock_llm_service.embedding_llm,
+                    mock_config.EMBEDDINGS_MAX_INPUT_TOKENS,
                 )
 
     def test__capture_known_issues__issue_error_continues_processing(
@@ -106,8 +115,8 @@ class TestCaptureKnownIssues:
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
 
         # testing
-        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=valid_known_issues):
-            with caplog.at_level('ERROR'):
+        with patch("src.FilterKnownIssues.read_known_errors_file", return_value=valid_known_issues):
+            with caplog.at_level("ERROR"):
                 with pytest.raises(Exception, match="Processing failed for issue2"):
                     capture_known_issues(mock_llm_service, issue_list, mock_config)
 
@@ -132,8 +141,10 @@ class TestCaptureKnownIssues:
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
 
         # testing
-        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=valid_known_issues):
-            already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
+        with patch("src.FilterKnownIssues.read_known_errors_file", return_value=valid_known_issues):
+            already_seen_dict, context_dict = capture_known_issues(
+                mock_llm_service, issue_list, mock_config
+            )
 
             # assertion
             assert len(already_seen_dict) == 2
@@ -149,8 +160,11 @@ class TestCaptureKnownIssues:
             assert mock_llm_service.filter_known_error.call_count == 3
 
             # Verify the vector service was properly initialized
-            mock_llm_service.vector_service.create_known_issues_vector_store.assert_called_once_with(
-                valid_known_issues, mock_llm_service.embedding_llm
+            create_vs = mock_llm_service.vector_service.create_known_issues_vector_store
+            create_vs.assert_called_once_with(
+                valid_known_issues,
+                mock_llm_service.embedding_llm,
+                mock_config.EMBEDDINGS_MAX_INPUT_TOKENS,
             )
 
     def test__capture_known_issues__file_error_returns_empty(self, caplog):
@@ -162,12 +176,17 @@ class TestCaptureKnownIssues:
         issue_list = [Issue(id="issue1")]
 
         # testing
-        with patch('src.FilterKnownIssues.read_known_errors_file', side_effect=FileNotFoundError("File not found")):
-            with caplog.at_level('ERROR'):
+        with patch(
+            "src.FilterKnownIssues.read_known_errors_file",
+            side_effect=FileNotFoundError("File not found"),
+        ):
+            with caplog.at_level("ERROR"):
                 with pytest.raises(FileNotFoundError, match="File not found"):
                     capture_known_issues(mock_llm_service, issue_list, mock_config)
 
-    def test__capture_known_issues__empty_file_returns_empty(self, mock_config, mock_vector_store_empty):
+    def test__capture_known_issues__empty_file_returns_empty(
+        self, mock_config, mock_vector_store_empty
+    ):
         # preparation
         mock_llm_service = setup_llm_service_with_vector_store(mock_vector_store_empty)
 
@@ -179,8 +198,10 @@ class TestCaptureKnownIssues:
         mock_llm_service.filter_known_error.return_value = mock_response
 
         # testing
-        with patch('src.FilterKnownIssues.read_known_errors_file', return_value=[]):
-            already_seen_dict, context_dict = capture_known_issues(mock_llm_service, issue_list, mock_config)
+        with patch("src.FilterKnownIssues.read_known_errors_file", return_value=[]):
+            already_seen_dict, context_dict = capture_known_issues(
+                mock_llm_service, issue_list, mock_config
+            )
 
             # assertion
             assert already_seen_dict == {}
@@ -191,6 +212,7 @@ class TestCaptureKnownIssues:
             mock_llm_service.filter_known_error.assert_called_once()
 
             # Verify the vector service was properly initialized with empty list
-            mock_llm_service.vector_service.create_known_issues_vector_store.assert_called_once_with(
-                [], mock_llm_service.embedding_llm
+            create_vs = mock_llm_service.vector_service.create_known_issues_vector_store
+            create_vs.assert_called_once_with(
+                [], mock_llm_service.embedding_llm, mock_config.EMBEDDINGS_MAX_INPUT_TOKENS
             )

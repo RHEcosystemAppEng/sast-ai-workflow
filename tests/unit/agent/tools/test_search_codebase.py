@@ -2,20 +2,24 @@
 Unit tests for search_codebase tool.
 Tests all scenarios with 100% coverage.
 """
-import pytest
+
 import re
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.tools.search_codebase import (
-    create_search_codebase_tool,
-    _compile_search_regex,
-    _should_search_file,
-    _search_file,
-    _format_search_results,
+from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
+    DEFAULT_MAX_SEARCH_RESULTS,
 )
-from sast_agent_workflow.investigation.constants import DEFAULT_MAX_SEARCH_RESULTS
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.search_codebase import (
+    _compile_search_regex,
+    _format_search_results,
+    _search_file,
+    _should_search_file,
+    create_search_codebase_tool,
+)
 
 
 class TestCreateSearchCodebaseTool:
@@ -35,7 +39,7 @@ class TestCreateSearchCodebaseTool:
         repo_path = Path("/fake/repo")
         tool = create_search_codebase_tool(repo_path)
 
-        assert hasattr(tool, 'args_schema')
+        assert hasattr(tool, "args_schema")
 
 
 class TestSearchCodebaseTool:
@@ -67,20 +71,13 @@ class TestSearchCodebaseTool:
 
         # Create Python file
         script_py = tmp_path / "script.py"
-        script_py.write_text(
-            "def validate_input(data):\n"
-            "    return True\n"
-        )
+        script_py.write_text("def validate_input(data):\n" "    return True\n")
 
         # Create subdirectory with files
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         utils_c = src_dir / "utils.c"
-        utils_c.write_text(
-            "void malloc_wrapper() {\n"
-            "    return malloc(1024);\n"
-            "}\n"
-        )
+        utils_c.write_text("void malloc_wrapper() {\n" "    return malloc(1024);\n" "}\n")
 
         # Create hidden directory with files (should be ignored)
         hidden_dir = tmp_path / ".git"
@@ -114,10 +111,7 @@ class TestSearchCodebaseTool:
 
     def test_search_with_custom_file_pattern(self, search_tool):
         """Test search with custom file pattern."""
-        result = search_tool.invoke({
-            "pattern": "validate",
-            "file_pattern": "*.py"
-        })
+        result = search_tool.invoke({"pattern": "validate", "file_pattern": "*.py"})
 
         assert "=== Search Results: 'validate'" in result
         assert "script.py:" in result
@@ -127,10 +121,7 @@ class TestSearchCodebaseTool:
 
     def test_search_with_max_results_limit(self, search_tool):
         """Test search respects max_results limit."""
-        result = search_tool.invoke({
-            "pattern": "malloc",
-            "max_results": 2
-        })
+        result = search_tool.invoke({"pattern": "malloc", "max_results": 2})
 
         assert "=== Search Results: 'malloc'" in result
         # Should show exactly 2 matches
@@ -185,7 +176,7 @@ class TestSearchCodebaseTool:
         tool = create_search_codebase_tool(temp_repo)
 
         # Patch rglob to raise an exception
-        with patch.object(Path, 'rglob', side_effect=PermissionError("Access denied")):
+        with patch.object(Path, "rglob", side_effect=PermissionError("Access denied")):
             result = tool.invoke({"pattern": "test"})
 
         assert "Error: Search failed" in result

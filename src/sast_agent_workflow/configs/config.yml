@@ -29,24 +29,26 @@ functions:
 
 llms:
   main_llm:
-    _type: ${LLM_API_TYPE}
+    _type: extended_${LLM_API_TYPE}
     api_key: ${LLM_API_KEY}
     base_url: ${LLM_URL}
     model_name: ${LLM_MODEL_NAME}
     temperature: 0
     top_p: 1.0
     max_tokens: 16384
+    http_client:
+      verify: ${LLM_HTTP_CLIENT_VERIFY:-false}
   
 embedders:
   filter_embedding:
-    _type: extended_openai
+    _type: extended_openai_embedder
     api_key: ${EMBEDDINGS_LLM_API_KEY}
     base_url: ${EMBEDDINGS_LLM_URL}
     model_name: ${EMBEDDINGS_LLM_MODEL_NAME}
     tiktoken_enabled: false
     show_progress_bar: true
     http_client:
-      verify: false
+      verify: ${EMBEDDINGS_HTTP_CLIENT_VERIFY:-false}
 
 
 workflow:

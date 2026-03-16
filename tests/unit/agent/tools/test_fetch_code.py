@@ -2,21 +2,23 @@
 Unit tests for fetch_code tool.
 Tests all scenarios with 100% coverage.
 """
-import pytest
+
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
+
+import pytest
 from langchain_core.tools import StructuredTool
 
-from sast_agent_workflow.investigation.tools.fetch_code import (
-    create_fetch_code_tool,
-    Instruction,
-    _try_sophisticated_extraction,
-    _simple_file_extraction,
-    _extract_function_simple,
-)
-from sast_agent_workflow.investigation.constants import (
+from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
     DEFAULT_CONTEXT_LINES,
     MAX_FUNCTION_SCAN_LINES,
+)
+from sast_agent_workflow.nodes.sub_agents.investigation.tools.fetch_code import (
+    Instruction,
+    _extract_function_simple,
+    _simple_file_extraction,
+    _try_sophisticated_extraction,
+    create_fetch_code_tool,
 )
 
 
@@ -25,10 +27,7 @@ class TestInstruction:
 
     def test_instruction_creation(self):
         """Test creating an Instruction."""
-        inst = Instruction(
-            expression_name="malloc",
-            referring_source_code_path="src/main.c"
-        )
+        inst = Instruction(expression_name="malloc", referring_source_code_path="src/main.c")
         assert inst.expression_name == "malloc"
         assert inst.referring_source_code_path == "src/main.c"
 
@@ -52,7 +51,7 @@ class TestCreateFetchCodeTool:
         repo_path = Path("/fake/repo")
         tool = create_fetch_code_tool(repo_handler, repo_path)
 
-        assert hasattr(tool, 'args_schema')
+        assert hasattr(tool, "args_schema")
 
 
 class TestTrySophisticatedExtraction:
@@ -63,7 +62,7 @@ class TestTrySophisticatedExtraction:
         repo_handler = Mock()
         repo_handler.extract_missing_functions_or_macros.return_value = (
             "10|void test_func() {\n11|    return;\n12|}\n",
-            {"test_func"}
+            {"test_func"},
         )
 
         result = _try_sophisticated_extraction(repo_handler, "src/test.c", "test_func")
@@ -80,7 +79,7 @@ class TestTrySophisticatedExtraction:
         repo_handler = Mock()
         repo_handler.extract_missing_functions_or_macros.return_value = (
             "some code",
-            set()  # Empty set, function not found
+            set(),  # Empty set, function not found
         )
 
         result = _try_sophisticated_extraction(repo_handler, "src/test.c", "missing_func")
@@ -92,7 +91,7 @@ class TestTrySophisticatedExtraction:
         repo_handler = Mock()
         repo_handler.extract_missing_functions_or_macros.return_value = (
             "",  # Empty missing code
-            {"test_func"}
+            {"test_func"},
         )
 
         result = _try_sophisticated_extraction(repo_handler, "src/test.c", "test_func")
@@ -102,7 +101,9 @@ class TestTrySophisticatedExtraction:
     def test_extraction_exception_handling(self):
         """Test exception handling in sophisticated extraction."""
         repo_handler = Mock()
-        repo_handler.extract_missing_functions_or_macros.side_effect = Exception("Extraction failed")
+        repo_handler.extract_missing_functions_or_macros.side_effect = Exception(
+            "Extraction failed"
+        )
 
         result = _try_sophisticated_extraction(repo_handler, "src/test.c", "test_func")
 
@@ -112,14 +113,11 @@ class TestTrySophisticatedExtraction:
         """Test extraction when file path is in the code output."""
         repo_handler = Mock()
         code_with_path = (
-            "code of src/auth.c file:\n"
-            "10|void validate() {\n"
-            "11|    return;\n"
-            "12|}\n"
+            "code of src/auth.c file:\n" "10|void validate() {\n" "11|    return;\n" "12|}\n"
         )
         repo_handler.extract_missing_functions_or_macros.return_value = (
             code_with_path,
-            {"validate"}
+            {"validate"},
         )
 
         result = _try_sophisticated_extraction(repo_handler, "src/test.c", "validate")
@@ -132,7 +130,7 @@ class TestTrySophisticatedExtraction:
         repo_handler = Mock()
         repo_handler.extract_missing_functions_or_macros.return_value = (
             "void test() { return; }",
-            {"test"}
+            {"test"},
         )
 
         result = _try_sophisticated_extraction(repo_handler, "src/test.c", "test")
@@ -163,9 +161,7 @@ class TestSimpleFileExtraction:
 
     def test_successful_simple_extraction(self, temp_repo):
         """Test successful simple extraction."""
-        result = _simple_file_extraction(
-            temp_repo, "test.c", "test_func", DEFAULT_CONTEXT_LINES
-        )
+        result = _simple_file_extraction(temp_repo, "test.c", "test_func", DEFAULT_CONTEXT_LINES)
 
         assert "=== test.c:test_func" in result
         assert "void test_func()" in result
@@ -173,9 +169,7 @@ class TestSimpleFileExtraction:
 
     def test_file_not_found(self, temp_repo):
         """Test error when file doesn't exist."""
-        result = _simple_file_extraction(
-            temp_repo, "nonexistent.c", "func", DEFAULT_CONTEXT_LINES
-        )
+        result = _simple_file_extraction(temp_repo, "nonexistent.c", "func", DEFAULT_CONTEXT_LINES)
 
         assert "Error: File not found: nonexistent.c" in result
         assert "Suggested recovery:" in result
@@ -192,9 +186,7 @@ class TestSimpleFileExtraction:
 
     def test_extraction_without_function_name(self, temp_repo):
         """Test reading entire file when no function specified."""
-        result = _simple_file_extraction(
-            temp_repo, "test.c", None, DEFAULT_CONTEXT_LINES
-        )
+        result = _simple_file_extraction(temp_repo, "test.c", None, DEFAULT_CONTEXT_LINES)
 
         assert "=== test.c ===" in result
         assert "1: // Header" in result or "   1: // Header" in result
@@ -203,9 +195,7 @@ class TestSimpleFileExtraction:
 
     def test_extraction_with_empty_function_name(self, temp_repo):
         """Test reading entire file when function name is empty string."""
-        result = _simple_file_extraction(
-            temp_repo, "test.c", "", DEFAULT_CONTEXT_LINES
-        )
+        result = _simple_file_extraction(temp_repo, "test.c", "", DEFAULT_CONTEXT_LINES)
 
         assert "=== test.c ===" in result
 
@@ -436,11 +426,7 @@ class TestFetchCodeToolIntegration:
     def temp_repo(self, tmp_path):
         """Create a temporary repository with test files."""
         test_file = tmp_path / "main.c"
-        test_file.write_text(
-            "void main_function() {\n"
-            "    int x = 1;\n"
-            "}\n"
-        )
+        test_file.write_text("void main_function() {\n" "    int x = 1;\n" "}\n")
         return tmp_path
 
     def test_tool_uses_sophisticated_extraction_first(self, temp_repo):
@@ -448,14 +434,11 @@ class TestFetchCodeToolIntegration:
         repo_handler = Mock()
         repo_handler.extract_missing_functions_or_macros.return_value = (
             "10|void main_function() {\n11|    int x = 1;\n12|}\n",
-            {"main_function"}
+            {"main_function"},
         )
 
         tool = create_fetch_code_tool(repo_handler, temp_repo)
-        result = tool.invoke({
-            "file_path": "main.c",
-            "function_name": "main_function"
-        })
+        result = tool.invoke({"file_path": "main.c", "function_name": "main_function"})
 
         # Should use sophisticated approach
         assert "=== Fetched Code: main_function ===" in result
@@ -464,16 +447,10 @@ class TestFetchCodeToolIntegration:
     def test_tool_falls_back_to_simple_extraction(self, temp_repo):
         """Test that tool falls back to simple extraction."""
         repo_handler = Mock()
-        repo_handler.extract_missing_functions_or_macros.return_value = (
-            "",  # Empty result
-            set()
-        )
+        repo_handler.extract_missing_functions_or_macros.return_value = ("", set())  # Empty result
 
         tool = create_fetch_code_tool(repo_handler, temp_repo)
-        result = tool.invoke({
-            "file_path": "main.c",
-            "function_name": "main_function"
-        })
+        result = tool.invoke({"file_path": "main.c", "function_name": "main_function"})
 
         # Should fall back to simple extraction
         assert "void main_function()" in result
@@ -484,11 +461,9 @@ class TestFetchCodeToolIntegration:
         repo_handler.extract_missing_functions_or_macros.return_value = ("", set())
 
         tool = create_fetch_code_tool(repo_handler, temp_repo)
-        result = tool.invoke({
-            "file_path": "main.c",
-            "function_name": "main_function",
-            "context_lines": 5
-        })
+        result = tool.invoke(
+            {"file_path": "main.c", "function_name": "main_function", "context_lines": 5}
+        )
 
         # Should use simple extraction with custom context
         assert "void main_function()" in result
@@ -499,10 +474,7 @@ class TestFetchCodeToolIntegration:
         repo_handler.extract_missing_functions_or_macros.side_effect = RuntimeError("Error")
 
         tool = create_fetch_code_tool(repo_handler, temp_repo)
-        result = tool.invoke({
-            "file_path": "main.c",
-            "function_name": "main_function"
-        })
+        result = tool.invoke({"file_path": "main.c", "function_name": "main_function"})
 
         # Should fall back to simple extraction
         assert "void main_function()" in result

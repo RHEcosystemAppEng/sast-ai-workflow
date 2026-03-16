@@ -28,9 +28,11 @@ LLM_URL                          ?= http://<<please-set-llm-url>>
 LLM_MODEL_NAME                   ?= llm-model
 LLM_API_KEY                      ?=
 LLM_API_TYPE                     ?= nim
+LLM_HTTP_CLIENT_VERIFY           ?= false
 EMBEDDINGS_LLM_URL               ?= http://<<please-set-embedding-llm-url>>
 EMBEDDINGS_LLM_MODEL_NAME        ?= embedding-llm-model
 EMBEDDINGS_LLM_API_KEY           ?= ""
+EMBEDDINGS_HTTP_CLIENT_VERIFY    ?= false
 GITLAB_TOKEN                     ?= ""
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH ?= ./service_account.json
 GCS_SERVICE_ACCOUNT_JSON_PATH    ?= ./gcs_service_account.json
@@ -43,13 +45,13 @@ DOCKER_CONFIG_PATH               ?= $(HOME)/.config/containers/auth.json
 PROJECT_NAME                     ?= project-name
 PROJECT_VERSION                  ?= project-version
 DOWNLOAD_REPO                    ?= false
-REPO_REMOTE_URL                  ?= ""
+REPO_REMOTE_URL                  ?= 
 REPO_LOCAL_PATH                  ?= /path/to/repo
 INPUT_REPORT_FILE_PATH           ?= http://<<please-set-google-spreadsheet-url>>
-HUMAN_VERIFIED_FILE_PATH         ?= ""
+HUMAN_VERIFIED_FILE_PATH         ?= 
 FALSE_POSITIVES_URL              ?= false/positives/url
 USE_KNOWN_FALSE_POSITIVE_FILE    ?= true
-AGGREGATE_RESULTS_G_SHEET        ?= "aggregate/sheet/url"
+AGGREGATE_RESULTS_G_SHEET        ?= 
 
 # =============================================================================
 # Optional Features Configuration
@@ -351,6 +353,8 @@ run: ## Execute pipeline [Params: PROJECT_NAME, REPO_REMOTE_URL, INPUT_REPORT_FI
 		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
 		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
 		-e 's|LLM_API_TYPE_PLACEHOLDER|$(LLM_API_TYPE)|g' \
+		-e 's|LLM_HTTP_CLIENT_VERIFY_PLACEHOLDER|$(LLM_HTTP_CLIENT_VERIFY)|g' \
+		-e 's|EMBEDDINGS_HTTP_CLIENT_VERIFY_PLACEHOLDER|$(EMBEDDINGS_HTTP_CLIENT_VERIFY)|g' \
 		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
 		-e 's|HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER|$(HUMAN_VERIFIED_FILE_PATH)|g' \
 		-e 's|USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER|$(USE_KNOWN_FALSE_POSITIVE_FILE)|g' \
