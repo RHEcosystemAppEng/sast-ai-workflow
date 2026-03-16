@@ -14,12 +14,13 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 # Import token usage callback for LLM token tracking
 from sast_agent_workflow.callbacks.token_usage_callback import TokenUsageCallback
 
-# Import extended embedder for automatic registration
+# Import extended embedder and LLMs for automatic registration
 from sast_agent_workflow.embedders import extended_openai_embedder  # noqa: F401
 from sast_agent_workflow.graph_builder import (
     build_sast_workflow_graph,
     verify_graph_structure,
 )
+from sast_agent_workflow.llms import extended_nim_llm, extended_openai_llm  # noqa: F401
 from Utils.metrics_utils import categorize_issues_by_status
 
 # Constants for timing and token tracking

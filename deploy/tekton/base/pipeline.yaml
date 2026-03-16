@@ -34,12 +34,20 @@ spec:
       type: string
       description: "LLM API type"
       default: "nim"
+    - name: LLM_HTTP_CLIENT_VERIFY
+      type: string
+      description: "SSL certificate verification for the LLM endpoint (true/false)"
+      default: "false"
     - name: EMBEDDINGS_LLM_URL
       type: string
       default: "http://<<please-set-embedding-llm-url>>"
     - name: EMBEDDINGS_LLM_MODEL_NAME
       type: string
       default: "embedding-llm-model"
+    - name: EMBEDDINGS_HTTP_CLIENT_VERIFY
+      type: string
+      description: "SSL certificate verification for the embeddings endpoint (true/false)"
+      default: "false"
     - name: AGGREGATE_RESULTS_G_SHEET
       type: string
       default: "" 
@@ -83,6 +91,7 @@ spec:
       optional: true
   tasks:
     - name: execute-ai-analysis
+      timeout: "5h"
       taskRef:
         name: execute-ai-analysis
       params:
@@ -104,10 +113,14 @@ spec:
           value: "$(params.LLM_MODEL_NAME)"
         - name: LLM_API_TYPE
           value: "$(params.LLM_API_TYPE)"
+        - name: LLM_HTTP_CLIENT_VERIFY
+          value: "$(params.LLM_HTTP_CLIENT_VERIFY)"
         - name: EMBEDDINGS_LLM_URL
           value: "$(params.EMBEDDINGS_LLM_URL)"
         - name: EMBEDDINGS_LLM_MODEL_NAME
           value: "$(params.EMBEDDINGS_LLM_MODEL_NAME)"
+        - name: EMBEDDINGS_HTTP_CLIENT_VERIFY
+          value: "$(params.EMBEDDINGS_HTTP_CLIENT_VERIFY)"
         - name: USE_KNOWN_FALSE_POSITIVE_FILE
           value: "$(params.USE_KNOWN_FALSE_POSITIVE_FILE)"
         - name: GDRIVE_FOLDER_ID
