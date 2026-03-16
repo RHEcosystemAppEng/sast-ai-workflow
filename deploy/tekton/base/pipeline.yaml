@@ -91,6 +91,7 @@ spec:
       optional: true
   tasks:
     - name: execute-ai-analysis
+      timeout: "5h"
       taskRef:
         name: execute-ai-analysis
       params:
