@@ -122,7 +122,7 @@ def _process_single_issue(
         else:
             logger.debug(
                 f"Issue {issue_id} not identified as known false positive "
-                f"(confidence: {filter_confidence:.2f})"
+                f"(confidence: {(filter_confidence or 0.0):.2f})"
             )
             # Even for non-FPs, we need to update the analysis_response with confidence score
             if issue_data.analysis_response:

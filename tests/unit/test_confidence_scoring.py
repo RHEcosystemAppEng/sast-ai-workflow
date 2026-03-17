@@ -294,13 +294,16 @@ class TestFinalConfidence:
         assert 0.0 <= breakdown.evidence_strength <= 1.0
         assert 0.0 <= breakdown.investigation_depth <= 1.0
 
-        # Verify weighted formula is applied and converted to percentage
-        # Final = (FILTER_WEIGHT*filter + AGENT_WEIGHT*agent + EVIDENCE_WEIGHT*evidence + INVESTIGATION_WEIGHT*investigation) * 100
+        # Verify weighted formula: for investigated issues, filter weight is redistributed
+        # proportionally among agent, evidence, and investigation (ratio 30:20:30 → 37.5:25:37.5)
+        w_agent = mock_config.CONFIDENCE_WEIGHT_AGENT
+        w_evidence = mock_config.CONFIDENCE_WEIGHT_EVIDENCE
+        w_investigation = mock_config.CONFIDENCE_WEIGHT_INVESTIGATION
+        total_weight = w_agent + w_evidence + w_investigation
         expected_raw = (
-            mock_config.CONFIDENCE_WEIGHT_FILTER * 0.9 +
-            mock_config.CONFIDENCE_WEIGHT_AGENT * 0.85 +
-            mock_config.CONFIDENCE_WEIGHT_EVIDENCE * breakdown.evidence_strength +
-            mock_config.CONFIDENCE_WEIGHT_INVESTIGATION * breakdown.investigation_depth
+            (w_agent / total_weight) * 0.85 +
+            (w_evidence / total_weight) * breakdown.evidence_strength +
+            (w_investigation / total_weight) * breakdown.investigation_depth
         )
         expected_percentage = expected_raw * 100.0
         assert abs(breakdown.final_confidence - expected_percentage) < 0.1
@@ -699,11 +702,15 @@ class TestConfigurationLoading:
         evidence_strength, _ = calculate_evidence_strength(per_issue_data, mock_config)
         investigation_depth, _ = calculate_investigation_depth(per_issue_data, mock_config)
 
+        # For investigated issues, filter weight is redistributed proportionally
+        w_agent = mock_config.CONFIDENCE_WEIGHT_AGENT
+        w_evidence = mock_config.CONFIDENCE_WEIGHT_EVIDENCE
+        w_investigation = mock_config.CONFIDENCE_WEIGHT_INVESTIGATION
+        total_weight = w_agent + w_evidence + w_investigation
         expected_raw = (
-            mock_config.CONFIDENCE_WEIGHT_FILTER * 0.8 +
-            mock_config.CONFIDENCE_WEIGHT_AGENT * 0.9 +
-            mock_config.CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
-            mock_config.CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
+            (w_agent / total_weight) * 0.9 +
+            (w_evidence / total_weight) * evidence_strength +
+            (w_investigation / total_weight) * investigation_depth
         )
         expected_percentage = expected_raw * 100.0
 
