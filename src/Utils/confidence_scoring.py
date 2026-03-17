@@ -337,12 +337,18 @@ def calculate_final_confidence(per_issue_data: PerIssueData, config: Config) -> 
     # Component 4: Investigation Depth (weight from config/default-config.yaml)
     investigation_depth, investigation_details = calculate_investigation_depth(per_issue_data, config)
 
-    # Calculate weighted final confidence (0-1 scale, weights from config/default-config.yaml)
+    # For investigated issues, filter_confidence has no meaningful signal (filter didn't match).
+    # Redistribute filter's weight proportionally among the 3 investigation components,
+    # preserving their original ratio (agent:evidence:investigation = 30:20:30 → 37.5:25:37.5).
+    w_agent = config.CONFIDENCE_WEIGHT_AGENT
+    w_evidence = config.CONFIDENCE_WEIGHT_EVIDENCE
+    w_investigation = config.CONFIDENCE_WEIGHT_INVESTIGATION
+    total_weight = w_agent + w_evidence + w_investigation
+
     final_confidence_raw = (
-        config.CONFIDENCE_WEIGHT_FILTER * filter_confidence +
-        config.CONFIDENCE_WEIGHT_AGENT * agent_confidence +
-        config.CONFIDENCE_WEIGHT_EVIDENCE * evidence_strength +
-        config.CONFIDENCE_WEIGHT_INVESTIGATION * investigation_depth
+        (w_agent / total_weight) * agent_confidence +
+        (w_evidence / total_weight) * evidence_strength +
+        (w_investigation / total_weight) * investigation_depth
     )
 
     # Convert ONLY final confidence to percentage (0-100)
@@ -366,8 +372,9 @@ def calculate_final_confidence(per_issue_data: PerIssueData, config: Config) -> 
 
     logger.debug(
         f"Confidence calculation: final={final_confidence:.1f}%, "
-        f"filter={filter_confidence:.3f}, agent={agent_confidence:.3f}, "
-        f"evidence={evidence_strength:.3f}, investigation={investigation_depth:.3f}"
+        f"agent={agent_confidence:.3f} (w={w_agent/total_weight:.3f}), "
+        f"evidence={evidence_strength:.3f} (w={w_evidence/total_weight:.3f}), "
+        f"investigation={investigation_depth:.3f} (w={w_investigation/total_weight:.3f})"
     )
 
     return breakdown

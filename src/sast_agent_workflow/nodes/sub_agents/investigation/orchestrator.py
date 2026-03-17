@@ -242,6 +242,13 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
         per_issue.analysis_response.prompt = analysis_prompt
         per_issue.analysis_response.agent_confidence = result["confidence"]
 
+        # Map investigation confidence (HIGH/MEDIUM/LOW) to numeric agent_confidence
+        confidence_map = {"HIGH": 1.0, "MEDIUM": 0.5, "LOW": 0.2}
+        confidence_str = result.get("confidence", "MEDIUM")
+        per_issue.analysis_response.agent_confidence = confidence_map.get(
+            confidence_str, 0.5
+        )
+
     # Store investigation subgraph quality metrics in PerIssueData for confidence scoring
     per_issue.investigation_tool_call_count = total_tool_calls
     per_issue.investigation_reanalysis_count = reanalysis_count

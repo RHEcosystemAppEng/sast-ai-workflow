@@ -101,7 +101,7 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                 f"rejection={rejection_streak}, no_progress={no_progress_streak})"
             )
 
-        return {
+        updates = {
             **state,
             "evaluation_result": result.result,
             "evaluation_feedback": result.feedback,
@@ -113,5 +113,8 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
             "previous_code_length": current_code_length,
             "no_progress_streak": no_progress_streak,
         }
+        if is_complete:
+            updates["stop_reason"] = "approved"
+        return updates
 
     return evaluate
