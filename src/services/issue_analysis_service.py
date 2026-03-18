@@ -4,10 +4,8 @@ Handles filtering known issues, analyzing issues, and generating recommendations
 """
 
 import logging
-import os
-from typing import Tuple, Union
+from typing import Tuple
 
-from langchain_community.vectorstores import FAISS
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -63,7 +61,8 @@ class IssueAnalysisService:
                 equal_error_trace=[],
                 justifications=(
                     f"No identical error trace found in the provided context. "
-                    f"The context empty because no issue of type {issue.issue_type} in known issue DB."
+                    f"The context empty because no issue of type "
+                    f"{issue.issue_type} in known issue DB."
                 ),
                 result="NO",
             )
@@ -104,7 +103,9 @@ class IssueAnalysisService:
             )
             response = FilterResponse(
                 equal_error_trace=[],
-                justifications="An error occurred twice during model output parsing. Defaulting to: NO",
+                justifications=(
+                    "An error occurred twice during model output parsing. Defaulting to: NO"
+                ),
                 result="NO",
             )
 
@@ -244,8 +245,8 @@ class IssueAnalysisService:
     def _analyze_issue_with_retry(self, context: str, issue: Issue, main_llm: BaseChatModel):
         """Analyze an issue to determine if it is a false positive or not."""
         user_input = (
-            "Investigate if the following problem needs to be fixed or can be considered false positive. "
-            + issue.trace
+            "Investigate if the following problem needs to be fixed "
+            "or can be considered false positive. " + issue.trace
         )
 
         # Should not use 'system' for deepseek-r1
@@ -295,10 +296,13 @@ class IssueAnalysisService:
     ) -> JustificationsSummary:
         """Summarize the justifications into a concise, engineer-style comment."""
         examples_str = (
-            '[{"short_justifications": "t is reassigned so previously freed value is replaced by malloced string"}, '
+            '[{"short_justifications": "t is reassigned so previously freed value'
+            ' is replaced by malloced string"}, '
             '{"short_justifications": "There is a check for k<0"}, '
-            '{"short_justifications": "i is between 1 and BMAX, line 1623 checks that j < i, array C is of the size BMAX+1"}, '
-            '{"short_justifications": "C is an array of size BMAX+1, i is between 1 and BMAX (inclusive)"}]'
+            '{"short_justifications": "i is between 1 and BMAX, line 1623 checks that j < i,'
+            ' array C is of the size BMAX+1"}, '
+            '{"short_justifications": "C is an array of size BMAX+1,'
+            ' i is between 1 and BMAX (inclusive)"}]'
         )
 
         # Should not use 'system' for deepseek-r1
