@@ -11,7 +11,6 @@ from Utils.confidence_scoring import (
     calculate_evidence_strength,
     calculate_investigation_depth,
     calculate_final_confidence,
-    inject_mock_confidence_data,
     calculate_aggregate_confidence_metrics,
     ConfidenceScoreBreakdown,
     _validate_weight_configuration,
@@ -487,88 +486,6 @@ class TestFinalConfidence:
         assert breakdown.agent_confidence == pytest.approx(0.0)
         # Final score should still be valid (0-100%)
         assert 0.0 <= breakdown.final_confidence <= 100.0
-
-
-class TestMockDataInjection:
-    """Test mock data injection for missing components."""
-
-    def test_inject_agent_confidence_for_final_decision(self):
-        """Test that mock agent_confidence is injected for final decisions."""
-        issue = Issue(
-            id="test-issue-8",
-            issue_type="DEADCODE",
-            severity="info",
-            trace="test trace",
-            file_path="test.c",
-            line_number=700
-        )
-
-        per_issue_data = PerIssueData(
-            issue=issue,
-            analysis_response=AnalysisResponse(
-                investigation_result=CVEValidationStatus.FALSE_POSITIVE.value,
-                is_final=FinalStatus.TRUE.value  # Final decision
-            )
-        )
-
-        inject_mock_confidence_data(per_issue_data)
-
-        # Should inject high confidence for final decisions
-        assert per_issue_data.analysis_response.agent_confidence == pytest.approx(0.9)
-
-    def test_inject_agent_confidence_for_non_final_decision(self):
-        """Test that mock agent_confidence is injected for non-final decisions."""
-        issue = Issue(
-            id="test-issue-9",
-            issue_type="USE_AFTER_FREE",
-            severity="high",
-            trace="test trace",
-            file_path="test.c",
-            line_number=800
-        )
-
-        per_issue_data = PerIssueData(
-            issue=issue,
-            analysis_response=AnalysisResponse(
-                investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=FinalStatus.FALSE.value  # Non-final
-            )
-        )
-
-        inject_mock_confidence_data(per_issue_data)
-
-        # Should inject lower confidence for non-final decisions
-        assert per_issue_data.analysis_response.agent_confidence == pytest.approx(0.7)
-
-    def test_inject_fetched_files_from_source_code(self):
-        """Test that fetched_files is populated from source_code."""
-        issue = Issue(
-            id="test-issue-10",
-            issue_type="DIVIDE_BY_ZERO",
-            severity="medium",
-            trace="test trace",
-            file_path="test.c",
-            line_number=900
-        )
-
-        per_issue_data = PerIssueData(
-            issue=issue,
-            analysis_response=AnalysisResponse(
-                investigation_result=CVEValidationStatus.TRUE_POSITIVE.value,
-                is_final=FinalStatus.TRUE.value
-            ),
-            source_code={
-                "test.c": ["int x = 0;"],
-                "lib.c": ["void func();"]
-            }
-        )
-
-        inject_mock_confidence_data(per_issue_data)
-
-        # Should inject files from source_code
-        assert len(per_issue_data.fetched_files) == 2
-        assert "test.c" in per_issue_data.fetched_files
-        assert "lib.c" in per_issue_data.fetched_files
 
 
 class TestAggregateMetrics:

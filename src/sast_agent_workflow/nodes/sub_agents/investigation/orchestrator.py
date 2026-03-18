@@ -254,8 +254,24 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
     per_issue.investigation_reanalysis_count = reanalysis_count
     per_issue.investigation_stop_reason = stop_reason
 
+    # Transfer investigation fetched_files (Dict[str, List[str]]) → PerIssueData (List[str])
+    # Each entry represents a code block fetched by a research tool
+    investigation_fetched = result.get("fetched_files", {})
+    fetched_list = []
+    for code_blocks in investigation_fetched.values():
+        fetched_list.extend(code_blocks)
+    per_issue.fetched_files = fetched_list
+
+    # Transfer explored symbols from successful tool calls to PerIssueData
+    # Each successful code-gathering call represents a unique code artifact explored
+    tool_history = result.get("tool_call_history", [])
+    for entry in tool_history:
+        if entry.startswith("✓"):
+            per_issue.found_symbols.add(entry)
+
     logger.info(
         f"{issue_id}: {verdict} (confidence: {result['confidence']}, "
         f"iterations: {iterations}, reanalysis: {reanalysis_count}, "
-        f"tool_calls: {total_tool_calls}, stop_reason: {stop_reason})"
+        f"tool_calls: {total_tool_calls}, stop_reason: {stop_reason}, "
+        f"fetched_files: {len(fetched_list)}, symbols: {len(per_issue.found_symbols)})"
     )
