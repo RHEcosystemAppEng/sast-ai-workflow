@@ -17,7 +17,6 @@ from dto.SASTWorkflowModels import SASTWorkflowTracker
 from Utils.confidence_scoring import (
     calculate_aggregate_confidence_metrics,
     calculate_final_confidence,
-    inject_mock_confidence_data,
 )
 from Utils.file_utils import get_human_verified_results
 from Utils.workflow_utils import convert_tracker_to_summary_data
@@ -203,10 +202,6 @@ def _calculate_confidence_scores(tracker: SASTWorkflowTracker) -> dict:
 
     for issue_id, per_issue_data in tracker.issues.items():
         try:
-            # TEMPORARY: Inject mock data for missing components
-            # TODO: Remove this once all nodes properly populate confidence data
-            inject_mock_confidence_data(per_issue_data)
-
             # Calculate confidence score
             breakdown = calculate_final_confidence(per_issue_data, tracker.config)
             confidence_breakdowns[issue_id] = breakdown

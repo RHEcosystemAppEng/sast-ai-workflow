@@ -10,5 +10,6 @@
     "# 1014|                           if (!p)"
   ],
   "justifications": "Although line numbers are not same, rest of the content is matching.",
-  "result": "YES"
+  "result": "YES",
+  "filter_confidence": 0.95
 }

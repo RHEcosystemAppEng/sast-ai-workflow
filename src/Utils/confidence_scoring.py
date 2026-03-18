@@ -380,35 +380,6 @@ def calculate_final_confidence(per_issue_data: PerIssueData, config: Config) -> 
     return breakdown
 
 
-def inject_mock_confidence_data(per_issue_data: PerIssueData) -> None:
-    """
-    TEMPORARY: Inject mock confidence data for components not yet implemented.
-
-    This function should be REMOVED once all nodes properly populate:
-    - agent_confidence (from judge/finalize nodes)
-    - fetched_files (from data_fetcher node)
-
-    Args:
-        per_issue_data: PerIssueData to inject mock data into
-    """
-    if not per_issue_data.analysis_response:
-        logger.warning("Cannot inject mock data: analysis_response is None")
-        return
-
-    # Mock agent_confidence if not present (assume high confidence for final decisions)
-    if per_issue_data.analysis_response.agent_confidence is None:
-        # Use is_final status as heuristic: final decisions get higher confidence
-        if per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value:
-            per_issue_data.analysis_response.agent_confidence = 0.9
-            logger.debug("Injected mock agent_confidence=0.9 (final decision)")
-        else:
-            per_issue_data.analysis_response.agent_confidence = 0.7
-            logger.debug("Injected mock agent_confidence=0.7 (non-final decision)")
-
-    # Mock fetched_files if empty (use source_code keys as proxy)
-    if not per_issue_data.fetched_files and per_issue_data.source_code:
-        per_issue_data.fetched_files = list(per_issue_data.source_code.keys())
-        logger.debug(f"Injected mock fetched_files from source_code ({len(per_issue_data.fetched_files)} files)")
 
 
 def calculate_aggregate_confidence_metrics(
