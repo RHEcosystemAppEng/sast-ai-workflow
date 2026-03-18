@@ -1,11 +1,12 @@
 import logging
-from typing import Any, List
+from typing import Any, List, Optional
 
 from common.config import Config
 from common.constants import KNOWN_FALSE_POSITIVE_TEMPLATES
 from dto.Issue import Issue
 from dto.ResponseStructures import KnownFalsePositive
 from LLMService import LLMService
+from Utils.embedding_utils import truncate_text_to_token_limit
 from Utils.file_utils import read_known_errors_file
 from Utils.validation_utils import safe_validate, validate_issue_list
 
@@ -15,10 +16,20 @@ logger = logging.getLogger(__name__)
 class KnownIssueRetriever:
     vector_store: Any
     similarity_error_threshold: int
+    embedding_model_name: Optional[str]
+    max_input_tokens: Optional[int]
 
-    def __init__(self, vector_store, similarity_error_threshold: int):
+    def __init__(
+        self,
+        vector_store,
+        similarity_error_threshold: int,
+        embedding_model_name: Optional[str] = None,
+        max_input_tokens: Optional[int] = None,
+    ):
         self.vector_store = vector_store
         self.similarity_error_threshold = similarity_error_threshold
+        self.embedding_model_name = embedding_model_name
+        self.max_input_tokens = max_input_tokens
 
     def get_relevant_known_issues(
         self, finding_trace: str, issue_type: str
@@ -31,6 +42,11 @@ class KnownIssueRetriever:
         Returns:
             list[KnownIssue]: A list of KnownIssue objects containing error traces and metadata.
         """
+        logger.info("Getting relevant known issues")
+        if self.embedding_model_name and self.max_input_tokens:
+            finding_trace = truncate_text_to_token_limit(
+                finding_trace, self.embedding_model_name, self.max_input_tokens
+            )
         docs_with_scores = self.vector_store.similarity_search_with_score(
             finding_trace, k=self.similarity_error_threshold, filter={"issue_type": issue_type}
         )
@@ -102,7 +118,12 @@ def create_known_issue_retriever(main_process: LLMService, config: Config) -> Kn
     known_issue_db = main_process.vector_service.create_known_issues_vector_store(
         text_false_positives, main_process.embedding_llm, config.EMBEDDINGS_MAX_INPUT_TOKENS
     )
-    known_issue_retriever = KnownIssueRetriever(known_issue_db, config.SIMILARITY_ERROR_THRESHOLD)
+    known_issue_retriever = KnownIssueRetriever(
+        known_issue_db,
+        config.SIMILARITY_ERROR_THRESHOLD,
+        embedding_model_name=main_process.embedding_llm.model,
+        max_input_tokens=config.EMBEDDINGS_MAX_INPUT_TOKENS,
+    )
     return known_issue_retriever
 
 
