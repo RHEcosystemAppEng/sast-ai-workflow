@@ -21,21 +21,7 @@ template: |
   * Medium confidence (0.5-0.8): Somewhat certain, minor differences exist.
   * Low confidence (0.0-0.5): Uncertain, borderline case.
 
-  **Constraint:**
-
-  * Your response must strictly follow the provided **answer response template** and include no additional text.
-
   ---
-
-  **Answer Response Template:**
-
-  ```json
-  {answer_template}
-
 
   context_false_positives:
   {context}
-
-
-  user_error_trace:
-  {user_error_trace}
