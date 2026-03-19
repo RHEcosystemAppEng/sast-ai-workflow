@@ -60,6 +60,7 @@ def mock_per_issue_pending():
     per_issue.issue.issue_label = "CWE-120"
     per_issue.issue.issue_cwe = "CWE-120"
     per_issue.issue.trace = "main.c:42 -> helper.c:10"
+    per_issue.found_symbols = set()
     return per_issue
 
 
@@ -442,6 +443,7 @@ class TestUpdateTrackerFromResult:
         """Should not raise when analysis_response is None."""
         per_issue = Mock()
         per_issue.analysis_response = None
+        per_issue.found_symbols = set()
 
         _update_tracker_from_result(per_issue, subgraph_result, "issue-1")
         # Should not raise
@@ -486,7 +488,7 @@ class TestUpdateTrackerFromResult:
             "proposed_verdict": "FALSE_POSITIVE",
             "justifications": ["Test"],
             "analysis_prompt": "Test prompt",
-            "confidence": "HIGH",
+            "confidence": 0.9,
             "iteration": 1,
             "reanalysis_count": 0,
             "total_tool_calls": 3,

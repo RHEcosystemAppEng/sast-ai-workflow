@@ -50,7 +50,7 @@ EMBEDDINGS_MAX_INPUT_TOKENS: 384
 
 # Confidence Scoring Configuration
 CONFIDENCE_WEIGHT_FILTER: 0.20  # Initial filtering decision confidence
-CONFIDENCE_WEIGHT_AGENT: 0.30  # LLM's internal verdict confidence (HIGH/MEDIUM/LOW)
+CONFIDENCE_WEIGHT_AGENT: 0.30  # LLM's internal verdict confidence (0.0-1.0 float)
 CONFIDENCE_WEIGHT_EVIDENCE: 0.20  # Quality and quantity of supporting evidence
 CONFIDENCE_WEIGHT_INVESTIGATION: 0.30  # Investigation thoroughness metrics
 
