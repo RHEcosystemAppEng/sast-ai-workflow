@@ -49,4 +49,9 @@ async def create_extended_openai_langchain(
     if "tiktoken_enabled" not in config_dict or config_dict["tiktoken_enabled"]:
         config_dict["tiktoken_enabled"] = False
 
+    # Disable context-length checks so embed_documents batches purely by chunk_size.
+    # This avoids sending all documents in a single request and respects the server's
+    # max_batch_requests limit (configure chunk_size in the embedder config).
+    config_dict.setdefault("check_embedding_ctx_length", False)
+
     yield OpenAIEmbeddings(**config_dict)
