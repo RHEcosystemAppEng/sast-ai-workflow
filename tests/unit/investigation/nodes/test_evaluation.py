@@ -50,7 +50,7 @@ def _make_state(**overrides) -> dict:
         "analysis_prompt": "prompt",
         "proposed_verdict": "FALSE_POSITIVE",
         "justifications": ["reason"],
-        "confidence": "HIGH",
+        "confidence": 0.9,
         "evaluation_result": "",
         "evaluation_feedback": "",
         "required_information": [],

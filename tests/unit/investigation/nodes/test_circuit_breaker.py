@@ -32,7 +32,7 @@ def _make_state(**overrides) -> dict:
         "analysis_prompt": "",
         "proposed_verdict": "FALSE_POSITIVE",
         "justifications": ["reason"],
-        "confidence": "HIGH",
+        "confidence": 0.9,
         "evaluation_result": "",
         "evaluation_feedback": "",
         "required_information": [],
@@ -173,13 +173,13 @@ class TestCircuitBreakerStateUpdates:
             iteration=4,
             max_iterations=4,
             justifications=["reason1", "reason2"],
-            confidence="HIGH",
+            confidence=0.9,
             reanalysis_count=2,
         )
 
         result = cb(state)
 
         assert result["justifications"] == ["reason1", "reason2"]
-        assert result["confidence"] == "HIGH"
+        assert result["confidence"] == 0.9
         assert result["reanalysis_count"] == 2
         assert result["issue_id"] == "test-issue"
