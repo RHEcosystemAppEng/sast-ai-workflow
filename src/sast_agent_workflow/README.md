@@ -9,17 +9,15 @@ The SAST Agent Workflow implements a LangGraph-based agent architecture for stat
 ## Architecture
 
 - **Workflow Type**: `sast_agent` - Custom workflow registered via NAT framework
-- **LangGraph Integration**: Uses conditional edges for iterative analysis loops
-- **Modular Tools**: Each analysis step implemented as a separate tool
+- **LangGraph Integration**: Uses a linear pipeline; iterative logic is encapsulated inside the `investigate` node
+- **Modular Nodes**: Each analysis step implemented as a separate node
 
 ## Core Components
 
-### Tools (`tools/`)
+### Nodes (`nodes/`)
 - `pre_process` - Initialize workflow and load configuration
 - `filter` - Filter known false positives using embeddings
-- `data_fetcher` - Fetch source code for analysis
-- `judge_llm_analysis` - Perform LLM-based vulnerability analysis
-- `evaluate_analysis` - Evaluate results and determine next steps
+- `investigate` - Autonomously investigate each SAST issue via a Research → Analysis → Evaluation subgraph (see [investigation/README.md](nodes/sub_agents/investigation/README.md))
 - `summarize_justifications` - Generate analysis summaries
 - `calculate_metrics` - Calculate performance metrics
 - `write_results` - Export final results
