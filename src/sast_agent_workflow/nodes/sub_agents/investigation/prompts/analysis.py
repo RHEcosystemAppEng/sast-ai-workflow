@@ -149,12 +149,13 @@ size used in callee functions.
 **REQUIRED OUTPUT:**
 Provide your analysis with the following:
 - **verdict**: TRUE_POSITIVE or FALSE_POSITIVE
-- **confidence**: HIGH (all paths traced, clear evidence),\
- MEDIUM (most paths traced, minor gaps), or LOW \
-(significant uncertainty)
+- **confidence**: 0.0–1.0 score (0.8–1.0: clear evidence; 0.5–0.8: minor gaps; \
+0.0–0.5: significant uncertainty or critical gaps)
 - **reasoning**: Your step-by-step analysis tracing the \
-data flow
-- **justifications**: List of specific code-based evidence\
- points with line references
+data flow, and how the completeness of the evidence led \
+to your confidence score
+- **justifications**: List of specific code-based findings \
+that support the verdict, each referencing a specific \
+line number
 
 **Begin your analysis.**"""
