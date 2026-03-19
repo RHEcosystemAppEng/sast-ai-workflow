@@ -5,6 +5,8 @@ Covers: stop_reason classification, forced verdict, is_complete flag,
 evaluation_feedback message, and priority ordering of stop conditions.
 """
 
+import pytest
+
 from sast_agent_workflow.nodes.sub_agents.investigation.nodes.circuit_breaker import (
     create_circuit_breaker_node,
 )
@@ -180,6 +182,6 @@ class TestCircuitBreakerStateUpdates:
         result = cb(state)
 
         assert result["justifications"] == ["reason1", "reason2"]
-        assert result["confidence"] == 0.9
+        assert result["confidence"] == pytest.approx(0.9)
         assert result["reanalysis_count"] == 2
         assert result["issue_id"] == "test-issue"
