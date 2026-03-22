@@ -146,6 +146,18 @@ def is_known_false_positive(
     filter_response = main_process.filter_known_error(issue, similar_findings_context)
     logger.debug(f"Response of filter_known_error: {filter_response}")
     result_value = filter_response.result.strip().lower()
+
+    # Guard against hallucination: the model sometimes copies user_error_trace lines back
+    # into equal_error_trace instead of citing actual context_false_positives lines.
+    # If none of the returned lines appear in the context, override the result to NO.
+    if "yes" in result_value and filter_response.equal_error_trace:
+        if not any(line in similar_findings_context for line in filter_response.equal_error_trace):
+            logger.warning(
+                f"{issue.id} Model returned YES but equal_error_trace lines do not appear "
+                f"in context_false_positives — overriding result to NO (likely hallucination)."
+            )
+            result_value = "no"
+
     logger.info(
         f"{issue.id} Is known false positive? {result_value} "
         f"with confidence: {filter_response.filter_confidence}"

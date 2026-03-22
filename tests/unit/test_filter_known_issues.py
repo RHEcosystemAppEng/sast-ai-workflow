@@ -143,9 +143,11 @@ class TestCaptureKnownIssues:
             if issue.id in ["issue1", "issue3"]:
                 mock_response.result = "YES"
                 mock_response.matched_error_trace = "matched trace"
+                mock_response.equal_error_trace = ["Some error trace"]
             else:
                 mock_response.result = "NO"
                 mock_response.matched_error_trace = ""
+                mock_response.equal_error_trace = []
             return mock_response
 
         mock_llm_service.filter_known_error.side_effect = mock_filter_error
