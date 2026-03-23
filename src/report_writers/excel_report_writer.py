@@ -225,7 +225,7 @@ def write_ai_report_worksheet(data, workbook, config: Config):
         "Hint",
         "Justifications",
         "Recommendations",
-        "Answer Relevancy",
+        "Confidence",
     ]
     if config.RUN_WITH_CRITIQUE:
         header_data.append("Critique Response")
@@ -248,12 +248,15 @@ def write_ai_report_worksheet(data, workbook, config: Config):
             idx + 1, 6, "\n\n".join(summary_info.llm_response.recommendations), cell_format
         )
 
-        ar = get_percentage_value(summary_info.metrics.get("answer_relevancy", 0))
+        # Get confidence score (already in percentage 0-100 range)
+        confidence = summary_info.metrics.get("final_confidence_score", 0)
+        # Round to 2 decimal places for display
+        confidence = round(float(confidence), 2) if confidence else 0
         worksheet.write(
             idx + 1,
             7,
-            f"{ar}%",
-            workbook.add_format({"border": 2, "bg_color": "#f1541e" if ar < 50 else "#00d224"}),
+            f"{confidence}%",
+            workbook.add_format({"border": 2, "bg_color": "#f1541e" if confidence < 50 else "#00d224"}),
         )
         dynumic_column = 7
         if config.RUN_WITH_CRITIQUE:
