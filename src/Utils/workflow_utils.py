@@ -63,9 +63,14 @@ def convert_tracker_to_summary_data(
                 or per_issue_data.analysis_response.is_final == FinalStatus.TRUE.value
             ):
 
+                # Include final_confidence_score in metrics for Excel output
+                metrics = {}
+                if per_issue_data.final_confidence_score is not None:
+                    metrics["final_confidence_score"] = per_issue_data.final_confidence_score
+
                 summary_info = SummaryInfo(
                     response=per_issue_data.analysis_response,
-                    metrics={},
+                    metrics=metrics,
                     critique_response=per_issue_data.analysis_response,
                     context=build_analysis_context(per_issue_data),
                 )

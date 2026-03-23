@@ -233,14 +233,38 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
     iterations = result["iteration"]
     reanalysis_count = result.get("reanalysis_count", 0)
     total_tool_calls = result.get("total_tool_calls", 0)
+    stop_reason = result.get("stop_reason")
+
     if per_issue.analysis_response:
         per_issue.analysis_response.investigation_result = verdict
         per_issue.analysis_response.is_final = "TRUE"
         per_issue.analysis_response.justifications = justifications
         per_issue.analysis_response.prompt = analysis_prompt
         per_issue.analysis_response.agent_confidence = result["confidence"]
+
+    # Store investigation subgraph quality metrics in PerIssueData for confidence scoring
+    per_issue.investigation_tool_call_count = total_tool_calls
+    per_issue.investigation_reanalysis_count = reanalysis_count
+    per_issue.investigation_stop_reason = stop_reason
+
+    # Transfer investigation fetched_files (Dict[str, List[str]]) → PerIssueData (List[str])
+    # Each entry represents a code block fetched by a research tool
+    investigation_fetched = result.get("fetched_files", {})
+    fetched_list = []
+    for code_blocks in investigation_fetched.values():
+        fetched_list.extend(code_blocks)
+    per_issue.fetched_files = fetched_list
+
+    # Transfer explored symbols from successful tool calls to PerIssueData
+    # Each successful code-gathering call represents a unique code artifact explored
+    tool_history = result.get("tool_call_history", [])
+    for entry in tool_history:
+        if entry.startswith("✓"):
+            per_issue.found_symbols.add(entry)
+
     logger.info(
         f"{issue_id}: {verdict} (confidence: {result['confidence']}, "
         f"iterations: {iterations}, reanalysis: {reanalysis_count}, "
-        f"tool_calls: {total_tool_calls})"
+        f"tool_calls: {total_tool_calls}, stop_reason: {stop_reason}, "
+        f"fetched_files: {len(fetched_list)}, symbols: {len(per_issue.found_symbols)})"
     )
