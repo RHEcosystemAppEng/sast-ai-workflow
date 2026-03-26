@@ -144,3 +144,7 @@ spec:
           workspace: google-sa-json-ws
         - name: gcs-sa-json-ws
           workspace: gcs-sa-json-ws
+  results:
+    - name: output-report-link
+      description: "Google Drive link to the uploaded output report"
+      value: $(tasks.execute-ai-analysis.results.output-report-link)

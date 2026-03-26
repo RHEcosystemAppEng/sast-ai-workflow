@@ -141,6 +141,8 @@ spec:
       description: "Git commit hash for DVC metadata"
     - name: dvc-pipeline-stage
       description: "DVC pipeline stage identifier"
+    - name: output-report-link
+      description: "Google Drive link to the uploaded output report"
 
   steps:
     # STEP 1: Validate Input URLs
@@ -385,6 +387,8 @@ spec:
               name: sast-ai-gdrive-config
               key: folder-id
               optional: true
+        - name: TEKTON_RESULTS_GDRIVE_LINK
+          value: "$(results.output-report-link.path)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data

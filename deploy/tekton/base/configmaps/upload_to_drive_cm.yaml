@@ -98,10 +98,13 @@ data:
                     supportsAllDrives=True
                 ).execute()
                 
+                web_view_link = file.get('webViewLink', '')
                 print(f"File uploaded successfully on attempt {attempt + 1}!")
                 print(f"  File ID: {file.get('id')}")
                 print(f"  File Name: {file.get('name')}")
-                print(f"  View Link: {file.get('webViewLink')}")
+                print(f"  View Link: {web_view_link}")
+                with open('/shared-data/gdrive-link.txt', 'w') as f:
+                    f.write(web_view_link)
                 return file.get('id')
                 
             except HttpError as e:

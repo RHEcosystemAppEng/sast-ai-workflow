@@ -16,7 +16,7 @@ endif
 # =============================================================================
 CONTEXT := $(shell oc config current-context)
 NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
-ARGOCD_NAMESPACE_PLACEHOLDER ?= argocd
+ARGOCD_NAMESPACE_PLACEHOLDER ?= sast-ai-argocd
 CO := oc --context $(CONTEXT)
 
 # =============================================================================

@@ -2,6 +2,11 @@
 set -e
 echo "=== STEP 7: UPLOAD TO GOOGLE DRIVE ==="
 
+# Always initialize the result to empty so Tekton can resolve it even if upload is skipped
+if [[ -n "$TEKTON_RESULTS_GDRIVE_LINK" ]]; then
+  printf "" > "$TEKTON_RESULTS_GDRIVE_LINK"
+fi
+
 # Check if we have required parameters
 if [[ -z "$GDRIVE_FOLDER_ID" ]]; then
   # Try ConfigMap environment variable
@@ -48,6 +53,10 @@ python /scripts/gdrive/gdrive_upload.py "$EXCEL_FILE" "$EXCEL_FILENAME" "$GDRIVE
 
 if [[ $? -eq 0 ]]; then
   echo "=== Google Drive upload completed successfully! ==="
+  if [[ -f "/shared-data/gdrive-link.txt" ]] && [[ -n "$TEKTON_RESULTS_GDRIVE_LINK" ]]; then
+    cat /shared-data/gdrive-link.txt > "$TEKTON_RESULTS_GDRIVE_LINK"
+    echo "Output report link written to Tekton result: $(cat /shared-data/gdrive-link.txt)"
+  fi
 else
   echo "=== Google Drive upload failed ==="
   exit 1
