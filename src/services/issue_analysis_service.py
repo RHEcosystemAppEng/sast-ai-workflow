@@ -179,43 +179,12 @@ class IssueAnalysisService:
             logger.error(
                 f"{failed_message}, set default values for the fields it failed on. Error is: {e}"
             )
-            llm_analysis_response = AnalysisResponse(
-                investigation_result=(
-                    CVEValidationStatus.TRUE_POSITIVE.value
-                    if analysis_response is None
-                    else analysis_response.investigation_result
-                ),
-                is_final=(
-                    FinalStatus.TRUE.value
-                    if recommendations_response is None
-                    else recommendations_response.is_final
-                ),
-                justifications=(
-                    FALLBACK_JUSTIFICATION_MESSAGE
-                    if analysis_response is None
-                    else analysis_response.justifications
-                ),
-                evaluation=(
-                    [failed_message]
-                    if recommendations_response is None
-                    else recommendations_response.justifications
-                ),
-                recommendations=(
-                    [failed_message]
-                    if recommendations_response is None
-                    else recommendations_response.recommendations
-                ),
-                instructions=(
-                    []
-                    if recommendations_response is None
-                    else recommendations_response.instructions
-                ),
-                prompt=failed_message if analysis_prompt is None else analysis_prompt.to_string(),
-                short_justifications=(
-                    f"{failed_message}. Please check the full justifications."
-                    if short_justifications_response is None
-                    else short_justifications_response.short_justifications
-                ),
+            llm_analysis_response = self._build_fallback_analysis_response(
+                analysis_response,
+                recommendations_response,
+                short_justifications_response,
+                analysis_prompt,
+                failed_message,
             )
 
         try:
@@ -238,6 +207,51 @@ class IssueAnalysisService:
             )
 
         return llm_analysis_response, critique_response
+
+    def _build_fallback_analysis_response(
+        self,
+        analysis_response,
+        recommendations_response,
+        short_justifications_response,
+        analysis_prompt,
+        failed_message: str,
+    ) -> AnalysisResponse:
+        return AnalysisResponse(
+            investigation_result=(
+                CVEValidationStatus.TRUE_POSITIVE.value
+                if analysis_response is None
+                else analysis_response.investigation_result
+            ),
+            is_final=(
+                FinalStatus.TRUE.value
+                if recommendations_response is None
+                else recommendations_response.is_final
+            ),
+            justifications=(
+                FALLBACK_JUSTIFICATION_MESSAGE
+                if analysis_response is None
+                else analysis_response.justifications
+            ),
+            evaluation=(
+                [failed_message]
+                if recommendations_response is None
+                else recommendations_response.justifications
+            ),
+            recommendations=(
+                [failed_message]
+                if recommendations_response is None
+                else recommendations_response.recommendations
+            ),
+            instructions=(
+                [] if recommendations_response is None else recommendations_response.instructions
+            ),
+            prompt=failed_message if analysis_prompt is None else analysis_prompt.to_string(),
+            short_justifications=(
+                f"{failed_message}. Please check the full justifications."
+                if short_justifications_response is None
+                else short_justifications_response.short_justifications
+            ),
+        )
 
     @retry(
         stop=stop_after_attempt(2), wait=wait_fixed(10), retry=retry_if_exception_type(Exception)
