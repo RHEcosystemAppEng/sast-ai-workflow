@@ -32,21 +32,23 @@ class VectorStoreService:
         Create a FAISS vector database for known issues.
         If there are error traces in the known_issues, it creates a populated FAISS database.
         Otherwise, it returns an empty FAISS database.
+
+        Embeddings are computed from truncated traces (to respect token limits), but the full
+        traces are stored as page_content so retrieval returns the complete text.
         """
-        metadata_list, error_trace_list = self._extract_metadata_from_known_false_positives(
-            known_issues, embedding_llm, max_input_tokens
+        metadata_list, full_trace_list, truncated_trace_list = (
+            self._extract_metadata_from_known_false_positives(
+                known_issues, embedding_llm, max_input_tokens
+            )
         )
 
-        if not error_trace_list:
+        if not full_trace_list:
             logger.info(
                 "Note: No known issues were found. "
                 "The investigation will be based solely on the source code."
             )
-            # Create an empty FAISS index
             embedding_dimension = len(embedding_llm.embed_query("dummy"))
             empty_index = faiss.IndexFlatL2(embedding_dimension)
-
-            # Create an empty FAISS vector store
             return FAISS(
                 embedding_function=embedding_llm,
                 index=empty_index,
@@ -54,23 +56,29 @@ class VectorStoreService:
                 index_to_docstore_id={},
             )
         else:
-            return FAISS.from_texts(
-                texts=error_trace_list, embedding=embedding_llm, metadatas=metadata_list
+            embedding_vectors = embedding_llm.embed_documents(truncated_trace_list)
+            text_embeddings = list(zip(full_trace_list, embedding_vectors))
+            return FAISS.from_embeddings(
+                text_embeddings=text_embeddings,
+                embedding=embedding_llm,
+                metadatas=metadata_list,
             )
 
     def _extract_metadata_from_known_false_positives(
         self, known_issues_list: List[str], embedding_llm: Embeddings, max_input_tokens: int
-    ) -> Tuple[List[Dict], List[str]]:
+    ) -> Tuple[List[Dict], List[str], List[str]]:
         """
         Extract metadata and error traces from known false positives.
 
         Returns:
             tuple: A tuple containing:
                 - metadata_list (list[dict]): List of metadata dictionaries
-                - error_trace_list (list[str]): List of known issues
+                - full_trace_list (list[str]): Full (untruncated) error traces for storage
+                - truncated_trace_list (list[str]): Truncated error traces for embedding only
         """
         metadata_list = []
-        error_trace_list = []
+        full_trace_list = []
+        truncated_trace_list = []
 
         for item in known_issues_list:
             try:
@@ -117,13 +125,13 @@ class VectorStoreService:
                 )
 
                 error_trace = "\n".join(lines[1:reason_start_line_index])
-                error_trace = truncate_text_to_token_limit(
-                    error_trace, embedding_llm.model, max_input_tokens
+                full_trace_list.append(error_trace)
+                truncated_trace_list.append(
+                    truncate_text_to_token_limit(error_trace, embedding_llm.model, max_input_tokens)
                 )
-                error_trace_list.append(error_trace)
 
             except Exception as e:
                 logger.error(f"Error occurred during process this known issue: {item}\nError: {e}")
                 raise e
 
-        return metadata_list, error_trace_list
+        return metadata_list, full_trace_list, truncated_trace_list
