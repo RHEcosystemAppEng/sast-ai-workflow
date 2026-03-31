@@ -47,6 +47,7 @@ embedders:
     model_name: ${EMBEDDINGS_LLM_MODEL_NAME}
     tiktoken_enabled: false
     show_progress_bar: true
+    chunk_size: ${EMBEDDINGS_MAX_BATCH_SIZE:-32}  # default 32 matches the TEI server's max batch size limit; override via env var if your server allows larger batches
     http_client:
       verify: ${EMBEDDINGS_HTTP_CLIENT_VERIFY:-false}
 

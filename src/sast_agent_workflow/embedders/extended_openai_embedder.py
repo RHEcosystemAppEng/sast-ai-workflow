@@ -49,4 +49,9 @@ async def create_extended_openai_langchain(
     if "tiktoken_enabled" not in config_dict or config_dict["tiktoken_enabled"]:
         config_dict["tiktoken_enabled"] = False
 
+    # check_embedding_ctx_length should only be enabled when using GPT embedding models,
+    # where tiktoken tokenization is accurate. When disabled, chunk_size is solely responsible
+    # for batching — texts are sent to the server in groups of chunk_size per request.
+    config_dict.setdefault("check_embedding_ctx_length", False)
+
     yield OpenAIEmbeddings(**config_dict)
