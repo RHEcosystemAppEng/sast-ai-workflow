@@ -278,7 +278,7 @@ async def stateless_model_middleware(request: ModelRequest, handler):
 
 def _get_tool_result_failure_reason(content: str, content_lower: str) -> Optional[str]:
     """Return failure reason string if tool result indicates error/not found, else None."""
-    if "Error:" in content:
+    if content.startswith("Error:"):
         return "Error"
     if "no matches found" in content_lower:
         return "No matches"
