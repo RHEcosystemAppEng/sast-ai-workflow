@@ -255,6 +255,9 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
         fetched_list.extend(code_blocks)
     per_issue.fetched_files = fetched_list
 
+    # Store gathered_code so build_analysis_context can populate the Context column
+    per_issue.gathered_code = result.get("gathered_code", "")
+
     # Transfer explored symbols from successful tool calls to PerIssueData
     # Each successful code-gathering call represents a unique code artifact explored
     tool_history = result.get("tool_call_history", [])

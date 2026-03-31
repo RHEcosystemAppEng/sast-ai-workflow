@@ -17,17 +17,11 @@ logger = logging.getLogger(__name__)
 
 def build_analysis_context(per_issue: PerIssueData) -> str:
     """
-    Build full analysis context by combining source_code, similar_known_issues,
+    Build full analysis context by combining gathered_code, similar_known_issues,
     and other relevant data.
     """
-    # Build source code context
-    source_code_context = ""
-    if per_issue.source_code:
-        source_code_parts = []
-        for file_path, code_snippets in per_issue.source_code.items():
-            for snippet in code_snippets:
-                source_code_parts.append(f"\ncode of {file_path} file:\n{snippet}")
-        source_code_context = "".join(source_code_parts)
+
+    source_code_context = getattr(per_issue, "gathered_code", "") or ""
 
     # Combine source code and examples in structured format
     context = (

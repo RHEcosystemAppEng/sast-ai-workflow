@@ -40,6 +40,10 @@ class PerIssueData(BaseModel):
         default_factory=list,
         description="List of file paths fetched during analysis for evidence gathering",
     )
+    gathered_code: str = Field(
+        default="",
+        description="All source code gathered during investigation, as a single formatted string",
+    )
     investigation_tool_call_count: int = Field(
         default=0,
         description="Total number of tool calls made during investigation subgraph (research thoroughness)",
