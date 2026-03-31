@@ -71,10 +71,10 @@ class TestJudgeLLMAnalysisCore(unittest.IsolatedAsyncioTestCase):
             is_final=FinalStatus.FALSE.value,
         )
 
-        # Add source code and similar issues to test context building
-        self.sample_tracker.issues[issue_ids[1]].source_code = {
-            "test.c": ["int main() { return 0; }"]
-        }
+        # Add gathered code and similar issues to test context building
+        self.sample_tracker.issues[issue_ids[1]].gathered_code = (
+            "\ncode of test.c file:\nint main() { return 0; }"
+        )
         self.sample_tracker.issues[issue_ids[1]].similar_known_issues = "Similar issue context"
 
         # Execution
