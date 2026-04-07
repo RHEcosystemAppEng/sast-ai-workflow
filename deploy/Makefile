@@ -501,23 +501,29 @@ argocd-deploy-prod: argocd-setup-project
 	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
 	@echo "   ✓ Auto-sync: enabled (self-heal disabled for production safety)"
 
-argocd-clean: ## Remove ArgoCD applications [Internal target]
-	@echo "🧹 Removing ArgoCD Applications..."
-	@# Remove ArgoCD RBAC permissions (try to delete from target namespace)
+argocd-clean: ## Remove ArgoCD resources for current namespace [Internal target]
+	@echo "🧹 Removing ArgoCD resources for namespace $(NAMESPACE)..."
+	@# Remove ArgoCD RBAC permissions for target namespace
 	@sed \
 		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
 		$(ARGOCD_TEKTON_PERMISSION) > argocd/argocd-tekton-permission-temp.yaml
 	@$(CO) delete -f argocd/argocd-tekton-permission-temp.yaml --ignore-not-found > /dev/null 2>&1 || true
 	@rm -f argocd/argocd-tekton-permission-temp.yaml
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-dev -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-dev -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-mlops -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-mlops -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-prod -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-prod -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete appproject sast-ai -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || true
-	@echo "   ✓ ArgoCD Applications and AppProject removed"
+	@# Find and delete only ArgoCD applications managing the current namespace
+	@echo "   🔍 Finding ArgoCD applications managing namespace $(NAMESPACE)..."
+	@APPS=$$($(CO) get application -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -o json 2>/dev/null | \
+		jq -r '.items[] | select(.spec.destination.namespace == "$(NAMESPACE)") | .metadata.name' || true); \
+	if [ -n "$$APPS" ]; then \
+		for app in $$APPS; do \
+			echo "   🗑️  Removing ArgoCD application: $$app"; \
+			$(CO) delete application $$app -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+			$(CO) patch application $$app -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ ArgoCD applications removed"; \
+	else \
+		echo "   ℹ️  No ArgoCD applications found managing namespace $(NAMESPACE)"; \
+	fi
 
 eventlistener:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -555,7 +561,7 @@ eventlistener-clean:
 ##@ Maintenance Commands
 # =============================================================================
 
-clean: ## Remove all deployed resources [Params: ENV=prod (optional)]
+clean: ## Remove all deployed resources in current namespace
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🧹 SAST AI Workflow - Cleanup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
