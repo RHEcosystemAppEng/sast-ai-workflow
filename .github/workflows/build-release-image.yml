@@ -19,7 +19,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.RELEASE_PERSONAL_ACCESS_TOKEN }}
         fetch-depth: 0
 
     - name: Set up Docker Buildx
