@@ -1,0 +1,35 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-tekton-manager
+  namespace: TARGET_NAMESPACE_PLACEHOLDER
+rules:
+- apiGroups:
+  - tekton.dev
+  resources:
+  - tasks
+  - taskruns
+  - pipelines
+  - pipelineruns
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-tekton-manager-binding
+  namespace: TARGET_NAMESPACE_PLACEHOLDER
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-tekton-manager
+subjects:
+- kind: ServiceAccount
+  name: ARGOCD_NAMESPACE_PLACEHOLDER-argocd-application-controller
+  namespace: ARGOCD_NAMESPACE_PLACEHOLDER

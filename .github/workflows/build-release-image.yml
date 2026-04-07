@@ -75,7 +75,7 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml
+        git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml deploy/argocd/argocd-application-prod.yaml
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
@@ -84,8 +84,8 @@ jobs:
           git checkout -B $DEFAULT_BRANCH origin/$DEFAULT_BRANCH
           git pull origin $DEFAULT_BRANCH
           # Re-add and commit the changes
-          git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml
-          git commit -m "Release v${{ steps.version.outputs.version }}: Update production overlay"
+          git add pyproject.toml deploy/tekton/overlays/prod/task-patch.yaml deploy/argocd/argocd-application-prod.yaml
+          git commit -m "Release v${{ steps.version.outputs.version }}: Update production overlay and ArgoCD application"
           git push origin $DEFAULT_BRANCH
         fi
 
