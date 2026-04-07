@@ -16,7 +16,7 @@ endif
 # =============================================================================
 CONTEXT := $(shell oc config current-context)
 NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
-ARGOCD_NAMESPACE_PLACEHOLDER ?= argocd
+ARGOCD_NAMESPACE_PLACEHOLDER ?= openshift-gitops
 CO := oc --context $(CONTEXT)
 
 # =============================================================================
@@ -87,11 +87,29 @@ AWS_SECRET_ACCESS_KEY            ?= ""
 # =============================================================================
 GITHUB_REPO_URL                  ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
 ARGOCD_NAMESPACE                 ?= sast-ai
+ARGOCD_TEKTON_PERMISSION         ?= ./argocd/argocd-tekton-permission.yaml
+# TARGET_REVISION is evaluated lazily only when needed by argocd-deploy-prod
+TARGET_REVISION                  ?=
+
+# Helper function to extract owner/repo from GitHub URL
+GITHUB_REPO_PATH = $(shell echo "$(GITHUB_REPO_URL)" | sed -E 's|https?://github.com/([^/]+/[^/.]+)(\.git)?|\1|')
+
+# Helper target to fetch latest release tag from GitHub (by commit date, not version number)
+.PHONY: get-latest-release-tag
+get-latest-release-tag:
+	@git fetch --tags $(GITHUB_REPO_URL) >/dev/null 2>&1 || true; \
+	latest_tag=$$(git tag -l --sort=-creatordate | head -1); \
+	if [ -z "$$latest_tag" ]; then \
+		echo "ERROR: No tags found in repository"; \
+		exit 1; \
+	else \
+		echo "$$latest_tag"; \
+	fi
 
 # =============================================================================
 # Phony Targets Declaration
 # =============================================================================
-.PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts argocd-deploy-dev argocd-deploy-prod argocd-deploy-mlops argocd-clean eventlistener eventlistener-clean
+.PHONY: deploy deploy-dev deploy-prod deploy-mlops setup tasks-dev tasks-prod tasks-mlops secrets pipeline scripts configmaps run clean generate-prompts prompts check-latest-release argocd-deploy-dev argocd-deploy-prod argocd-deploy-mlops argocd-clean eventlistener eventlistener-clean
 .PHONY: check-prod-version
 
 # =============================================================================
@@ -379,6 +397,15 @@ run: ## Execute pipeline [Params: PROJECT_NAME, REPO_REMOTE_URL, INPUT_REPORT_FI
 # =============================================================================
 ##@ GitOps / ArgoCD Commands
 # =============================================================================
+check-latest-release: ## Check the latest release tag from GitHub
+	@echo "🔍 Fetching latest release from GitHub..."
+	@LATEST_TAG=$$($(MAKE) -s get-latest-release-tag); \
+	REPO_PATH=$$(echo "$(GITHUB_REPO_URL)" | sed -E 's|https?://github.com/([^/]+/[^/.]+)(\.git)?|\1|'); \
+	echo "   Repository: $$REPO_PATH"; \
+	echo "   Latest release tag: $$LATEST_TAG"; \
+	echo ""; \
+	echo "   View releases: https://github.com/$$REPO_PATH/releases"
+
 argocd-setup-project:
 	@echo "🔧 Setting up ArgoCD AppProject..."
 	@# Check if AppProject exists
@@ -394,6 +421,15 @@ argocd-setup-project:
 		rm -f argocd/appproject-sast-ai-temp.yaml; \
 		echo "   ✓ ArgoCD AppProject 'sast-ai' created"; \
 	fi
+	@# Setup ArgoCD RBAC permissions for Tekton resources
+	@echo "   🔐 Setting up ArgoCD permissions for Tekton resources..."
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		$(ARGOCD_TEKTON_PERMISSION) > argocd/argocd-tekton-permission-temp.yaml
+	@$(CO) apply -f argocd/argocd-tekton-permission-temp.yaml
+	@rm -f argocd/argocd-tekton-permission-temp.yaml
+	@echo "   ✓ ArgoCD granted permissions to manage Tekton resources in $(NAMESPACE)"
 	@# Add target namespace to AppProject destinations (idempotent)
 	@echo "   🔄 Adding namespace $(NAMESPACE) to AppProject destinations..."
 	@$(CO) get appproject sast-ai -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -o json | \
@@ -440,32 +476,54 @@ argocd-deploy-mlops: argocd-setup-project
 
 argocd-deploy-prod: argocd-setup-project
 	@echo "🔄 Deploying ArgoCD Application (Production)..."
-	@# Label the target namespace for ArgoCD management
-	@echo "   🏷️  Labeling namespace $(NAMESPACE) for ArgoCD management..."
-	@$(CO) label namespace $(NAMESPACE) argocd.argoproj.io/managed-by=$(ARGOCD_NAMESPACE_PLACEHOLDER) --overwrite > /dev/null 2>&1 || \
-		{ echo "   ⚠️  Warning: Could not label namespace $(NAMESPACE) (might not exist yet)"; }
-	@# Create a temporary file with placeholders replaced
-	@sed \
+	@# Fetch latest release tag from GitHub
+	@echo "   🔍 Fetching latest release tag from GitHub..."
+	@LATEST_TAG=$$($(MAKE) -s get-latest-release-tag); \
+	if [ -z "$$LATEST_TAG" ]; then \
+		echo "   ❌ ERROR: Could not determine latest release tag"; \
+		exit 1; \
+	fi; \
+	echo "   📦 Latest release tag: $$LATEST_TAG"; \
+	echo "   🏷️  Labeling namespace $(NAMESPACE) for ArgoCD management..."; \
+	$(CO) label namespace $(NAMESPACE) argocd.argoproj.io/managed-by=$(ARGOCD_NAMESPACE_PLACEHOLDER) --overwrite > /dev/null 2>&1 || \
+		{ echo "   ⚠️  Warning: Could not label namespace $(NAMESPACE) (might not exist yet)"; }; \
+	echo "   📝 Creating ArgoCD Application with release $$LATEST_TAG..."; \
+	sed \
 		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
 		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
 		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
-		argocd/argocd-application-prod.yaml > argocd/argocd-application-prod-temp.yaml
-	@$(CO) apply -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -f argocd/argocd-application-prod-temp.yaml
-	@rm -f argocd/argocd-application-prod-temp.yaml
-	@echo "   ✓ ArgoCD Application (prod) deployed to $(NAMESPACE) namespace"
+		-e "s|RELEASE_VERSION_PLACEHOLDER|$$LATEST_TAG|g" \
+		argocd/argocd-application-prod.yaml > argocd/argocd-application-prod-temp.yaml; \
+	$(CO) apply -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -f argocd/argocd-application-prod-temp.yaml; \
+	rm -f argocd/argocd-application-prod-temp.yaml; \
+	echo "   ✓ ArgoCD Application (prod) deployed to $(NAMESPACE) namespace"; \
+	echo "   ✓ Tracking Git tag: $$LATEST_TAG"
 	@echo "   ✓ Watching: deploy/tekton/overlays/prod (uses release version)"
 	@echo "   ✓ Auto-sync: enabled (self-heal disabled for production safety)"
 
-argocd-clean: ## Remove ArgoCD applications [Internal target]
-	@echo "🧹 Removing ArgoCD Applications..."
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-dev -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-dev -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-mlops -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-mlops -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete application sast-ai-tekton-pipeline-syncer-prod -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
-	$(CO) patch application sast-ai-tekton-pipeline-syncer-prod -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true
-	@$(CO) delete appproject sast-ai -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || true
-	@echo "   ✓ ArgoCD Applications and AppProject removed"
+argocd-clean: ## Remove ArgoCD resources for current namespace [Internal target]
+	@echo "🧹 Removing ArgoCD resources for namespace $(NAMESPACE)..."
+	@# Remove ArgoCD RBAC permissions for target namespace
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE_PLACEHOLDER)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		$(ARGOCD_TEKTON_PERMISSION) > argocd/argocd-tekton-permission-temp.yaml
+	@$(CO) delete -f argocd/argocd-tekton-permission-temp.yaml --ignore-not-found > /dev/null 2>&1 || true
+	@rm -f argocd/argocd-tekton-permission-temp.yaml
+	@# Find and delete only ArgoCD applications managing the current namespace
+	@echo "   🔍 Finding ArgoCD applications managing namespace $(NAMESPACE)..."
+	@APPS=$$($(CO) get application -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -o json 2>/dev/null | \
+		jq -r '.items[] | select(.spec.destination.namespace == "$(NAMESPACE)") | .metadata.name' || true); \
+	if [ -n "$$APPS" ]; then \
+		for app in $$APPS; do \
+			echo "   🗑️  Removing ArgoCD application: $$app"; \
+			$(CO) delete application $$app -n $(ARGOCD_NAMESPACE_PLACEHOLDER) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+			$(CO) patch application $$app -n $(ARGOCD_NAMESPACE_PLACEHOLDER) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ ArgoCD applications removed"; \
+	else \
+		echo "   ℹ️  No ArgoCD applications found managing namespace $(NAMESPACE)"; \
+	fi
 
 eventlistener:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -503,7 +561,7 @@ eventlistener-clean:
 ##@ Maintenance Commands
 # =============================================================================
 
-clean: ## Remove all deployed resources [Params: ENV=prod (optional)]
+clean: ## Remove all deployed resources in current namespace
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🧹 SAST AI Workflow - Cleanup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
