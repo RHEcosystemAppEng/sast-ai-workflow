@@ -67,11 +67,17 @@ def get_human_verified_results(config: Config):
                 config.SERVICE_ACCOUNT_JSON_PATH, config.HUMAN_VERIFIED_FILE_PATH
             )
         return get_human_verified_results_local_excel(config.HUMAN_VERIFIED_FILE_PATH)
-    elif config.SERVICE_ACCOUNT_JSON_PATH and config.INPUT_REPORT_FILE_PATH:
+    elif config.SERVICE_ACCOUNT_JSON_PATH and is_google_sheet_url(config.INPUT_REPORT_FILE_PATH):
         return get_human_verified_results_google_sheet(
             config.SERVICE_ACCOUNT_JSON_PATH, config.INPUT_REPORT_FILE_PATH
         )
     return None
+
+
+def is_google_sheet_url(url):
+    if not url:
+        return False
+    return url.startswith("https://docs.google.com/spreadsheets/d/")
 
 
 def get_human_verified_results_local_excel(filename):
@@ -163,7 +169,9 @@ def get_header_row(filename):
         (
             i
             for i, row in preview.iterrows()
-            if any(str(cell).strip().lower() in ["issue id", "false positive?"] for cell in row.values)
+            if any(
+                str(cell).strip().lower() in ["issue id", "false positive?"] for cell in row.values
+            )
         ),
         None,
     )
