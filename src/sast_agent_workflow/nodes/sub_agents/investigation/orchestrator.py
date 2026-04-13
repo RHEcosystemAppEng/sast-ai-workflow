@@ -234,6 +234,7 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
     reanalysis_count = result.get("reanalysis_count", 0)
     total_tool_calls = result.get("total_tool_calls", 0)
     stop_reason = result.get("stop_reason")
+    required_information = result.get("required_information", [])
 
     if per_issue.analysis_response:
         per_issue.analysis_response.investigation_result = verdict
@@ -241,6 +242,7 @@ def _update_tracker_from_result(per_issue: Any, result: dict, issue_id: str) -> 
         per_issue.analysis_response.justifications = justifications
         per_issue.analysis_response.prompt = analysis_prompt
         per_issue.analysis_response.agent_confidence = result["confidence"]
+        per_issue.analysis_response.recommendations = required_information
 
     # Store investigation subgraph quality metrics in PerIssueData for confidence scoring
     per_issue.investigation_tool_call_count = total_tool_calls
