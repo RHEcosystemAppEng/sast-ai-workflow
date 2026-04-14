@@ -91,7 +91,7 @@ spec:
       optional: true
   tasks:
     - name: execute-ai-analysis
-      timeout: "5h0m0s"
+      timeout: "24h0m0s"
       taskRef:
         kind: Task
         name: execute-ai-analysis

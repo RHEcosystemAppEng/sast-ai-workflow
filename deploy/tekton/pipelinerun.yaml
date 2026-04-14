@@ -6,7 +6,7 @@ spec:
   pipelineRef:
     name: sast-ai-workflow-pipeline
   timeouts:
-    pipeline: "5h"
+    pipeline: "24h"
   params:
     - name: PROJECT_NAME
       value: "PROJECT_NAME_PLACEHOLDER"
