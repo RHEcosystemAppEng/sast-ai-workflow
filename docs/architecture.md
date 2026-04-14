@@ -50,6 +50,7 @@ Input → pre_process → filter → investigate → summarize_justifications �
 The `investigate` node internally runs a **Research → Analysis → Evaluation loop** per issue, with a circuit breaker for safety limits. See the [Investigation Package README](../src/sast_agent_workflow/nodes/sub_agents/investigation/README.md) for the full inner-loop design.
 
 #### Guides
+- [Confidence Scoring](confidence_scoring.md) — formula, component weights, data flow
 - [Langfuse Guide](langfuse_guide.md) — trace reading, cost analysis, debugging
 - [Operations Runbook](operations_runbook.md) — monitoring, alerts, performance tuning
 

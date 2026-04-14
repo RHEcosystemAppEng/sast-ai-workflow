@@ -104,6 +104,26 @@ For full details see the [Investigation Package README](./src/sast_agent_workflo
 - Supports OpenAI-compatible AI models.
 - Supports NVIDIA NIMs via the `ChatNVIDIA` LangChain integration.
 
+### Confidence Scoring
+
+Every analyzed issue receives a **confidence score** (0–100%) that quantifies how much trust to place in the verdict. The score is a weighted combination of:
+
+- **Agent Confidence** (~37.5%) — The LLM's self-assessed certainty in its verdict
+- **Investigation Depth** (~37.5%) — How thoroughly the issue was investigated (symbols explored, tool calls, clean completion vs. safety limits)
+- **Evidence Strength** (~25%) — Quality of supporting evidence (FAISS similarity, files fetched, concrete code/CVE references)
+
+Issues matching known false positives in the vector store skip the full investigation and use the filter's match confidence directly.
+
+| Score Range | Level | Recommended Action |
+|---|---|---|
+| 80–100% | High | Verdict can generally be trusted |
+| 50–79% | Medium | Consider spot-checking |
+| 0–49% | Low | Manual review recommended |
+
+All weights and normalization caps are configurable in `config/default_config.yaml`. See [Confidence Scoring](./docs/confidence_scoring.md) for the full formula, interpretation guidance, and configuration reference.
+
+> **Note:** Confidence scoring is under active improvement — weights and calibration are being refined (14/4/26)
+
 ### Evaluation
 - Applies metrics (from Ragas library) to assess the quality of model outputs.
 - **Note:** SAST-AI-Workflow is primarily focused on identifying false alarms (False Positives).
