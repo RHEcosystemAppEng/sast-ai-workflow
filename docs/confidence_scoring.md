@@ -41,15 +41,14 @@ The scoring logic lives in [`src/Utils/confidence_scoring.py`](../src/Utils/conf
 | Low confidence + any verdict | Investigation struggled — manual review recommended. |
 | Medium confidence + "max_iterations" stop | Substantial evidence gathered but hit the iteration limit. Quick manual check advised. |
 
-### In the Excel Report
+### In the Output Reports
 
-- **`confidence_score`** column — The final percentage (0–100) for each issue.
+- **Excel report:** The `Confidence` column shows the final percentage (0–100) for each issue, color-coded red (< 50%) or green (>= 50%).
+- **SARIF file:** Confidence scores are not yet included in the SARIF output.
 
 ### Aggregate Statistics
 
-- **Mean confidence** — Average across all analyzed issues.
-- **High/Medium/Low counts** — How many issues fell into each band.
-- **Min/Max confidence** — Score range in the batch.
+Aggregate confidence metrics (mean, min, max, high/medium/low counts) are computed during the `calculate_metrics` node and logged, but are not currently included in the Excel or SARIF output.
 
 ---
 
