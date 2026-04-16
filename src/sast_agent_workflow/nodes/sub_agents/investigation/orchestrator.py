@@ -96,14 +96,12 @@ async def _investigate_issues(
     """
     semaphore = asyncio.Semaphore(max_concurrent)
     processing_mode = "sequential" if max_concurrent == 1 else "parallel"
+    repo_handler = repo_handler_factory(config)
 
-    async def _investigate_with_resources(issue_id: str, per_issue: Any) -> None:
-        """Investigate single issue with concurrency control and isolated resources."""
+    async def _investigate_with_semaphore(issue_id: str, per_issue: Any) -> None:
+        """Investigate single issue with concurrency control."""
         async with semaphore:
             logger.info(f"[{processing_mode}] Investigating {issue_id}...")
-            # Create isolated repo_handler per task to prevent clang index race conditions
-            repo_handler = repo_handler_factory(config)
-
             await _investigate_single_issue(
                 issue_id,
                 per_issue,
@@ -116,7 +114,7 @@ async def _investigate_issues(
 
     # Create all investigation tasks
     tasks = [
-        _investigate_with_resources(issue_id, per_issue)
+        _investigate_with_semaphore(issue_id, per_issue)
         for issue_id, per_issue in issues_to_investigate.items()
     ]
 
