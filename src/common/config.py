@@ -68,6 +68,7 @@ class Config:
     SERVICE_ACCOUNT_JSON_PATH: str
     SIMILARITY_ERROR_THRESHOLD: int
     MAX_ANALYSIS_ITERATIONS: int
+    MAX_CONCURRENT_INVESTIGATIONS: int
 
     # Confidence scoring type hints
     CONFIDENCE_WEIGHT_FILTER: float

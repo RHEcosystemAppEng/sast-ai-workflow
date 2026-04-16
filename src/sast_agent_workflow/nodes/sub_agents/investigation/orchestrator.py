@@ -7,6 +7,7 @@ This uses a subgraph with three nodes:
 3. EVALUATION: LLM critiques analysis and decides if more research needed
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -51,61 +52,164 @@ def create_investigate_node(config: Config, llm: BaseChatModel, tools: List[Base
     async def investigate(state: SASTWorkflowTracker) -> SASTWorkflowTracker:
         """Investigate each non-final issue using the research-analysis-evaluation subgraph."""
         logger.info("Investigating issues with ReAct agent...")
-        repo_handler = repo_handler_factory(config)
         issues_to_investigate = _get_issues_to_investigate(state)
         logger.info(f"Investigating {len(issues_to_investigate)}/{len(state.issues)} issues")
 
+        max_concurrent = config.MAX_CONCURRENT_INVESTIGATIONS or 1
+        logger.info(f"Using {max_concurrent} concurrent investigation worker(s)")
+
         ground_truth_verdicts = _load_ground_truth_safe(config)
-        with langfuse_score_client_context() as langfuse_score_client:
-            for issue_id, per_issue in issues_to_investigate.items():
-                logger.info(f"Investigating {issue_id}...")
-                with issue_langfuse_context(issue_id, config) as (
-                    langfuse_handler,
-                    issue_session_id,
-                    issue_trace_id,
-                ):
-                    try:
-                        code_context, fetched_initial, gathered_initial = (
-                            _extract_initial_code_and_build_context(
-                                repo_handler, per_issue, issue_id
-                            )
-                        )
-                        initial_state = _build_initial_investigation_state(
-                            issue_id,
-                            per_issue,
-                            code_context,
-                            gathered_initial,
-                            fetched_initial,
-                            config,
-                        )
-                        subgraph_config = _build_subgraph_config(
-                            issue_id, config, langfuse_handler, issue_session_id, per_issue
-                        )
-                        logger.info(f"Running investigation subgraph for {issue_id}...")
-                        result = await investigation_subgraph.ainvoke(
-                            initial_state, config=subgraph_config
-                        )
-                        _update_tracker_from_result(per_issue, result, issue_id)
-                        if langfuse_handler and langfuse_score_client and issue_trace_id:
-                            add_langfuse_scores(
-                                langfuse_score_client,
-                                issue_trace_id,
-                                issue_id,
-                                result,
-                                ground_truth_verdicts,
-                            )
-                    except Exception as e:
-                        logger.error(f"Investigation failed for {issue_id}: {e}", exc_info=True)
-                        if per_issue.analysis_response:
-                            per_issue.analysis_response.investigation_result = "NEEDS REVIEW"
-                            per_issue.analysis_response.justifications = [
-                                f"Investigation failed: {e}"
-                            ]
-                            per_issue.analysis_response.is_final = "TRUE"
+
+        await _investigate_issues(
+            issues_to_investigate,
+            investigation_subgraph,
+            ground_truth_verdicts,
+            config,
+            max_concurrent,
+        )
+
         logger.info("Investigation complete")
         return state
 
     return investigate
+
+
+async def _investigate_issues(
+    issues_to_investigate: Dict[str, Any],
+    investigation_subgraph: Any,
+    ground_truth_verdicts: Optional[dict],
+    config: Any,
+    max_concurrent: int = 1,
+) -> None:
+    """
+    Investigate issues with controlled concurrency.
+
+    When max_concurrent=1, processes sequentially (original behavior).
+    When max_concurrent>1, processes in parallel with semaphore control.
+
+    Args:
+        issues_to_investigate: Dict of issue_id -> PerIssueData
+        investigation_subgraph: Compiled investigation graph
+        ground_truth_verdicts: Optional ground truth for scoring
+        config: Configuration object
+        max_concurrent: Maximum number of concurrent investigations (default: 1)
+    """
+    semaphore = asyncio.Semaphore(max_concurrent)
+    processing_mode = "sequential" if max_concurrent == 1 else "parallel"
+
+    async def _investigate_with_resources(issue_id: str, per_issue: Any) -> None:
+        """Investigate single issue with concurrency control and isolated resources."""
+        async with semaphore:
+            logger.info(f"[{processing_mode}] Investigating {issue_id}...")
+            # Create isolated repo_handler per task to prevent clang index race conditions
+            repo_handler = repo_handler_factory(config)
+
+            await _investigate_single_issue(
+                issue_id,
+                per_issue,
+                investigation_subgraph,
+                repo_handler,
+                ground_truth_verdicts,
+                config,
+            )
+            logger.info(f"[{processing_mode}] Completed {issue_id}")
+
+    # Create all investigation tasks
+    tasks = [
+        _investigate_with_resources(issue_id, per_issue)
+        for issue_id, per_issue in issues_to_investigate.items()
+    ]
+
+    # Execute all tasks, capturing exceptions to prevent one failure from stopping others
+    logger.info(f"[{processing_mode}] Starting {len(tasks)} investigation task(s)...")
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Log any exceptions that occurred
+    failed_count = sum(1 for r in results if isinstance(r, Exception))
+    if failed_count > 0:
+        logger.warning(f"[{processing_mode}] {failed_count}/{len(tasks)} investigation(s) failed")
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                issue_id = list(issues_to_investigate.keys())[i]
+                logger.error(f"[{processing_mode}] Failed {issue_id}: {result}", exc_info=result)
+    else:
+        logger.info(f"[{processing_mode}] All {len(tasks)} investigation(s) completed successfully")
+
+
+async def _investigate_single_issue(
+    issue_id: str,
+    per_issue: Any,
+    investigation_subgraph: Any,
+    repo_handler: Any,
+    ground_truth_verdicts: Optional[dict],
+    config: Any,
+) -> None:
+    """
+    Investigate a single issue through the research-analysis-evaluation subgraph.
+
+    Encapsulates core investigation logic for one issue, making it reusable
+    for both sequential and parallel processing.
+
+    Args:
+        issue_id: Unique identifier for the issue
+        per_issue: PerIssueData object containing issue details
+        investigation_subgraph: Compiled investigation graph
+        repo_handler: Repository handler (isolated per task to avoid race conditions)
+        ground_truth_verdicts: Optional ground truth data for evaluation
+        config: Configuration object
+    """
+    # Langfuse is optional - context managers handle None gracefully
+    with langfuse_score_client_context() as langfuse_score_client:
+        with issue_langfuse_context(issue_id, config) as (
+            langfuse_handler,
+            issue_session_id,
+            issue_trace_id,
+        ):
+            try:
+                logger.debug(f"[{issue_id}] Extracting initial code context")
+                code_context, fetched_initial, gathered_initial = (
+                    _extract_initial_code_and_build_context(repo_handler, per_issue, issue_id)
+                )
+
+                logger.debug(f"[{issue_id}] Building initial investigation state")
+                initial_state = _build_initial_investigation_state(
+                    issue_id,
+                    per_issue,
+                    code_context,
+                    gathered_initial,
+                    fetched_initial,
+                    config,
+                )
+
+                subgraph_config = _build_subgraph_config(
+                    issue_id, config, langfuse_handler, issue_session_id, per_issue
+                )
+
+                logger.debug(f"[{issue_id}] Running investigation subgraph")
+                result = await investigation_subgraph.ainvoke(initial_state, config=subgraph_config)
+
+                logger.debug(f"[{issue_id}] Updating tracker with results")
+                _update_tracker_from_result(per_issue, result, issue_id)
+
+                # Only add scores if Langfuse is configured and available
+                if langfuse_handler and langfuse_score_client and issue_trace_id:
+                    logger.debug(f"[{issue_id}] Adding Langfuse scores")
+                    add_langfuse_scores(
+                        langfuse_score_client,
+                        issue_trace_id,
+                        issue_id,
+                        result,
+                        ground_truth_verdicts,
+                    )
+
+            except Exception as e:
+                logger.error(f"[{issue_id}] Investigation failed: {e}", exc_info=True)
+                if per_issue.analysis_response:
+                    per_issue.analysis_response.investigation_result = "NEEDS REVIEW"
+                    per_issue.analysis_response.justifications = [f"Investigation failed: {e}"]
+                    per_issue.analysis_response.is_final = "TRUE"
+                else:
+                    logger.warning(f"[{issue_id}] No analysis_response to update with failure")
 
 
 def _get_issues_to_investigate(state: SASTWorkflowTracker) -> Dict[str, Any]:
