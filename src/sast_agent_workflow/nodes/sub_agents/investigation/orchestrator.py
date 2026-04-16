@@ -128,10 +128,17 @@ async def _investigate_issues(
     failed_count = sum(1 for r in results if isinstance(r, Exception))
     if failed_count > 0:
         logger.warning(f"[{processing_mode}] {failed_count}/{len(tasks)} investigation(s) failed")
+        issue_ids = list(
+            issues_to_investigate.keys()
+        )  # Create list once to avoid repeated allocation
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                issue_id = list(issues_to_investigate.keys())[i]
-                logger.error(f"[{processing_mode}] Failed {issue_id}: {result}", exc_info=result)
+                issue_id = issue_ids[i]
+                # Preserve full traceback for debugging
+                logger.error(
+                    f"[{processing_mode}] Failed {issue_id}: {result}",
+                    exc_info=(type(result), result, result.__traceback__),
+                )
     else:
         logger.info(f"[{processing_mode}] All {len(tasks)} investigation(s) completed successfully")
 
