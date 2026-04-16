@@ -83,6 +83,10 @@ spec:
       type: string
       description: "Base image with pipeline dependencies"
       default: "quay.io/ecosystem-appeng/sast-ai-base-image:latest"
+    - name: MAX_CONCURRENT_INVESTIGATIONS
+      type: string
+      description: "Number of issues to process concurrently (1 = sequential, 5 = default)"
+      default: "5"
   workspaces:
     - name: gitlab-token-ws
       optional: true
@@ -138,6 +142,8 @@ spec:
           value: "$(params.CONTAINER_IMAGE)"
         - name: BASE_IMAGE
           value: "$(params.BASE_IMAGE)"
+        - name: MAX_CONCURRENT_INVESTIGATIONS
+          value: "$(params.MAX_CONCURRENT_INVESTIGATIONS)"
       workspaces:
         - name: gitlab-token-ws
           workspace: gitlab-token-ws

@@ -36,6 +36,7 @@ def mock_config():
     """Mock configuration with standard test values."""
     config = Mock()
     config.MAX_ANALYSIS_ITERATIONS = 4
+    config.MAX_CONCURRENT_INVESTIGATIONS = 1  # Use sequential for tests
     config.PROJECT_NAME = "test-project"
     return config
 
@@ -553,7 +554,7 @@ class TestCreateInvestigateNode:
         def noop_issue_ctx(issue_id, config):
             yield (None, None, None)
 
-        mock_score_ctx.return_value = noop_score_ctx()
+        mock_score_ctx.side_effect = noop_score_ctx
         mock_issue_ctx.side_effect = noop_issue_ctx
 
         # Create and invoke
@@ -595,7 +596,7 @@ class TestCreateInvestigateNode:
         def noop_issue_ctx(issue_id, config):
             yield (None, None, None)
 
-        mock_score_ctx.return_value = noop_score_ctx()
+        mock_score_ctx.side_effect = noop_score_ctx
         mock_issue_ctx.side_effect = noop_issue_ctx
 
         tracker = Mock()
