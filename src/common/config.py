@@ -20,6 +20,7 @@ from common.constants import (
     LLM_MODEL_NAME,
     LLM_URL,
     MAX_ANALYSIS_ITERATIONS,
+    MAX_CONCURRENT_INVESTIGATIONS,
     OUTPUT_FILE_PATH,
     PROJECT_NAME,
     PROJECT_VERSION,
@@ -68,6 +69,7 @@ class Config:
     SERVICE_ACCOUNT_JSON_PATH: str
     SIMILARITY_ERROR_THRESHOLD: int
     MAX_ANALYSIS_ITERATIONS: int
+    MAX_CONCURRENT_INVESTIGATIONS: int
 
     # Confidence scoring type hints
     CONFIDENCE_WEIGHT_FILTER: float
@@ -141,7 +143,11 @@ class Config:
         for key in config.keys():
             env_value = os.getenv(key)
             if env_value is not None:
-                config[key] = env_value
+                original_value = config[key]
+                if isinstance(original_value, int) and env_value.isdigit():
+                    config[key] = int(env_value)
+                else:
+                    config[key] = env_value
 
         # Load Main LLM details in case critique details not provided
         if config.get(RUN_WITH_CRITIQUE):
@@ -320,6 +326,19 @@ class Config:
         ):
             raise ValueError(
                 f"Configuration variable '{MAX_ANALYSIS_ITERATIONS}' is not a valid value."
+            )
+
+        # Validate that MAX_CONCURRENT_INVESTIGATIONS is within valid range
+        if not is_valid_int_value(
+            self.MAX_CONCURRENT_INVESTIGATIONS,
+            VALIDATION_LIMITS["MIN_CONCURRENT_INVESTIGATIONS"],
+            VALIDATION_LIMITS["MAX_CONCURRENT_INVESTIGATIONS"],
+        ):
+            raise ValueError(
+                f"Configuration variable '{MAX_CONCURRENT_INVESTIGATIONS}' must be between "
+                f"{VALIDATION_LIMITS['MIN_CONCURRENT_INVESTIGATIONS']} and "
+                f"{VALIDATION_LIMITS['MAX_CONCURRENT_INVESTIGATIONS']}, "
+                f"got: {self.MAX_CONCURRENT_INVESTIGATIONS}"
             )
 
         # Validate that prompt templates are loaded

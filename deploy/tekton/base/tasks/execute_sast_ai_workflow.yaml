@@ -104,6 +104,10 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
+    - name: MAX_CONCURRENT_INVESTIGATIONS
+      type: string
+      description: "Number of issues to process concurrently (1 = sequential, 5 = default parallel)"
+      default: "5"
 
   workspaces:
     - name: gitlab-token-ws
@@ -309,6 +313,8 @@ spec:
           value: "$(params.GIT_BRANCH)"
         - name: DVC_REPO_URL
           value: "$(params.REPO_URL)"
+        - name: MAX_CONCURRENT_INVESTIGATIONS
+          value: "$(params.MAX_CONCURRENT_INVESTIGATIONS)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -316,8 +322,12 @@ spec:
           mountPath: /cache-data
       computeResources:
         requests:
+          cpu: "2000m"
+          memory: "4Gi"
           ephemeral-storage: "1Gi"
         limits:
+          cpu: "4000m"
+          memory: "6Gi"
           ephemeral-storage: "2Gi"
       script: |
         #!/usr/bin/env sh
