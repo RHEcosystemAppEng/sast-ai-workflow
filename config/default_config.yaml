@@ -39,7 +39,12 @@ MAX_REJECTION_STREAK: 3
 MAX_NO_PROGRESS_STREAK: 2
 RESEARCH_RECURSION_LIMIT: 30
 STRUCTURED_OUTPUT_MAX_RETRIES: 3
-MAX_CONCURRENT_INVESTIGATIONS: 5  # Number of issues to process concurrently (1 = sequential)
+
+# Parallel Processing Configuration
+# Processes multiple issues concurrently to reduce analysis time
+# 1 = sequential (safest, slowest), 5 = default (5x faster), 10+ = high throughput
+# Requires 2-4 GB + (~400 MB × workers) memory. Adjust deployment resources accordingly.
+MAX_CONCURRENT_INVESTIGATIONS: 5
 
 RUN_WITH_CRITIQUE: false
 USE_CRITIQUE_AS_FINAL_RESULTS: false

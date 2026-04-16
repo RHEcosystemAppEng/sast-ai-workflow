@@ -423,7 +423,33 @@ Where:
 - `repo-name`: The project name (from `PROJECT_NAME` parameter)
 - The pipeline run ID is automatically provided by Tekton, ensuring each run has a unique S3 directory
 
-### 12. Troubleshooting
+### 12. Parallel Investigation Processing
+
+The workflow processes up to **5 issues concurrently** by default (configurable via `MAX_CONCURRENT_INVESTIGATIONS`).
+
+**Performance:** Sequential (1 worker) = ~6.7 hours for 100 issues. Parallel (5 workers) = ~1.3 hours (5x faster).
+
+**Configuration:**
+```yaml
+# In PipelineRun:
+params:
+  - name: MAX_CONCURRENT_INVESTIGATIONS
+    value: "10"  # 1 = sequential, 5 = default, 10 = high throughput
+```
+
+**Resource Requirements:**
+
+| Workers | Memory | CPU | Use Case |
+|---------|--------|-----|----------|
+| 1 | 2-3 GB | 1-2 cores | Small reports, debugging |
+| 5 (default) | 4-6 GB | 2-4 cores | Most workloads |
+| 10 | 6-8 GB | 3-5 cores | Large reports (200+ issues) |
+
+Current allocation: 4 GB request / 6 GB limit, 2-4 CPU cores (supports up to 5-7 workers).
+
+**Logs:** Processing mode indicated by `[sequential]` or `[parallel]` prefix in logs.
+
+### 13. Troubleshooting
 
 #### General Issues
 - **View logs:** `oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -f`
