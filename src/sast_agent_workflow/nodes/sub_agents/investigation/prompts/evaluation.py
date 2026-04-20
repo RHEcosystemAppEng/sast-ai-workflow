@@ -90,7 +90,7 @@ the uncertainty"""
 
 
 _EVAL_HEADER = """\
-You are a senior security reviewer evaluating whether \
+<|think|> You are a senior security reviewer evaluating whether \
 a SAST investigation has gathered sufficient evidence \
 for a confident verdict.
 

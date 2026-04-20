@@ -208,7 +208,7 @@ def _build_initial_instructions(
     # Get vuln-type specific checklist (named for clarity in template)
     checklist_section = format_checklist(issue_cwe)  # NOSONAR S1481: clearer than inlining
 
-    return f"""You are a code gatherer for SAST vulnerability triage. \
+    return f"""<|think|> You are a code gatherer for SAST vulnerability triage. \
 Your ONLY job is to fetch relevant code using tools.
 
 **FINDING:**

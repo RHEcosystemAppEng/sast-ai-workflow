@@ -30,4 +30,5 @@ async def create_extended_openai_langchain(llm_config: ExtendedOpenAIModelConfig
 
     config_dict = llm_config.model_dump(exclude={"type", "thinking", "api_type"}, by_alias=True)
     llm_config.resolve_httpx_clients(config_dict, include_async=True)
+    config_dict["model_kwargs"] = {"extra_body": {"top_k": 64, "seed": 42}}
     yield ChatOpenAI(**config_dict)

@@ -68,7 +68,7 @@ guards, or logic issues the evaluator identified.
 
 
 _PROMPT_HEADER = """\
-You are an expert security analyst determining if a \
+<|think|> You are an expert security analyst determining if a \
 SAST finding is a FALSE_POSITIVE or TRUE_POSITIVE.
 
 **Your Task:**

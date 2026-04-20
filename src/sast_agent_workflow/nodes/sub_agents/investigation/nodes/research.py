@@ -6,7 +6,9 @@ Design: STATELESS per model call - model sees only system prompt (instructions +
 NOT conversation history. All context is embedded in the dynamic prompt.
 """
 
+import json
 import logging
+import re
 import uuid
 from typing import Annotated, Dict, List, Optional
 
@@ -162,6 +164,83 @@ def _strip_ai_reasoning(msg: AIMessage) -> Optional[AIMessage]:
     return None
 
 
+# Matches: <call:tool_name(key='value', key2='value2') />
+_INLINE_TOOL_CALL_RE = re.compile(r"<call:(\w+)\(([^)]*)\)\s*/>")
+# Two alternatives: single-quoted value (group 2) or double-quoted value (group 3).
+# Using separate groups prevents premature stopping when the outer delimiter differs
+# from quotes that appear inside the value (e.g. pattern="'struct foo|struct bar'").
+_KWARG_RE = re.compile(r"""(\w+)\s*=\s*(?:'([^']*)'|"([^"]*)")""")
+
+
+def _strip_surrounding_quotes(value: str) -> str:
+    """Strip one layer of surrounding matching quotes from a value.
+
+    Models sometimes over-quote args, e.g. file_pattern="'*.h'" should be *.h.
+    """
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    return value
+
+
+def _parse_inline_tool_calls(content: str) -> List[dict]:
+    """Parse <call:tool_name(key='value') /> patterns embedded in model content.
+
+    Some models (e.g. Gemma) return tool calls inside the response text rather
+    than in the tool_calls field. This extracts them so the agent can act on them.
+    """
+    tool_calls = []
+    for match in _INLINE_TOOL_CALL_RE.finditer(content):
+        tool_name = match.group(1)
+        args_str = match.group(2)
+        args = {}
+        for m in _KWARG_RE.finditer(args_str):
+            key = m.group(1)
+            # group(2) = single-quoted value, group(3) = double-quoted value
+            raw_value = m.group(2) if m.group(2) is not None else (m.group(3) or "")
+            args[key] = _strip_surrounding_quotes(raw_value)
+        tool_calls.append(
+            {
+                "id": f"call_{uuid.uuid4().hex[:12]}",
+                "name": tool_name,
+                "args": args,
+                "type": "tool_call",
+            }
+        )
+    return tool_calls
+
+
+@wrap_model_call
+async def inline_tool_call_parser_middleware(request: ModelRequest, handler):
+    """Parse inline tool calls for models that embed them in content text.
+
+    When a model returns <call:tool_name(key='value') /> inside the message
+    content instead of using the tool_calls field, this middleware extracts them
+    and rebuilds the AIMessage with proper tool_calls so the agent can proceed.
+    """
+    response = await handler(request)
+    if not isinstance(response, AIMessage):
+        return response
+    if getattr(response, "tool_calls", None):
+        return response
+    content = response.content
+    if not isinstance(content, str) or not content:
+        return response
+    parsed_calls = _parse_inline_tool_calls(content)
+    if not parsed_calls:
+        return response
+    logger.debug(
+        f"Parsed {len(parsed_calls)} inline tool call(s) from model content: "
+        f"{[c['name'] for c in parsed_calls]}"
+    )
+    clean_content = _INLINE_TOOL_CALL_RE.sub("", content).strip()
+    return AIMessage(
+        content=clean_content,
+        tool_calls=parsed_calls,
+        additional_kwargs=getattr(response, "additional_kwargs", {}),
+        id=response.id,
+    )
+
+
 def _truncate_message(msg: AnyMessage) -> Optional[AnyMessage]:
     """
     Truncate a single message if it's too long. Returns None to signal skip (e.g. tool def).
@@ -243,34 +322,26 @@ class ResearchAgentState(AgentState):
 @wrap_model_call
 async def stateless_model_middleware(request: ModelRequest, handler):
     """
-    Build model input with STATELESS design and separate SystemMessages.
+    Build model input with STATELESS design: single SystemMessage containing
+    both instructions and CODE BANK.
 
-    Original design: model sees ONLY:
-    1. SystemMessage(instructions) - iteration-dependent research instructions
-    2. SystemMessage(CODE BANK) - all previously fetched code
-    3. Tool schemas (handled internally)
+    Model sees ONLY:
+    1. SystemMessage(instructions + CODE BANK) - merged into one message
+    2. Tool schemas (handled internally)
 
     NOT the conversation history. All context is embedded in the prompt.
 
-    This is critical because:
-    - CODE BANK already contains all fetched code
-    - Instructions are iteration-aware
-    - No need to replay tool call/response history
+    Single SystemMessage ensures compatibility with all model chat templates
+    (e.g. Gemma, which only supports one system block per request).
     """
     state = request.state
 
-    # Build separate messages for instructions and CODE BANK
-    # Using functions from prompts module
     instructions = build_research_instructions(state)
-    code_bank = build_code_bank(state.get("fetched_files", {}))
 
-    # Override: set messages to our SystemMessages, clear system_message
-    # This gives us two separate SystemMessages like the original design
     request = request.override(
         system_message=None,
         messages=[
             SystemMessage(content=instructions),
-            SystemMessage(content=code_bank),
         ],
     )
     return await handler(request)
@@ -398,7 +469,8 @@ def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
        with exponential backoff
     2. ModelCallLimitMiddleware: Limits total model calls, graceful exit on limit
     3. stateless_model_middleware: Builds [SystemMessage(instructions), SystemMessage(CODE BANK)]
-    4. code_gathering_middleware: Tracks tool results, returns Command for state updates
+    4. inline_tool_call_parser_middleware: Parses inline <call:...> tool calls (e.g. Gemma)
+    5. code_gathering_middleware: Tracks tool results, returns Command for state updates
     """
     # Create checkpointer to preserve state when recursion limit is hit
     # This allows us to retrieve accumulated code via get_state() on error
@@ -418,7 +490,8 @@ def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
                 run_limit=MAX_MODEL_CALLS,
                 exit_behavior="end",  # Graceful termination instead of GraphRecursionError
             ),
-            stateless_model_middleware,  # Build SystemMessages (instructions + CODE BANK)
+            stateless_model_middleware,  # Build single SystemMessage (instructions + CODE BANK)
+            inline_tool_call_parser_middleware,  # Parse inline tool calls (e.g. Gemma)
             code_gathering_middleware,  # Track tool results via Command
         ],
         checkpointer=checkpointer,  # Preserve state for recovery on recursion limit
