@@ -22,7 +22,7 @@ _CODE_BLOCK_LINE_PATTERN = re.compile(r"#\s*\d+\|")
 _PATH_LINE_PATTERN = re.compile(r"^([^:]+):(\d+):\s?(.*)")
 
 # Ground truth format patterns
-_ENTRY_SPLIT_PATTERN = re.compile(r"(?:^|\n)---\s*\n\s*(?:---\s*\n)?Entry #(\d+):", re.MULTILINE)
+_ENTRY_SPLIT_PATTERN = re.compile(r"(?:^|\n)---[ \t]*\n[ \t]*(?:---[ \t]*\n)?Entry #(\d+):", re.MULTILINE)
 _FIRST_ENTRY_PATTERN = re.compile(r"Entry #(\d+):")
 _PACKAGE_HEADER_PATTERN = re.compile(r"GROUND-TRUTH ENTRIES FOR:\s*(.+)")
 _SOURCE_CODE_SECTION_PATTERN = re.compile(
@@ -144,9 +144,9 @@ def _parse_single_ground_truth_entry(
         justification_parts.append(expert_match.group(1).strip())
 
     # Analyst Comment may span multiple lines until next --- or end
-    analyst_match = re.search(r"Analyst Comment:\s*(.+?)(?:\n---|\Z)", entry_text, re.DOTALL)
-    if analyst_match:
-        justification_parts.append(analyst_match.group(1).strip())
+    analyst_comment = _extract_section(entry_text, r"Analyst Comment:\s*", r"\n---")
+    if analyst_comment:
+        justification_parts.append(analyst_comment.strip())
 
     analyst_justification = "\n".join(justification_parts)
 
@@ -258,6 +258,29 @@ def _parse_single_ignore_err_entry(
     )
 
 
+def _get_parser_config(input_format: str):
+    """Return (file_match_fn, parser_fn) for the given input format."""
+    if input_format == "ground_truth":
+        return lambda f: f.endswith(".txt"), parse_ground_truth_file
+    if input_format == "ignore_err":
+        return lambda f: f == "ignore.err", parse_ignore_err_file
+    raise ValueError(f"Unknown input format: {input_format}")
+
+
+def _collect_matching_files(dir_path: str, file_match_fn) -> List[str]:
+    """Return sorted list of file paths matching the format filter."""
+    paths = []
+    for filename in sorted(os.listdir(dir_path)):
+        if filename.startswith("_"):
+            continue
+        if not file_match_fn(filename):
+            continue
+        file_path = os.path.join(dir_path, filename)
+        if os.path.isfile(file_path):
+            paths.append(file_path)
+    return paths
+
+
 def parse_directory(
     dir_path: str, input_format: str = "ground_truth"
 ) -> Dict[str, List[ParsedFalsePositive]]:
@@ -274,41 +297,20 @@ def parse_directory(
     if not os.path.isdir(dir_path):
         raise FileNotFoundError(f"Input directory not found: {dir_path}")
 
+    file_match_fn, parser_fn = _get_parser_config(input_format)
+    file_paths = _collect_matching_files(dir_path, file_match_fn)
+
     results = {}
-
-    if input_format == "ground_truth":
-        pattern = ".txt"
-        parser_fn = parse_ground_truth_file
-    elif input_format == "ignore_err":
-        pattern = "ignore.err"
-        parser_fn = parse_ignore_err_file
-    else:
-        raise ValueError(f"Unknown input format: {input_format}")
-
-    for filename in sorted(os.listdir(dir_path)):
-        # Skip non-matching files and private files (starting with _)
-        if filename.startswith("_"):
-            continue
-        if input_format == "ground_truth" and not filename.endswith(pattern):
-            continue
-        if input_format == "ignore_err" and filename != pattern:
-            continue
-
-        file_path = os.path.join(dir_path, filename)
-        if not os.path.isfile(file_path):
-            continue
-
+    for file_path in file_paths:
         try:
             entries = parser_fn(file_path)
             if entries:
-                package_name = entries[0].package_name
-                # Use filename as fallback key if package_name already exists
-                key = package_name
+                key = entries[0].package_name
                 if key in results:
-                    key = os.path.splitext(filename)[0]
+                    key = os.path.splitext(os.path.basename(file_path))[0]
                 results[key] = entries
         except Exception as e:
-            logger.error(f"Failed to parse {filename}: {e}")
+            logger.error(f"Failed to parse {file_path}: {e}")
 
     logger.info(
         f"Parsed {len(results)} packages with "

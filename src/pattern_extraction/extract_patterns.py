@@ -17,34 +17,11 @@ import logging
 import os
 import sys
 
-import httpx
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_openai.chat_models.base import ChatOpenAI
-from pydantic.types import SecretStr
+from handlers.llm_client_factory import LLMClientFactory
 
 from .pipeline import PatternExtractionPipeline
 
 logger = logging.getLogger(__name__)
-
-
-def create_llm(llm_url: str, llm_model_name: str, llm_api_key: str):
-    """Create an LLM client, reusing the same logic as LLMClientFactory."""
-    if "nvidia" in llm_url.lower():
-        return ChatNVIDIA(
-            base_url=llm_url,
-            model=llm_model_name,
-            api_key=SecretStr(llm_api_key) if llm_api_key else None,
-            temperature=0,
-        )
-    else:
-        http_client = httpx.Client(verify=False)
-        return ChatOpenAI(
-            base_url=llm_url,
-            model=llm_model_name,
-            api_key=SecretStr(llm_api_key) if llm_api_key else None,
-            temperature=0,
-            http_client=http_client,
-        )
 
 
 def parse_args(args=None):
@@ -154,8 +131,14 @@ def main(args=None):
         )
         sys.exit(1)
 
-    # Create LLM client
-    llm = create_llm(llm_url, llm_model, llm_api_key)
+    # Create LLM client via existing factory
+    factory = LLMClientFactory()
+    config_stub = type("Config", (), {
+        "LLM_URL": llm_url,
+        "LLM_MODEL_NAME": llm_model,
+        "LLM_API_KEY": llm_api_key,
+    })()
+    llm = factory.create_main_llm(config_stub)
 
     # Progress callback that prints to stdout
     def progress(msg: str):
@@ -183,7 +166,7 @@ def main(args=None):
     # Print summary
     meta = result["metadata"]
     print(f"\n{'=' * 60}")
-    print(f"Pattern Extraction Complete")
+    print("Pattern Extraction Complete")
     print(f"{'=' * 60}")
     print(f"Packages processed: {meta['processed_packages']}/{meta['total_packages']}")
     print(f"Entries processed:  {meta['total_entries_processed']}")
