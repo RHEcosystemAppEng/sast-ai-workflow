@@ -38,7 +38,7 @@ class TestExtractedPattern:
 
         assert pattern.issue_type == "INTEGER_OVERFLOW"
         assert pattern.cwe == "CWE-190"
-        assert pattern.confidence == 0.85
+        assert pattern.confidence == pytest.approx(0.85)
         assert len(pattern.false_positive_indicators) == 1
         assert len(pattern.matching_criteria) == 1
 

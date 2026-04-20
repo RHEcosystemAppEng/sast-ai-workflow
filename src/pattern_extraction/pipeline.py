@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Max source code characters to include per entry in the LLM prompt
 _MAX_SOURCE_CODE_CHARS = 3000
+_JSON_EXT = ".json"
 
 
 class PatternExtractionPipeline:
@@ -286,35 +287,14 @@ class PatternExtractionPipeline:
             return data.get("template", "")
 
     def _load_completed_packages(self) -> set:
-        """Load set of package names already processed from checkpoints."""
+        """Load set of package names already processed from per-package checkpoints."""
         if not self.checkpoint_dir or not os.path.isdir(self.checkpoint_dir):
             return set()
 
         completed = set()
         for filename in os.listdir(self.checkpoint_dir):
-            if filename.startswith("checkpoint_") and filename.endswith(".json"):
-                filepath = os.path.join(self.checkpoint_dir, filename)
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        for p in data.get("patterns", []):
-                            # Track unique packages from patterns
-                            # We don't track package names directly in checkpoint
-                            pass
-                        completed_count = data.get("metadata", {}).get(
-                            "processed_packages", 0
-                        )
-                        if completed_count > 0:
-                            # If we have any checkpoint, we know packages were processed
-                            # But we can't reconstruct which ones without explicit tracking
-                            pass
-                except Exception as e:
-                    logger.warning(f"Failed to read checkpoint {filename}: {e}")
-
-        # Better approach: check for per-package checkpoint files
-        for filename in os.listdir(self.checkpoint_dir):
-            if filename.startswith("pkg_") and filename.endswith(".json"):
-                pkg_name = filename[4:-5]  # strip "pkg_" and ".json"
+            if filename.startswith("pkg_") and filename.endswith(_JSON_EXT):
+                pkg_name = filename[4:-5]  # strip "pkg_" and _JSON_EXT
                 completed.add(pkg_name)
 
         return completed
@@ -326,13 +306,14 @@ class PatternExtractionPipeline:
 
         patterns = []
         for filename in sorted(os.listdir(self.checkpoint_dir)):
-            if filename.startswith("pkg_") and filename.endswith(".json"):
+            if filename.startswith("pkg_") and filename.endswith(_JSON_EXT):
                 filepath = os.path.join(self.checkpoint_dir, filename)
                 try:
                     with open(filepath, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        for p in data.get("patterns", []):
-                            patterns.append(ExtractedPattern(**p))
+                        patterns.extend(
+                            ExtractedPattern(**p) for p in data.get("patterns", [])
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to load checkpoint {filename}: {e}")
 
@@ -349,7 +330,7 @@ class PatternExtractionPipeline:
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
         checkpoint_file = os.path.join(
-            self.checkpoint_dir, f"checkpoint_{processed_count}.json"
+            self.checkpoint_dir, f"checkpoint_{processed_count}{_JSON_EXT}"
         )
 
         data = {
@@ -379,7 +360,7 @@ class PatternExtractionPipeline:
         os.makedirs(self.checkpoint_dir, exist_ok=True)
         # Sanitize package name for filename
         safe_name = package_name.replace("/", "_").replace(" ", "_")
-        filepath = os.path.join(self.checkpoint_dir, f"pkg_{safe_name}.json")
+        filepath = os.path.join(self.checkpoint_dir, f"pkg_{safe_name}{_JSON_EXT}")
 
         data = {
             "package": package_name,

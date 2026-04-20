@@ -185,7 +185,7 @@ class TestPipelineProcessing:
             checkpoint_dir=None,
         )
 
-        patterns, errors = pipeline._process_package("test-pkg", sample_entries)
+        _, errors = pipeline._process_package("test-pkg", sample_entries)
 
         # Should be called once per issue_type (INTEGER_OVERFLOW + UNINIT = 2)
         assert mock_rso.call_count == 2
