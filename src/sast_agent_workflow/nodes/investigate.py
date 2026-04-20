@@ -33,8 +33,9 @@ async def investigate(config: InvestigateConfig, builder: Builder):
     logger.info("Initializing Investigate function...")
 
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
-    tools = create_investigation_tools(Config())
-    investigate_node_fn = create_investigate_node(Config(), llm, tools)
+    workflow_config = Config()
+    tools = create_investigation_tools(workflow_config)
+    investigate_node_fn = create_investigate_node(workflow_config, llm, tools)
 
     async def _investigate_fn(tracker: SASTWorkflowTracker) -> SASTWorkflowTracker:
         if tracker is None:
