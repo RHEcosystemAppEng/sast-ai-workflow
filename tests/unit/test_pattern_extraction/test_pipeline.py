@@ -161,6 +161,7 @@ class TestPipelineProcessing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir=ground_truth_dir,
+            max_source_code_chars=3000,
             output_file=os.path.join(ground_truth_dir, "output.json"),
             checkpoint_dir=None,
         )
@@ -182,6 +183,7 @@ class TestPipelineProcessing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir="dummy",
+            max_source_code_chars=3000,
             checkpoint_dir=None,
         )
 
@@ -204,6 +206,7 @@ class TestPipelineProcessing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir="dummy",
+            max_source_code_chars=3000,
             checkpoint_dir=None,
         )
 
@@ -247,6 +250,7 @@ class TestPipelineProcessing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir="dummy",
+            max_source_code_chars=3000,
             only_false_positives=True,
             checkpoint_dir=None,
         )
@@ -260,6 +264,7 @@ class TestPipelineProcessing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir="dummy",
+            max_source_code_chars=3000,
             checkpoint_dir=None,
         )
 
@@ -287,6 +292,7 @@ class TestPipelineProcessing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir="dummy",
+            max_source_code_chars=3000,
             checkpoint_dir=None,
         )
 
@@ -308,6 +314,7 @@ class TestCheckpointing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir=ground_truth_dir,
+            max_source_code_chars=3000,
             output_file=os.path.join(ground_truth_dir, "output.json"),
             checkpoint_dir=checkpoint_dir,
             checkpoint_interval=1,  # Checkpoint after every package
@@ -344,6 +351,7 @@ class TestCheckpointing:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir=ground_truth_dir,
+            max_source_code_chars=3000,
             output_file=os.path.join(ground_truth_dir, "output.json"),
             checkpoint_dir=checkpoint_dir,
         )
@@ -367,6 +375,7 @@ class TestProgressTracking:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir=ground_truth_dir,
+            max_source_code_chars=3000,
             output_file=os.path.join(ground_truth_dir, "output.json"),
             checkpoint_dir=None,
             progress_callback=lambda msg: progress_messages.append(msg),
@@ -395,6 +404,7 @@ class TestOutputFile:
         pipeline = PatternExtractionPipeline(
             llm=mock_llm,
             input_dir=ground_truth_dir,
+            max_source_code_chars=3000,
             output_file=output_file,
             checkpoint_dir=None,
         )

@@ -6,7 +6,6 @@ import tempfile
 import pytest
 
 from pattern_extraction.parsers import (
-    parse_directory,
     parse_ground_truth_file,
     parse_ignore_err_file,
 )
@@ -268,40 +267,3 @@ class TestIgnoreErrParser:
         assert entries == []
 
 
-class TestParseDirectory:
-    def test__ground_truth_format(self, sample_ground_truth_content):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Write two package files
-            for name in ["pkg-a-1.0.txt", "pkg-b-2.0.txt"]:
-                with open(os.path.join(tmpdir, name), "w", encoding="utf-8") as f:
-                    f.write(sample_ground_truth_content)
-
-            # Write a file that should be skipped
-            with open(os.path.join(tmpdir, "_summary.json"), "w") as f:
-                f.write("{}")
-
-            result = parse_directory(tmpdir, input_format="ground_truth")
-
-        assert len(result) == 2
-        for entries in result.values():
-            assert len(entries) == 2  # 2 entries per file
-
-    def test__nonexistent_dir_raises(self):
-        with pytest.raises(FileNotFoundError):
-            parse_directory("/nonexistent/path", input_format="ground_truth")
-
-    def test__invalid_format_raises(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with pytest.raises(ValueError, match="Unknown input format"):
-                parse_directory(tmpdir, input_format="invalid")
-
-    def test__skips_underscore_files(self, sample_ground_truth_content):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with open(os.path.join(tmpdir, "_errors.log"), "w") as f:
-                f.write("should be skipped")
-            with open(os.path.join(tmpdir, "pkg-a.txt"), "w", encoding="utf-8") as f:
-                f.write(sample_ground_truth_content)
-
-            result = parse_directory(tmpdir, input_format="ground_truth")
-
-        assert len(result) == 1

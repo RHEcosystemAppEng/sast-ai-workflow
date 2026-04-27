@@ -84,6 +84,9 @@ STOP_REASON_SCORE_MAX_ITERATIONS: 0.6  # Hit iteration limit but gathered eviden
 STOP_REASON_SCORE_NO_PROGRESS: 0.3  # Investigation stalled with no new information
 STOP_REASON_SCORE_UNKNOWN: 0.2  # Unknown stop reason - default low confidence
 
+# Pattern Extraction Configuration
+PATTERN_EXTRACTION_MAX_SOURCE_CODE_CHARS: 3000
+
 CHUNK_SIZE: 500
 CHUNK_OVERLAP: 0
 CHUNK_SEPARATORS:
