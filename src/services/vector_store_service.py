@@ -4,7 +4,6 @@ Handles creation of vector stores and similarity searches.
 """
 
 import logging
-import re
 from typing import Dict, List, Tuple
 
 import faiss
@@ -12,8 +11,8 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_community.vectorstores import FAISS
 from langchain_core.embeddings import Embeddings
 
-from common.constants import REGEX_PATTERNS
 from Utils.embedding_utils import truncate_text_to_token_limit
+from Utils.file_utils import parse_single_ignore_err_entry
 
 logger = logging.getLogger(__name__)
 
@@ -82,52 +81,23 @@ class VectorStoreService:
 
         for item in known_issues_list:
             try:
-                lines = item.split("\n")
-
-                # Extract the issue type (next word after "Error:")
-                match = re.search(r"Error:\s*([^\s(]+)", lines[0])
-                if match:
-                    issue_type = match.group(1)
-                else:
-                    logger.warning(f"Missing issue_type, skipping known False positive {item}")
+                parsed = parse_single_ignore_err_entry(item)
+                if not parsed:
                     continue
-
-                match_cwe = re.search(f"({REGEX_PATTERNS['CWE_PATTERN']})", lines[0])
-                cwe_str = match_cwe.group(1) if match_cwe else None
-
-                # Extract the lines after the error trace as 'reason_of_false_positive'
-                reason_start_line_index = len(lines) - 1
-                code_block_line_pattern = re.compile(r"#\s*\d+\|")
-                # Use non-capturing group with character class to prevent exponential backtracking
-                # Matches: path/to/file.ext:123: optional text
-                path_line_pattern = re.compile(r"^([^:]+):(\d+):\s?(.*)")
-
-                for line_index in range(len(lines) - 1, -1, -1):
-                    if code_block_line_pattern.match(
-                        lines[line_index].strip()
-                    ) or path_line_pattern.match(lines[line_index].strip()):
-                        reason_start_line_index = line_index + 1
-                        break
-
-                reason_lines = [
-                    line.lstrip("#").strip()
-                    for line in lines[reason_start_line_index:]
-                    if line.strip()
-                ]
-                reason_of_false_positive = "\n".join(reason_lines)
 
                 metadata_list.append(
                     {
-                        "reason_of_false_positive": reason_of_false_positive,
-                        "issue_type": issue_type,
-                        "issue_cwe": cwe_str,
+                        "reason_of_false_positive": parsed["justification"],
+                        "issue_type": parsed["issue_type"],
+                        "issue_cwe": parsed["cwe"],
                     }
                 )
 
-                error_trace = "\n".join(lines[1:reason_start_line_index])
-                full_trace_list.append(error_trace)
+                full_trace_list.append(parsed["error_trace"])
                 truncated_trace_list.append(
-                    truncate_text_to_token_limit(error_trace, embedding_llm.model, max_input_tokens)
+                    truncate_text_to_token_limit(
+                        parsed["error_trace"], embedding_llm.model, max_input_tokens
+                    )
                 )
 
             except Exception as e:

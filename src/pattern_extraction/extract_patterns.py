@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 
+import yaml
 from handlers.llm_client_factory import LLMClientFactory
 
 from .pipeline import PatternExtractionPipeline
@@ -131,6 +132,20 @@ def main(args=None):
         )
         sys.exit(1)
 
+    # Load config from default_config.yaml
+    config_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "config", "default_config.yaml"
+    )
+    yaml_config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            yaml_config = yaml.safe_load(f) or {}
+
+    max_source_code_chars = yaml_config.get("PATTERN_EXTRACTION_MAX_SOURCE_CODE_CHARS")
+    if max_source_code_chars is None:
+        logger.error("PATTERN_EXTRACTION_MAX_SOURCE_CODE_CHARS not found in config")
+        sys.exit(1)
+
     # Create LLM client via existing factory
     factory = LLMClientFactory()
     config_stub = type("Config", (), {
@@ -149,6 +164,7 @@ def main(args=None):
     pipeline = PatternExtractionPipeline(
         llm=llm,
         input_dir=parsed.input_dir,
+        max_source_code_chars=max_source_code_chars,
         output_file=parsed.output_file,
         input_format=parsed.input_format,
         batch_size=parsed.batch_size,

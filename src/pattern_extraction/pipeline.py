@@ -18,14 +18,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 
 from Utils.llm_utils import robust_structured_output
+from Utils.file_utils import read_known_errors_file, parse_single_ignore_err_entry
 
 from .models import ExtractedPattern, ParsedFalsePositive, PatternExtractionResponse
-from .parsers import parse_directory
 
 logger = logging.getLogger(__name__)
 
-# Max source code characters to include per entry in the LLM prompt
-_MAX_SOURCE_CODE_CHARS = 3000
 _JSON_EXT = ".json"
 
 
@@ -36,6 +34,7 @@ class PatternExtractionPipeline:
         self,
         llm: BaseChatModel,
         input_dir: str,
+        max_source_code_chars: int,
         output_file: str = "extracted_patterns.json",
         input_format: str = "ground_truth",
         batch_size: int = 5,
@@ -59,6 +58,7 @@ class PatternExtractionPipeline:
         self.only_false_positives = only_false_positives
         self.issue_types = issue_types
         self.progress_callback = progress_callback or (lambda msg: logger.info(msg))
+        self.max_source_code_chars = max_source_code_chars
 
         self.system_prompt = self._load_prompt("pattern_extraction_system_prompt")
         self.human_prompt = self._load_prompt("pattern_extraction_human_prompt")
@@ -76,7 +76,7 @@ class PatternExtractionPipeline:
 
         # 1. Parse
         self.progress_callback("Parsing input files...")
-        all_packages = parse_directory(self.input_dir, self.input_format)
+        all_packages = self._parse_input_files()
 
         # 2. Filter
         all_packages = self._filter_entries(all_packages)
@@ -159,6 +159,93 @@ class PatternExtractionPipeline:
         )
 
         return result
+
+    def _parse_input_files(self) -> Dict[str, List[ParsedFalsePositive]]:
+        """Parse all files in input directory using existing parsing logic."""
+        if not os.path.isdir(self.input_dir):
+            raise FileNotFoundError(f"Input directory not found: {self.input_dir}")
+
+        if self.input_format == "ignore_err":
+            return self._parse_ignore_err_files()
+        elif self.input_format == "ground_truth":
+            return self._parse_ground_truth_files()
+        else:
+            raise ValueError(f"Unknown input format: {self.input_format}")
+
+    def _parse_ignore_err_files(self) -> Dict[str, List[ParsedFalsePositive]]:
+        """Parse ignore.err files using existing logic from read_known_errors_file."""
+        results = {}
+
+        for filename in sorted(os.listdir(self.input_dir)):
+            if filename.startswith("_") or filename != "ignore.err":
+                continue
+
+            file_path = os.path.join(self.input_dir, filename)
+            if not os.path.isfile(file_path):
+                continue
+
+            try:
+                # Use existing read_known_errors_file logic
+                raw_entries = read_known_errors_file(file_path)
+                package_name = os.path.splitext(os.path.basename(file_path))[0]
+
+                entries = []
+                for entry_index, item in enumerate(raw_entries, start=1):
+                    parsed = parse_single_ignore_err_entry(item)
+                    if parsed:
+                        entry = ParsedFalsePositive(
+                            package_name=package_name,
+                            issue_type=parsed["issue_type"],
+                            cwe=parsed["cwe"],
+                            error_trace=parsed["error_trace"],
+                            source_code=None,
+                            analyst_justification=parsed["justification"],
+                            verdict="FALSE POSITIVE",
+                            entry_index=entry_index,
+                        )
+                        entries.append(entry)
+
+                if entries:
+                    results[package_name] = entries
+
+            except Exception as e:
+                logger.error(f"Failed to parse {file_path}: {e}")
+
+        logger.info(
+            f"Parsed {len(results)} packages with "
+            f"{sum(len(v) for v in results.values())} total entries"
+        )
+        return results
+
+    def _parse_ground_truth_files(self) -> Dict[str, List[ParsedFalsePositive]]:
+        """Parse ground truth files using existing patterns."""
+        from .parsers import parse_ground_truth_file
+
+        results = {}
+        for filename in sorted(os.listdir(self.input_dir)):
+            if filename.startswith("_") or not filename.endswith(".txt"):
+                continue
+
+            file_path = os.path.join(self.input_dir, filename)
+            if not os.path.isfile(file_path):
+                continue
+
+            try:
+                entries = parse_ground_truth_file(file_path)
+                if entries:
+                    key = entries[0].package_name
+                    # Handle name collisions
+                    if key in results:
+                        key = os.path.splitext(os.path.basename(file_path))[0]
+                    results[key] = entries
+            except Exception as e:
+                logger.error(f"Failed to parse {file_path}: {e}")
+
+        logger.info(
+            f"Parsed {len(results)} packages with "
+            f"{sum(len(v) for v in results.values())} total entries"
+        )
+        return results
 
     def _filter_entries(
         self, packages: Dict[str, List[ParsedFalsePositive]]
@@ -257,8 +344,8 @@ class PatternExtractionPipeline:
             ]
 
             if entry.source_code:
-                truncated = entry.source_code[:_MAX_SOURCE_CODE_CHARS]
-                if len(entry.source_code) > _MAX_SOURCE_CODE_CHARS:
+                truncated = entry.source_code[:self.max_source_code_chars]
+                if len(entry.source_code) > self.max_source_code_chars:
                     truncated += "\n... (truncated)"
                 section.extend(["", "Source Code:", truncated])
 
