@@ -129,6 +129,12 @@ All weights and normalization caps are configurable in `config/default_config.ya
 - **Note:** SAST-AI-Workflow is primarily focused on identifying false alarms (False Positives).
 
   
+## Pattern Extraction
+
+A standalone offline pipeline that extracts generalizable false positive patterns from historical SAST data (ground-truth files or ignore.err files). The extracted patterns can be used to improve automated false positive detection.
+
+See [Pattern Extraction README](./src/pattern_extraction/README.md) for usage, CLI options, and output format.
+
 ## 🔌 Installation & Setup
 Please refer to [how to run](./docs/setup.md) guideline.
 

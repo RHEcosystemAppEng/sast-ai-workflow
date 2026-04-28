@@ -2,6 +2,8 @@ import glob
 import json
 import logging
 import os
+import re
+from typing import Optional
 
 import gspread
 import pandas as pd
@@ -10,10 +12,15 @@ from oauth2client.service_account import ServiceAccountCredentials
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from common.config import Config
-from common.constants import ALL_VALID_OPTIONS, KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR
+from common.constants import ALL_VALID_OPTIONS, KNOWN_FALSE_POSITIVE_ISSUE_SEPARATOR, REGEX_PATTERNS
 from Utils.log_utils import log_attempt_number
 
 logger = logging.getLogger(__name__)
+
+_ISSUE_TYPE_PATTERN = re.compile(r"Error:\s*([^\s(]+)")
+_CWE_PATTERN = re.compile(REGEX_PATTERNS["CWE_PATTERN"])
+_CODE_BLOCK_LINE_PATTERN = re.compile(REGEX_PATTERNS["CODE_BLOCK_LINE_PATTERN"])
+_PATH_LINE_PATTERN = re.compile(r"^([^:]+):(\d+):\s?(.*)")
 
 
 def read_source_code_file(path):
@@ -36,6 +43,49 @@ def read_known_errors_file(path):
             if item.strip() != ""
         }
         return doc_set
+
+
+def parse_single_ignore_err_entry(entry_text: str) -> Optional[dict]:
+    """Parse a single ignore.err entry into structured fields.
+
+    Extracts issue_type, CWE, error_trace, and justification from entries
+    formatted as:
+        Error: <ISSUE_TYPE> (<CWE>):
+        <error trace lines>
+        <justification text>
+
+    Returns:
+        Dict with keys: issue_type, cwe, error_trace, justification.
+        None if the entry cannot be parsed.
+    """
+    lines = entry_text.split("\n")
+
+    type_match = _ISSUE_TYPE_PATTERN.search(lines[0])
+    if not type_match:
+        logger.warning(f"Missing issue_type, skipping entry: {lines[0][:80]}")
+        return None
+    issue_type = type_match.group(1).rstrip(":")
+
+    cwe_match = _CWE_PATTERN.search(lines[0])
+    cwe = cwe_match.group(0) if cwe_match else None
+
+    reason_start_line_index = len(lines) - 1
+    for line_index in range(len(lines) - 1, -1, -1):
+        stripped = lines[line_index].strip()
+        if _CODE_BLOCK_LINE_PATTERN.match(stripped) or _PATH_LINE_PATTERN.match(stripped):
+            reason_start_line_index = line_index + 1
+            break
+
+    reason_lines = [
+        line.lstrip("#").strip() for line in lines[reason_start_line_index:] if line.strip()
+    ]
+
+    return {
+        "issue_type": issue_type,
+        "cwe": cwe,
+        "error_trace": "\n".join(lines[1:reason_start_line_index]),
+        "justification": "\n".join(reason_lines),
+    }
 
 
 def _validate_and_store_false_positive_value(issue_id, is_false_positive):

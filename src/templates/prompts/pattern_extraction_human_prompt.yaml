@@ -1,0 +1,8 @@
+template: |
+  Analyze the following {entry_count} false positive SAST finding(s) of type
+  "{issue_type}" ({cwe}) and extract generalizable patterns.
+
+  {entries}
+
+  Extract patterns from these entries. If multiple entries share the same root cause,
+  consolidate into one pattern with a higher confidence score.
