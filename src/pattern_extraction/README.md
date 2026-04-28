@@ -2,6 +2,8 @@
 
 Standalone offline pipeline that extracts generalizable false positive patterns from historical SAST analysis data. The extracted patterns can be used to improve automated false positive detection.
 
+> **Note**: This pipeline is currently designed for local execution only. It reads from local directories and writes to local files. To run on OpenShift Container Platform (OCP), it would need to be containerized with volume mounts configured for input/output data.
+
 ## Overview
 
 The pipeline reads ground-truth data or ignore.err files, groups entries by issue type, sends them to an LLM for pattern extraction, and outputs structured JSON with patterns, matching criteria, and confidence scores.
