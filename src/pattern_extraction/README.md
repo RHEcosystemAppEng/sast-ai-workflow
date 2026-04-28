@@ -6,6 +6,8 @@ Standalone offline pipeline that extracts generalizable false positive patterns 
 
 The pipeline reads ground-truth data or ignore.err files, groups entries by issue type, sends them to an LLM for pattern extraction, and outputs structured JSON with patterns, matching criteria, and confidence scores.
 
+> **Note**: The extracted patterns are currently not used by the main SAST workflow. This is a standalone analysis tool, and we plan to integrate the pattern output with the main workflow in future iterations.
+
 ```
 Input Files → Parse → Filter → Group by Issue Type → LLM Extraction → Checkpoint → Output JSON
 ```
@@ -106,10 +108,6 @@ Return value is properly bounded
   "errors": []
 }
 ```
-
-## Configuration
-
-The `PATTERN_EXTRACTION_MAX_SOURCE_CODE_CHARS` setting in `config/default_config.yaml` controls the maximum source code characters included per entry in the LLM prompt (default: 3000).
 
 ## Module Structure
 
