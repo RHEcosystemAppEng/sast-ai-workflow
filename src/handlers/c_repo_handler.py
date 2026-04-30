@@ -9,7 +9,7 @@ from clang.cindex import Cursor, CursorKind, TranslationUnit
 
 from common.config import Config
 from Utils.file_utils import load_json_file
-from Utils.repo_utils import download_repo, get_repo_and_branch_from_url
+from Utils.repo_utils import get_repo_and_branch_from_url
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,7 @@ class CRepoHandler:
         # by removing this prefix to the paths found in the error traces.
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
 
-        if config.DOWNLOAD_REPO:
-            # downloading git repository for given project
-            self.repo_local_path = download_repo(config.REPO_REMOTE_URL)
-        else:
+        if not config.DOWNLOAD_REPO:
             # Override self._report_file_prefix when a local path is provided in REPO_LOCAL_PATH.
             # This is a safer approach,
             # because not all packages use the 'package-version' format for the dest folder name.
