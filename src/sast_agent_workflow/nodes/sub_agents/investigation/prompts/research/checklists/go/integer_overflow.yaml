@@ -1,0 +1,31 @@
+---
+# Integer Overflow Investigation Guidance
+# CWE-190, CWE-191
+
+vuln_type: "Integer Overflow"
+cwe_ids: ["CWE-190", "CWE-191", "CWE-680"]
+
+guidance: |
+  INTEGER OVERFLOW / TRUNCATION EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Arithmetic operation: What calculation can overflow? (size * count, offset + length)
+  2. Operand sources: Are operands user-controlled or derived from external input?
+  3. Usage of result: How is the result used? (make/append size? slice index? loop bound?)
+  4. Overflow/truncation checks: Are there range or max-value checks?
+
+  NOTE: Go integer overflow wraps silently (no panic). Type conversions (int64 -> int32,
+  int -> uint) truncate silently. Use math/bits or explicit range checks to prevent this.
+
+  SEARCH PATTERNS:
+    - Overflow in allocation: make([]T, n*m) or make([]T, a+b) with user-controlled values
+    - Size calculations: int(userLen)*itemSize, offset+length as slice bounds
+    - Truncating conversions: int32(largeInt64), uint8(negativeInt), int(uint64Value)
+    - Missing checks: absence of if n > maxAllowed or math.MaxInt comparisons
+    - Safe alternatives: math/bits.Add, math/bits.Mul for overflow-detecting arithmetic
+
+checklist:
+  - "Arithmetic operation identified (multiplication, addition, shift, etc.)"
+  - "Operand sources documented (user-controlled, bounded, or constant?)"
+  - "Result usage documented (allocation size? slice index? loop bound?)"
+  - "Overflow/truncation protection checked (present or absent)"

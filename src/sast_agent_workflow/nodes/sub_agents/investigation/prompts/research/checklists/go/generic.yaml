@@ -1,0 +1,28 @@
+---
+# Generic Investigation Guidance
+# Fallback for unknown or unclassified vulnerability types
+
+vuln_type: "Generic"
+cwe_ids: []
+
+guidance: |
+  GENERIC EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Input source: Where does untrusted/user data enter?
+  2. Data flow: How does data reach the vulnerable operation?
+  3. Vulnerable operation: What dangerous function/pattern is used?
+  4. Validation: Are there any protective checks?
+
+  SEARCH PATTERNS:
+    - User input sources: os.Args, flag.Parse, http.Request (r.URL, r.Body, r.Header),
+      os.Getenv, bufio.Scanner, io.Reader, gRPC request fields
+    - Data transformations: string/[]byte conversions, strconv.*, type assertions, unsafe.Pointer
+    - Dangerous operations: Based on SAST finding description
+    - Validation patterns: if err != nil, if x == nil, bounds checks, input sanitization
+
+checklist:
+  - "Input source identified"
+  - "Data flow traced to vulnerable point"
+  - "Vulnerable operation details retrieved"
+  - "Validation mechanisms documented"

@@ -1,0 +1,26 @@
+language: go
+display_name: Go
+
+context_gathering: |
+  **CONTEXT GATHERING (DO THIS FIRST — before the vulnerability checklist):**
+
+  Before investigating the vulnerability itself, establish deployment context. Start with what you can infer from the finding path alone (no tool call needed), then use tools for what requires active searching:
+
+  **Step A — Infer from the finding path (no tool call):**
+  Check whether the flagged file path contains any of:
+  `_test.go`, `vendor/`, `third_party/`, `forked/`, `internal/`, `cmd/`, `tools/`, `example/`, `testdata/`.
+  These immediately classify the code as test, vendor, or tool code and should shape your first tool call.
+
+  **Step B — Gather with tools (one call per response):**
+  1. **Package type**: Fetch the top of the flagged file to read its `package` declaration and any `//go:build` tags.
+     `package main` outside `cmd/` often signals a standalone development tool, not production library code.
+  2. **Import/usage check**: Use `search_codebase` with the package name or file path to find callers.
+     No callers = likely unused or tool-only code.
+  3. **Build system check**: Use `search_codebase` or `fetch_code` to check Makefile, Dockerfile, or go.mod
+     for whether the flagged path is built in production.
+
+  Complete Step B before moving to the vulnerability checklist below.
+
+tool_history_hints: |
+  - Different file name or package path (look in *_test.go or related pkg)
+  - fetch_code on a specific .go file you know exists

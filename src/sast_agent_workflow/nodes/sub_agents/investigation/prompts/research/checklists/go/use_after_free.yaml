@@ -1,0 +1,34 @@
+---
+# Use-After-Free Investigation Guidance
+# CWE-416
+
+vuln_type: "Use After Free"
+cwe_ids: ["CWE-416", "CWE-825"]
+
+guidance: |
+  USE-AFTER-FREE / INVALID MEMORY ACCESS EVIDENCE REQUIREMENTS (Go):
+
+  NOTE: Go uses garbage collection so classic use-after-free is rare.
+  In Go, related issues are:
+    - unsafe.Pointer arithmetic after GC may have moved/freed memory
+    - cgo: C memory freed via C.free() used again in Go
+    - Channel/goroutine: value sent on closed channel, read from closed channel after drain
+    - Finalizer races: runtime.SetFinalizer fires while object still logically in use
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Memory management: Is unsafe or cgo involved? If pure Go, explain why GC does not protect.
+  2. Release location: Where is the object closed/freed/finalized?
+  3. Subsequent usage: Where is the object accessed AFTER release?
+  4. Ownership/lifecycle: Who owns the object? Is there a reference counted or sync mechanism?
+
+  SEARCH PATTERNS:
+    - unsafe usage: unsafe.Pointer, uintptr casts, reflect.SliceHeader manipulation
+    - cgo patterns: C.free(), C.CString() passed and then freed
+    - Channel misuse: close(ch) followed by send or additional receives
+    - Finalizer races: runtime.SetFinalizer on objects shared across goroutines
+
+checklist:
+  - "Memory management model documented (GC/unsafe/cgo/channel)"
+  - "Release/close location(s) documented (file:line)"
+  - "Subsequent usage location(s) documented (file:line)"
+  - "Ownership and protection mechanisms checked (sync, refcount, or absent)"

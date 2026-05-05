@@ -1,13 +1,71 @@
-"""Research agent prompt templates.
+"""Research agent prompt builder.
 
-These prompts guide the research agent in gathering code evidence
-for SAST vulnerability investigation.
+All prompt text lives in research/. This module is a thin render layer:
+it loads the template and language-specific YAML files, then uses
+Jinja2 to substitute variables and return the final prompt string.
+
+Adding support for a new language requires only a new YAML file in
+research/ — no Python changes needed.
 """
 
+import logging
 import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List
 
+import yaml
+from jinja2 import Environment, StrictUndefined
+
 from .checklist_loader import format_checklist
+
+logger = logging.getLogger(__name__)
+
+_CONTEXT_DIR = Path(__file__).parent / "research"
+
+
+# ---------------------------------------------------------------------------
+# Lazy singletons — cached on first call via lru_cache
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _get_jinja_env() -> Environment:
+    return Environment(keep_trailing_newline=True, undefined=StrictUndefined)
+
+
+@lru_cache(maxsize=1)
+def _get_template() -> Dict[str, str]:
+    with open(_CONTEXT_DIR / "prompt_template.yaml", "r") as f:
+        return yaml.safe_load(f)
+
+
+@lru_cache(maxsize=None)
+def _get_language_context(language: str) -> Dict[str, str]:
+    """Load the YAML context file for a specific language, cached per language.
+
+    Falls back to 'generic' if language is empty or no matching file exists.
+    """
+    path = _CONTEXT_DIR / f"{language}.yaml"
+    if not path.exists():
+        logger.warning("No research context for language '%s', falling back to generic.", language)
+        language = "generic"
+        path = _CONTEXT_DIR / f"{language}.yaml"
+    try:
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except Exception as e:
+        logger.error("Failed to load research context from %s: %s", path, e)
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _render(template_str: str, **context: Any) -> str:
+    return _get_jinja_env().from_string(template_str).render(**context)
 
 
 def build_code_bank(fetched_files: Dict[str, List[str]]) -> str:
@@ -58,7 +116,8 @@ def build_research_instructions(state: Dict[str, Any]) -> str:
                Required keys (iteration 1): issue_description, issue_cwe
                Required keys (iteration 2+): issue_description
                Optional keys: fetched_files, tool_call_history, iteration,
-                              evaluation_feedback, required_information
+                              evaluation_feedback, required_information,
+                              repo_language
 
     Returns:
         Formatted instruction string for the research agent
@@ -66,13 +125,16 @@ def build_research_instructions(state: Dict[str, Any]) -> str:
     fetched_files = state.get("fetched_files", {})
     tool_call_history = state.get("tool_call_history", [])
     iteration = state.get("iteration", 1)
+    language = state.get("repo_language") or "generic"
 
-    # Build summaries
+    lang_ctx = _get_language_context(language)
+    tool_history_hints = lang_ctx.get("tool_history_hints", "").rstrip()
+
     code_bank_files = _build_code_bank_files_summary(fetched_files)
-    tool_history = _build_tool_history(tool_call_history)
+    tool_history = _build_tool_history(tool_call_history, tool_history_hints)
 
     if iteration == 1:
-        return _build_initial_instructions(state, code_bank_files, tool_history)
+        return _build_initial_instructions(state, lang_ctx, code_bank_files, tool_history)
     else:
         return _build_continuation_instructions(state, code_bank_files, tool_history)
 
@@ -82,12 +144,12 @@ def _extract_fetch_info(content: str) -> str:
     Extract file:function identifier from fetched code content.
 
     Parses headers like:
-    - "=== Fetched Code: unix_name ===" + "File Path: /path/to/file.c"
-    - "=== vfat.c (from error trace) ==="
-    - "=== File: /path/to/file.c ==="
+    - "=== Fetched Code: parseConfig ===" + "File Path: /repo/pkg/config/parse.go"
+    - "=== handler.go (from error trace) ==="
+    - "=== File: /repo/internal/auth/token.go ==="
 
     Returns:
-        String like "file.c:function_name" or "file.c" if no function
+        String like "parse.go:parseConfig" or "handler.go" if no function
     """
     file_name = None
     func_name = None
@@ -105,7 +167,7 @@ def _extract_fetch_info(content: str) -> str:
 
     # Fallback: try "=== {filename} (from error trace) ==="
     if not file_name:
-        trace_match = re.search(r"=== (\S+\.c\w*) \(from error trace\) ===", content)
+        trace_match = re.search(r"=== (\S+\.\w+) \(from error trace\) ===", content)
         if trace_match:
             file_name = trace_match.group(1)
 
@@ -157,12 +219,13 @@ def _build_code_bank_files_summary(fetched_files: Dict[str, List[str]]) -> str:
     return ", ".join(fetched_items)
 
 
-def _build_tool_history(tool_call_history: List[str]) -> str:
+def _build_tool_history(tool_call_history: List[str], tool_history_hints: str) -> str:
     """
     Build formatted tool call history with strong language for failed calls.
 
     Separates successful and failed calls, with explicit warnings that
     retrying failed calls with identical parameters will always fail.
+    The language-specific retry hints are injected via tool_history_hints.
     """
     if not tool_call_history:
         return "None yet."
@@ -190,56 +253,38 @@ def _build_tool_history(tool_call_history: List[str]) -> str:
         lines.append("FAILED (DO NOT RETRY - same parameters = same failure):")
         lines.extend(f"  {f}" for f in failed)
         lines.append("")
-        lines.append("If you need this information, try a DIFFERENT approach:")
-        lines.append("  - Different regex pattern (simpler or broader)")
-        lines.append("  - Different file extension (*.h instead of *.c)")
-        lines.append("  - fetch_code on a specific file you know exists")
+        t = _get_template()
+        failed_suffix = _render(
+            t["tool_history_failed_suffix"],
+            tool_history_hints=tool_history_hints.rstrip(),
+        )
+        lines.append(failed_suffix.rstrip())
 
     return "\n".join(lines)
 
 
 def _build_initial_instructions(
-    state: Dict[str, Any], code_bank_files: str, tool_history: str
+    state: Dict[str, Any],
+    lang_ctx: Dict[str, str],
+    code_bank_files: str,
+    tool_history: str,
 ) -> str:
     """Build instructions for the first research iteration."""
-    issue_description = state.get("issue_description", "N/A")
     issue_cwe = state.get("issue_cwe", "N/A")
+    repo_language = state.get("repo_language") or "generic"
+    checklist_section = format_checklist(
+        issue_cwe, repo_language
+    )  # NOSONAR S1481: clearer than inlining
 
-    # Get vuln-type specific checklist (named for clarity in template)
-    checklist_section = format_checklist(issue_cwe)  # NOSONAR S1481: clearer than inlining
-
-    return f"""You are a code gatherer for SAST vulnerability triage. \
-Your ONLY job is to fetch relevant code using tools.
-
-**FINDING:**
-{issue_description}
-
-{checklist_section}
-
-**CODE BANK FILES:**
-{code_bank_files}
-
-**TOOL CALL HISTORY:**
-{tool_history}
-
-Full code is in CODE BANK below.
-
-**CRITICAL RULES:**
-1. Call ONE tool per response to gather code
-2. Use `fetch_code` with `function_name` to get specific functions
-3. Use `search_codebase` to find patterns in code
-4. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
-   - If a search returned "No matches", that pattern does NOT exist in the codebase
-   - Try a DIFFERENT pattern, file type, or approach instead
-5. Do NOT analyze - just gather code. Analysis happens later.
-6. When done gathering code for ALL checklist items, respond with ONLY: RESEARCH_COMPLETE
-
-**RESPONSE FORMAT:**
-Either:
-  Reasoning: [One sentence - which checklist item does this address?]
-  [Tool call]
-Or (when done):
-  RESEARCH_COMPLETE"""
+    t = _get_template()
+    return _render(
+        t["initial"],
+        issue_description=state.get("issue_description", "N/A"),
+        context_gathering=lang_ctx.get("context_gathering", "").rstrip(),
+        checklist_section=checklist_section,
+        code_bank_files=code_bank_files,
+        tool_history=tool_history,
+    )
 
 
 def _build_continuation_instructions(
@@ -251,32 +296,11 @@ def _build_continuation_instructions(
         "\n".join(f"- {u}" for u in required_info) if required_info else "None specified"
     )
 
-    return f"""Gather more code based on feedback.
-
-**FEEDBACK:** {state.get('evaluation_feedback', 'Need more evidence')}
-
-**MISSING:**
-{unknowns_list}
-
-**CODE BANK FILES:**
-{code_bank_files}
-
-**TOOL CALL HISTORY:**
-{tool_history}
-
-Full code is in CODE BANK below.
-
-**CRITICAL RULES:**
-1. Call ONE tool per response to get the missing information
-2. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
-   - If a search returned "No matches", that pattern does NOT exist in the codebase
-   - Try a DIFFERENT pattern, file type, or approach instead
-3. Do NOT re-analyze code in the CODE BANK
-4. When done gathering code for ALL missing items, respond with ONLY: RESEARCH_COMPLETE
-
-**RESPONSE FORMAT:**
-Either:
-  Reasoning: [One sentence - which checklist item?]
-  [Tool call]
-Or (when done):
-  RESEARCH_COMPLETE"""
+    t = _get_template()
+    return _render(
+        t["continuation"],
+        evaluation_feedback=state.get("evaluation_feedback", "Need more evidence"),
+        unknowns_list=unknowns_list,
+        code_bank_files=code_bank_files,
+        tool_history=tool_history,
+    )
