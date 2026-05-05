@@ -25,6 +25,7 @@ from sast_agent_workflow.nodes.sub_agents.investigation.orchestrator import (
 )
 
 _MOD = "sast_agent_workflow.nodes.sub_agents.investigation.orchestrator"
+_REPO_LANGUAGE = "c"
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -275,7 +276,7 @@ class TestBuildInitialInvestigationState:
     def test__sets_issue_metadata(self, mock_per_issue_pending, mock_config):
         """Should populate issue_id and issue_description."""
         state = _build_initial_investigation_state(
-            "issue-42", mock_per_issue_pending, "code", "", {}, mock_config
+            "issue-42", mock_per_issue_pending, "code", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["issue_id"] == "issue-42"
@@ -285,7 +286,7 @@ class TestBuildInitialInvestigationState:
     def test__sets_initial_code_context(self, mock_per_issue_pending, mock_config):
         """Should set initial_code from provided code_context."""
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "the code", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "the code", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["initial_code"] == "the code"
@@ -293,7 +294,7 @@ class TestBuildInitialInvestigationState:
     def test__starts_at_iteration_one(self, mock_per_issue_pending, mock_config):
         """Should start at iteration 1."""
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["iteration"] == 1
@@ -303,7 +304,7 @@ class TestBuildInitialInvestigationState:
         mock_config.MAX_ANALYSIS_ITERATIONS = 6
 
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["max_iterations"] == 6
@@ -313,7 +314,7 @@ class TestBuildInitialInvestigationState:
         mock_config.MAX_ANALYSIS_ITERATIONS = 0
 
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["max_iterations"] == 4
@@ -321,7 +322,7 @@ class TestBuildInitialInvestigationState:
     def test__initializes_control_flags(self, mock_per_issue_pending, mock_config):
         """Control flags should start in their initial states."""
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["is_complete"] is False
@@ -333,7 +334,7 @@ class TestBuildInitialInvestigationState:
     def test__initializes_reanalysis_count_to_zero(self, mock_per_issue_pending, mock_config):
         """reanalysis_count should be initialized to 0."""
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["reanalysis_count"] == 0
@@ -341,7 +342,7 @@ class TestBuildInitialInvestigationState:
     def test__initializes_total_tool_calls_to_zero(self, mock_per_issue_pending, mock_config):
         """total_tool_calls should be initialized to 0."""
         state = _build_initial_investigation_state(
-            "issue-1", mock_per_issue_pending, "", "", {}, mock_config
+            "issue-1", mock_per_issue_pending, "", "", {}, mock_config, _REPO_LANGUAGE
         )
 
         assert state["total_tool_calls"] == 0

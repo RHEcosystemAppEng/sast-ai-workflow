@@ -1,0 +1,22 @@
+language: c
+display_name: C/C++
+
+context_hints: |
+  *0.2 Language-Specific Context (C/C++):*
+  - Files inside `test/`, `tests/`, `examples/`, `samples/`: likely test or example code, not production
+  - `#ifdef TEST` / `#ifdef DEBUG` / `#if 0` guards: may exclude the vulnerable code from production builds
+  - Third-party code in `vendor/`, `third_party/`, `deps/`, `external/`: may not be built or may be overridden
+  - Check `Makefile` / `CMakeLists.txt` / build scripts to confirm the file is included in the production target
+  - Unused static/internal functions with no callers: dead code that cannot be reached
+
+issue_patterns: |
+  6. **Issue-Type Specific Patterns (C/C++)**:
+     - **UNINIT**: Look for `if (condition) goto/return/exit` AFTER the loop or conditional that
+       should initialize a variable, but BEFORE its use. This pattern often guards against
+       uninitialized use and makes the finding a FALSE_POSITIVE.
+     - **RESOURCE_LEAK**: Check if `exit()` is called shortly after the resource is acquired —
+       OS-level cleanup at process exit makes this FALSE_POSITIVE for CLI tools.
+     - **NULL_DEREF**: Look for `if (ptr == NULL) return/exit/assert` BEFORE the dereference.
+       Check every early-return path.
+     - **OVERRUN**: Track the buffer size at declaration vs the size passed to or assumed by
+       callee functions; verify bounds are enforced before the write.

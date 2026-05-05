@@ -1,0 +1,22 @@
+language: generic
+display_name: Generic
+
+context_hints: |
+  *0.2 Language-Specific Context:*
+  - Check test directories (`test/`, `tests/`, `spec/`, `__tests__/`): code here is test-only, not production
+  - Check for vendor or third-party directories (`vendor/`, `third_party/`, `node_modules/`, `deps/`):
+    may not be built or may be overridden upstream
+  - Check build configuration files (Makefile, build.gradle, package.json, pyproject.toml) to confirm
+    the file is included in the production build
+  - Check for conditional compilation or platform-specific exclusion flags that may gate the flagged code
+  - Verify the function/module is actually imported or called somewhere in the production code path
+
+issue_patterns: |
+  6. **Issue-Type Specific Patterns**:
+     - **NULL/NIL DEREF**: Look for null/nil checks BEFORE the dereference on every reachable code path.
+     - **RESOURCE LEAK**: Look for cleanup constructs (`defer`, `finally`, `with`, RAII destructors)
+       that close the resource before the function exits.
+     - **OUT-OF-BOUNDS / BUFFER OVERFLOW**: Verify that bounds checks guard all writes or indexed accesses.
+     - **INJECTION (command/SQL/format)**: Trace whether user-controlled input reaches the dangerous call
+       without sanitization or parameterization.
+     - **INTEGER OVERFLOW**: Check arithmetic feeding sizes or indices for overflow/underflow before use.

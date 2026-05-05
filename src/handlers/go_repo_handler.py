@@ -118,6 +118,8 @@ class GoRepoHandler:
     _go_language: Optional["Language"] = None
     _parser: Optional["Parser"] = None
 
+    language: str = "go"
+
     def __init__(self, config: Config) -> None:
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
         self.repo_local_path = config.REPO_LOCAL_PATH
@@ -625,6 +627,13 @@ class GoRepoHandler:
     def _get_context_around_line(self, file_path: str, line: int, context_lines: int = 25) -> str:
         """Get context around a specific line."""
         if file_path not in self.index._file_content_cache:
+            if not os.path.exists(file_path):
+                _VENDOR_DIRS = ("vendor/", "third_party/", "forked/")
+                if any(d in file_path for d in _VENDOR_DIRS):
+                    logger.debug(f"Skipping missing vendor file: {file_path}")
+                else:
+                    logger.warning(f"File not found, cannot get context: {file_path}")
+                return ""
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     self.index._file_content_cache[file_path] = f.read()

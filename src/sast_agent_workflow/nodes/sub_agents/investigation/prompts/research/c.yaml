@@ -1,0 +1,26 @@
+language: c
+display_name: C/C++
+
+context_gathering: |
+  **CONTEXT GATHERING (DO THIS FIRST — before the vulnerability checklist):**
+
+  Before investigating the vulnerability itself, establish deployment context. Start with what you can infer from the finding path alone (no tool call needed), then use tools for what requires active searching:
+
+  **Step A — Infer from the finding path (no tool call):**
+  Check whether the flagged file path contains any of:
+  `test/`, `tests/`, `vendor/`, `third_party/`, `external/`, `tools/`, `example/`, `samples/`.
+  These immediately classify the code as test, vendor, or tool code and should shape your first tool call.
+
+  **Step B — Gather with tools (one call per response):**
+  1. **File inclusion**: Fetch the relevant Makefile, CMakeLists.txt, or build script to check whether
+     the flagged file is compiled into the production target.
+  2. **Usage check**: Use `search_codebase` to find callers of the flagged function or references to
+     the flagged file. No callers = likely dead or test-only code.
+  3. **Build guards**: Check for `#ifdef TEST`, `#ifdef DEBUG`, or `#if 0` guards around the flagged
+     code that would exclude it from production builds.
+
+  Complete Step B before moving to the vulnerability checklist below.
+
+tool_history_hints: |
+  - Different file extension (*.h instead of *.c, or vice versa)
+  - fetch_code on a specific .c or .h file you know exists

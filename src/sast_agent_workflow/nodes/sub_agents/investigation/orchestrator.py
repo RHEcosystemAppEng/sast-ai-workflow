@@ -192,6 +192,7 @@ async def _investigate_single_issue(
                 gathered_initial,
                 fetched_initial,
                 config,
+                repo_language=repo_handler.language,
             )
 
             subgraph_config = _build_subgraph_config(
@@ -284,6 +285,7 @@ def _build_initial_investigation_state(
     gathered_code_initial: str,
     fetched_files_initial: dict,
     config: Config,
+    repo_language: str,
 ) -> InvestigationState:
     """Build initial InvestigationState for one issue."""
     issue_description = f"""**Issue ID:** {issue_id}
@@ -295,8 +297,10 @@ def _build_initial_investigation_state(
 {per_issue.issue.trace}"""
     return {
         "issue_id": issue_id,
+        "issue_cwe": per_issue.issue.issue_cwe or "",
         "issue_description": issue_description,
         "initial_code": code_context,
+        "repo_language": repo_language,
         "research_messages": [],
         "gathered_code": gathered_code_initial,
         "fetched_files": fetched_files_initial,

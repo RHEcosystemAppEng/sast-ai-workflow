@@ -1,10 +1,63 @@
-"""Analysis node prompt templates.
+"""Analysis node prompt builder.
 
-These prompts guide the analysis LLM in making verdict decisions
-based on gathered code evidence.
+All prompt text lives in analysis_context/. This module is a thin render
+layer: it loads the template and language-specific YAML files, then uses
+Jinja2 to substitute variables and return the final prompt string.
+
+Adding support for a new language requires only a new YAML file in
+analysis_context/ — no Python changes needed.
 """
 
+import logging
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict
+
+import yaml
+from jinja2 import Environment, StrictUndefined
+
+logger = logging.getLogger(__name__)
+
+_CONTEXT_DIR = Path(__file__).parent / "analysis"
+
+# ---------------------------------------------------------------------------
+# Lazy singletons — cached on first call via lru_cache
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _get_jinja_env() -> Environment:
+    return Environment(keep_trailing_newline=True, undefined=StrictUndefined)
+
+
+@lru_cache(maxsize=1)
+def _get_template() -> Dict[str, str]:
+    with open(_CONTEXT_DIR / "prompt_template.yaml", "r") as f:
+        return yaml.safe_load(f)
+
+
+@lru_cache(maxsize=None)
+def _get_language_context(language: str) -> Dict[str, str]:
+    """Load the YAML context file for a specific language, cached per language.
+
+    Falls back to 'generic' if language is empty or no matching file exists.
+    """
+    path = _CONTEXT_DIR / f"{language}.yaml"
+    if not path.exists():
+        logger.warning("No analysis context for language '%s', falling back to generic.", language)
+        language = "generic"
+        path = _CONTEXT_DIR / f"{language}.yaml"
+    try:
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except Exception as e:
+        logger.error("Failed to load analysis context from %s: %s", path, e)
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 
 def build_analysis_prompt(state: Dict[str, Any]) -> str:
@@ -12,150 +65,51 @@ def build_analysis_prompt(state: Dict[str, Any]) -> str:
     Build the analysis prompt for verdict decision.
 
     Args:
-        state: Current investigation state containing
-               gathered code and issue details.
+        state: Current investigation state.
 
                Required keys: issue_description
                Optional keys: gathered_code, needs_reanalysis,
-                              evaluation_feedback, analysis
+                              evaluation_feedback, analysis, repo_language
 
     Returns:
-        Formatted prompt string for the analysis LLM
+        Formatted prompt string for the analysis LLM.
     """
-    gathered_code_section = state.get("gathered_code", "(No code gathered)")
-    is_reanalysis = state.get("needs_reanalysis", False)
+    language = state.get("repo_language") or "generic"
+    lang_ctx = _get_language_context(language)
 
-    # Build evaluator feedback section for reanalysis
-    evaluator_feedback_section = ""
-    if is_reanalysis and state.get("evaluation_feedback"):
-        evaluator_feedback_section = _build_feedback_section(state["evaluation_feedback"])
+    t = _get_template()
 
-    previous = state.get("analysis") or "None - this is the first analysis."
+    evaluator_feedback_block = ""
+    if state.get("needs_reanalysis") and state.get("evaluation_feedback"):
+        evaluator_feedback_block = _render(
+            t["evaluator_feedback"],
+            feedback_text=state["evaluation_feedback"],
+        )
+    full_template = "\n".join(
+        [
+            t["header"],
+            t["finding"],
+            t["mandatory_steps"],
+            t["guidelines"],
+            t["required_output"],
+        ]
+    )
 
-    return (
-        _PROMPT_HEADER
-        + f"""
----
-
-**SAST FINDING:**
-{state['issue_description']}
-
-**CODE GATHERED DURING RESEARCH:**
-{gathered_code_section}
-
-**PREVIOUS ANALYSIS (if any):**
-{previous}
-{evaluator_feedback_section}"""
-        + _PROMPT_BODY
+    return _render(
+        full_template,
+        issue_description=state["issue_description"],
+        gathered_code=state.get("gathered_code", "(No code gathered)"),
+        previous_analysis=state.get("analysis") or "None - this is the first analysis.",
+        evaluator_feedback_block=evaluator_feedback_block,
+        context_hints=lang_ctx.get("context_hints", "").rstrip(),
+        issue_patterns=lang_ctx.get("issue_patterns", "").rstrip(),
     )
 
 
-def _build_feedback_section(feedback: str) -> str:
-    """Build the evaluator feedback block for reanalysis."""
-    return f"""
----
-
-**EVALUATOR FEEDBACK (Address this in your reanalysis):**
-{feedback}
-
-The evaluator disagreed with your previous analysis.
-Please carefully reconsider your verdict based on this
-feedback. Pay special attention to any control flow,
-guards, or logic issues the evaluator identified.
-
----
-"""
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
-_PROMPT_HEADER = """\
-You are an expert security analyst determining if a \
-SAST finding is a FALSE_POSITIVE or TRUE_POSITIVE.
-
-**Your Task:**
-Analyze the reported security finding and the provided \
-source code to determine if the vulnerability is real \
-(TRUE_POSITIVE) or a false alarm (FALSE_POSITIVE).\
-"""
-
-_PROMPT_BODY = """
----
-
-**MANDATORY ANALYSIS STEPS:**
-
-Before reaching a verdict, you MUST complete these steps \
-IN ORDER:
-
-**Step 1: Identify Source and Sink**
-- SOURCE: Where does the issue originate? \
-(e.g., variable declaration, user input, allocation)
-- SINK: Where is the vulnerable use? \
-(e.g., line number where uninitialized value is used)
-
-**Step 2: Trace ALL Code Between Source and Sink**
-- List EVERY line of code between source and sink
-- For EACH line, note if it contains: \
-`if`, `goto`, `return`, `exit`, `break`, `continue`
-- DO NOT skip any lines - read them ALL
-
-**Step 3: Analyze Each Control Flow Statement**
-For each `if`/`goto`/`return`/`exit` found, ask:
-- What condition triggers it?
-- Does it exit/skip BEFORE reaching the vulnerable line?
-- Could it act as a guard that prevents the vulnerability?
-
-**Step 4: Determine Reachability**
-- Can the SINK actually be reached without the issue \
-being resolved?
-- If ANY guard prevents reaching the sink in the \
-vulnerable state -> FALSE_POSITIVE
-
----
-
-**ANALYSIS GUIDELINES:**
-
-1. **Code-Based Evidence Only**: Reference specific line \
-numbers. Do not assume behavior - verify it in the code.
-
-2. **READ EVERY LINE**: Before saying "there are no \
-guards", you must have examined EVERY line between source \
-and sink. List the control flow statements you found.
-
-3. **Verify Path Reachability**: For TRUE_POSITIVE, prove \
-the vulnerable path is reachable by showing no guard \
-prevents it.
-
-4. **One REACHABLE Vulnerable Path is Enough**: If even \
-one REACHABLE path triggers the vulnerability -> \
-TRUE_POSITIVE.
-
-5. **Syntax Issues are TRUE_POSITIVE**: Syntax errors are \
-always real issues.
-
-6. **Issue-Type Specific Patterns**:
-   - **UNINIT**: Look for `if (condition) goto/return/exit`\
- AFTER the loop/conditional that should initialize, \
-but BEFORE the use. This pattern often guards against \
-uninitialized use.
-   - **RESOURCE_LEAK**: Check if `exit()` is called \
-shortly after - OS cleanup makes this FALSE_POSITIVE \
-for CLI tools.
-   - **NULL_DEREF**: Look for null checks before the \
-dereference.
-   - **OVERRUN**: Track buffer size at declaration vs \
-size used in callee functions.
-
----
-
-**REQUIRED OUTPUT:**
-Provide your analysis with the following:
-- **verdict**: TRUE_POSITIVE or FALSE_POSITIVE
-- **confidence**: 0.0–1.0 score (0.8–1.0: clear evidence; 0.5–0.8: minor gaps; \
-0.0–0.5: significant uncertainty or critical gaps)
-- **reasoning**: Your step-by-step analysis tracing the \
-data flow, and how the completeness of the evidence led \
-to your confidence score
-- **justifications**: List of specific code-based findings \
-that support the verdict, each referencing a specific \
-line number
-
-**Begin your analysis.**"""
+def _render(template_str: str, **context: Any) -> str:
+    return _get_jinja_env().from_string(template_str).render(**context)

@@ -1,0 +1,30 @@
+---
+# Race Condition (TOCTOU) Investigation Guidance
+# CWE-367
+
+vuln_type: "Race Condition"
+cwe_ids: ["CWE-367", "CWE-362", "CWE-366"]
+
+guidance: |
+  RACE CONDITION / DATA RACE EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Shared variable: Which variable/field is accessed concurrently?
+  2. Concurrent accesses: Which goroutines read/write the variable?
+  3. Synchronization: Is access protected by sync.Mutex, sync.RWMutex,
+     sync/atomic, or a channel? Is the protection correctly scoped?
+  4. TOCTOU (file): os.Stat() then os.Open() without O_EXCL — can a file be replaced between check and use?
+
+  SEARCH PATTERNS:
+    - Goroutine launches: go func(), go someFunc()
+    - Shared mutable state: struct fields written in one goroutine, read in another
+    - Missing locks: variables accessed in goroutines without sync.Mutex or atomic
+    - Incorrect lock scope: defer mu.Unlock() but lock not held at point of access
+    - TOCTOU: os.Stat/os.Lstat followed by os.Open/os.Remove on same path
+    - Channel races: closing a channel while other goroutines still send
+
+checklist:
+  - "Shared variable and its goroutine accesses documented"
+  - "Read and write goroutines identified (goroutine creation sites)"
+  - "Synchronization mechanism documented (present, absent, or incorrectly scoped)"
+  - "TOCTOU gap documented if file-system race (lines between check and use)"

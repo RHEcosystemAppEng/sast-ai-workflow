@@ -65,7 +65,9 @@ class SarifReportReader(BaseReportReader):
         """
         try:
             # Check if it's a URL (not supported for SARIF currently)
-            if file_path.startswith("https://") or file_path.startswith("http://"):  # NOSONAR - protocol check, not making request
+            if file_path.startswith("https://") or file_path.startswith(
+                "http://"
+            ):  # NOSONAR - protocol check, not making request
                 return False
 
             # Check file extension
@@ -353,6 +355,16 @@ class SarifReportReader(BaseReportReader):
         # Check rule properties for CWE information
         if "properties" in rule and isinstance(rule["properties"], dict):
             for key, value in rule["properties"].items():
+                # Handle list values (e.g. Snyk: "cwe": ["CWE-23"])
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str):
+                            cwe_match = re.search(r"(CWE-\d+)", item, re.IGNORECASE)
+                            if cwe_match:
+                                vuln_id = cwe_match.group(1).upper()
+                                cwe_info["cwe"] = vuln_id
+                                cwe_info["cwe_link"] = self._generate_cwe_link(vuln_id)
+                                return cwe_info
                 if isinstance(value, str):
                     # Check for direct CWE values
                     if key.lower() == "cwe" and value.startswith("CWE-"):
@@ -402,24 +414,25 @@ class SarifReportReader(BaseReportReader):
         """
         Build comprehensive trace information from SARIF result in shellcheck-style format.
         """
-        # --- Build the trace ---
         trace_parts = []
 
-        # Add code flow execution trace if available
-        code_flows = result.get("codeFlows", [])
-        code_flow_context = self._build_compact_code_flow(code_flows)
-
-        if code_flow_context:
-            trace_parts.append(code_flow_context)
-        else:
-            # --- Extracting the exact finding line and message ---
-            finding_location = self._format_location(result)
+        # Always include the finding location + message as the header line
+        finding_location = self._format_location(result)
+        if finding_location:
             trace_parts.append(finding_location)
 
-        # Add code context
+        # Append data flow steps when available (not a replacement for the message)
+        code_flows = result.get("codeFlows", [])
+        code_flow_context = self._build_compact_code_flow(code_flows)
+        if code_flow_context:
+            trace_parts.append("Data flow:")
+            trace_parts.append(code_flow_context)
+
+        # Add inline code snippet if the SARIF embeds one
         code_context = self._build_code_context(result["locations"][0])
-        trace_parts.append(code_context)
-        # Join parts and strip trailing whitespace for consistency
+        if code_context:
+            trace_parts.append(code_context)
+
         return "\n".join(trace_parts).rstrip()
 
     def _build_code_context(self, location: Dict[str, Any]) -> str:
@@ -534,7 +547,7 @@ class SarifReportReader(BaseReportReader):
         Fallback message-based filtering when kinds are not available.
         """
         if not message:
-            return True  # Skip empty messages
+            return False  # No message means no annotation — keep the location
 
         # First check if this is a vulnerability-semantic message we want to keep
         for pattern in self.VULNERABILITY_KEEP_PATTERNS:
@@ -651,11 +664,14 @@ class SarifReportReader(BaseReportReader):
             step_type = self._extract_step_type(location)
 
             # Format as ERR style: file:line:column: type: message
-            if uri and start_line and msg_text:
-                if start_col:
-                    return f"{uri}:{start_line}:{start_col}: {step_type}: {msg_text}"
+            if uri and start_line:
+                location_prefix = (
+                    f"{uri}:{start_line}:{start_col}" if start_col else f"{uri}:{start_line}"
+                )
+                if msg_text:
+                    return f"{location_prefix}: {step_type}: {msg_text}"
                 else:
-                    return f"{uri}:{start_line}: {step_type}: {msg_text}"
+                    return f"{location_prefix}: {step_type}"
 
             return ""
 

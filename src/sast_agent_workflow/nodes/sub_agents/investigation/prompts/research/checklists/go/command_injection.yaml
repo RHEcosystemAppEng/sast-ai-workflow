@@ -1,0 +1,33 @@
+---
+# Command/Path Injection Investigation Guidance
+# CWE-78, CWE-88
+
+vuln_type: "Command Injection"
+cwe_ids: ["CWE-78", "CWE-88", "CWE-77"]
+
+guidance: |
+  COMMAND INJECTION EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Exec function: exec.Command(), exec.CommandContext(), os/exec usage
+  2. Command construction: Is shell=true used? Is user input interpolated into args?
+  3. User input inclusion: Which argument(s) contain user-controlled data?
+  4. Sanitization: Are arguments passed as separate tokens (safe) or as a single shell string (unsafe)?
+
+  KEY DISTINCTION in Go:
+    - exec.Command("sh", "-c", userInput) — UNSAFE: shell interprets metacharacters
+    - exec.Command("prog", arg1, arg2)     — SAFE: OS executes directly, no shell expansion
+  Check which form is used BEFORE concluding TRUE/FALSE_POSITIVE.
+
+  SEARCH PATTERNS:
+    - Dangerous patterns: exec.Command("sh", "-c", ...), exec.Command("bash", "-c", ...)
+      with user-controlled final argument
+    - Safe patterns: exec.Command(prog, separateArg1, separateArg2) — no shell involved
+    - String building feeding into shell: fmt.Sprintf("cmd %s", userInput) passed to sh -c
+    - Input sources: HTTP request params, CLI flags, environment variables, file content
+
+checklist:
+  - "Exec function identified (exec.Command / exec.CommandContext)"
+  - "Shell involvement confirmed (sh -c with user input = unsafe; direct args = safe)"
+  - "User input path documented (HTTP param? env var? file? CLI arg?)"
+  - "Sanitization or argument separation documented (present or absent)"

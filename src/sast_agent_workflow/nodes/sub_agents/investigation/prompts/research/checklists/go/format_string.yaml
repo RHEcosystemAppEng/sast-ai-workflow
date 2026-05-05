@@ -1,0 +1,35 @@
+---
+# Format String Vulnerability Investigation Guidance
+# CWE-134
+
+vuln_type: "Format String"
+cwe_ids: ["CWE-134"]
+
+guidance: |
+  FORMAT STRING / UNCONTROLLED FORMAT EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Format function: fmt.Sprintf, fmt.Fprintf, fmt.Printf, log.Printf, log.Fatalf,
+     fmt.Errorf, or any function accepting a format string
+  2. Format parameter source: Is the format string itself user-controlled, or only the arguments?
+  3. Data flow: Trace the format string argument from its origin to the call site
+  4. Validation: Is the format string a constant or validated before use?
+
+  KEY DISTINCTION in Go:
+    - fmt.Sprintf(userInput)           — UNSAFE: user controls format verbs
+    - fmt.Sprintf("%s", userInput)     — SAFE: format string is a constant
+    - fmt.Fprintf(w, userInput)        — UNSAFE: same as above
+  The vulnerability requires the FORMAT STRING ARGUMENT to be user-controlled,
+  not just the values passed to %s/%d placeholders.
+
+  SEARCH PATTERNS:
+    - Unsafe usage: fmt.Sprintf(userVar), fmt.Fprintf(w, req.FormValue("x"))
+    - Safe usage: fmt.Sprintf("%s", userVar), fmt.Fprintf(w, "message: %s", userVar)
+    - log package: log.Printf(userVar) vs log.Printf("%s", userVar)
+    - errors package: fmt.Errorf(userVar) — format controlled by user
+
+checklist:
+  - "Format function call retrieved (fmt.Sprintf/Printf/Fprintf/Errorf/log.*)"
+  - "Format argument origin traced (constant string or user-controlled?)"
+  - "Data flow documented (input source -> format argument)"
+  - "Sanitization or constant-format pattern checked (present or absent)"
