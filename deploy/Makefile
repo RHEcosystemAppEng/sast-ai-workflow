@@ -75,8 +75,8 @@ CONTAINER_IMAGE                  ?= $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERS
 
 # DVC and S3/MinIO Configuration
 DVC_REPO_URL                     ?= https://github.com/RHEcosystemAppEng/sast-ai-dvc
-DVC_DATA_VERSION                 ?= v2.0.4
-S3_ENDPOINT_URL                  ?= http://sast-ai-minio-api-sast-ai-mlops.apps.appeng-lab01.accl-001.lab.rdu2.dc.redhat.com
+DVC_DATA_VERSION                 ?= v1.0
+S3_ENDPOINT_URL                  ?= http://minio-api-minio.apps.appeng.clusters.se-apps.redhat.com
 S3_INPUT_BUCKET_NAME             ?= test
 S3_OUTPUT_BUCKET_NAME            ?= bucket-name
 AWS_ACCESS_KEY_ID                ?= ""
