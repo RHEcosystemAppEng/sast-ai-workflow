@@ -1,12 +1,13 @@
 import logging
 import os
-import re
 import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+
+import regex
 
 try:
     import tree_sitter
@@ -23,12 +24,6 @@ from common.config import Config
 from Utils.repo_utils import get_repo_and_branch_from_url
 
 logger = logging.getLogger(__name__)
-
-# Global initialization
-_tree_sitter_lock = threading.Lock()
-_tree_sitter_initialized = False
-_go_language = None
-_parser = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +117,11 @@ class GoRepoHandler:
     4. Get documentation/comments
     """
 
+    _tree_sitter_lock = threading.Lock()
+    _tree_sitter_initialized = False
+    _go_language: Optional["Language"] = None
+    _parser: Optional["Parser"] = None
+
     def __init__(self, config: Config) -> None:
         if tree_sitter is None or tree_sitter_go is None:
             raise ImportError(
@@ -146,16 +146,14 @@ class GoRepoHandler:
 
     def _init_tree_sitter(self):
         """Initialize tree-sitter parser and queries."""
-        global _tree_sitter_initialized, _go_language, _parser
+        with GoRepoHandler._tree_sitter_lock:
+            if not GoRepoHandler._tree_sitter_initialized:
+                GoRepoHandler._go_language = Language(tree_sitter_go.language())
+                GoRepoHandler._parser = Parser(GoRepoHandler._go_language)
+                GoRepoHandler._tree_sitter_initialized = True
 
-        with _tree_sitter_lock:
-            if not _tree_sitter_initialized:
-                _go_language = Language(tree_sitter_go.language())
-                _parser = Parser(_go_language)
-                _tree_sitter_initialized = True
-
-        self.language = _go_language
-        self.parser = _parser
+        self.language = GoRepoHandler._go_language
+        self.parser = GoRepoHandler._parser
 
     def _build_index(self):
         """Build the symbol and reference index."""
@@ -170,12 +168,14 @@ class GoRepoHandler:
             batch = go_files[i : i + batch_size]
 
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [executor.submit(self._index_file, file_path) for file_path in batch]
+                futures = {
+                    executor.submit(self._index_file, file_path): file_path for file_path in batch
+                }
                 for future in as_completed(futures):
                     try:
                         future.result()
                     except Exception as e:
-                        logger.warning(f"Failed to index file: {e}")
+                        logger.warning(f"Failed to index file {futures[future]}: {e}")
 
         logger.info(
             f"Index built: {len(self.index.symbol_data)} symbols, "
@@ -185,14 +185,13 @@ class GoRepoHandler:
     def _find_go_files(self) -> List[str]:
         """Find all Go files in the repository."""
         go_files = []
-        repo_path = Path(self.repo_local_path).resolve()  # Resolve to absolute path
+        repo_path = Path(self.repo_local_path).resolve()
 
         for go_file in repo_path.rglob("*.go"):
-            # Check if any part of the path (relative to repo) starts with . or is vendor
-            relative_parts = go_file.relative_to(repo_path).parts
-            if not any(
-                part.startswith(".") or part == "vendor" for part in relative_parts
-            ) and not go_file.name.endswith("_test.go"):
+            rel_path = go_file.relative_to(repo_path)
+            if not rel_path.match("*_test.go") and not any(
+                p.startswith(".") or p == "vendor" for p in rel_path.parts
+            ):
                 go_files.append(str(go_file))
 
         return go_files
@@ -205,17 +204,16 @@ class GoRepoHandler:
 
             tree = self.parser.parse(bytes(content, "utf8"))
 
-            # Extract package name
             package_name = self._extract_package_name(tree)
-
-            # Extract symbols
             self._extract_symbols(tree, content, file_path, package_name)
-
-            # Extract references
             self._extract_references(tree, content, file_path)
 
-        except Exception as e:
-            logger.error(f"Error indexing {file_path}: {e}")
+        except FileNotFoundError:
+            logger.error(f"File not found during indexing: {file_path}")
+        except PermissionError:
+            logger.error(f"Permission denied reading file: {file_path}")
+        except UnicodeDecodeError as e:
+            logger.error(f"Failed to decode {file_path}: {e}")
 
     def _extract_package_name(self, tree: tree_sitter.Tree) -> str:
         """Extract package name from file."""
@@ -237,7 +235,7 @@ class GoRepoHandler:
 
     def _extract_symbols(
         self, tree: tree_sitter.Tree, content: str, file_path: str, package_name: str
-    ):  # todo: check if there is a better way thwn manual traversal
+    ):
         """Extract symbol definitions from the file using manual traversal."""
         lines = content.split("\n")
         NODE_KIND_MAP = {
@@ -379,12 +377,11 @@ class GoRepoHandler:
             if ref:
                 references.append(ref)
         # All identifiers (for general references)
-        elif node.type == "identifier":
-            if not self._is_definition_context(node):
-                symbol_name = node.text.decode("utf-8")
-                references.append(
-                    self._create_reference(node, symbol_name, file_path, lines, "reference")
-                )
+        elif node.type == "identifier" and not self._is_definition_context(node):
+            symbol_name = node.text.decode("utf-8")
+            references.append(
+                self._create_reference(node, symbol_name, file_path, lines, "reference")
+            )
 
         # Recursively traverse children
         for child in node.children:
@@ -559,11 +556,16 @@ class GoRepoHandler:
         symbol's source code. If the symbol has godoc comments, they are prepended
         to the source block as context.
         """
-        try:
-            source_files = set(re.findall(r"([^\s]+\.go):(\d+):", error_trace))
-        except Exception as e:
-            logger.warning(f"Failed to parse error trace: {e}")
-            return {}
+        source_files = set()
+        # Path segments may contain dots (e.g. semver dirs like myproject-1.0/).
+        # Allow only plausible path characters; '@' covers module-cache paths (…/pkg@v1.2.3/…).
+        go_file_line = regex.compile(r"([A-Za-z0-9@./_-]+\.go):(\d+):")
+        for line in error_trace.split("\n"):
+            matches = go_file_line.findall(line)
+            source_files.update(matches)
+
+        if not source_files:
+            logger.debug("No Go file references found in error trace")
 
         error_code_sources: Dict[str, List[str]] = defaultdict(list)
 
@@ -629,7 +631,7 @@ class GoRepoHandler:
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     self.index._file_content_cache[file_path] = f.read()
-            except Exception as e:
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
                 logger.error(f"Failed to read {file_path}: {e}")
                 return ""
 
