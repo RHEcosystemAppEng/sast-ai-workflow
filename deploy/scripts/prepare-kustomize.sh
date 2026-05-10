@@ -21,13 +21,13 @@ ENV_FILE="${DEPLOY_DIR}/../.env"
 # Validation: Environment
 # =============================================================================
 if [[ ! "$ENV" =~ ^(dev|prod|mlops)$ ]]; then
-    echo "❌ ERROR: Invalid environment. Must be: dev, prod, or mlops"
-    echo "Usage: $0 <dev|prod|mlops>"
+    echo "❌ ERROR: Invalid environment. Must be: dev, prod, or mlops" >&2
+    echo "Usage: $0 <dev|prod|mlops>" >&2
     exit 1
 fi
 
 if [ ! -d "$OVERLAY_DIR" ]; then
-    echo "❌ ERROR: Overlay directory not found: $OVERLAY_DIR"
+    echo "❌ ERROR: Overlay directory not found: $OVERLAY_DIR" >&2
     exit 1
 fi
 
@@ -41,8 +41,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "📋 Step 1: Loading .env file..."
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "❌ ERROR: .env file not found at: $ENV_FILE"
-    echo "💡 Create .env file in project root with required variables"
+    echo "❌ ERROR: .env file not found at: $ENV_FILE" >&2
+    echo "💡 Create .env file in project root with required variables" >&2
     exit 1
 fi
 
@@ -89,9 +89,9 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 if [ ${#MISSING_VARS[@]} -gt 0 ]; then
-    echo "❌ ERROR: Missing required variables in .env:"
+    echo "❌ ERROR: Missing required variables in .env:" >&2
     for var in "${MISSING_VARS[@]}"; do
-        echo "   - $var"
+        echo "   - $var" >&2
     done
     exit 1
 fi
@@ -118,18 +118,18 @@ if [ "$ENV" = "mlops" ]; then
     done
 
     if [ ${#MLOPS_MISSING_VARS[@]} -gt 0 ]; then
-        echo "❌ ERROR: Missing MLOps-specific variables in .env:"
+        echo "❌ ERROR: Missing MLOps-specific variables in .env:" >&2
         for var in "${MLOPS_MISSING_VARS[@]}"; do
-            echo "   - $var"
+            echo "   - $var" >&2
         done
-        echo ""
-        echo "💡 MLOps environment requires S3/MinIO and DVC configuration"
-        echo "   Add these variables to your .env file:"
-        echo "   - DVC_REPO_URL=https://github.com/your-org/sast-ai-dvc"
-        echo "   - DVC_DATA_VERSION=v2.0"
-        echo "   - S3_ENDPOINT_URL=http://minio.your-cluster.com"
-        echo "   - S3_INPUT_BUCKET_NAME=mlops-input"
-        echo "   - S3_OUTPUT_BUCKET_NAME=mlops-output"
+        echo "" >&2
+        echo "💡 MLOps environment requires S3/MinIO and DVC configuration" >&2
+        echo "   Add these variables to your .env file:" >&2
+        echo "   - DVC_REPO_URL=https://github.com/your-org/sast-ai-dvc" >&2
+        echo "   - DVC_DATA_VERSION=v2.0" >&2
+        echo "   - S3_ENDPOINT_URL=http://minio.your-cluster.com" >&2
+        echo "   - S3_INPUT_BUCKET_NAME=mlops-input" >&2
+        echo "   - S3_OUTPUT_BUCKET_NAME=mlops-output" >&2
         exit 1
     fi
 
@@ -201,8 +201,8 @@ mkdir -p "$SA_DIR"
 GOOGLE_SA_PATH="$(realpath -m "${GOOGLE_SERVICE_ACCOUNT_JSON_PATH}" 2>/dev/null || echo "${DEPLOY_DIR}/${GOOGLE_SERVICE_ACCOUNT_JSON_PATH}")"
 
 if [ ! -f "$GOOGLE_SA_PATH" ]; then
-    echo "❌ ERROR: Google service account not found at: $GOOGLE_SA_PATH"
-    echo "💡 Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH in .env to correct path"
+    echo "❌ ERROR: Google service account not found at: $GOOGLE_SA_PATH" >&2
+    echo "💡 Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH in .env to correct path" >&2
     exit 1
 fi
 
@@ -245,14 +245,14 @@ elif [ -f "${HOME}/.config/containers/auth.json" ]; then
 fi
 
 if [ -z "$DOCKER_AUTH_FILE" ]; then
-    echo "❌ ERROR: Container registry authentication not found"
-    echo "💡 Run: podman login quay.io (or docker login quay.io)"
-    echo ""
-    echo "Searched locations:"
-    echo "   - ${DOCKER_CONFIG_PATH}"
-    echo "   - ${XDG_RUNTIME_DIR}/containers/auth.json"
-    echo "   - ${HOME}/.docker/config.json"
-    echo "   - ${HOME}/.config/containers/auth.json"
+    echo "❌ ERROR: Container registry authentication not found" >&2
+    echo "💡 Run: podman login quay.io (or docker login quay.io)" >&2
+    echo "" >&2
+    echo "Searched locations:" >&2
+    echo "   - ${DOCKER_CONFIG_PATH}" >&2
+    echo "   - ${XDG_RUNTIME_DIR}/containers/auth.json" >&2
+    echo "   - ${HOME}/.docker/config.json" >&2
+    echo "   - ${HOME}/.config/containers/auth.json" >&2
     exit 1
 fi
 
@@ -266,7 +266,7 @@ echo "   ✓ Source: ${DOCKER_AUTH_FILE}"
 echo "💬 Step 6: Generating prompt templates..."
 
 if [ ! -f "${SCRIPT_DIR}/generate_prompts.py" ]; then
-    echo "❌ ERROR: generate_prompts.py not found at: ${SCRIPT_DIR}/generate_prompts.py"
+    echo "❌ ERROR: generate_prompts.py not found at: ${SCRIPT_DIR}/generate_prompts.py" >&2
     exit 1
 fi
 
@@ -274,7 +274,7 @@ cd "$DEPLOY_DIR"
 python3 scripts/generate_prompts.py > /dev/null 2>&1
 
 if [ ! -f "${DEPLOY_DIR}/tekton/base/sast-ai-prompt-templates.yaml" ]; then
-    echo "❌ ERROR: Failed to generate prompt templates"
+    echo "❌ ERROR: Failed to generate prompt templates" >&2
     exit 1
 fi
 
