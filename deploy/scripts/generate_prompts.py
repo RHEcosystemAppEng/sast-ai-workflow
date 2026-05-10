@@ -57,8 +57,8 @@ def main():
         'data': templates
     }
     
-    # Write ConfigMap to file
-    output_file = 'tekton/sast-ai-prompt-templates.yaml'
+    # Write ConfigMap to file (inside base/ so all overlays can use it)
+    output_file = 'tekton/base/sast-ai-prompt-templates.yaml'
     try:
         with open(output_file, 'w', encoding='utf-8') as f:
             # Write header comments

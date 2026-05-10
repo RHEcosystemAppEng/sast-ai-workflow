@@ -1,0 +1,342 @@
+# =============================================================================
+# SAST AI Workflow - Makefile (Kustomize-First Architecture)
+# =============================================================================
+# This Makefile orchestrates deployment using Kustomize for ALL resources
+# Run 'make -f Makefile.new help' to see all available commands
+# =============================================================================
+
+# =============================================================================
+# Environment Configuration
+# =============================================================================
+
+# Load .env file if it exists
+ifneq (,$(wildcard ../.env))
+    include ../.env
+    export
+endif
+
+# OpenShift/Kubernetes context
+CONTEXT := $(shell oc config current-context)
+NAMESPACE ?= $(shell oc config view --minify --output 'jsonpath={..namespace}')
+CO := oc --context $(CONTEXT)
+
+# Environment selection (dev, prod, mlops)
+ENV ?= dev
+
+# Container Image Configuration
+IMAGE_REGISTRY ?= quay.io/ecosystem-appeng
+IMAGE_NAME ?= sast-ai-workflow
+IMAGE_VERSION ?= latest
+CONTAINER_IMAGE := $(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_VERSION)
+
+# ArgoCD Configuration
+ARGOCD_NAMESPACE ?= openshift-gitops
+GITHUB_REPO_URL ?= https://github.com/RHEcosystemAppEng/sast-ai-workflow.git
+
+# Pipeline Execution Configuration
+PROJECT_NAME ?= project-name
+PROJECT_VERSION ?= project-version
+DOWNLOAD_REPO ?= false
+REPO_REMOTE_URL ?=
+REPO_LOCAL_PATH ?= /path/to/repo
+INPUT_REPORT_FILE_PATH ?= http://<<please-set-google-spreadsheet-url>>
+HUMAN_VERIFIED_FILE_PATH ?=
+FALSE_POSITIVES_URL ?= false/positives/url
+USE_KNOWN_FALSE_POSITIVE_FILE ?= true
+AGGREGATE_RESULTS_G_SHEET ?=
+
+# LLM Configuration
+LLM_API_TYPE ?= openai
+LLM_HTTP_CLIENT_VERIFY ?= false
+EMBEDDINGS_HTTP_CLIENT_VERIFY ?= false
+
+# Optional Features (Google Drive/GCS - used by dev/prod)
+GDRIVE_FOLDER_ID ?= ""
+GDRIVE_SA_FILE_NAME ?= service_account.json
+GCS_BUCKET_NAME ?=
+GCS_SA_FILE_NAME ?= gcs_service_account.json
+
+# MLOps-specific Configuration (S3/MinIO + DVC - only for mlops environment)
+# These values MUST be set in .env when deploying mlops
+DVC_REPO_URL ?=
+DVC_DATA_VERSION ?=
+S3_ENDPOINT_URL ?=
+S3_INPUT_BUCKET_NAME ?=
+S3_OUTPUT_BUCKET_NAME ?=
+
+# =============================================================================
+# Phony Targets
+# =============================================================================
+.PHONY: help deploy-dev deploy-prod deploy-mlops prepare clean run argocd-setup-project
+
+.DEFAULT_GOAL := help
+
+# =============================================================================
+# Help
+# =============================================================================
+help: ## Display this help message
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "SAST AI Workflow - Kustomize Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make -f Makefile.new \033[36m<target>\033[0m [PARAM=value ...]\n"} \
+	     /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Examples:"
+	@echo "  make -f Makefile.new deploy-dev"
+	@echo "  make -f Makefile.new deploy-prod IMAGE_VERSION=1.2.3"
+	@echo "  make -f Makefile.new run PROJECT_NAME=myapp REPO_REMOTE_URL=https://github.com/user/repo"
+	@echo ""
+
+# =============================================================================
+# Validation Functions
+# =============================================================================
+define validate_env_file
+	@if [ ! -f "../.env" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "❌ ERROR: .env file not found"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "💡 Create a .env file in the project root with required configuration"; \
+		echo "   See deploy/README.md for required variables"; \
+		exit 1; \
+	fi
+endef
+
+define validate_image_version
+	@if [ -z "$(IMAGE_VERSION)" ] || [ "$(IMAGE_VERSION)" = "latest" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "❌ ERROR: IMAGE_VERSION is required for production deployment"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "Usage: make -f Makefile.new deploy-prod IMAGE_VERSION=1.2.3"; \
+		echo ""; \
+		echo "Available versions can be found at:"; \
+		echo "https://quay.io/repository/ecosystem-appeng/sast-ai-workflow?tab=tags"; \
+		exit 1; \
+	fi
+endef
+
+# =============================================================================
+# Preparation Step
+# =============================================================================
+prepare: ## Prepare Kustomize overlay [Internal - called by deploy-*]
+	$(call validate_env_file)
+	@echo "🔧 Preparing Kustomize overlay for $(ENV) environment..."
+	@./scripts/prepare-kustomize.sh $(ENV)
+
+# =============================================================================
+# Deployment Commands
+# =============================================================================
+deploy-dev: ENV=dev ## Deploy development environment
+deploy-dev: prepare argocd-setup-project
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Development Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Development"
+	@echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"
+	@echo "   Namespace: $(NAMESPACE)"
+	@echo ""
+	@echo "📦 Deploying Tekton resources via Kustomize..."
+	@$(CO) apply -k tekton/overlays/dev -n $(NAMESPACE)
+	@echo "🔄 Deploying ArgoCD Application..."
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' \
+		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-application-dev.yaml | $(CO) apply -n $(ARGOCD_NAMESPACE) -f -
+	@echo "   ✓ ArgoCD Application deployed (watches: deploy/tekton/base)"
+	@echo ""
+	@echo "✅ Development deployment complete"
+	@echo ""
+	@echo "Next steps:"
+	@echo "   - View resources: oc get all -n $(NAMESPACE)"
+	@echo "   - Run pipeline: make -f Makefile.new run PROJECT_NAME=myapp REPO_REMOTE_URL=https://..."
+	@echo ""
+
+deploy-prod: ENV=prod ## Deploy production environment [Params: IMAGE_VERSION (required)]
+deploy-prod: prepare argocd-setup-project
+	$(call validate_image_version)
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - Production Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: Production"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo "   Namespace: $(NAMESPACE)"
+	@echo ""
+	@echo "📦 Deploying Tekton resources via Kustomize..."
+	@$(CO) apply -k tekton/overlays/prod -n $(NAMESPACE)
+	@echo "🔄 Deploying ArgoCD Application..."
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' \
+		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-application-prod.yaml | $(CO) apply -n $(ARGOCD_NAMESPACE) -f -
+	@echo "   ✓ ArgoCD Application deployed (watches: deploy/tekton/overlays/prod)"
+	@echo ""
+	@echo "✅ Production deployment complete"
+	@echo ""
+
+deploy-mlops: ENV=mlops ## Deploy MLOps environment (S3/MinIO storage)
+deploy-mlops: prepare argocd-setup-project
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 SAST AI Workflow - MLOps Deployment"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: MLOps"
+	@echo "   Container Image: $(IMAGE_REGISTRY)/$(IMAGE_NAME):latest"
+	@echo "   Storage: S3/MinIO"
+	@echo "   Namespace: $(NAMESPACE)"
+	@echo ""
+	@echo "📦 Deploying Tekton resources via Kustomize..."
+	@$(CO) apply -k tekton/overlays/mlops -n $(NAMESPACE)
+	@echo "🎯 Deploying EventListener..."
+	@sed -e 's|<namespace>|$(NAMESPACE)|g' \
+		tekton/eventlistener/benchmark-config.yaml.template > tekton/eventlistener/benchmark-config.yaml
+	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE)
+	@echo "🔄 Deploying ArgoCD Application..."
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' \
+		-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-application-mlops.yaml | $(CO) apply -n $(ARGOCD_NAMESPACE) -f -
+	@echo "   ✓ ArgoCD Application deployed (watches: deploy/tekton/overlays/mlops)"
+	@echo ""
+	@echo "✅ MLOps deployment complete"
+	@echo ""
+	@echo "EventListener deployed - verify:"
+	@echo "   oc get eventlistener,task,pipeline -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE)"
+	@echo ""
+
+# =============================================================================
+# ArgoCD Setup
+# =============================================================================
+argocd-setup-project: ## Setup ArgoCD AppProject and RBAC [Internal target]
+	@echo "🔧 Setting up ArgoCD AppProject..."
+	@# Check if AppProject exists
+	@if $(CO) get appproject sast-ai -n $(ARGOCD_NAMESPACE) > /dev/null 2>&1; then \
+		echo "   ℹ️  AppProject 'sast-ai' already exists"; \
+	else \
+		echo "   🆕 Creating AppProject 'sast-ai'..."; \
+		sed \
+			-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' \
+			-e 's|GITHUB_REPO_URL_PLACEHOLDER|$(GITHUB_REPO_URL)|g' \
+			argocd/appproject-sast-ai.yaml | $(CO) apply -n $(ARGOCD_NAMESPACE) -f -; \
+		echo "   ✓ AppProject created"; \
+	fi
+	@# Setup RBAC permissions
+	@echo "   🔐 Setting up ArgoCD RBAC permissions..."
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-tekton-permission.yaml | $(CO) apply -f -
+	@echo "   ✓ RBAC permissions configured"
+	@# Label namespace
+	@echo "   🏷️  Labeling namespace $(NAMESPACE)..."
+	@$(CO) label namespace $(NAMESPACE) argocd.argoproj.io/managed-by=$(ARGOCD_NAMESPACE) --overwrite > /dev/null 2>&1 || true
+	@echo "   ✓ Namespace labeled"
+
+# =============================================================================
+# Pipeline Execution
+# =============================================================================
+run: ## Execute pipeline [Params: PROJECT_NAME, REPO_REMOTE_URL, etc.]
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🏃 Starting Pipeline Execution"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Project: $(PROJECT_NAME)"
+	@echo "   Container Image: $(CONTAINER_IMAGE)"
+	@echo ""
+	@echo "🔄 Removing old pipeline runs..."
+	@$(CO) delete pipelinerun sast-ai-workflow-pipelinerun -n $(NAMESPACE) --ignore-not-found
+	@echo "📝 Creating new PipelineRun..."
+	@sed \
+		-e 's|PROJECT_NAME_PLACEHOLDER|$(PROJECT_NAME)|g' \
+		-e 's|PROJECT_VERSION_PLACEHOLDER|$(PROJECT_VERSION)|g' \
+		-e 's|REPO_REMOTE_URL_PLACEHOLDER|$(REPO_REMOTE_URL)|g' \
+		-e 's|FALSE_POSITIVES_URL_PLACEHOLDER|$(FALSE_POSITIVES_URL)|g' \
+		-e 's|EMBEDDINGS_LLM_URL_PLACEHOLDER|$(EMBEDDINGS_LLM_URL)|g' \
+		-e 's|EMBEDDINGS_LLM_MODEL_NAME_PLACEHOLDER|$(EMBEDDINGS_LLM_MODEL_NAME)|g' \
+		-e 's|LLM_URL_PLACEHOLDER|$(LLM_URL)|g' \
+		-e 's|LLM_MODEL_NAME_PLACEHOLDER|$(LLM_MODEL_NAME)|g' \
+		-e 's|LLM_API_TYPE_PLACEHOLDER|$(LLM_API_TYPE)|g' \
+		-e 's|LLM_HTTP_CLIENT_VERIFY_PLACEHOLDER|$(LLM_HTTP_CLIENT_VERIFY)|g' \
+		-e 's|EMBEDDINGS_HTTP_CLIENT_VERIFY_PLACEHOLDER|$(EMBEDDINGS_HTTP_CLIENT_VERIFY)|g' \
+		-e 's|INPUT_REPORT_FILE_PATH_PLACEHOLDER|$(INPUT_REPORT_FILE_PATH)|g' \
+		-e 's|HUMAN_VERIFIED_FILE_PATH_PLACEHOLDER|$(HUMAN_VERIFIED_FILE_PATH)|g' \
+		-e 's|USE_KNOWN_FALSE_POSITIVE_FILE_PLACEHOLDER|$(USE_KNOWN_FALSE_POSITIVE_FILE)|g' \
+		-e 's|AGGREGATE_RESULTS_G_SHEET_PLACEHOLDER|$(AGGREGATE_RESULTS_G_SHEET)|g' \
+		-e 's|GDRIVE_FOLDER_ID_PLACEHOLDER|$(GDRIVE_FOLDER_ID)|g' \
+		-e 's|GDRIVE_SA_FILE_NAME_PLACEHOLDER|$(GDRIVE_SA_FILE_NAME)|g' \
+		-e 's|CONTAINER_IMAGE_PLACEHOLDER|$(CONTAINER_IMAGE)|g' \
+		-e 's|GCS_BUCKET_NAME_PLACEHOLDER|$(GCS_BUCKET_NAME)|g' \
+		-e 's|GCS_SA_FILE_NAME_PLACEHOLDER|$(GCS_SA_FILE_NAME)|g' \
+		-e 's|DVC_REPO_URL_PLACEHOLDER|$(DVC_REPO_URL)|g' \
+		-e 's|DVC_DATA_VERSION_PLACEHOLDER|$(DVC_DATA_VERSION)|g' \
+		-e 's|S3_ENDPOINT_URL_PLACEHOLDER|$(S3_ENDPOINT_URL)|g' \
+		-e 's|S3_INPUT_BUCKET_NAME_PLACEHOLDER|$(S3_INPUT_BUCKET_NAME)|g' \
+		-e 's|S3_OUTPUT_BUCKET_NAME_PLACEHOLDER|$(S3_OUTPUT_BUCKET_NAME)|g' \
+		tekton/pipelinerun.yaml | $(CO) apply -n $(NAMESPACE) -f -
+	@echo ""
+	@echo "✅ Pipeline execution started"
+	@echo ""
+	@echo "Monitor progress:"
+	@echo "   oc get pipelineruns -n $(NAMESPACE)"
+	@echo "   oc logs -l tekton.dev/pipelineRun=sast-ai-workflow-pipelinerun -n $(NAMESPACE) -f"
+	@echo ""
+
+# =============================================================================
+# Cleanup
+# =============================================================================
+clean: ## Remove all deployed resources in current namespace [Params: ENV]
+	@# Safety check: Ensure NAMESPACE is not empty before deletion
+	@if [ -z "$(NAMESPACE)" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "❌ ERROR: NAMESPACE is empty"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "💡 Set NAMESPACE environment variable or use: make clean NAMESPACE=my-namespace"; \
+		exit 1; \
+	fi
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🧹 SAST AI Workflow - Cleanup"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   Environment: $(ENV)"
+	@echo "   Namespace: $(NAMESPACE)"
+	@echo ""
+	@echo "🏃 Cleaning Pipeline Runs..."
+	@$(CO) delete pipelinerun --all -n $(NAMESPACE) --ignore-not-found --wait=false > /dev/null 2>&1 || true
+	@echo "   ✓ Pipeline runs removed"
+	@echo "📋 Cleaning Task Runs..."
+	@$(CO) delete taskrun --all -n $(NAMESPACE) --ignore-not-found --wait=false > /dev/null 2>&1 || true
+	@echo "   ✓ Task runs removed"
+	@echo "🔄 Removing ArgoCD Application..."
+	@APPS=$$($(CO) get application -n $(ARGOCD_NAMESPACE) -o json 2>/dev/null | \
+		jq -r '.items[] | select(.spec.destination.namespace == "$(NAMESPACE)") | .metadata.name' || true); \
+	if [ -n "$$APPS" ]; then \
+		for app in $$APPS; do \
+			echo "   🗑️  Removing: $$app"; \
+			$(CO) delete application $$app -n $(ARGOCD_NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+			$(CO) patch application $$app -n $(ARGOCD_NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ ArgoCD applications removed"; \
+	fi
+	@echo "🔧 Removing Tekton Resources..."
+	@$(CO) delete -k tekton/overlays/$(ENV) -n $(NAMESPACE) --ignore-not-found --wait=false > /dev/null 2>&1 || true
+	@echo "   ✓ Tekton resources removed"
+	@if [ "$(ENV)" = "mlops" ]; then \
+		echo "🎯 Removing EventListener resources..."; \
+		$(CO) delete -k tekton/eventlistener/ -n $(NAMESPACE) --ignore-not-found --wait=false > /dev/null 2>&1 || true; \
+		echo "   ✓ EventListener removed"; \
+	fi
+	@echo "💾 Cleaning Storage..."
+	@DYNAMIC_PVCS=$$($(CO) get pvc -n $(NAMESPACE) --no-headers -o custom-columns=":metadata.name" 2>/dev/null | grep "sast-ai-workflow-pipeline" || true); \
+	if [ -n "$$DYNAMIC_PVCS" ]; then \
+		for pvc in $$DYNAMIC_PVCS; do \
+			$(CO) delete pvc $$pvc -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ Dynamic PVCs removed"; \
+	else \
+		echo "   ✓ No dynamic PVCs found"; \
+	fi
+	@echo ""
+	@echo "✅ Cleanup completed successfully"
+	@echo ""
