@@ -26,7 +26,7 @@ if [[ ! "$ENV" =~ ^(dev|prod|mlops)$ ]]; then
     exit 1
 fi
 
-if [ ! -d "$OVERLAY_DIR" ]; then
+if [[ ! -d "$OVERLAY_DIR" ]]; then
     echo "❌ ERROR: Overlay directory not found: $OVERLAY_DIR" >&2
     exit 1
 fi
@@ -40,7 +40,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # =============================================================================
 echo "📋 Step 1: Loading .env file..."
 
-if [ ! -f "$ENV_FILE" ]; then
+if [[ ! -f "$ENV_FILE" ]]; then
     echo "❌ ERROR: .env file not found at: $ENV_FILE" >&2
     echo "💡 Create .env file in project root with required variables" >&2
     exit 1
@@ -48,7 +48,7 @@ fi
 
 # Load .env safely (without executing shell commands)
 # Parse KEY=VALUE pairs without shell execution to prevent code injection
-while IFS='=' read -r key value || [ -n "$key" ]; do
+while IFS='=' read -r key value || [[ -n "$key" ]]; do
     # Skip empty lines and comments
     [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
 
@@ -83,12 +83,12 @@ REQUIRED_VARS=(
 
 MISSING_VARS=()
 for var in "${REQUIRED_VARS[@]}"; do
-    if [ -z "${!var}" ]; then
+    if [[ -z "${!var}" ]]; then
         MISSING_VARS+=("$var")
     fi
 done
 
-if [ ${#MISSING_VARS[@]} -gt 0 ]; then
+if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
     echo "❌ ERROR: Missing required variables in .env:" >&2
     for var in "${MISSING_VARS[@]}"; do
         echo "   - $var" >&2
@@ -99,7 +99,7 @@ fi
 echo "   ✓ All required variables present"
 
 # MLOps-specific validation
-if [ "$ENV" = "mlops" ]; then
+if [[ "$ENV" = "mlops" ]]; then
     echo "🔍 Step 2b: Validating MLOps-specific variables..."
 
     MLOPS_REQUIRED_VARS=(
@@ -112,12 +112,12 @@ if [ "$ENV" = "mlops" ]; then
 
     MLOPS_MISSING_VARS=()
     for var in "${MLOPS_REQUIRED_VARS[@]}"; do
-        if [ -z "${!var}" ]; then
+        if [[ -z "${!var}" ]]; then
             MLOPS_MISSING_VARS+=("$var")
         fi
     done
 
-    if [ ${#MLOPS_MISSING_VARS[@]} -gt 0 ]; then
+    if [[ ${#MLOPS_MISSING_VARS[@]} -gt 0 ]]; then
         echo "❌ ERROR: Missing MLOps-specific variables in .env:" >&2
         for var in "${MLOPS_MISSING_VARS[@]}"; do
             echo "   - $var" >&2
@@ -162,14 +162,14 @@ EOF
 echo "   ✓ secrets-llm.env created"
 
 # S3/MinIO credentials secret (optional)
-if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+if [[ -n "${AWS_ACCESS_KEY_ID}" ]] && [[ -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
     cat > "${OVERLAY_DIR}/secrets-s3.env" <<EOF
 # S3/MinIO Credentials
 access_key_id=${AWS_ACCESS_KEY_ID}
 secret_access_key=${AWS_SECRET_ACCESS_KEY}
 EOF
 
-    if [ -n "${S3_ENDPOINT_URL}" ]; then
+    if [[ -n "${S3_ENDPOINT_URL}" ]]; then
         echo "endpoint_url=${S3_ENDPOINT_URL}" >> "${OVERLAY_DIR}/secrets-s3.env"
     fi
 
@@ -180,7 +180,7 @@ else
 # S3/MinIO Credentials (not configured)
 EOF
 
-    if [ "$ENV" = "mlops" ]; then
+    if [[ "$ENV" = "mlops" ]]; then
         echo "   ⚠️  Warning: S3/MinIO credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) not configured"
         echo "   💡 MLOps typically needs these for S3/MinIO access"
     else
@@ -200,7 +200,7 @@ mkdir -p "$SA_DIR"
 # Normalize path (handles both absolute and relative paths)
 GOOGLE_SA_PATH="$(realpath -m "${GOOGLE_SERVICE_ACCOUNT_JSON_PATH}" 2>/dev/null || echo "${DEPLOY_DIR}/${GOOGLE_SERVICE_ACCOUNT_JSON_PATH}")"
 
-if [ ! -f "$GOOGLE_SA_PATH" ]; then
+if [[ ! -f "$GOOGLE_SA_PATH" ]]; then
     echo "❌ ERROR: Google service account not found at: $GOOGLE_SA_PATH" >&2
     echo "💡 Set GOOGLE_SERVICE_ACCOUNT_JSON_PATH in .env to correct path" >&2
     exit 1
@@ -210,11 +210,11 @@ cp "$GOOGLE_SA_PATH" "${SA_DIR}/service_account.json"
 echo "   ✓ Google service account: ${SA_DIR}/service_account.json"
 
 # GCS Service Account (OPTIONAL)
-if [ -n "${GCS_SERVICE_ACCOUNT_JSON_PATH}" ]; then
+if [[ -n "${GCS_SERVICE_ACCOUNT_JSON_PATH}" ]]; then
     # Normalize path (handles both absolute and relative paths)
     GCS_SA_PATH="$(realpath -m "${GCS_SERVICE_ACCOUNT_JSON_PATH}" 2>/dev/null || echo "${DEPLOY_DIR}/${GCS_SERVICE_ACCOUNT_JSON_PATH}")"
 
-    if [ -f "$GCS_SA_PATH" ]; then
+    if [[ -f "$GCS_SA_PATH" ]]; then
         cp "$GCS_SA_PATH" "${SA_DIR}/gcs_service_account.json"
         echo "   ✓ GCS service account: ${SA_DIR}/gcs_service_account.json"
     else
@@ -234,17 +234,17 @@ DOCKER_AUTH_FILE=""
 # Check locations in order of preference
 DOCKER_CONFIG_PATH="${DOCKER_CONFIG_PATH:-${HOME}/.config/containers/auth.json}"
 
-if [ -f "$DOCKER_CONFIG_PATH" ]; then
+if [[ -f "$DOCKER_CONFIG_PATH" ]]; then
     DOCKER_AUTH_FILE="$DOCKER_CONFIG_PATH"
-elif [ -f "${XDG_RUNTIME_DIR}/containers/auth.json" ]; then
+elif [[ -f "${XDG_RUNTIME_DIR}/containers/auth.json" ]]; then
     DOCKER_AUTH_FILE="${XDG_RUNTIME_DIR}/containers/auth.json"
-elif [ -f "${HOME}/.docker/config.json" ]; then
+elif [[ -f "${HOME}/.docker/config.json" ]]; then
     DOCKER_AUTH_FILE="${HOME}/.docker/config.json"
-elif [ -f "${HOME}/.config/containers/auth.json" ]; then
+elif [[ -f "${HOME}/.config/containers/auth.json" ]]; then
     DOCKER_AUTH_FILE="${HOME}/.config/containers/auth.json"
 fi
 
-if [ -z "$DOCKER_AUTH_FILE" ]; then
+if [[ -z "$DOCKER_AUTH_FILE" ]]; then
     echo "❌ ERROR: Container registry authentication not found" >&2
     echo "💡 Run: podman login quay.io (or docker login quay.io)" >&2
     echo "" >&2
@@ -265,7 +265,7 @@ echo "   ✓ Source: ${DOCKER_AUTH_FILE}"
 # =============================================================================
 echo "💬 Step 6: Generating prompt templates..."
 
-if [ ! -f "${SCRIPT_DIR}/generate_prompts.py" ]; then
+if [[ ! -f "${SCRIPT_DIR}/generate_prompts.py" ]]; then
     echo "❌ ERROR: generate_prompts.py not found at: ${SCRIPT_DIR}/generate_prompts.py" >&2
     exit 1
 fi
@@ -273,7 +273,7 @@ fi
 cd "$DEPLOY_DIR"
 python3 scripts/generate_prompts.py > /dev/null 2>&1
 
-if [ ! -f "${DEPLOY_DIR}/tekton/base/sast-ai-prompt-templates.yaml" ]; then
+if [[ ! -f "${DEPLOY_DIR}/tekton/base/sast-ai-prompt-templates.yaml" ]]; then
     echo "❌ ERROR: Failed to generate prompt templates" >&2
     exit 1
 fi
@@ -314,7 +314,7 @@ echo "   - ${OVERLAY_DIR}/secrets-llm.env"
 echo "   - ${OVERLAY_DIR}/secrets-s3.env"
 echo "   - ${SA_DIR}/service_account.json"
 echo "   - ${SA_DIR}/.dockerconfigjson"
-[ -f "${SA_DIR}/gcs_service_account.json" ] && echo "   - ${SA_DIR}/gcs_service_account.json"
+[[ -f "${SA_DIR}/gcs_service_account.json" ]] && echo "   - ${SA_DIR}/gcs_service_account.json"
 echo ""
 echo "Next step: Run deployment"
 echo "   make -f Makefile.new deploy-${ENV}"
