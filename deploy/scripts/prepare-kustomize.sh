@@ -17,6 +17,9 @@ DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 OVERLAY_DIR="${DEPLOY_DIR}/tekton/overlays/${ENV}"
 ENV_FILE="${DEPLOY_DIR}/../.env"
 
+# Constants
+SEPARATOR="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 # =============================================================================
 # Validation: Environment
 # =============================================================================
@@ -31,9 +34,9 @@ if [[ ! -d "$OVERLAY_DIR" ]]; then
     exit 1
 fi
 
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$SEPARATOR"
 echo "🔧 Preparing Kustomize overlay: ${ENV}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$SEPARATOR"
 
 # =============================================================================
 # Step 1: Load and validate .env file
@@ -298,15 +301,18 @@ case "$ENV" in
         echo "   ✓ DVC Version: ${DVC_DATA_VERSION}"
         echo "   ✓ S3 Endpoint: ${S3_ENDPOINT_URL}"
         ;;
+    *)
+        echo "   ⚠️  Unknown environment: ${ENV}" >&2
+        ;;
 esac
 
 # =============================================================================
 # Summary
 # =============================================================================
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$SEPARATOR"
 echo "✅ Kustomize overlay prepared successfully: ${ENV}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$SEPARATOR"
 echo ""
 echo "Generated files:"
 echo "   - ${OVERLAY_DIR}/secrets-gitlab.env"
