@@ -296,6 +296,15 @@ clean: ## Remove all deployed resources in current namespace [Params: ENV]
 		echo "💡 Set NAMESPACE environment variable or use: make clean NAMESPACE=my-namespace"; \
 		exit 1; \
 	fi
+	@# Safety check: Prevent deletion of critical namespaces
+	@if echo "$(NAMESPACE)" | grep -qE "^(default|kube-.*|openshift-.*)$$"; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2; \
+		echo "❌ ERROR: Cannot clean critical namespace: $(NAMESPACE)" >&2; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2; \
+		echo "" >&2; \
+		echo "💡 This namespace is protected. Use manual commands if you really need to clean it." >&2; \
+		exit 1; \
+	fi
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🧹 SAST AI Workflow - Cleanup"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
