@@ -24,6 +24,8 @@ spec:
       value: "LLM_URL_PLACEHOLDER"
     - name: LLM_MODEL_NAME
       value: "LLM_MODEL_NAME_PLACEHOLDER"
+    - name: LLM_API_TYPE
+      value: "LLM_API_TYPE_PLACEHOLDER"
     - name: LLM_HTTP_CLIENT_VERIFY
       value: "LLM_HTTP_CLIENT_VERIFY_PLACEHOLDER"
     - name: EMBEDDINGS_LLM_URL
