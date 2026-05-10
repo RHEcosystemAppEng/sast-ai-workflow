@@ -1,0 +1,21 @@
+language: go
+display_name: Go
+
+context_hints: |
+  *0.2 Language-Specific Context (Go):*
+  - `package main` in a non-`cmd/` directory: likely a standalone development tool, not a library used elsewhere
+  - `internal/` package: cannot be imported outside its subtree — check if it is actually used
+  - `vendor/`, `third_party/`, `forked/`: vendored code that may not be built or may be test-only
+  - `*_test.go` files: test-only code, not production
+  - `// +build` / `//go:build` tags: may exclude code from production builds
+  - CLI tools with extensive operator flags may be development utilities where the behavior is expected
+
+issue_patterns: |
+  6. **Issue-Type Specific Patterns (Go)**:
+     - **NIL_DEREF**: Look for `if x == nil { return/panic }` AFTER the allocation or function return
+       that could be nil, but BEFORE the use. Also check interface nil vs typed nil distinctions.
+     - **RESOURCE_LEAK**: Check for `defer f.Close()` or `defer cancel()` — deferred cleanup makes
+       many findings FALSE_POSITIVE. Also check for goroutine leaks (blocked goroutines that never exit).
+     - **NIL_MAP/SLICE**: Nil map writes panic; nil slice reads are safe. Verify whether a write or read occurs.
+     - **BOUNDS**: Track slice length (`len(s)`) and capacity (`cap(s)`) vs index used;
+       check for `append` growing slices unexpectedly.

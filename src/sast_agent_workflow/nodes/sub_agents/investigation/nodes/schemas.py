@@ -63,6 +63,7 @@ class InvestigationState(TypedDict):
     issue_cwe: str
     issue_description: str
     initial_code: str
+    repo_language: str
 
     # Research phase
     research_messages: Annotated[Sequence[BaseMessage], "Messages from research agent"]

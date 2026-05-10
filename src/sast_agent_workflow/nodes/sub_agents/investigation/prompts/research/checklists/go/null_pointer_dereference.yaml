@@ -1,0 +1,28 @@
+---
+# Null Pointer Dereference Investigation Guidance
+# CWE-476
+
+vuln_type: "Null Pointer Dereference"
+cwe_ids: ["CWE-476"]
+
+guidance: |
+  NIL POINTER / NIL VALUE DEREFERENCE EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Value source: new(T), pointer return from function, interface value, map lookup, type assertion
+  2. Dereference location: Where is the nil value accessed (field access, method call, index)?
+  3. Nil check: Is the value checked before use? (if x == nil, if err != nil, comma-ok idiom)
+  4. Interface nil subtlety: Is it a typed nil inside an interface (may pass != nil check but still panic)?
+
+  SEARCH PATTERNS:
+    - Allocations/returns: new(T), &T{}, function returning (*T, error) or (T, bool)
+    - Dereferences: x.Field, x.Method(), x[key] where x may be nil
+    - Nil checks: if x == nil, if err != nil, val, ok := map[key], v, ok := iface.(Type)
+    - Interface typed nil: (*MyType)(nil) assigned to an interface variable
+    - Map nil write: writing to a nil map panics; reading returns zero value
+
+checklist:
+  - "Value source documented (allocation, function return, or map/interface)"
+  - "Dereference location documented (file:line)"
+  - "Nil check presence confirmed (checked or unchecked)"
+  - "Interface typed-nil scenario checked if applicable"

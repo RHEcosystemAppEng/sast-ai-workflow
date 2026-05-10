@@ -165,12 +165,12 @@ class TestBuildToolHistory:
 
     def test__empty_returns_none_yet(self):
         """Empty history should return 'None yet.'."""
-        assert _build_tool_history([]) == "None yet."
+        assert _build_tool_history([], "") == "None yet."
 
     def test__successful_calls(self):
         """Entries starting with checkmark should appear under Successful."""
         history = ["✓ fetch_code(main)", "✓ search_codebase(pattern)"]
-        result = _build_tool_history(history)
+        result = _build_tool_history(history, "")
 
         assert "Successful" in result
         assert "✓ fetch_code(main)" in result
@@ -178,7 +178,7 @@ class TestBuildToolHistory:
     def test__failed_calls_with_warning(self):
         """Entries starting with ✗ should appear under FAILED with retry warning."""
         history = ["✗ search_codebase(bad_pattern)"]
-        result = _build_tool_history(history)
+        result = _build_tool_history(history, "")
 
         assert "FAILED" in result
         assert "DO NOT RETRY" in result
@@ -190,7 +190,7 @@ class TestBuildToolHistory:
             "✓ fetch_code(main)",
             "✗ search_codebase(missing)",
         ]
-        result = _build_tool_history(history)
+        result = _build_tool_history(history, "")
 
         assert "Successful" in result
         assert "FAILED" in result
@@ -198,7 +198,7 @@ class TestBuildToolHistory:
     def test__untagged_entries_default_to_successful(self):
         """Entries without ✓/✗ prefix should be treated as successful."""
         history = ["fetch_code(func)"]
-        result = _build_tool_history(history)
+        result = _build_tool_history(history, "")
 
         assert "Successful" in result
         assert "fetch_code(func)" in result
@@ -242,7 +242,7 @@ class TestBuildResearchInstructions:
         result = build_research_instructions(state)
 
         assert "EVIDENCE CHECKLIST" in result
-        mock_checklist.assert_called_once_with("CWE-119")
+        mock_checklist.assert_called_once_with("CWE-119", "generic")
 
     def test__continuation_iteration_returns_feedback_instructions(self):
         """Iteration > 1 should produce feedback-based continuation instructions."""
