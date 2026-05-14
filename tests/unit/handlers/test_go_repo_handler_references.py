@@ -19,6 +19,7 @@ def make_handler():
         handler = GoRepoHandler(Mock())
     handler._report_file_prefix = "myproject-1.0/"
     handler.repo_local_path = "/repo"
+    handler.project_name = ""
     handler.index = Mock()
     handler.index._file_content_cache = {}
     handler.index.symbol_data = []

@@ -13,6 +13,7 @@ import tree_sitter_go
 from tree_sitter import Language, Node, Parser
 
 from common.config import Config
+from Utils.report_path_utils import normalize_report_source_path
 
 logger = logging.getLogger(__name__)
 
@@ -120,10 +121,7 @@ class GoRepoHandler:
     def __init__(self, config: Config) -> None:
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
         self.repo_local_path = config.REPO_LOCAL_PATH
-
-        if not config.DOWNLOAD_REPO:
-            _, self._report_file_prefix = os.path.split(config.REPO_LOCAL_PATH)
-            self._report_file_prefix = os.path.join(self._report_file_prefix, "")
+        self.project_name = config.PROJECT_NAME
 
         # Initialize tree-sitter
         self._init_tree_sitter()
@@ -591,7 +589,11 @@ class GoRepoHandler:
         """Resolve a file path from an error trace to a local absolute path."""
         if os.path.isabs(file_path):
             return file_path
-        clean_path = file_path.removeprefix(self._report_file_prefix)
+        clean_path = normalize_report_source_path(
+            file_path,
+            report_file_prefix=self._report_file_prefix,
+            project_name=self.project_name,
+        )
         if clean_path.startswith("../") or clean_path.startswith("./"):
             return os.path.abspath(clean_path)
         return os.path.join(self.repo_local_path, clean_path)
