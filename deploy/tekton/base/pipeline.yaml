@@ -87,12 +87,30 @@ spec:
       type: string
       description: "Number of issues to process concurrently (1 = sequential, 5 = default)"
       default: "5"
+    - name: SARIF_S3_INPUT_BUCKET_NAME
+      type: string
+      description: "S3 input bucket name for downloading SARIF (optional)"
+      default: ""
+    - name: INPUT_S3_KEY
+      type: string
+      description: "S3 key/path for input SARIF file (optional)"
+      default: ""
+    - name: SARIF_S3_OUTPUT_BUCKET_NAME
+      type: string
+      description: "S3 output bucket name for uploading SARIF (optional)"
+      default: ""
+    - name: SARIF_S3_ENDPOINT_URL
+      type: string
+      description: "S3 endpoint URL for MinIO/non-AWS S3 (optional)"
+      default: ""
   workspaces:
     - name: gitlab-token-ws
       optional: true
     - name: google-sa-json-ws
     - name: gcs-sa-json-ws
       optional: true
+    - name: s3-creds-ws
+      optional: false
   tasks:
     - name: execute-ai-analysis
       timeout: "5h0m0s"
@@ -144,6 +162,14 @@ spec:
           value: "$(params.BASE_IMAGE)"
         - name: MAX_CONCURRENT_INVESTIGATIONS
           value: "$(params.MAX_CONCURRENT_INVESTIGATIONS)"
+        - name: SARIF_S3_INPUT_BUCKET_NAME
+          value: "$(params.SARIF_S3_INPUT_BUCKET_NAME)"
+        - name: INPUT_S3_KEY
+          value: "$(params.INPUT_S3_KEY)"
+        - name: SARIF_S3_OUTPUT_BUCKET_NAME
+          value: "$(params.SARIF_S3_OUTPUT_BUCKET_NAME)"
+        - name: SARIF_S3_ENDPOINT_URL
+          value: "$(params.SARIF_S3_ENDPOINT_URL)"
       workspaces:
         - name: gitlab-token-ws
           workspace: gitlab-token-ws
@@ -151,3 +177,5 @@ spec:
           workspace: google-sa-json-ws
         - name: gcs-sa-json-ws
           workspace: gcs-sa-json-ws
+        - name: s3-creds-ws
+          workspace: s3-creds-ws

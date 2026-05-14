@@ -1,10 +1,4 @@
-- op: add
-  path: /spec/params/-
-  value:
-    name: S3_OUTPUT_BUCKET_NAME
-    type: string
-    description: "S3/Minio bucket name for uploading analysis results"
-    default: ""
+# S3_OUTPUT_BUCKET_NAME inherited from base
 - op: add
   path: /spec/params/-
   value:
@@ -20,7 +14,7 @@
       name: s3-output-upload-scripts
       defaultMode: 0755
 - op: replace
-  path: /spec/steps/6
+  path: /spec/steps/7
   value:
     name: upload-to-s3-output
     image: $(params.BASE_IMAGE)

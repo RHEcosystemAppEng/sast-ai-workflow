@@ -239,11 +239,18 @@ class Config:
             LLM_API_TYPE,
             EMBEDDINGS_LLM_URL,
             EMBEDDINGS_LLM_MODEL_NAME,
-            INPUT_REPORT_FILE_PATH,
             OUTPUT_FILE_PATH,
             SIMILARITY_ERROR_THRESHOLD,
         }
-        required_cfg_files = {INPUT_REPORT_FILE_PATH}
+
+        # INPUT_REPORT_FILE_PATH is required UNLESS using S3 download
+        if not os.getenv('INPUT_S3_KEY'):
+            required_cfg_vars.add(INPUT_REPORT_FILE_PATH)
+
+        required_cfg_files = set()
+        # Skip INPUT_REPORT_FILE_PATH file validation if using S3 download
+        if not os.getenv('INPUT_S3_KEY'):
+            required_cfg_files.add(INPUT_REPORT_FILE_PATH)
 
         # Check if DOWNLOAD_REPO is True then validate a REPO URL was provided
         if self.DOWNLOAD_REPO is True:
@@ -271,9 +278,9 @@ class Config:
             required_cfg_files.add(HUMAN_VERIFIED_FILE_PATH)
 
         # Ensure service account JSON exists if using Google Sheets as input
-        if self.INPUT_REPORT_FILE_PATH.startswith("https"):
+        if self.INPUT_REPORT_FILE_PATH and self.INPUT_REPORT_FILE_PATH.startswith("https"):
             required_cfg_files.add(SERVICE_ACCOUNT_JSON_PATH)
-            required_cfg_files.remove(INPUT_REPORT_FILE_PATH)
+            required_cfg_files.discard(INPUT_REPORT_FILE_PATH)
 
         # Ensure service account JSON exists if write aggregate resutls to Google Sheet
         if self.AGGREGATE_RESULTS_G_SHEET:

@@ -1,5 +1,5 @@
 - op: replace
-  path: /spec/steps/3
+  path: /spec/steps/4
   value:
     name: transform-report
     image: $(params.BASE_IMAGE)
@@ -13,10 +13,10 @@
         value: "$(params.DVC_REPO_URL)"
       - name: DVC_DATA_VERSION
         value: "$(params.DVC_DATA_VERSION)"
-      - name: S3_ENDPOINT_URL
-        value: "$(params.S3_ENDPOINT_URL)"
-      - name: S3_INPUT_BUCKET_NAME
-        value: "$(params.S3_INPUT_BUCKET_NAME)"
+      - name: DVC_S3_ENDPOINT_URL
+        value: "$(params.DVC_S3_ENDPOINT_URL)"
+      - name: DVC_S3_INPUT_BUCKET_NAME
+        value: "$(params.DVC_S3_INPUT_BUCKET_NAME)"
       - name: AWS_ACCESS_KEY_ID
         valueFrom:
           secretKeyRef:

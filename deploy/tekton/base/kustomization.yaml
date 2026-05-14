@@ -4,8 +4,9 @@ kind: Kustomization
 resources:
   - pipeline.yaml
   - tasks/execute_sast_ai_workflow.yaml
-  # Upload scripts ConfigMaps
+  # Upload/Download scripts ConfigMaps
   - configmaps/upload_to_drive_cm.yaml
   - configmaps/upload_to_gcs_cm.yaml
+  - configmaps/download_from_s3_cm.yaml
   - configmaps/upload_to_s3_output_cm.yaml
 

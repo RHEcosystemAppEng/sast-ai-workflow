@@ -34,13 +34,13 @@
 # Override SERVICE_ACCOUNT_JSON_PATH to prevent Google Sheets authentication attempts
 # MLOps evaluation mode always uses XLSX files from DVC/S3/MinIO, never Google Sheets
 - op: replace
-  path: /spec/steps/5/env/16/value
+  path: /spec/steps/6/env/16/value
   value: ""
 - op: replace
-  path: /spec/steps/5/image
+  path: /spec/steps/6/image
   value: "$(params.CONTAINER_IMAGE)"
 - op: replace
-  path: /spec/steps/5/script
+  path: /spec/steps/6/script
   value: |
     #!/usr/bin/env sh
     # Export Tekton parameters as environment variables for the script
@@ -51,7 +51,7 @@
     # Run the evaluation workflow script
     /app/deploy/tekton/scripts/run-evaluation-workflow.sh
 - op: add
-  path: /spec/steps/7
+  path: /spec/steps/8
   value:
     name: write-evaluation-results-mlops
     image: $(params.BASE_IMAGE)
@@ -66,7 +66,7 @@
     command: ["/scripts/write_evaluation_results.sh"]
 # STEP 9: Upload token metrics to S3/MinIO
 - op: add
-  path: /spec/steps/8
+  path: /spec/steps/9
   value:
     name: upload-token-metrics-to-s3-mlops
     image: $(params.BASE_IMAGE)
@@ -105,7 +105,7 @@
     command: ["/scripts/upload_token_metrics_to_s3.sh"]
 # STEP 10: Add EVALUATE_SPECIFIC_NODE env var to cleanup step
 - op: add
-  path: /spec/steps/9/env/-
+  path: /spec/steps/10/env/-
   value:
     name: EVALUATE_SPECIFIC_NODE
     value: "$(params.EVALUATE_SPECIFIC_NODE)"

@@ -1,3 +1,4 @@
+# DVC-specific parameters with DVC S3 configuration
 - op: add
   path: /spec/params/-
   value:
@@ -11,20 +12,20 @@
     name: DVC_DATA_VERSION
     type: string
     description: "DVC data version tag (e.g., v1.0)"
-    default: "v1.0"
+    default: "v2.0.4"
 - op: add
   path: /spec/params/-
   value:
-    name: S3_ENDPOINT_URL
+    name: DVC_S3_ENDPOINT_URL
     type: string
     description: "MinIO/S3 endpoint URL for DVC remote storage"
     default: ""
 - op: add
   path: /spec/params/-
   value:
-    name: S3_INPUT_BUCKET_NAME
+    name: DVC_S3_INPUT_BUCKET_NAME
     type: string
-    description: "S3/MinIO bucket name for input data"
+    description: "S3/MinIO bucket name for DVC input data"
     default: "test"
 - op: add
   path: /spec/params/-
@@ -33,3 +34,10 @@
     type: string
     description: "Comma-separated list of evaluation nodes to run: 'filter', 'summary', 'judge', 'all'. Default 'all' runs normal workflow."
     default: "all"
+- op: add
+  path: /spec/params/-
+  value:
+    name: S3_OUTPUT_BUCKET_NAME
+    type: string
+    description: "S3/MinIO bucket for evaluation metrics and DVC outputs"
+    default: "test"

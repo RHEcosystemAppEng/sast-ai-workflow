@@ -1,5 +1,5 @@
 - op: replace
-  path: /spec/steps/1
+  path: /spec/steps/2
   value:
     name: validate-report-file
     image: $(params.BASE_IMAGE)
