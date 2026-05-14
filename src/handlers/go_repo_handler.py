@@ -8,20 +8,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 import regex
-
-try:
-    import tree_sitter
-    import tree_sitter_go
-    from tree_sitter import Language, Node, Parser
-except ImportError:
-    tree_sitter = None
-    tree_sitter_go = None
-    Language = None
-    Parser = None
-    Node = None
+import tree_sitter
+import tree_sitter_go
+from tree_sitter import Language, Node, Parser
 
 from common.config import Config
-from Utils.repo_utils import get_repo_and_branch_from_url
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +30,11 @@ class CodeLocation:
 
 @dataclass(slots=True)
 class Symbol:
-    """Represents a symbol definition."""
+    """One named Go declaration captured for indexing (function, type, const, or var).
+
+    Examples: ``func HandleRequest``, ``type User struct``, ``const MaxRetries = 3``,
+    ``func (s *Server) Close() error``.
+    """
 
     name: str
     kind: str  # 'function', 'method', 'type', 'variable', 'constant'
@@ -123,13 +118,6 @@ class GoRepoHandler:
     _parser: Optional["Parser"] = None
 
     def __init__(self, config: Config) -> None:
-        if tree_sitter is None or tree_sitter_go is None:
-            raise ImportError(
-                "tree-sitter and tree-sitter-go are required. "
-                "Install with: pip install tree-sitter tree-sitter-go"
-            )
-
-        self.url, self.branch = get_repo_and_branch_from_url(config.REPO_REMOTE_URL)
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
         self.repo_local_path = config.REPO_LOCAL_PATH
 
@@ -200,13 +188,13 @@ class GoRepoHandler:
         """Index symbols and references in a single file."""
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
+                file_content = f.read()
 
-            tree = self.parser.parse(bytes(content, "utf8"))
+            tree = self.parser.parse(bytes(file_content, "utf8"))
 
             package_name = self._extract_package_name(tree)
-            self._extract_symbols(tree, content, file_path, package_name)
-            self._extract_references(tree, content, file_path)
+            self._extract_symbols(tree, file_content, file_path, package_name)
+            self._extract_references(tree, file_content, file_path)
 
         except FileNotFoundError:
             logger.error(f"File not found during indexing: {file_path}")
