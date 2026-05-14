@@ -36,7 +36,7 @@ class TestExtractDocumentation:
         content = "// DoSomething does something.\nfunc DoSomething() {}"
         node = make_node(1)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == ["DoSomething does something."]
 
@@ -49,7 +49,7 @@ class TestExtractDocumentation:
         )
         node = make_node(2)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == ["DoSomething does something.", "It also does something else."]
 
@@ -59,7 +59,7 @@ class TestExtractDocumentation:
         content = "// Unrelated comment.\n\nfunc DoSomething() {}"
         node = make_node(2)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == []
 
@@ -69,7 +69,7 @@ class TestExtractDocumentation:
         content = "// First comment.\n\n// Second comment.\nfunc DoSomething() {}"
         node = make_node(3)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == ["Second comment."]
 
@@ -78,7 +78,7 @@ class TestExtractDocumentation:
         content = "var x = 1\n// DoSomething does something.\nfunc DoSomething() {}"
         node = make_node(2)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == ["DoSomething does something."]
 
@@ -87,7 +87,7 @@ class TestExtractDocumentation:
         content = "var x = 1\nfunc DoSomething() {}"
         node = make_node(1)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == []
 
@@ -96,7 +96,7 @@ class TestExtractDocumentation:
         content = "func DoSomething() {}"
         node = make_node(0)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == []
 
@@ -105,7 +105,7 @@ class TestExtractDocumentation:
         content = "/* DoSomething does something. */\nfunc DoSomething() {}"
         node = make_node(1)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == ["DoSomething does something."]
 
@@ -120,7 +120,7 @@ class TestExtractDocumentation:
         )
         node = make_node(4)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert "DoSomething does something." in result
         assert "It accepts no arguments." in result
@@ -130,7 +130,7 @@ class TestExtractDocumentation:
         content = "/*\n * First line.\n * Second line.\n */\nfunc DoSomething() {}"
         node = make_node(4)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result.index("First line.") < result.index("Second line.")
 
@@ -139,7 +139,7 @@ class TestExtractDocumentation:
         content = "/*\n * Unrelated.\n */\n\nfunc DoSomething() {}"
         node = make_node(4)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == []
 
@@ -148,7 +148,7 @@ class TestExtractDocumentation:
         content = "//   Padded comment.   \nfunc DoSomething() {}"
         node = make_node(1)
 
-        result = handler._extract_documentation(node, content)
+        result = handler._extract_documentation(node, content.split("\n"))
 
         assert result == ["Padded comment."]
 

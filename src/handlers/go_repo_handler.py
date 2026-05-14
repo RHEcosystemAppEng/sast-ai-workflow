@@ -192,9 +192,12 @@ class GoRepoHandler:
 
             tree = self.parser.parse(bytes(file_content, "utf8"))
 
+            lines = file_content.split("\n")
+            self.index._file_content_cache[file_path] = file_content
+
             package_name = self._extract_package_name(tree)
-            self._extract_symbols(tree, file_content, file_path, package_name)
-            self._extract_references(tree, file_content, file_path)
+            self._extract_symbols(tree, file_content, file_path, package_name, lines)
+            self._extract_references(tree, file_path, lines)
 
         except FileNotFoundError:
             logger.error(f"File not found during indexing: {file_path}")
@@ -222,10 +225,14 @@ class GoRepoHandler:
         return package_name if package_name else "unknown"
 
     def _extract_symbols(
-        self, tree: tree_sitter.Tree, content: str, file_path: str, package_name: str
+        self,
+        tree: tree_sitter.Tree,
+        content: str,
+        file_path: str,
+        package_name: str,
+        lines: List[str],
     ):
         """Extract symbol definitions from the file using manual traversal."""
-        lines = content.split("\n")
         NODE_KIND_MAP = {
             "function_declaration": "func",
             "method_declaration": "method",
@@ -319,10 +326,10 @@ class GoRepoHandler:
         # Extract signature for functions/methods
         signature = ""
         if kind in ["func", "method"]:
-            signature = self._extract_function_signature(node, content)
+            signature = self._extract_function_signature(node, content, lines)
 
         # Extract documentation
-        documentation = self._extract_documentation(node, content)
+        documentation = self._extract_documentation(node, lines)
 
         return Symbol(
             name=name,
@@ -336,10 +343,8 @@ class GoRepoHandler:
             documentation=documentation,
         )
 
-    def _extract_references(self, tree: tree_sitter.Tree, content: str, file_path: str):
+    def _extract_references(self, tree: tree_sitter.Tree, file_path: str, lines: List[str]):
         """Extract symbol references from the file using manual traversal."""
-        lines = content.split("\n")
-
         # Extract all references
         references = self._traverse_for_references(tree.root_node, file_path, lines)
 
@@ -435,7 +440,7 @@ class GoRepoHandler:
         """Extract receiver type from method receiver."""
         return receiver_node.text.decode("utf-8") if receiver_node else ""
 
-    def _extract_function_signature(self, node: Node, content: str) -> str:
+    def _extract_function_signature(self, node: Node, content: str, lines: List[str]) -> str:
         """Extract function signature."""
         try:
             for child in node.children:
@@ -443,11 +448,14 @@ class GoRepoHandler:
                     sig_end = child.start_byte
                     sig_start = node.start_byte
                     return content[sig_start:sig_end].strip()
-            return content.split("\n")[node.start_point[0]].strip()
+            row = node.start_point[0]
+            if 0 <= row < len(lines):
+                return lines[row].strip()
+            return ""
         except Exception:
             return ""
 
-    def _extract_documentation(self, node: Node, content: str) -> List[str]:
+    def _extract_documentation(self, node: Node, lines: List[str]) -> List[str]:
         """Extract documentation comments for a symbol.
 
         Follows Go godoc convention: only comments immediately preceding the
@@ -455,7 +463,6 @@ class GoRepoHandler:
         """
         docs = []
         target_line = node.start_point[0]
-        lines = content.split("\n")
 
         i = target_line - 1
         while i >= 0:
@@ -643,7 +650,7 @@ class GoRepoHandler:
         if not instructions:
             return "", found_symbols
 
-        missing_source_codes = ""
+        parts: List[str] = []
 
         for instruction in instructions:
             try:
@@ -655,15 +662,13 @@ class GoRepoHandler:
 
                     for symbol in symbols:
                         if symbol.name not in found_symbols:
-                            missing_source_codes += (
-                                f"\n\n// Definition of {symbol.name} ({symbol.kind}):\n"
-                            )
-                            missing_source_codes += symbol.source_code
+                            parts.append(f"\n\n// Definition of {symbol.name} ({symbol.kind}):\n")
+                            parts.append(symbol.source_code)
                             found_symbols.add(symbol.name)
             except AttributeError:
                 continue
 
-        return missing_source_codes, found_symbols
+        return "".join(parts), found_symbols
 
     def get_definition_by_name(
         self, symbol_name: str, file_path: Optional[str] = None
