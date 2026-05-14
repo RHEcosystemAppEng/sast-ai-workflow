@@ -9,7 +9,8 @@ from clang.cindex import Cursor, CursorKind, TranslationUnit
 
 from common.config import Config
 from Utils.file_utils import load_json_file
-from Utils.repo_utils import download_repo, get_repo_and_branch_from_url
+from Utils.repo_utils import get_repo_and_branch_from_url
+from Utils.report_path_utils import normalize_report_source_path
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +33,8 @@ class CRepoHandler:
         # It helps in locating the correct files,
         # by removing this prefix to the paths found in the error traces.
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
-
-        if config.DOWNLOAD_REPO:
-            # downloading git repository for given project
-            self.repo_local_path = download_repo(config.REPO_REMOTE_URL)
-        else:
-            # Override self._report_file_prefix when a local path is provided in REPO_LOCAL_PATH.
-            # This is a safer approach,
-            # because not all packages use the 'package-version' format for the dest folder name.
-            _, self._report_file_prefix = os.path.split(config.REPO_LOCAL_PATH)
-            # Ensure the trailing slash is present
-            self._report_file_prefix = os.path.join(self._report_file_prefix, "")
-            self.repo_local_path = config.REPO_LOCAL_PATH
-            logger.debug("Skipping github repo download as per configuration.")
+        self.repo_local_path = config.REPO_LOCAL_PATH
+        self.project_name = config.PROJECT_NAME
 
         # This list contains specific arguments to be passed to the Clang compiler.
         # These arguments are used to configure the parsing and analysis of the source code.
@@ -113,7 +103,11 @@ class CRepoHandler:
                 logger.warning(f"Invalid line number '{line_number}' for file {file_path}")
                 continue
 
-            file_path = file_path.removeprefix(self._report_file_prefix)
+            file_path = normalize_report_source_path(
+                file_path,
+                report_file_prefix=self._report_file_prefix,
+                project_name=self.project_name,
+            )
             local_file_path = os.path.join(self.repo_local_path, file_path)
             if not os.path.exists(local_file_path):
                 logger.debug(f"Skipping missing file: {local_file_path}")
@@ -211,8 +205,12 @@ class CRepoHandler:
         def get_path(path: str):
             try:
                 path = path.removeprefix(self.repo_local_path)
-                path = path.removeprefix(self._report_file_prefix)
                 path = path.split(":")[0]
+                path = normalize_report_source_path(
+                    path,
+                    report_file_prefix=self._report_file_prefix,
+                    project_name=self.project_name,
+                )
                 return path
             except (AttributeError, TypeError) as e:
                 logger.warning(f"Invalid path format: {path}. Error: {e}")
@@ -423,10 +421,3 @@ class CRepoHandler:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]
 
         return file_path, code_line_number
-
-    def reset_found_symbols(self):
-        """Reset the accumulated found symbols for a new analysis session.
-
-        Note: Deprecated - symbol tracking is now per-issue in the new workflow.
-        """
-        pass
