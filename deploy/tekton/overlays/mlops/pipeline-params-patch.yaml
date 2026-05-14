@@ -1,4 +1,4 @@
-# DVC and S3 Input parameters
+# DVC parameters with DVC-specific S3 configuration
 - op: add
   path: /spec/params/-
   value:
@@ -12,32 +12,23 @@
     name: DVC_DATA_VERSION
     type: string
     description: "DVC data version tag (e.g., v1.0)"
-    default: "v1.0"
+    default: "v2.0.4"
 - op: add
   path: /spec/params/-
   value:
-    name: S3_ENDPOINT_URL
+    name: DVC_S3_ENDPOINT_URL
     type: string
     description: "MinIO/S3 endpoint URL for DVC remote storage"
     default: ""
 - op: add
   path: /spec/params/-
   value:
-    name: S3_INPUT_BUCKET_NAME
+    name: DVC_S3_INPUT_BUCKET_NAME
     type: string
-    description: "S3/MinIO bucket name for input data"
+    description: "S3/MinIO bucket name for DVC input data"
     default: "test"
 
-# S3 Output parameters
-- op: add
-  path: /spec/params/-
-  value:
-    name: S3_OUTPUT_BUCKET_NAME
-    type: string
-    description: "S3/Minio bucket name for uploading analysis results"
-    default: ""
-
-# Pass parameters to task
+# Pass DVC-specific parameters to task
 - op: add
   path: /spec/tasks/0/params/-
   value:
@@ -51,18 +42,13 @@
 - op: add
   path: /spec/tasks/0/params/-
   value:
-    name: S3_ENDPOINT_URL
-    value: "$(params.S3_ENDPOINT_URL)"
+    name: DVC_S3_ENDPOINT_URL
+    value: "$(params.DVC_S3_ENDPOINT_URL)"
 - op: add
   path: /spec/tasks/0/params/-
   value:
-    name: S3_INPUT_BUCKET_NAME
-    value: "$(params.S3_INPUT_BUCKET_NAME)"
-- op: add
-  path: /spec/tasks/0/params/-
-  value:
-    name: S3_OUTPUT_BUCKET_NAME
-    value: "$(params.S3_OUTPUT_BUCKET_NAME)"
+    name: DVC_S3_INPUT_BUCKET_NAME
+    value: "$(params.DVC_S3_INPUT_BUCKET_NAME)"
 - op: add
   path: /spec/tasks/0/params/-
   value:
@@ -76,7 +62,19 @@
     description: "Comma-separated list of evaluation nodes to run: 'filter', 'summary', 'judge', 'all'. Default 'all' runs normal workflow."
     default: "all"
 - op: add
+  path: /spec/params/-
+  value:
+    name: S3_OUTPUT_BUCKET_NAME
+    type: string
+    description: "S3/MinIO bucket for evaluation metrics and DVC outputs"
+    default: "test"
+- op: add
   path: /spec/tasks/0/params/-
   value:
     name: EVALUATE_SPECIFIC_NODE
     value: "$(params.EVALUATE_SPECIFIC_NODE)"
+- op: add
+  path: /spec/tasks/0/params/-
+  value:
+    name: S3_OUTPUT_BUCKET_NAME
+    value: "$(params.S3_OUTPUT_BUCKET_NAME)"
