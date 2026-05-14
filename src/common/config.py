@@ -127,8 +127,8 @@ class Config:
                 logger.info(f"Loaded prompt template from file: {prompt_name}.yaml")
                 return template
 
-        except Exception as e:
-            logger.error(f"Error loading prompt file {prompt_name}.yaml: {e}")
+        except Exception:
+            logger.exception(f"Error loading prompt file {prompt_name}.yaml")
             return ""
 
     def load_config(self):
