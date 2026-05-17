@@ -187,10 +187,8 @@ def main():
                         metric_request = metric_request_from_prompt(llm_response)
                         score = metric_handler.evaluate_datasets(metric_request)
 
-            except Exception as e:
-                logger.error(
-                    f"An error occurred while processing issue ID {issue.id}.\nError is: {e}"
-                )
+            except Exception:
+                logger.exception(f"An error occurred while processing issue ID {issue.id}")
                 if not llm_response:
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(
@@ -227,8 +225,8 @@ def main():
 
         dvc_service.track_workflow_execution(config, issue_list)
 
-    except Exception as e:
-        logger.error("Error occurred while generating excel file:", e)
+    except Exception:
+        logger.exception("Error occurred while generating excel file")
     finally:
         print_conclusion(evaluation_summary, failed_item_ids)
         close_embedding_pool()

@@ -201,8 +201,8 @@ class GoRepoHandler:
             logger.error(f"File not found during indexing: {file_path}")
         except PermissionError:
             logger.error(f"Permission denied reading file: {file_path}")
-        except UnicodeDecodeError as e:
-            logger.error(f"Failed to decode {file_path}: {e}")
+        except UnicodeDecodeError:
+            logger.exception(f"Failed to decode {file_path}")
 
     def _extract_package_name(self, tree: tree_sitter.Tree) -> str:
         """Extract package name from file."""
@@ -594,7 +594,7 @@ class GoRepoHandler:
             report_file_prefix=self._report_file_prefix,
             project_name=self.project_name,
         )
-        if clean_path.startswith("../") or clean_path.startswith("./"):
+        if clean_path.startswith(("../", "./")):
             return os.path.abspath(clean_path)
         return os.path.join(self.repo_local_path, clean_path)
 
@@ -628,8 +628,8 @@ class GoRepoHandler:
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     self.index._file_content_cache[file_path] = f.read()
-            except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
-                logger.error(f"Failed to read {file_path}: {e}")
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError):
+                logger.exception(f"Failed to read {file_path}")
                 return ""
 
         content = self.index._file_content_cache[file_path]

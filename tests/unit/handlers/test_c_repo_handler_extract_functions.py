@@ -24,9 +24,7 @@ class TestExtractMissingFunctionsOrMacros:
 
             # testing
             with patch("src.handlers.c_repo_handler.logger") as mock_logger:
-                result, updated_symbols = repo_handler.extract_missing_functions_or_macros(
-                    [instruction], set()
-                )
+                result, _ = repo_handler.extract_missing_functions_or_macros([instruction], set())
 
                 # assertion
                 assert result == ""
@@ -68,9 +66,7 @@ class TestExtractMissingFunctionsOrMacros:
                     {"src/main.c": {"missing_function": "int missing_function() { return 0; }"}},
                 )
 
-                result, updated_symbols = repo_handler.extract_missing_functions_or_macros(
-                    [instruction], set()
-                )
+                result, _ = repo_handler.extract_missing_functions_or_macros([instruction], set())
 
                 # assertion
                 assert "int missing_function() { return 0; }" in result

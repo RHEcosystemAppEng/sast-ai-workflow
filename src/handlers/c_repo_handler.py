@@ -239,10 +239,8 @@ class CRepoHandler:
                     expressions_list, source_code_path
                 )
                 found_symbols.update(new_found_symbols)
-            except Exception as e:
-                logger.error(
-                    f"Failed to retrieve {expressions_list} from {source_code_path}.\nError:{e}"
-                )
+            except Exception:
+                logger.exception(f"Failed to retrieve {expressions_list} from {source_code_path}")
             if source_code:
                 for file_path, exps_dict in source_code.items():
                     joined_exps = "\n\n".join([exp for exp in exps_dict.values()])
@@ -303,8 +301,8 @@ class CRepoHandler:
 
             for diag in translation_unit.diagnostics:
                 logger.info(f"[{diag.severity}] {diag.spelling}")
-        except Exception as e:
-            logger.error(f"{e}, {type(e)}")
+        except Exception:
+            logger.exception("Failed to extract definitions from source code")
 
         found_symbols = set(
             [symbol for symbols in source_code_dict.values() for symbol in symbols.keys()]
@@ -396,8 +394,8 @@ class CRepoHandler:
                 check=False,
                 shell=True,
             )
-        except Exception as e:
-            logger.error(e)
+        except Exception:
+            logger.exception("Failed to run grep for function definition")
 
         if result and result.stdout:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]
@@ -414,8 +412,8 @@ class CRepoHandler:
             result = subprocess.run(
                 command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False
             )
-        except Exception as e:
-            logger.error(e)
+        except Exception:
+            logger.exception("Failed to run grep for macro definition")
 
         if result and result.stdout:
             file_path, code_line_number = result.stdout.strip().split(":")[:2]

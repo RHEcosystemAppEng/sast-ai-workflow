@@ -269,7 +269,7 @@ class TestGetSourceCodeBlocksFromErrorTrace:
         result = handler.get_source_code_blocks_from_error_trace(trace)
 
         assert len(result) == 1
-        value = list(result.values())[0]
+        value = next(iter(result.values()))
         assert "func A" in value
         assert "func B" in value
 
