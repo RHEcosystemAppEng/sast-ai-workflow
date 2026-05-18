@@ -65,9 +65,9 @@ class SarifReportReader(BaseReportReader):
         """
         try:
             # Check if it's a URL (not supported for SARIF currently)
-            if file_path.startswith("https://") or file_path.startswith(
-                "http://"
-            ):  # NOSONAR - protocol check, not making request
+            if file_path.startswith(
+                ("http://", "https://")  # NOSONAR S5332 - protocol check, not making request
+            ):
                 return False
 
             # Check file extension

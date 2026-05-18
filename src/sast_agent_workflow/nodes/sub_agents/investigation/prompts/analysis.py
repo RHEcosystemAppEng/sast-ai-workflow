@@ -27,7 +27,9 @@ _CONTEXT_DIR = Path(__file__).parent / "analysis"
 
 @lru_cache(maxsize=1)
 def _get_jinja_env() -> Environment:
-    return Environment(keep_trailing_newline=True, undefined=StrictUndefined)
+    return Environment(  # NOSONAR S5247 - renders plain-text LLM prompts, not HTML
+        keep_trailing_newline=True, undefined=StrictUndefined
+    )
 
 
 @lru_cache(maxsize=1)
