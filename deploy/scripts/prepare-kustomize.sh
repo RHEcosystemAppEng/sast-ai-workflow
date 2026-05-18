@@ -222,9 +222,13 @@ if [[ -n "${GCS_SERVICE_ACCOUNT_JSON_PATH}" ]]; then
         echo "   ✓ GCS service account: ${SA_DIR}/gcs_service_account.json"
     else
         echo "   ⚠️  GCS service account not found (optional): $GCS_SA_PATH"
+        # Create placeholder file so Kustomize doesn't fail
+        echo '{"type": "service_account", "project_id": "not-configured"}' > "${SA_DIR}/gcs_service_account.json"
     fi
 else
     echo "   ⚠️  GCS service account not configured (optional)"
+    # Create placeholder file so Kustomize doesn't fail
+    echo '{"type": "service_account", "project_id": "not-configured"}' > "${SA_DIR}/gcs_service_account.json"
 fi
 
 # =============================================================================
@@ -264,29 +268,9 @@ echo "   ✓ Container registry auth: ${SA_DIR}/.dockerconfigjson"
 echo "   ✓ Source: ${DOCKER_AUTH_FILE}"
 
 # =============================================================================
-# Step 6: Generate prompt templates
+# Step 6: Environment-specific configurations
 # =============================================================================
-echo "💬 Step 6: Generating prompt templates..."
-
-if [[ ! -f "${SCRIPT_DIR}/generate_prompts.py" ]]; then
-    echo "❌ ERROR: generate_prompts.py not found at: ${SCRIPT_DIR}/generate_prompts.py" >&2
-    exit 1
-fi
-
-cd "$DEPLOY_DIR"
-python3 scripts/generate_prompts.py > /dev/null 2>&1
-
-if [[ ! -f "${DEPLOY_DIR}/tekton/base/sast-ai-prompt-templates.yaml" ]]; then
-    echo "❌ ERROR: Failed to generate prompt templates" >&2
-    exit 1
-fi
-
-echo "   ✓ Prompt templates generated: tekton/base/sast-ai-prompt-templates.yaml"
-
-# =============================================================================
-# Step 7: Environment-specific configurations
-# =============================================================================
-echo "⚙️  Step 7: Environment-specific configurations..."
+echo "⚙️  Step 6: Environment-specific configurations..."
 
 case "$ENV" in
     dev)

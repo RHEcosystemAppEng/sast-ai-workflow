@@ -177,7 +177,6 @@ deploy/tekton/eventlistener/benchmark-config.yaml
 # Generated secrets and service accounts (created by prepare-kustomize.sh)
 deploy/tekton/overlays/*/secrets-*.env
 deploy/tekton/overlays/*/service-accounts/
-deploy/tekton/base/sast-ai-prompt-templates.yaml
 gcs_service_account.json
 service_account.json
 
