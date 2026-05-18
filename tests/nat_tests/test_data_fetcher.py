@@ -50,7 +50,6 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         mock_repo_handler.get_source_code_blocks_from_error_trace.return_value = {
             "file.c": "int f(){}"
         }
-        mock_repo_handler.reset_found_symbols.return_value = None
         mock_repo_handler_factory.return_value = mock_repo_handler
 
         # testing
@@ -323,13 +322,10 @@ class TestDataFetcherCore(unittest.IsolatedAsyncioTestCase):
         self.assertIn("new", merged)
 
     @patch("sast_agent_workflow.nodes.data_fetcher.repo_handler_factory")
-    async def test_initial_fetch_error_and_reset_exception_are_handled(
-        self, mock_repo_handler_factory
-    ):
+    async def test_initial_fetch_error_is_handled(self, mock_repo_handler_factory):
         tracker = TestUtils.create_sample_tracker(self.sample_issues, iteration_count=0)
         mock_repo_handler = Mock()
         mock_repo_handler.get_source_code_blocks_from_error_trace.side_effect = Exception("boom")
-        mock_repo_handler.reset_found_symbols.side_effect = Exception("reset-boom")
         mock_repo_handler_factory.return_value = mock_repo_handler
         # Should not raise
         await TestUtils.run_single_fn(data_fetcher, self.data_fetcher_config, self.builder, tracker)

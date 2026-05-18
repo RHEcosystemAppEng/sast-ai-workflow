@@ -22,10 +22,10 @@ from LLMService import LLMService
 from MetricHandler import MetricHandler, metric_request_from_prompt
 from report_writers import write_to_excel_file
 from ReportReader import read_sast_report
+from services.dvc_metadata_service import DvcMetadataService
 from Utils.file_utils import get_human_verified_results
 from Utils.log_utils import setup_logging
 from Utils.output_utils import filter_items_for_evaluation, print_conclusion
-from services.dvc_metadata_service import DvcMetadataService
 from Utils.validation_utils import validate_issue
 
 # Setup logging
@@ -182,16 +182,13 @@ def main():
                         )
 
                         retries += 1
-                    repo_handler.reset_found_symbols()
                     # let's calculate numbers for quality of the response we received here!
                     if config.CALCULATE_RAGAS_METRICS:
                         metric_request = metric_request_from_prompt(llm_response)
                         score = metric_handler.evaluate_datasets(metric_request)
 
-            except Exception as e:
-                logger.error(
-                    f"An error occurred while processing issue ID {issue.id}.\nError is: {e}"
-                )
+            except Exception:
+                logger.exception(f"An error occurred while processing issue ID {issue.id}")
                 if not llm_response:
                     # This issue will be excluded from evaluation.
                     llm_response = AnalysisResponse(
@@ -225,11 +222,11 @@ def main():
 
     try:
         write_to_excel_file(summary_data, evaluation_summary, config)
-        
+
         dvc_service.track_workflow_execution(config, issue_list)
-        
-    except Exception as e:
-        logger.error("Error occurred while generating excel file:", e)
+
+    except Exception:
+        logger.exception("Error occurred while generating excel file")
     finally:
         print_conclusion(evaluation_summary, failed_item_ids)
         close_embedding_pool()
