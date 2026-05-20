@@ -4,7 +4,7 @@
 # hadolint ignore=DL3007
 FROM quay.io/ecosystem-appeng/sast-ai-base-image:latest
 USER 0
-RUN yum install -y clang llvm-devel && yum clean all
+RUN yum install -y clang llvm-devel golang && yum clean all
 
 WORKDIR /app
 
