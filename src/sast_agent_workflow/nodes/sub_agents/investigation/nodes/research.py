@@ -226,8 +226,10 @@ class ResearchAgentState(AgentState):
     fetched_files: Annotated[NotRequired[Dict[str, List[str]]], merge_dicts]
     tool_call_history: Annotated[NotRequired[List[str]], unique_list_add]
 
-    # Investigation context (passed through from parent state)
+    # Investigation context (passed through from parent InvestigationState)
     issue_id: NotRequired[str]
+    issue_cwe: NotRequired[str]
+    repo_language: NotRequired[str]
     iteration: NotRequired[int]
     issue_description: NotRequired[str]
     initial_code: NotRequired[str]
@@ -261,6 +263,11 @@ async def stateless_model_middleware(request: ModelRequest, handler):
 
     # Build separate messages for instructions and CODE BANK
     # Using functions from prompts module
+    logger.debug(
+        "Research model call: repo_language=%s issue_cwe=%s",
+        state.get("repo_language"),
+        state.get("issue_cwe"),
+    )
     instructions = build_research_instructions(state)
     code_bank = build_code_bank(state.get("fetched_files", {}))
 
@@ -540,6 +547,8 @@ def _build_research_agent_state(state: InvestigationState) -> ResearchAgentState
         fetched_files=state.get("fetched_files", {}),
         tool_call_history=state.get("tool_call_history", []),
         issue_id=state["issue_id"],
+        issue_cwe=state.get("issue_cwe", ""),
+        repo_language=state.get("repo_language", ""),
         iteration=state["iteration"],
         issue_description=state["issue_description"],
         initial_code=state["initial_code"],

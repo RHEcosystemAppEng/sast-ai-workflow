@@ -41,6 +41,7 @@ class Config:
     # Type hints for dynamically loaded attributes
     REPO_REMOTE_URL: str
     DOWNLOAD_REPO: bool
+    DOWNLOAD_VENDOR_DEPENDENCIES: bool
     REPO_LOCAL_PATH: str
     REPO_LANGUAGE: RepoLanguage
     CONFIG_H_PATH: str

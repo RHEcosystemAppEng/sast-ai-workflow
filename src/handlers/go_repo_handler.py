@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -118,17 +119,54 @@ class GoRepoHandler:
     _go_language: Optional["Language"] = None
     _parser: Optional["Parser"] = None
 
+    # Shared CompactIndex per resolved repo root (thread-safe lazy build).
+    _compact_index_cache: Dict[str, CompactIndex] = {}
+    _compact_index_repo_locks: Dict[str, threading.Lock] = {}
+    _compact_index_registry_lock = threading.Lock()
+
+    language: str = "go"
+
+    @classmethod
+    def _compact_index_repo_key(cls, repo_local_path: str) -> str:
+        return str(Path(repo_local_path).resolve())
+
+    @classmethod
+    def _lock_for_compact_index_repo(cls, repo_key: str) -> threading.Lock:
+        with cls._compact_index_registry_lock:
+            lock = cls._compact_index_repo_locks.get(repo_key)
+            if lock is None:
+                lock = threading.Lock()
+                cls._compact_index_repo_locks[repo_key] = lock
+            return lock
+
+    def _attach_shared_compact_index(self) -> None:
+        """Use one CompactIndex per resolved repo path; build once under per-repo lock."""
+        repo_key = self._compact_index_repo_key(self.repo_local_path)
+        lock = self._lock_for_compact_index_repo(repo_key)
+        with lock:
+            cached = GoRepoHandler._compact_index_cache.get(repo_key)
+            if cached is not None:
+                self.index = cached
+                logger.info("Reusing cached Go CompactIndex for %s", repo_key)
+                return
+            self.index = CompactIndex()
+            self._build_index()
+            GoRepoHandler._compact_index_cache[repo_key] = self.index
+
     def __init__(self, config: Config) -> None:
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
         self.repo_local_path = config.REPO_LOCAL_PATH
         self.project_name = config.PROJECT_NAME
 
+        # Large dependency graphs: indexing can take ~1.5 min; API-only lookup may be faster.
+
+        self._ensure_go_vendor(config)
+
         # Initialize tree-sitter
         self._init_tree_sitter()
 
-        # Build index
-        self.index = CompactIndex()
-        self._build_index()
+        # Build or reuse index (singleton per resolved repo root)
+        self._attach_shared_compact_index()
 
     def _init_tree_sitter(self):
         """Initialize tree-sitter parser and queries."""
@@ -139,6 +177,53 @@ class GoRepoHandler:
                 GoRepoHandler._tree_sitter_initialized = True
 
         self.parser = GoRepoHandler._parser
+
+    def _ensure_go_vendor(self, config: Config) -> None:
+        """Populate vendor/ via the Go toolchain when configured (investigation sandbox)."""
+        if not getattr(config, "DOWNLOAD_VENDOR_DEPENDENCIES", True):
+            logger.info("Skipping Go vendor step (DOWNLOAD_VENDOR_DEPENDENCIES is false)")
+            return
+
+        repo_root = Path(self.repo_local_path).resolve()
+        if (repo_root / "go.work").is_file():
+            cmd = ["go", "work", "vendor"]
+        elif (repo_root / "go.mod").is_file():
+            cmd = ["go", "mod", "vendor"]
+        else:
+            logger.info("No go.work or go.mod at repo root; skipping vendor step")
+            return
+
+        vendor_timeout_seconds = 900  # large module graphs
+        try:
+            logger.info("Downloading dependencies...")
+            result = subprocess.run(
+                cmd,
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=vendor_timeout_seconds,
+            )
+        except FileNotFoundError:
+            logger.warning(
+                "go executable not found; skipping vendor (dependency source may be incomplete)"
+            )
+            return
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "go vendor timed out after %s seconds; continuing without refreshed vendor/",
+                vendor_timeout_seconds,
+            )
+            return
+
+        if result.returncode != 0:
+            logger.warning(
+                "go vendor failed (%s): rc=%s stderr=%s",
+                " ".join(cmd),
+                result.returncode,
+                (result.stderr or "").strip(),
+            )
+        else:
+            logger.info("Completed: %s", " ".join(cmd))
 
     def _build_index(self):
         """Build the symbol and reference index."""
@@ -175,7 +260,7 @@ class GoRepoHandler:
         for go_file in repo_path.rglob("*.go"):
             rel_path = go_file.relative_to(repo_path)
             if not rel_path.match("*_test.go") and not any(
-                p.startswith(".") or p == "vendor" for p in rel_path.parts
+                p.startswith(".") for p in rel_path.parts
             ):
                 go_files.append(str(go_file))
 
