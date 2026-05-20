@@ -67,7 +67,7 @@ S3_OUTPUT_BUCKET_NAME ?=
 # =============================================================================
 # Phony Targets
 # =============================================================================
-.PHONY: help deploy-dev deploy-prod deploy-mlops prepare clean run argocd-setup-project
+.PHONY: help deploy-dev deploy-prod deploy-mlops prepare clean run argocd-setup-project argocd-clean eventlistener eventlistener-clean
 
 .DEFAULT_GOAL := help
 
@@ -349,3 +349,66 @@ clean: ## Remove all deployed resources in current namespace [Params: ENV]
 	@echo ""
 	@echo "✅ Cleanup completed successfully"
 	@echo ""
+
+argocd-clean: ## Remove ArgoCD resources for current namespace [Internal target]
+	@echo "🧹 Removing ArgoCD resources for namespace $(NAMESPACE)..."
+	@# Remove ArgoCD RBAC permissions for target namespace
+	@sed \
+		-e 's|ARGOCD_NAMESPACE_PLACEHOLDER|$(ARGOCD_NAMESPACE)|g' \
+		-e 's|TARGET_NAMESPACE_PLACEHOLDER|$(NAMESPACE)|g' \
+		argocd/argocd-tekton-permission.yaml > argocd/argocd-tekton-permission-temp.yaml
+	@$(CO) delete -f argocd/argocd-tekton-permission-temp.yaml --ignore-not-found > /dev/null 2>&1 || true
+	@rm -f argocd/argocd-tekton-permission-temp.yaml
+	@# Find and delete only ArgoCD applications managing the current namespace
+	@echo "   🔍 Finding ArgoCD applications managing namespace $(NAMESPACE)..."
+	@APPS=$$($(CO) get application -n $(ARGOCD_NAMESPACE) -o json 2>/dev/null | \
+		jq -r '.items[] | select(.spec.destination.namespace == "$(NAMESPACE)") | .metadata.name' || true); \
+	if [ -n "$$APPS" ]; then \
+		for app in $$APPS; do \
+			echo "   🗑️  Removing ArgoCD application: $$app"; \
+			$(CO) delete application $$app -n $(ARGOCD_NAMESPACE) --ignore-not-found --timeout=10s > /dev/null 2>&1 || \
+			$(CO) patch application $$app -n $(ARGOCD_NAMESPACE) -p '{"metadata":{"finalizers":null}}' --type=merge > /dev/null 2>&1 || true; \
+		done; \
+		echo "   ✓ ArgoCD applications removed"; \
+	else \
+		echo "   ℹ️  No ArgoCD applications found for namespace $(NAMESPACE)"; \
+	fi
+	@echo ""
+	@echo "✅ ArgoCD cleanup complete for namespace $(NAMESPACE)"
+	@echo ""
+
+eventlistener:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🎯 EventListener Standalone Update"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   ⚠️  Use 'make deploy-mlops' for full deployment"
+	@echo ""
+	@echo "Using namespace: $(NAMESPACE)"
+	@echo ""
+	@echo "🎯 Deploying EventListener..."
+	@sed -e 's|<namespace>|$(NAMESPACE)|g' \
+		tekton/eventlistener/benchmark-config.yaml.template > tekton/eventlistener/benchmark-config.yaml
+	@$(CO) apply -k tekton/eventlistener/ -n $(NAMESPACE) || \
+		{ echo "   ❌ Failed to deploy EventListener resources"; exit 1; }
+	@echo ""
+	@echo "✅ EventListener updated"
+	@echo ""
+	@echo "Verify deployment:"
+	@echo "   oc get eventlistener,task,pipeline -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE)"
+	@echo ""
+	@echo "Test EventListener:"
+	@echo "   oc port-forward svc/el-benchmark-mlop-listener 8080:8080 -n $(NAMESPACE)"
+	@echo "   curl -X POST http://localhost:8080 -H 'Content-Type: application/json' -d '{...}'"
+	@echo ""
+
+eventlistener-clean:
+	@echo "🧹 Removing EventListener resources..."
+	@echo "   🏃 Cleaning benchmark PipelineRuns..."
+	@$(CO) delete pipelinerun -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Benchmark PipelineRuns removed"
+	@echo "   📋 Cleaning benchmark TaskRuns..."
+	@$(CO) delete taskrun -l app.kubernetes.io/component=benchmark-mlop -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ Benchmark TaskRuns removed"
+	@echo "   🗑️  Removing EventListener infrastructure..."
+	@$(CO) delete -k tekton/eventlistener/ -n $(NAMESPACE) --ignore-not-found > /dev/null 2>&1 || true
+	@echo "   ✓ EventListener resources removed"

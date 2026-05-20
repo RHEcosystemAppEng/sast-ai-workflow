@@ -164,6 +164,7 @@ oc get secrets | grep sast-ai
 | `make run` | Execute pipeline with parameters from .env or command line |
 | **Cleanup** | |
 | `make clean` | **⚠️ Deletes ALL resources in namespace** (validates critical namespaces) |
+| `make argocd-clean` | Remove ArgoCD Applications and AppProject |
 | **Internal Targets** | |
 | `make prepare` | Run prepare-kustomize.sh script (automatically called by deploy-*) |
 | `make argocd-setup-project` | Setup ArgoCD AppProject (automatically called by deploy-*) |
