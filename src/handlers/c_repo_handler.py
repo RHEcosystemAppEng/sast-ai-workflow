@@ -26,8 +26,6 @@ class CRepoHandler:
     based on either an error trace or specific line numbers.
     """
 
-    language: str = "c"
-
     def __init__(self, config: Config) -> None:
         self.url, self.branch = get_repo_and_branch_from_url(config.REPO_REMOTE_URL)
 

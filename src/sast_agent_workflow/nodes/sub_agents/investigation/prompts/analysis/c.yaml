@@ -1,8 +1,8 @@
 language: c
-display_name: C/C++
+display_name: C
 
 context_hints: |
-  *0.2 Language-Specific Context (C/C++):*
+  *0.2 Language-Specific Context (C):*
   - Files inside `test/`, `tests/`, `examples/`, `samples/`: likely test or example code, not production
   - `#ifdef TEST` / `#ifdef DEBUG` / `#if 0` guards: may exclude the vulnerable code from production builds
   - Third-party code in `vendor/`, `third_party/`, `deps/`, `external/`: may not be built or may be overridden
@@ -10,7 +10,7 @@ context_hints: |
   - Unused static/internal functions with no callers: dead code that cannot be reached
 
 issue_patterns: |
-  6. **Issue-Type Specific Patterns (C/C++)**:
+  6. **Issue-Type Specific Patterns (C)**:
      - **UNINIT**: Look for `if (condition) goto/return/exit` AFTER the loop or conditional that
        should initialize a variable, but BEFORE its use. This pattern often guards against
        uninitialized use and makes the finding a FALSE_POSITIVE.

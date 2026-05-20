@@ -16,6 +16,8 @@ from typing import Any, Dict
 import yaml
 from jinja2 import Environment, StrictUndefined
 
+from common.repo_language import repo_language_for_investigation
+
 logger = logging.getLogger(__name__)
 
 _CONTEXT_DIR = Path(__file__).parent / "analysis"
@@ -76,7 +78,7 @@ def build_analysis_prompt(state: Dict[str, Any]) -> str:
     Returns:
         Formatted prompt string for the analysis LLM.
     """
-    language = state.get("repo_language") or "generic"
+    language = repo_language_for_investigation(state.get("repo_language")).value
     lang_ctx = _get_language_context(language)
 
     t = _get_template()

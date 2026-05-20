@@ -31,6 +31,7 @@ from common.constants import (
     SIMILARITY_ERROR_THRESHOLD,
     VALIDATION_LIMITS,
 )
+from common.repo_language import RepoLanguage
 from Utils.validation_utils import is_valid_int_value
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class Config:
     REPO_REMOTE_URL: str
     DOWNLOAD_REPO: bool
     REPO_LOCAL_PATH: str
+    REPO_LANGUAGE: RepoLanguage
     CONFIG_H_PATH: str
     COMPILE_COMMANDS_JSON_PATH: str
     LIBCLANG_PATH: str

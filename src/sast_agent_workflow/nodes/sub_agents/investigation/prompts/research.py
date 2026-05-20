@@ -4,8 +4,8 @@ All prompt text lives in research/. This module is a thin render layer:
 it loads the template and language-specific YAML files, then uses
 Jinja2 to substitute variables and return the final prompt string.
 
-Adding support for a new language requires only a new YAML file in
-research/ — no Python changes needed.
+Adding support for a new language requires only a new directory under
+research/<language>/ (context.yaml + checklists/) — no Python changes needed.
 """
 
 import logging
@@ -16,6 +16,8 @@ from typing import Any, Dict, List
 
 import yaml
 from jinja2 import Environment, StrictUndefined
+
+from common.repo_language import repo_language_for_investigation
 
 from .checklist_loader import format_checklist
 
@@ -48,11 +50,11 @@ def _get_language_context(language: str) -> Dict[str, str]:
 
     Falls back to 'generic' if language is empty or no matching file exists.
     """
-    path = _CONTEXT_DIR / f"{language}.yaml"
+    path = _CONTEXT_DIR / language / "context.yaml"
     if not path.exists():
         logger.warning("No research context for language '%s', falling back to generic.", language)
         language = "generic"
-        path = _CONTEXT_DIR / f"{language}.yaml"
+        path = _CONTEXT_DIR / language / "context.yaml"
     try:
         with open(path, "r") as f:
             return yaml.safe_load(f) or {}
@@ -127,7 +129,7 @@ def build_research_instructions(state: Dict[str, Any]) -> str:
     fetched_files = state.get("fetched_files", {})
     tool_call_history = state.get("tool_call_history", [])
     iteration = state.get("iteration", 1)
-    language = state.get("repo_language") or "generic"
+    language = repo_language_for_investigation(state.get("repo_language")).value
 
     lang_ctx = _get_language_context(language)
     tool_history_hints = lang_ctx.get("tool_history_hints", "").rstrip()
@@ -273,7 +275,7 @@ def _build_initial_instructions(
 ) -> str:
     """Build instructions for the first research iteration."""
     issue_cwe = state.get("issue_cwe", "N/A")
-    repo_language = state.get("repo_language") or "generic"
+    repo_language = repo_language_for_investigation(state.get("repo_language"))
     checklist_section = format_checklist(
         issue_cwe, repo_language
     )  # NOSONAR S1481: clearer than inlining

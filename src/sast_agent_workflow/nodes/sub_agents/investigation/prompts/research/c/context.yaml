@@ -1,5 +1,5 @@
 language: c
-display_name: C/C++
+display_name: C
 
 context_gathering: |
   **CONTEXT GATHERING (DO THIS FIRST — before the vulnerability checklist):**

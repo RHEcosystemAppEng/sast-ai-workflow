@@ -5,38 +5,36 @@ This module provides functionality to:
 - Load appropriate checklist templates based on CWE identifier and repository language
 - Provide guidance and stop criteria for research agents
 
-Directory layout (Option C — language outer, CWE inner):
-    checklists/
+Directory layout (language-first):
+    research/
+        generic/
+            checklists/
+                generic.yaml   — default when repo language is unset
         go/
-            buffer_overflow.yaml
-            command_injection.yaml
-            ...
+            checklists/
+                ...
         c/
-            buffer_overflow.yaml
-            ...
+            checklists/
+                ...
 
 Fallback chain per lookup:
-  1. checklists/{language}/{cwe_template}.yaml  — exact language + CWE match
-  2. checklists/{language}/generic.yaml          — language-specific generic
-  3. hardcoded minimal template                  — last resort
+  1. research/{language}/checklists/{cwe_template}.yaml  — exact language + CWE match
+  2. research/{language}/checklists/generic.yaml          — language-specific generic
+  3. hardcoded minimal template                           — last resort if YAML missing
 
-Supported languages are declared in SUPPORTED_LANGUAGES / SupportedLanguage.
+Supported languages are declared in RepoLanguage (including GENERIC).
 """
 
 import logging
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Dict, Optional
 
 import yaml
 from jsonschema import ValidationError, validate
 
-logger = logging.getLogger(__name__)
+from common.repo_language import RepoLanguage
 
-# Canonical set of supported repository languages.
-# Add a new entry here and create the matching checklists/<lang>/ directory
-# to extend support to a new language.
-SupportedLanguage = Literal["c", "go"]
-SUPPORTED_LANGUAGES: frozenset[str] = frozenset({"c", "go"})
+logger = logging.getLogger(__name__)
 
 # Schema for checklist YAML files
 _CHECKLIST_SCHEMA = {
@@ -62,23 +60,22 @@ _CHECKLIST_SCHEMA = {
 class ChecklistLoader:
     """Load and manage vulnerability-type specific checklists for a given language."""
 
-    def __init__(self, language: SupportedLanguage, checklists_dir: Optional[Path] = None):
+    def __init__(self, language: RepoLanguage, checklists_dir: Optional[Path] = None):
         """
         Initialize the checklist loader.
 
         Args:
-            language: Repository language (e.g. "go", "c"). Determines which
-                      subdirectory under checklists/ is used.
-            checklists_dir: Base checklists directory. If None, uses the default
-                            location next to this module file.
+            language: Repository language. Determines which
+                      research/<language>/checklists/ directory is used.
+            checklists_dir: Language checklists directory. If None, uses
+                            research/<language>/checklists/ next to this module.
         """
-        base_dir = (
+        self.language = language
+        self.checklists_dir = (
             Path(checklists_dir)
             if checklists_dir is not None
-            else Path(__file__).parent / "research" / "checklists"
+            else Path(__file__).parent / "research" / language.value / "checklists"
         )
-        self.language = language
-        self.checklists_dir = base_dir
 
         # Cache for loaded templates
         self._templates: Dict[str, Dict] = {}
@@ -93,13 +90,11 @@ class ChecklistLoader:
         If the language subdirectory does not exist, logs a warning and leaves
         the loader empty (callers will fall through to _get_default_template).
         """
-        lang_dir = self.checklists_dir / self.language
-
-        if not lang_dir.exists():
-            logger.warning(f"Checklists directory not found: {lang_dir}")
+        if not self.checklists_dir.exists():
+            logger.warning(f"Checklists directory not found: {self.checklists_dir}")
             return
 
-        for yaml_file in lang_dir.glob("*.yaml"):
+        for yaml_file in self.checklists_dir.glob("*.yaml"):
             try:
                 with open(yaml_file, "r") as f:
                     data = yaml.safe_load(f)
@@ -147,8 +142,9 @@ class ChecklistLoader:
 
         return self._templates.get("generic", self._get_default_template())
 
-    def _get_default_template(self) -> Dict:
-        """Return a minimal default template if no templates are loaded."""
+    @staticmethod
+    def default_template() -> Dict:
+        """Language-neutral checklist used when repo language is unknown."""
         return {
             "vuln_type": "Generic",
             "cwe_ids": [],
@@ -160,6 +156,10 @@ class ChecklistLoader:
                 "Validation checked",
             ],
         }
+
+    def _get_default_template(self) -> Dict:
+        """Return a minimal default template if no templates are loaded."""
+        return self.default_template()
 
     def get_checklist(self, issue_cwe: str) -> Dict:
         """
@@ -214,23 +214,23 @@ class ChecklistLoader:
 
 
 # Per-language singleton cache
-_loaders: Dict[str, ChecklistLoader] = {}
+_loaders: Dict[RepoLanguage, ChecklistLoader] = {}
 
 
-def get_checklist_loader(language: SupportedLanguage) -> ChecklistLoader:
+def get_checklist_loader(language: RepoLanguage) -> ChecklistLoader:
     """Get or create a ChecklistLoader for the given language."""
     if language not in _loaders:
         _loaders[language] = ChecklistLoader(language=language)
     return _loaders[language]
 
 
-def get_checklist_for_issue(issue_cwe: str, language: SupportedLanguage) -> Dict:
+def get_checklist_for_issue(issue_cwe: str, language: RepoLanguage) -> Dict:
     """
     Convenience function to get checklist for an issue.
 
     Args:
         issue_cwe: CWE identifier (e.g., "CWE-119" or "119")
-        language: Repository language (e.g. "go", "c")
+        language: Repository language
 
     Returns:
         Checklist dictionary
@@ -238,13 +238,13 @@ def get_checklist_for_issue(issue_cwe: str, language: SupportedLanguage) -> Dict
     return get_checklist_loader(language).get_checklist(issue_cwe)
 
 
-def format_checklist(issue_cwe: str, language: SupportedLanguage) -> str:
+def format_checklist(issue_cwe: str, language: RepoLanguage) -> str:
     """
     Convenience function to get formatted checklist for prompt.
 
     Args:
         issue_cwe: CWE identifier (e.g., "CWE-119" or "119")
-        language: Repository language (e.g. "go", "c")
+        language: Repository language (use RepoLanguage.GENERIC when unset)
 
     Returns:
         Formatted checklist string for prompt

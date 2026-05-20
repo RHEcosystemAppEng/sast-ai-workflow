@@ -118,8 +118,6 @@ class GoRepoHandler:
     _go_language: Optional["Language"] = None
     _parser: Optional["Parser"] = None
 
-    language: str = "go"
-
     def __init__(self, config: Config) -> None:
         self._report_file_prefix = f"{config.PROJECT_NAME}-{config.PROJECT_VERSION.split('-')[0]}/"
         self.repo_local_path = config.REPO_LOCAL_PATH
@@ -140,7 +138,6 @@ class GoRepoHandler:
                 GoRepoHandler._parser = Parser(GoRepoHandler._go_language)
                 GoRepoHandler._tree_sitter_initialized = True
 
-        self.language = GoRepoHandler._go_language
         self.parser = GoRepoHandler._parser
 
     def _build_index(self):

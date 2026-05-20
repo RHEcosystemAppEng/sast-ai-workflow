@@ -7,6 +7,7 @@ _extract_fetch_info, _build_code_bank_files_summary, _build_tool_history.
 
 from unittest.mock import patch
 
+from common.repo_language import RepoLanguage
 from sast_agent_workflow.nodes.sub_agents.investigation.prompts.research import (
     _build_code_bank_files_summary,
     _build_tool_history,
@@ -242,7 +243,7 @@ class TestBuildResearchInstructions:
         result = build_research_instructions(state)
 
         assert "EVIDENCE CHECKLIST" in result
-        mock_checklist.assert_called_once_with("CWE-119", "generic")
+        mock_checklist.assert_called_once_with("CWE-119", RepoLanguage.GENERIC)
 
     def test__continuation_iteration_returns_feedback_instructions(self):
         """Iteration > 1 should produce feedback-based continuation instructions."""
