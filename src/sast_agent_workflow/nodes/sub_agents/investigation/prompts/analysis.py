@@ -54,8 +54,8 @@ def _get_language_context(language: str) -> Dict[str, str]:
     try:
         with open(path, "r") as f:
             return yaml.safe_load(f) or {}
-    except Exception as e:
-        logger.error("Failed to load analysis context from %s: %s", path, e)
+    except Exception:
+        logger.exception("Failed to load analysis context from %s", path)
         raise
 
 

@@ -89,7 +89,12 @@ class TestChecklistLoaderInit:
         checklists_dir = tmp_path / "go" / "checklists"
         checklists_dir.mkdir(parents=True)
         (checklists_dir / "custom.yaml").write_text(
-            "vuln_type: Custom\ncwe_ids: ['CWE-9001']\n" "guidance: test\nchecklist:\n  - item1\n"
+            """vuln_type: Custom
+cwe_ids: ['CWE-9001']
+guidance: test
+checklist:
+  - item1
+"""
         )
 
         loader = ChecklistLoader(language=RepoLanguage.GO, checklists_dir=checklists_dir)
