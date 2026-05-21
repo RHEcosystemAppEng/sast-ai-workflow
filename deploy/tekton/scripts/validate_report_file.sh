@@ -2,6 +2,15 @@
 set -e
 echo "=== STEP 2: VALIDATE REPORT FILE ==="
 
+# Skip validation for Konflux scans - SARIF already downloaded in Step 0
+if [[ -f "/shared-data/input-report.sarif" ]]; then
+  echo "Detected Konflux scan - SARIF already downloaded from Trusted Artifacts"
+  echo -n "/shared-data/input-report.sarif" > "${TEKTON_RESULTS_DIR}"
+  echo -n "/shared-data/input-report.sarif" > /shared-data/report-file-path.txt
+  echo "Using downloaded SARIF: /shared-data/input-report.sarif"
+  exit 0
+fi
+
 # Check if it's a URL (starts with http:// or https://)
 if [[ "$INPUT_REPORT_FILE_PATH" =~ ^https?:// ]]; then
 

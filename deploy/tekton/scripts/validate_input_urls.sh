@@ -2,6 +2,12 @@
 set -e
 echo "=== STEP 1: VALIDATE INPUT URLS ==="
 
+# Skip URL validation for Konflux scans - uses IMAGE_DIGEST instead
+if [[ -n "$IMAGE_DIGEST" ]]; then
+  echo "Konflux scan detected (IMAGE_DIGEST provided) - skipping URL validation"
+  exit 0
+fi
+
 # Validate source URL
 echo "Validating source URL..."
 curl -ksSfL "$REPO_REMOTE_URL" >/dev/null 2>&1 || (echo "Error: Source code URL is invalid" >&2 && exit 1)
