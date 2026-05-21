@@ -4,7 +4,7 @@ set -e
 echo "=== STEP 0: DOWNLOAD FROM TRUSTED ARTIFACTS ==="
 
 # Skip if IMAGE_DIGEST is empty (not a Konflux scan)
-if [ -z "$IMAGE_DIGEST" ]; then
+if [[ -z "$IMAGE_DIGEST" ]]; then
   echo "IMAGE_DIGEST not provided - skipping Trusted Artifacts download"
   exit 0
 fi
@@ -13,7 +13,7 @@ echo "Image digest: $IMAGE_DIGEST"
 
 # Check if ORAS is available
 if ! command -v oras &> /dev/null; then
-  echo "ERROR: ORAS CLI not found. Please ensure ORAS v1.3.0+ is installed in BASE_IMAGE."
+  echo "ERROR: ORAS CLI not found. Please ensure ORAS v1.3.0+ is installed in BASE_IMAGE." >&2
   exit 1
 fi
 
@@ -23,9 +23,9 @@ SARIF_DIGEST=$(oras discover "$IMAGE_DIGEST" \
   --artifact-type application/sarif+json \
   --format json 2>/dev/null | jq -r '.manifests[0].digest' || echo "")
 
-if [ -z "$SARIF_DIGEST" ] || [ "$SARIF_DIGEST" = "null" ]; then
-  echo "ERROR: No SARIF artifact found attached to image $IMAGE_DIGEST"
-  echo "Expected artifactType: application/sarif+json"
+if [[ -z "$SARIF_DIGEST" || "$SARIF_DIGEST" = "null" ]]; then
+  echo "ERROR: No SARIF artifact found attached to image $IMAGE_DIGEST" >&2
+  echo "Expected artifactType: application/sarif+json" >&2
   exit 1
 fi
 
@@ -43,8 +43,8 @@ oras pull "${REGISTRY}/${REPO_PATH}@${SARIF_DIGEST}" \
 
 # Find and move SARIF file to expected location
 SARIF_FILE=$(find /shared-data/oras-downloads -name "*.sarif" -o -name "*.json" | head -1)
-if [ -z "$SARIF_FILE" ]; then
-  echo "ERROR: No SARIF file found in downloaded artifact"
+if [[ -z "$SARIF_FILE" ]]; then
+  echo "ERROR: No SARIF file found in downloaded artifact" >&2
   ls -la /shared-data/oras-downloads/
   exit 1
 fi
