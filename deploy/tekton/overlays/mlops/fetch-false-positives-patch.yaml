@@ -1,5 +1,5 @@
 - op: replace
-  path: /spec/steps/4
+  path: /spec/steps/5
   value:
     name: fetch-false-positives
     image: $(params.BASE_IMAGE)
