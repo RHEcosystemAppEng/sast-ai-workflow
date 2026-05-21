@@ -75,6 +75,10 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
+    - name: IMAGE_DIGEST
+      type: string
+      description: "OCI image digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). SARIF attached as OCI referrer."
+      default: ""
     - name: CONTAINER_IMAGE
       type: string
       description: "Container image to use for SAST AI analysis"
@@ -138,6 +142,8 @@ spec:
           value: "$(params.GCS_SA_FILE_NAME)"
         - name: OSH_TASK_ID
           value: "$(params.OSH_TASK_ID)"
+        - name: IMAGE_DIGEST
+          value: "$(params.IMAGE_DIGEST)"
         - name: CONTAINER_IMAGE
           value: "$(params.CONTAINER_IMAGE)"
         - name: BASE_IMAGE

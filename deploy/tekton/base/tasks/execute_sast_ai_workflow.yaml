@@ -104,6 +104,10 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
+    - name: IMAGE_DIGEST
+      type: string
+      description: "OCI image digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). SARIF attached as OCI referrer."
+      default: ""
     - name: MAX_CONCURRENT_INVESTIGATIONS
       type: string
       description: "Number of issues to process concurrently (1 = sequential, 5 = default parallel)"
@@ -147,6 +151,17 @@ spec:
       description: "DVC pipeline stage identifier"
 
   steps:
+    # STEP 0: Download from Trusted Artifacts (Konflux scans only)
+    - name: download-from-trusted-artifacts
+      image: $(params.BASE_IMAGE)
+      env:
+        - name: IMAGE_DIGEST
+          value: "$(params.IMAGE_DIGEST)"
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      command: ["/scripts/download_from_ta.sh"]
+
     # STEP 1: Validate Input URLs
     - name: validate-input-urls
       image: $(params.BASE_IMAGE)
