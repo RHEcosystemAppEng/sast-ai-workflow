@@ -1,8 +1,55 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# Extend base Tekton resources
 resources:
   - ../../base
+
+# Generate secrets from .env and service account files
+# Files are created by scripts/prepare-kustomize.sh
+secretGenerator:
+  # GitLab token for repository access
+  - name: sast-ai-gitlab-token
+    envs:
+      - secrets-gitlab.env
+    options:
+      disableNameSuffixHash: true
+
+  # Consolidated LLM credentials
+  - name: sast-ai-default-llm-creds
+    envs:
+      - secrets-llm.env
+    options:
+      disableNameSuffixHash: true
+
+  # Google Drive/Sheets service account
+  - name: sast-ai-google-service-account
+    files:
+      - service_account.json=service-accounts/service_account.json
+    options:
+      disableNameSuffixHash: true
+
+  # GCS service account (optional - file created by prepare script if available)
+  - name: sast-ai-gcs-service-account
+    files:
+      - gcs_service_account.json=service-accounts/gcs_service_account.json
+    options:
+      disableNameSuffixHash: true
+
+  # S3/MinIO credentials (required for MLOps)
+  - name: sast-ai-s3-output-credentials
+    envs:
+      - secrets-s3.env
+    options:
+      disableNameSuffixHash: true
+
+  # Container registry pull secret
+  - name: sast-ai-quay-registry-config
+    files:
+      - .dockerconfigjson=service-accounts/.dockerconfigjson
+    type: kubernetes.io/dockerconfigjson
+    options:
+      disableNameSuffixHash: true
 
 patches:
   # Task patches

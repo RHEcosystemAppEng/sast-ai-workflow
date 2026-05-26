@@ -8,4 +8,6 @@ resources:
   - configmaps/upload_to_drive_cm.yaml
   - configmaps/upload_to_gcs_cm.yaml
   - configmaps/upload_to_s3_output_cm.yaml
+  # ServiceAccount with imagePullSecrets for Quay.io
+  - serviceaccount-imagepull.yaml
 
