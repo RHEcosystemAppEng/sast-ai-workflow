@@ -1,0 +1,32 @@
+---
+# Buffer Overflow Investigation Guidance
+# CWE-119, CWE-120, CWE-121, CWE-122
+
+vuln_type: "Buffer Overflow"
+cwe_ids: ["CWE-119", "CWE-120", "CWE-121", "CWE-122"]
+
+guidance: |
+  SLICE / BUFFER BOUNDS EVIDENCE REQUIREMENTS (Go):
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Source length: How large can the input slice/string be? (user-controlled?)
+  2. Destination capacity: make([]T, len, cap) or fixed-size array [N]T?
+  3. Copy/index operation: copy(), append(), direct index s[i] — bounded or not?
+  4. Bounds validation: Is len/cap checked BEFORE indexing or slicing?
+
+  NOTE: Go runtime panics on out-of-bounds slice access; this is a TRUE_POSITIVE only if
+  the access can actually be reached with an index >= len(slice). The compiler/runtime
+  does NOT prevent the panic—it just surfaces it at runtime.
+
+  SEARCH PATTERNS:
+    - Dangerous operations: s[i] with unvalidated i, copy(dst, src) where dst is undersized,
+      append growing past intended cap, binary.Read into fixed-size slice
+    - Buffer declarations: make([]byte, n), var buf [N]byte
+    - Bounds checks: if i < len(s), if len(src) <= len(dst), if n > cap(buf)
+    - Unsafe operations: unsafe.Slice, unsafe.SliceData bypassing Go bounds checks
+
+checklist:
+  - "Buffer/slice size documented (make() length/capacity or array size)"
+  - "Input source identified (and maximum possible length)"
+  - "Copy/index operation details retrieved (bounds-safe or unbounded?)"
+  - "Bounds validation presence confirmed (checked or unchecked?)"

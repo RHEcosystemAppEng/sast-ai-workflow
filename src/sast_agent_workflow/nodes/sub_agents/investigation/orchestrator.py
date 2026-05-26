@@ -295,8 +295,10 @@ def _build_initial_investigation_state(
 {per_issue.issue.trace}"""
     return {
         "issue_id": issue_id,
+        "issue_cwe": per_issue.issue.issue_cwe or "",
         "issue_description": issue_description,
         "initial_code": code_context,
+        "repo_language": config.REPO_LANGUAGE.value,
         "research_messages": [],
         "gathered_code": gathered_code_initial,
         "fetched_files": fetched_files_initial,

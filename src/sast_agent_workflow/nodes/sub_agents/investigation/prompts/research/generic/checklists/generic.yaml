@@ -1,0 +1,27 @@
+---
+# Language-neutral investigation checklist (default when repo language is unset).
+# CWE-specific templates are not used here; unknown CWEs fall back to this file.
+
+vuln_type: "Generic"
+cwe_ids: []
+
+guidance: |
+  GENERIC EVIDENCE REQUIREMENTS:
+
+  CRITICAL EVIDENCE (Must have ALL):
+  1. Input source: Where does untrusted or user-controlled data enter?
+  2. Data flow: How does data reach the vulnerable operation?
+  3. Vulnerable operation: What dangerous function or pattern is used?
+  4. Validation: Are there any protective checks or sanitization?
+
+  SEARCH PATTERNS:
+    - Entry points: CLI args, environment variables, network/request handlers, file reads
+    - Data transformations: parsing, casting, string/buffer operations, pointer use
+    - Dangerous operations: per the SAST finding description
+    - Validation: bounds checks, error handling, allowlists, sanitization
+
+checklist:
+  - "Input source identified"
+  - "Data flow traced to vulnerable point"
+  - "Vulnerable operation details retrieved"
+  - "Validation mechanisms documented"

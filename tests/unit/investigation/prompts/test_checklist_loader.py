@@ -6,11 +6,10 @@ by CWE, generic fallback, default template, prompt formatting, and
 module-level convenience functions.
 """
 
-from pathlib import Path
-
 import pytest
 
 import sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader as _checklist_mod
+from common.repo_language import RepoLanguage
 from sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader import (
     ChecklistLoader,
     format_checklist,
@@ -20,10 +19,6 @@ from sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader
 
 _MOD = "sast_agent_workflow.nodes.sub_agents.investigation.prompts.checklist_loader"
 
-# Derive checklists path from the installed module rather than hardcoded parents[N]
-_CHECKLISTS_DIR = Path(_checklist_mod.__file__).parent / "checklists"
-
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -31,16 +26,16 @@ _CHECKLISTS_DIR = Path(_checklist_mod.__file__).parent / "checklists"
 
 @pytest.fixture
 def loader():
-    """ChecklistLoader initialised against the real YAML checklists."""
-    return ChecklistLoader(checklists_dir=_CHECKLISTS_DIR)
+    """ChecklistLoader initialised against the real Go YAML checklists."""
+    return ChecklistLoader(language=RepoLanguage.GO)
 
 
 @pytest.fixture(autouse=True)
-def _reset_global_loader():
-    """Reset the module-level singleton before each test."""
-    _checklist_mod._loader = None
+def _reset_global_loaders():
+    """Reset the module-level loader cache before each test."""
+    _checklist_mod._loaders = {}
     yield
-    _checklist_mod._loader = None
+    _checklist_mod._loaders = {}
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +53,6 @@ class TestChecklistLoaderInit:
     def test__builds_cwe_mappings(self, loader):
         """CWE mappings should be populated from YAML cwe_ids fields."""
         assert len(loader._cwe_mapping) > 0
-        # Spot-check a few known CWE entries
         assert "CWE-119" in loader._cwe_mapping
         assert "CWE-476" in loader._cwe_mapping
         assert "CWE-416" in loader._cwe_mapping
@@ -70,18 +64,43 @@ class TestChecklistLoaderInit:
         assert loader._cwe_mapping["CWE-119"] == loader._cwe_mapping["119"]
 
     def test__nonexistent_dir_loads_no_templates(self, tmp_path):
-        """A non-existent checklists directory should produce an empty loader."""
-        loader = ChecklistLoader(checklists_dir=tmp_path / "does_not_exist")
+        """A non-existent language subdirectory should produce an empty loader."""
+        loader = ChecklistLoader(
+            language=RepoLanguage.C, checklists_dir=tmp_path / "does_not_exist"
+        )
 
         assert len(loader._templates) == 0
         assert len(loader._cwe_mapping) == 0
 
     def test__default_dir_resolves_relative_to_module(self):
-        """When no dir is given, checklists_dir should point next to the module."""
-        loader = ChecklistLoader()
+        """When no dir is given, checklists_dir should be research/<lang>/checklists/."""
+        loader = ChecklistLoader(language=RepoLanguage.C)
 
         assert loader.checklists_dir.name == "checklists"
-        assert loader.checklists_dir.parent.name == "prompts"
+        assert loader.checklists_dir.parent.name == "c"
+        assert loader.checklists_dir.parent.parent.name == "research"
+
+    def test__language_stored_on_instance(self, loader):
+        """language attribute should reflect the language passed at construction."""
+        assert loader.language == RepoLanguage.GO
+
+    def test__language_subdir_is_used(self, tmp_path):
+        """Templates are loaded from research/<language>/checklists/."""
+        checklists_dir = tmp_path / "go" / "checklists"
+        checklists_dir.mkdir(parents=True)
+        (checklists_dir / "custom.yaml").write_text(
+            """vuln_type: Custom
+cwe_ids: ['CWE-9001']
+guidance: test
+checklist:
+  - item1
+"""
+        )
+
+        loader = ChecklistLoader(language=RepoLanguage.GO, checklists_dir=checklists_dir)
+
+        assert "custom" in loader._templates
+        assert "CWE-9001" in loader._cwe_mapping
 
 
 # ---------------------------------------------------------------------------
@@ -175,10 +194,10 @@ class TestGetDefaultTemplate:
 
     def test__used_when_no_yaml_files(self, tmp_path):
         """Default template should be used when checklists dir is empty."""
-        empty_dir = tmp_path / "empty_checklists"
-        empty_dir.mkdir()
+        empty_checklists_dir = tmp_path / "go" / "checklists"
+        empty_checklists_dir.mkdir(parents=True)
 
-        loader = ChecklistLoader(checklists_dir=empty_dir)
+        loader = ChecklistLoader(language=RepoLanguage.GO, checklists_dir=empty_checklists_dir)
         result = loader.get_checklist("CWE-119")
 
         assert result["vuln_type"] == "Generic"
@@ -220,7 +239,7 @@ class TestFormatChecklistForPrompt:
         data = loader.get_checklist("CWE-119")
         formatted = loader.format_checklist_for_prompt(data)
 
-        assert "BUFFER OVERFLOW" in formatted
+        assert "BUFFER BOUNDS" in formatted
 
     def test__handles_empty_checklist_gracefully(self, loader):
         """Should handle a checklist dict with empty lists without error."""
@@ -238,24 +257,39 @@ class TestFormatChecklistForPrompt:
 class TestConvenienceFunctions:
     """Tests for format_checklist, get_checklist_for_issue, get_checklist_loader."""
 
-    def test__get_checklist_loader__returns_singleton(self):
-        """Subsequent calls to get_checklist_loader should return the same instance."""
-        loader1 = get_checklist_loader()
-        loader2 = get_checklist_loader()
+    def test__get_checklist_loader__returns_singleton_per_language(self):
+        """Repeated calls with the same language should return the same instance."""
+        loader1 = get_checklist_loader(RepoLanguage.GO)
+        loader2 = get_checklist_loader(RepoLanguage.GO)
         assert loader1 is loader2
+
+    def test__get_checklist_loader__different_languages_are_separate_instances(self):
+        """Different languages should produce distinct loader instances."""
+        go_loader = get_checklist_loader(RepoLanguage.GO)
+        c_loader = get_checklist_loader(RepoLanguage.C)
+        assert go_loader is not c_loader
 
     def test__get_checklist_for_issue__returns_dict(self):
         """get_checklist_for_issue should return a dict with expected keys."""
-        result = get_checklist_for_issue("CWE-119")
+        result = get_checklist_for_issue("CWE-119", language=RepoLanguage.GO)
 
         assert isinstance(result, dict)
         assert "vuln_type" in result
         assert "checklist" in result
         assert "guidance" in result
 
+    def test__format_checklist__generic_language_uses_yaml_default(self):
+        """Unset language should load research/generic/checklists/generic.yaml."""
+        result = format_checklist("CWE-119", language=RepoLanguage.GENERIC)
+
+        assert "EVIDENCE CHECKLIST (Generic)" in result
+        assert "Entry points" in result
+        assert "argc/argv" not in result
+        assert "os.Args" not in result
+
     def test__format_checklist__returns_string(self):
         """format_checklist should return a non-empty formatted string."""
-        result = format_checklist("CWE-476")
+        result = format_checklist("CWE-476", language=RepoLanguage.GO)
 
         assert isinstance(result, str)
         assert len(result) > 0
@@ -263,10 +297,10 @@ class TestConvenienceFunctions:
 
     def test__format_checklist__matches_loader_output(self):
         """format_checklist convenience should produce same output as manual steps."""
-        loader = get_checklist_loader()
+        loader = get_checklist_loader(RepoLanguage.GO)
         data = loader.get_checklist("CWE-416")
         expected = loader.format_checklist_for_prompt(data)
 
-        result = format_checklist("CWE-416")
+        result = format_checklist("CWE-416", language=RepoLanguage.GO)
 
         assert result == expected

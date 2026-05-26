@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from common.repo_language import RepoLanguage
 from sast_agent_workflow.nodes.sub_agents.investigation.constants import (
     INVESTIGATION_SUBGRAPH_RECURSION_LIMIT,
 )
@@ -38,6 +39,7 @@ def mock_config():
     config.MAX_ANALYSIS_ITERATIONS = 4
     config.MAX_CONCURRENT_INVESTIGATIONS = 1  # Use sequential for tests
     config.PROJECT_NAME = "test-project"
+    config.REPO_LANGUAGE = RepoLanguage.C
     return config
 
 
@@ -278,6 +280,7 @@ class TestBuildInitialInvestigationState:
             "issue-42", mock_per_issue_pending, "code", "", {}, mock_config
         )
 
+        assert state["repo_language"] == mock_config.REPO_LANGUAGE.value
         assert state["issue_id"] == "issue-42"
         assert "issue-42" in state["issue_description"]
         assert "buffer_overflow" in state["issue_description"]

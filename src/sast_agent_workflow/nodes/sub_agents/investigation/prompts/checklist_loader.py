@@ -2,8 +2,27 @@
 Checklist Loader - Load vulnerability-type specific evidence checklists.
 
 This module provides functionality to:
-- Load appropriate checklist templates based on CWE identifier
+- Load appropriate checklist templates based on CWE identifier and repository language
 - Provide guidance and stop criteria for research agents
+
+Directory layout (language-first):
+    research/
+        generic/
+            checklists/
+                generic.yaml   — default when repo language is unset
+        go/
+            checklists/
+                ...
+        c/
+            checklists/
+                ...
+
+Fallback chain per lookup:
+  1. research/{language}/checklists/{cwe_template}.yaml  — exact language + CWE match
+  2. research/{language}/checklists/generic.yaml          — language-specific generic
+  3. hardcoded minimal template                           — last resort if YAML missing
+
+Supported languages are declared in RepoLanguage (including GENERIC).
 """
 
 import logging
@@ -12,6 +31,8 @@ from typing import Dict, Optional
 
 import yaml
 from jsonschema import ValidationError, validate
+
+from common.repo_language import RepoLanguage
 
 logger = logging.getLogger(__name__)
 
@@ -37,20 +58,24 @@ _CHECKLIST_SCHEMA = {
 
 
 class ChecklistLoader:
-    """Load and manage vulnerability-type specific checklists."""
+    """Load and manage vulnerability-type specific checklists for a given language."""
 
-    def __init__(self, checklists_dir: Optional[Path] = None):
+    def __init__(self, language: RepoLanguage, checklists_dir: Optional[Path] = None):
         """
         Initialize the checklist loader.
 
         Args:
-            checklists_dir: Path to checklists directory. If None, uses default location.
+            language: Repository language. Determines which
+                      research/<language>/checklists/ directory is used.
+            checklists_dir: Language checklists directory. If None, uses
+                            research/<language>/checklists/ next to this module.
         """
-        if checklists_dir is None:
-            # Default to checklists/ relative to this file
-            self.checklists_dir = Path(__file__).parent / "checklists"
-        else:
-            self.checklists_dir = Path(checklists_dir)
+        self.language = language
+        self.checklists_dir = (
+            Path(checklists_dir)
+            if checklists_dir is not None
+            else Path(__file__).parent / "research" / language.value / "checklists"
+        )
 
         # Cache for loaded templates
         self._templates: Dict[str, Dict] = {}
@@ -60,7 +85,11 @@ class ChecklistLoader:
         self._load_cwe_mappings()
 
     def _load_cwe_mappings(self) -> None:
-        """Load CWE to template file mappings from YAML files."""
+        """Load CWE-to-template mappings from the language-specific subdirectory.
+
+        If the language subdirectory does not exist, logs a warning and leaves
+        the loader empty (callers will fall through to _get_default_template).
+        """
         if not self.checklists_dir.exists():
             logger.warning(f"Checklists directory not found: {self.checklists_dir}")
             return
@@ -75,12 +104,9 @@ class ChecklistLoader:
                 template_key = yaml_file.stem
                 cwe_ids = data["cwe_ids"]
 
-                # Cache the template
                 self._templates[template_key] = data
 
-                # Map each CWE to this template
                 for cwe in cwe_ids:
-                    # Store both with and without prefix
                     self._cwe_mapping[cwe.upper()] = template_key
                     if cwe.upper().startswith("CWE-"):
                         cwe_num = cwe.upper().replace("CWE-", "")
@@ -92,8 +118,8 @@ class ChecklistLoader:
                 logger.warning(f"Failed to load checklist from {yaml_file}: {e}")
 
         logger.debug(
-            f"Loaded {len(self._templates)} checklist templates, "
-            f"{len(self._cwe_mapping)} CWE mappings"
+            f"Loaded {len(self._templates)} checklist templates "
+            f"({self.language}), {len(self._cwe_mapping)} CWE mappings"
         )
 
     def _get_template_for_cwe(self, cwe: str) -> Dict:
@@ -106,21 +132,19 @@ class ChecklistLoader:
         Returns:
             Template dictionary or generic template if CWE not found
         """
-        # Normalize CWE
         cwe_upper = cwe.upper()
         cwe_num = cwe_upper.replace("CWE-", "")
 
-        # Look up in mapping
         template_key = self._cwe_mapping.get(cwe_upper) or self._cwe_mapping.get(cwe_num)
 
         if template_key and template_key in self._templates:
             return self._templates[template_key]
 
-        # Fall back to generic
         return self._templates.get("generic", self._get_default_template())
 
-    def _get_default_template(self) -> Dict:
-        """Return a minimal default template if no templates are loaded."""
+    @staticmethod
+    def default_template() -> Dict:
+        """Language-neutral checklist used when repo language is unknown."""
         return {
             "vuln_type": "Generic",
             "cwe_ids": [],
@@ -132,6 +156,10 @@ class ChecklistLoader:
                 "Validation checked",
             ],
         }
+
+    def _get_default_template(self) -> Dict:
+        """Return a minimal default template if no templates are loaded."""
+        return self.default_template()
 
     def get_checklist(self, issue_cwe: str) -> Dict:
         """
@@ -146,15 +174,15 @@ class ChecklistLoader:
             - guidance: Investigation guidance text
             - checklist: List of evidence items to gather
         """
-
         if issue_cwe:
             template = self._get_template_for_cwe(issue_cwe)
             logger.debug(
-                f"Using '{template.get('vuln_type', 'unknown')}' checklist for {issue_cwe}"
+                f"Using '{template.get('vuln_type', 'unknown')}' checklist "
+                f"for {issue_cwe} ({self.language})"
             )
         else:
             template = self._templates.get("generic", self._get_default_template())
-            logger.debug("No CWE found in description, using generic checklist")
+            logger.debug(f"No CWE found in description, using generic checklist ({self.language})")
 
         return {
             "vuln_type": template.get("vuln_type", "Generic"),
@@ -176,7 +204,6 @@ class ChecklistLoader:
         guidance = checklist_data.get("guidance", "")
         checklist = checklist_data.get("checklist", [])
 
-        # Format checklist items
         checklist_items = "\n".join(f"[ ] {item}" for item in checklist)
 
         return f"""**EVIDENCE CHECKLIST ({vuln_type}):**
@@ -186,41 +213,42 @@ class ChecklistLoader:
 {guidance}"""
 
 
-# Module-level instance for convenience
-_loader: Optional[ChecklistLoader] = None
+# Per-language singleton cache
+_loaders: Dict[RepoLanguage, ChecklistLoader] = {}
 
 
-def get_checklist_loader() -> ChecklistLoader:
-    """Get or create the global ChecklistLoader instance."""
-    global _loader
-    if _loader is None:
-        _loader = ChecklistLoader()
-    return _loader
+def get_checklist_loader(language: RepoLanguage) -> ChecklistLoader:
+    """Get or create a ChecklistLoader for the given language."""
+    if language not in _loaders:
+        _loaders[language] = ChecklistLoader(language=language)
+    return _loaders[language]
 
 
-def get_checklist_for_issue(issue_cwe: str) -> Dict:
+def get_checklist_for_issue(issue_cwe: str, language: RepoLanguage) -> Dict:
     """
     Convenience function to get checklist for an issue.
 
     Args:
         issue_cwe: CWE identifier (e.g., "CWE-119" or "119")
+        language: Repository language
 
     Returns:
         Checklist dictionary
     """
-    return get_checklist_loader().get_checklist(issue_cwe)
+    return get_checklist_loader(language).get_checklist(issue_cwe)
 
 
-def format_checklist(issue_cwe: str) -> str:
+def format_checklist(issue_cwe: str, language: RepoLanguage) -> str:
     """
     Convenience function to get formatted checklist for prompt.
 
     Args:
         issue_cwe: CWE identifier (e.g., "CWE-119" or "119")
+        language: Repository language (use RepoLanguage.GENERIC when unset)
 
     Returns:
         Formatted checklist string for prompt
     """
-    loader = get_checklist_loader()
+    loader = get_checklist_loader(language)
     checklist_data = loader.get_checklist(issue_cwe)
     return loader.format_checklist_for_prompt(checklist_data)
