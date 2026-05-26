@@ -5,16 +5,16 @@ on:
     branches:
       - main
     paths:
-      - '../../Containerfile.base.dockerfile'
+      - 'Containerfile.base.dockerfile'
       - '.github/workflows/build-base-image.yml'
   pull_request:
     branches:
       - main
     paths:
-      - '../../Containerfile.base.dockerfile'
+      - 'Containerfile.base.dockerfile'
       - '.github/workflows/build-base-image.yml'
-    types:
-      - closed
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM UTC
   workflow_dispatch:
 
 env:
@@ -24,8 +24,8 @@ env:
 jobs:
   build-base:
     runs-on: ubuntu-latest
-    # Only run on direct pushes to main OR when PRs are merged (not just closed) OR manual trigger
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    # Run on push to main, PRs (for validation), scheduled builds, or manual trigger
+    # Image is only pushed to registry when event is NOT a pull_request
     permissions:
       contents: read
       packages: write
@@ -38,6 +38,8 @@ jobs:
       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
 
     - name: Log in to Quay.io
+      # Skip login on PRs - no push means no auth needed, and secrets may be unavailable for forked PRs
+      if: github.event_name != 'pull_request'
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3
       with:
         registry: ${{ env.REGISTRY }}
@@ -64,7 +66,8 @@ jobs:
         context: .
         file: ./Containerfile.base.dockerfile
         platforms: linux/amd64
-        push: true
+        # Only push to registry on: push to main, scheduled runs, or manual trigger (NOT on pull_request)
+        push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
@@ -78,8 +81,17 @@ jobs:
         echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
         echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.IMAGE_NAME }}:main-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-base-image)" >> $GITHUB_STEP_SUMMARY
+
+        # Different summary for PRs (validation only) vs pushes (published images)
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "**Build Status:** ✅ Validation successful (no image push)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This PR validates that the Containerfile builds correctly." >> $GITHUB_STEP_SUMMARY
+          echo "Images will be published to registry after merge to main." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**Container Images Published:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME }}:main-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** [Quay.io Repository](https://quay.io/repository/ecosystem-appeng/sast-ai-base-image)" >> $GITHUB_STEP_SUMMARY
+        fi
