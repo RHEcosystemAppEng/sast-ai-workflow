@@ -10,6 +10,7 @@ import logging
 import uuid
 from typing import Annotated, Dict, List, Optional
 
+import httpx
 from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
@@ -41,6 +42,14 @@ from ..prompts import (
     build_code_bank,
     build_research_instructions,
 )
+from .research_middleware import (
+    RESEARCH_COMPLETED_REASON,
+    ResearchTerminationMiddleware,
+    create_research_response_format,
+    create_research_turn_bridge_middleware,
+    format_research_stop_reason,
+)
+from .research_response import ResearchTurnResponse
 from .schemas import InvestigationState
 
 logger = logging.getLogger(__name__)
@@ -207,7 +216,7 @@ def messages_reducer(
 # ============================================================================
 
 
-class ResearchAgentState(AgentState):
+class ResearchAgentState(AgentState[ResearchTurnResponse]):
     """
     State schema for the research agent.
 
@@ -217,6 +226,8 @@ class ResearchAgentState(AgentState):
     Custom messages reducer truncates long content automatically:
     - Tool results → summarized (full code in prompt CODE BANK)
     - AI reasoning → stripped (thinking model bloat)
+
+    structured_response: Parsed ResearchTurnResponse from response_format (ToolStrategy).
     """
 
     # Override messages with custom reducer that truncates content
@@ -225,6 +236,8 @@ class ResearchAgentState(AgentState):
     # Domain-specific state with custom reducers
     fetched_files: Annotated[NotRequired[Dict[str, List[str]]], merge_dicts]
     tool_call_history: Annotated[NotRequired[List[str]], unique_list_add]
+    research_stop_reason: NotRequired[str]
+    research_termination_detail: NotRequired[dict]
 
     # Investigation context (passed through from parent InvestigationState)
     issue_id: NotRequired[str]
@@ -405,7 +418,12 @@ def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
        with exponential backoff
     2. ModelCallLimitMiddleware: Limits total model calls, graceful exit on limit
     3. stateless_model_middleware: Builds [SystemMessage(instructions), SystemMessage(CODE BANK)]
-    4. code_gathering_middleware: Tracks tool results, returns Command for state updates
+    4. research_turn_bridge (wrap_model_call): structured tool.tool → native tool_calls
+    5. ResearchTerminationMiddleware: diagnostics; clear stale structured state; stop if invalid
+    6. code_gathering_middleware: Tracks tool results, returns Command for state updates
+
+    response_format: ToolStrategy(ResearchTurnResponse) — LangChain parses/retries;
+    bridge runs tools
     """
     # Create checkpointer to preserve state when recursion limit is hit
     # This allows us to retrieve accumulated code via get_state() on error
@@ -415,17 +433,21 @@ def create_research_node(llm: BaseChatModel, tools: List[BaseTool]):
         model=llm,
         tools=tools,
         state_schema=ResearchAgentState,
+        response_format=create_research_response_format(),
         middleware=[
             ModelRetryMiddleware(
-                max_retries=3,
+                max_retries=1,
                 backoff_factor=2.0,
                 initial_delay=1.0,
+                retry_on=(httpx.HTTPStatusError, httpx.TimeoutException, Exception),
             ),
             ModelCallLimitMiddleware(
                 run_limit=MAX_MODEL_CALLS,
                 exit_behavior="end",  # Graceful termination instead of GraphRecursionError
             ),
             stateless_model_middleware,  # Build SystemMessages (instructions + CODE BANK)
+            create_research_turn_bridge_middleware(ResearchAgentState),
+            ResearchTerminationMiddleware(ResearchAgentState),
             code_gathering_middleware,  # Track tool results via Command
         ],
         checkpointer=checkpointer,  # Preserve state for recovery on recursion limit
@@ -479,13 +501,29 @@ def _handle_research_success(state: InvestigationState, result: dict) -> Investi
     gathered_code = _merge_gathered_code(state.get("gathered_code", ""), fetched)
     total_tool_calls = _count_tool_calls(state, messages)
     issue = state["issue_id"]
+    termination_detail = result.get("research_termination_detail") or {}
+    research_stop = result.get("research_stop_reason")
+    structured = result.get("structured_response")
+    turn_completed = (
+        getattr(structured, "completed", None)
+        if isinstance(structured, ResearchTurnResponse)
+        else (structured or {}).get("completed") if isinstance(structured, dict) else None
+    )
+
     logger.info(
         f"[{issue}] Research complete. Total gathered "
         f"code: {len(gathered_code)} chars, "
         f"{len(fetched)} tools used, "
-        f"{len(history)} tool calls"
+        f"{len(history)} tool calls, "
+        f"research_stop={research_stop}, model_completed={turn_completed}"
     )
-    return {
+    if termination_detail:
+        logger.info(
+            f"[{issue}] Research termination detail: {termination_detail.get('cause')} "
+            f"(tool_calls_in_history={termination_detail.get('tool_calls_in_history')})"
+        )
+
+    out: InvestigationState = {
         **state,
         "research_messages": messages,
         "gathered_code": gathered_code,
@@ -493,6 +531,16 @@ def _handle_research_success(state: InvestigationState, result: dict) -> Investi
         "tool_call_history": history,
         "total_tool_calls": total_tool_calls,
     }
+    if research_stop:
+        out["stop_reason"] = format_research_stop_reason(
+            research_stop, termination_detail if isinstance(termination_detail, dict) else None
+        )
+    elif turn_completed:
+        out["stop_reason"] = format_research_stop_reason(
+            RESEARCH_COMPLETED_REASON,
+            termination_detail if isinstance(termination_detail, dict) else None,
+        )
+    return out
 
 
 def _handle_research_recursion_limit(

@@ -228,7 +228,8 @@ class TestBuildResearchInstructions:
         assert "code gatherer" in result
         assert "FINDING" in result
         assert "CWE-119 buffer overflow" in result
-        assert "RESEARCH_COMPLETE" in result
+        assert "ResearchTurnResponse" in result
+        assert "completed" in result
 
     @patch(f"{_MOD}.format_checklist", return_value="**EVIDENCE CHECKLIST (Generic):**\n...")
     def test__first_iteration_includes_checklist(self, mock_checklist):
@@ -261,7 +262,8 @@ class TestBuildResearchInstructions:
         assert "Need more evidence for guard check" in result
         assert "validate_input" in result
         assert "check_bounds" in result
-        assert "RESEARCH_COMPLETE" in result
+        assert "ResearchTurnResponse" in result
+        assert "completed" in result
 
     def test__continuation_without_required_info(self):
         """Continuation with empty required_information should show 'None specified'."""

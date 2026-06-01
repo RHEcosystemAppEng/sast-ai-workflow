@@ -35,22 +35,21 @@ initial: |
   Full code is in CODE BANK below.
 
   **CRITICAL RULES:**
-  1. Call ONE tool per response to gather code
-  2. Use `fetch_code` with `function_name` to get specific functions
-  3. Use `search_codebase` to find patterns in code
-  4. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
+  1. Every turn call `ResearchTurnResponse` with `reasoning` and `completed` (see format below)
+  2. When `completed` is false, call exactly ONE native gather tool (`fetch_code`, `search_codebase`, `read_file`, `list_directory`, or `file_search`) with full arguments
+  3. Use `fetch_code` with `function_name` to get specific functions
+  4. Use `search_codebase` to find patterns in code
+  5. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
      - If a search returned "No matches", that pattern does NOT exist in the codebase
      - Try a DIFFERENT pattern, file type, or approach instead
-  5. Do NOT analyze - just gather code. Analysis happens later.
-  6. When done gathering code for BOTH the context steps (Step B above) AND all vulnerability checklist items,
-     respond with ONLY: RESEARCH_COMPLETE
+  6. Do NOT analyze - just gather code. Analysis happens later.
+  7. When done gathering code for BOTH the context steps (Step B above) AND all vulnerability checklist items,
+     call `ResearchTurnResponse` with `completed: true`
 
-  **RESPONSE FORMAT:**
-  Either:
-    Reasoning: [One sentence - which checklist item does this address?]
-    [Tool call]
-  Or (when done):
-    RESEARCH_COMPLETE
+  **RESPONSE FORMAT (required every turn):**
+  Two parts — control + execution:
+    A) `ResearchTurnResponse`: `reasoning`, `completed`
+    B) If `completed` is false: one native gather tool call with complete arguments (e.g. `file_search(pattern='go.mod')`)
 
 continuation: |
   Gather more code based on feedback.
@@ -71,19 +70,13 @@ continuation: |
   Full code is in CODE BANK below.
 
   **CRITICAL RULES:**
-  1. Call ONE tool per response to get the missing information
+  1. Every turn: `ResearchTurnResponse` (`reasoning`, `completed`) + at most one native gather tool when `completed` is false
   2. **NEVER retry a failed tool call with the same parameters** - it will ALWAYS fail again
-     - If a search returned "No matches", that pattern does NOT exist in the codebase
-     - Try a DIFFERENT pattern, file type, or approach instead
   3. Do NOT re-analyze code in the CODE BANK
-  4. When done gathering code for ALL missing items, respond with ONLY: RESEARCH_COMPLETE
+  4. When done, `ResearchTurnResponse` with `completed: true`
 
   **RESPONSE FORMAT:**
-  Either:
-    Reasoning: [One sentence - which checklist item?]
-    [Tool call]
-  Or (when done):
-    RESEARCH_COMPLETE
+  `ResearchTurnResponse` for turn state; one native gather tool with full arguments when still gathering.
 
 tool_history_failed_suffix: |
   If you need this information, try a DIFFERENT approach:

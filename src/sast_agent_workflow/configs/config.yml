@@ -34,6 +34,7 @@ llms:
     base_url: ${LLM_URL}
     model_name: ${LLM_MODEL_NAME}
     temperature: 0
+    max_retries: 2
     top_p: 1.0
     max_tokens: 32768
     http_client:
@@ -67,6 +68,6 @@ general:
     logging:
       console:
         _type: console
-        level: INFO
+        level: DEBUG
   front_end:
     _type: console
