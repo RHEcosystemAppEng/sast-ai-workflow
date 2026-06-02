@@ -70,7 +70,8 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                 safe_output = 2000
             else:
                 input_tokens = int(match.group(1))
-                safe_output = max(2000, 65536 - input_tokens - 1000)
+                # Account for structured output overhead (~1000 tokens) + safety buffer
+                safe_output = max(2000, 65536 - input_tokens - 2500)
                 logger.info(f"[{issue_id}] Input: {input_tokens} tokens, calculated output: {safe_output}")
 
             # Check if we can modify max_tokens
@@ -91,15 +92,15 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
 
             try:
                 llm.max_tokens = safe_output
-                logger.info(f"[{issue_id}] Adjusted max_tokens from {original_max_tokens} to {safe_output}")
+                logger.info(f"[{issue_id}] set llm.max_tokens to {safe_output}")
 
                 result = robust_structured_output(
-                    llm,
-                    EvaluationResult,
-                    eval_prompt,
-                    prompt_chain,
-                    1,
-                    {"run_name": LANGFUSE_EVALUATION_TRACE_NAME},
+                    llm=llm,
+                    schema=EvaluationResult,
+                    input=eval_prompt,
+                    prompt_chain=prompt_chain,
+                    max_retries=1,
+                    config={"run_name": LANGFUSE_EVALUATION_TRACE_NAME},
                 )
 
                 logger.info(f"[{issue_id}] Retry with reduced tokens succeeded!")
@@ -115,7 +116,7 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                 }
             finally:
                 llm.max_tokens = original_max_tokens
-                logger.debug(f"[{issue_id}] Restored max_tokens to {original_max_tokens}")
+                logger.debug(f"[{issue_id}] Restored llm.max_tokens to {original_max_tokens}")
 
         # Handle disagreement without missing evidence:
         # When evaluator returns NEEDS_MORE_RESEARCH with empty required_information,
