@@ -54,7 +54,8 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
 
                 # Extract actual input tokens from error and calculate safe output
                 import re
-                match = re.search(r"(\d+) input tokens", str(e))
+                message = str(e)[:1000]
+                match = re.search(r"([0-9]{1,20}) input tokens", message)
                 if match:
                     input_tokens = int(match.group(1))
                     safe_output = max(2000, 65536 - input_tokens - 1000)  # 1000 token buffer
