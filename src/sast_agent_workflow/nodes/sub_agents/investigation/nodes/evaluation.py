@@ -64,11 +64,14 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                     safe_output = 2000  # Fallback if we can't parse the error
 
                 try:
-                    reduced_llm = llm.__class__(**{**llm.dict(), "max_tokens": safe_output})
+                    logger.debug(f"[{issue_id}] Creating reduced LLM with .bind(max_tokens={safe_output})")
+                    reduced_llm = llm.bind(max_tokens=safe_output)
+                    logger.debug(f"[{issue_id}] Reduced LLM created: {type(reduced_llm).__name__}")
                     result = robust_structured_output(
                         reduced_llm, EvaluationResult, eval_prompt, prompt_chain, 1,
                         {"run_name": LANGFUSE_EVALUATION_TRACE_NAME}
                     )
+                    logger.info(f"[{issue_id}] Retry with reduced tokens succeeded!")
                 except Exception as retry_error:
                     logger.error(f"[{issue_id}] Retry failed: {retry_error}")
                     return {**state, "is_complete": True, "stop_reason": "evaluation_error",
