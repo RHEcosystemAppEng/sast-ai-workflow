@@ -17,29 +17,11 @@ if ! command -v oras &> /dev/null; then
   exit 1
 fi
 
-# Discover SARIF artifact attached to the image
-echo "Discovering SARIF artifact using ORAS..."
-SARIF_DIGEST=$(oras discover "$IMAGE_DIGEST" \
-  --artifact-type application/sarif+json \
-  --format json 2>/dev/null | jq -r '.manifests[0].digest' || echo "")
-
-if [[ -z "$SARIF_DIGEST" || "$SARIF_DIGEST" = "null" ]]; then
-  echo "ERROR: No SARIF artifact found attached to image $IMAGE_DIGEST" >&2
-  echo "Expected artifactType: application/sarif+json" >&2
-  exit 1
-fi
-
-echo "Found SARIF artifact: $SARIF_DIGEST"
-
-# Extract registry and repository from IMAGE_DIGEST
-REGISTRY=$(echo "$IMAGE_DIGEST" | cut -d'/' -f1)
-REPO_PATH=$(echo "$IMAGE_DIGEST" | cut -d'@' -f1 | cut -d'/' -f2-)
-
-# Download SARIF using the discovered digest
-echo "Downloading SARIF artifact..."
+# Download artifacts from Trusted Artifacts
+# Note: SARIF is embedded directly in the image, not as an OCI referrer
+echo "Downloading artifacts from Trusted Artifacts..."
 mkdir -p /shared-data/oras-downloads
-oras pull "${REGISTRY}/${REPO_PATH}@${SARIF_DIGEST}" \
-  --output /shared-data/oras-downloads/
+oras pull "$IMAGE_DIGEST" --output /shared-data/oras-downloads/
 
 # Find and move SARIF file to expected location
 SARIF_FILE=$(find /shared-data/oras-downloads -name "*.sarif" -o -name "*.json" | head -1)
@@ -52,15 +34,10 @@ fi
 mv "$SARIF_FILE" /shared-data/input-report.sarif
 echo "SARIF downloaded to: /shared-data/input-report.sarif"
 
-# TODO: Download source artifacts from Trusted Artifacts
-# Source code can be attached to the same image as an OCI referrer (like SARIF).
-# Before implementing, we need to determine:
-#   1. Artifact type for source (e.g., application/vnd.cachi2.source, application/vnd.oci.image.layer.v1.tar+gzip)
-#   2. Authentication requirements (if any)
-#   3. Extraction format and destination path
-# Implementation approach (once above is known):
-#   SOURCE_DIGEST=$(oras discover "$IMAGE_DIGEST" --artifact-type <TYPE> --format json | jq -r '.manifests[0].digest')
-#   oras pull "${REGISTRY}/${REPO_PATH}@${SOURCE_DIGEST}" --output /shared-data/source/
-# For now, REPO_REMOTE_URL will handle source download in prepare-source step
+# TODO: Download source artifacts from Trusted Artifacts if needed
+# Source code may be embedded in the image or available via separate artifact.
+# For now, REPO_REMOTE_URL will handle source download in prepare-source step.
+# If source is embedded in the same image, it will be downloaded alongside SARIF
+# in the oras pull step above.
 
 echo "=== Trusted Artifacts download complete ==="
