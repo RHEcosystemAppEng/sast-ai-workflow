@@ -48,38 +48,74 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                 config={"run_name": LANGFUSE_EVALUATION_TRACE_NAME},
             )
         except Exception as e:
-            # Handle token limit errors by retrying with reduced max_tokens
-            if "context length" in str(e).lower():
-                logger.warning(f"[{issue_id}] Token limit error, retrying with reduced output...")
+            error_msg = str(e)
 
-                # Extract actual input tokens from error and calculate safe output
-                import re
-                message = str(e)[:1000]
-                match = re.search(r"([0-9]{1,20}) input tokens", message)
-                if match:
-                    input_tokens = int(match.group(1))
-                    safe_output = max(2000, 65536 - input_tokens - 1000)  # 1000 token buffer
-                    logger.info(f"[{issue_id}] Input: {input_tokens} tokens, adjusted output: {safe_output}")
-                else:
-                    safe_output = 2000  # Fallback if we can't parse the error
-
-                try:
-                    logger.debug(f"[{issue_id}] Creating reduced LLM with .bind(max_tokens={safe_output})")
-                    reduced_llm = llm.bind(max_tokens=safe_output)
-                    logger.debug(f"[{issue_id}] Reduced LLM created: {type(reduced_llm).__name__}")
-                    result = robust_structured_output(
-                        reduced_llm, EvaluationResult, eval_prompt, prompt_chain, 1,
-                        {"run_name": LANGFUSE_EVALUATION_TRACE_NAME}
-                    )
-                    logger.info(f"[{issue_id}] Retry with reduced tokens succeeded!")
-                except Exception as retry_error:
-                    logger.error(f"[{issue_id}] Retry failed: {retry_error}")
-                    return {**state, "is_complete": True, "stop_reason": "evaluation_error",
-                            "evaluation_feedback": f"Evaluation failed: {retry_error}", "proposed_verdict": "NEEDS_REVIEW"}
-            else:
+            # Only handle token limit errors
+            if "context length" not in error_msg.lower():
                 logger.error(f"[{issue_id}] Evaluation error: {e}", exc_info=True)
-                return {**state, "is_complete": True, "stop_reason": "evaluation_error",
-                        "evaluation_feedback": f"Evaluation failed: {e}", "proposed_verdict": "NEEDS_REVIEW"}
+                return {
+                    **state,
+                    "is_complete": True,
+                    "stop_reason": "evaluation_error",
+                    "evaluation_feedback": f"Evaluation failed: {e}",
+                    "proposed_verdict": "NEEDS_REVIEW",
+                }
+
+            logger.warning(f"[{issue_id}] Token limit error, retrying with reduced output...")
+
+            # Extract input tokens from error
+            import re
+            match = re.search(r"\b([0-9]{1,12}) input tokens\b", error_msg[:1000])
+            if not match:
+                safe_output = 2000
+            else:
+                input_tokens = int(match.group(1))
+                safe_output = max(2000, 65536 - input_tokens - 1000)
+                logger.info(f"[{issue_id}] Input: {input_tokens} tokens, calculated output: {safe_output}")
+
+            # Check if we can modify max_tokens
+            if not hasattr(llm, "max_tokens"):
+                logger.error(f"[{issue_id}] Cannot reduce max_tokens for LLM type {type(llm).__name__}")
+                return {
+                    **state,
+                    "is_complete": True,
+                    "stop_reason": "evaluation_error",
+                    "evaluation_feedback": "Cannot adjust max_tokens",
+                    "proposed_verdict": "NEEDS_REVIEW",
+                }
+
+            # Cap safe_output to never exceed original max_tokens
+            original_max_tokens = getattr(llm, "max_tokens", None)
+            if original_max_tokens is not None:
+                safe_output = min(safe_output, original_max_tokens)
+
+            try:
+                llm.max_tokens = safe_output
+                logger.info(f"[{issue_id}] Adjusted max_tokens from {original_max_tokens} to {safe_output}")
+
+                result = robust_structured_output(
+                    llm,
+                    EvaluationResult,
+                    eval_prompt,
+                    prompt_chain,
+                    1,
+                    {"run_name": LANGFUSE_EVALUATION_TRACE_NAME},
+                )
+
+                logger.info(f"[{issue_id}] Retry with reduced tokens succeeded!")
+
+            except Exception as retry_error:
+                logger.error(f"[{issue_id}] Retry failed: {retry_error}")
+                return {
+                    **state,
+                    "is_complete": True,
+                    "stop_reason": "evaluation_error",
+                    "evaluation_feedback": f"Evaluation failed: {retry_error}",
+                    "proposed_verdict": "NEEDS_REVIEW",
+                }
+            finally:
+                llm.max_tokens = original_max_tokens
+                logger.debug(f"[{issue_id}] Restored max_tokens to {original_max_tokens}")
 
         # Handle disagreement without missing evidence:
         # When evaluator returns NEEDS_MORE_RESEARCH with empty required_information,
