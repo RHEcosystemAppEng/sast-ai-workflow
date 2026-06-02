@@ -48,14 +48,34 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                 config={"run_name": LANGFUSE_EVALUATION_TRACE_NAME},
             )
         except Exception as e:
-            logger.error(f"[{issue_id}] Evaluation error after retries: {e}", exc_info=True)
-            return {
-                **state,
-                "is_complete": True,
-                "stop_reason": "evaluation_error",
-                "evaluation_feedback": f"Evaluation failed: {e}",
-                "proposed_verdict": "NEEDS_REVIEW",
-            }
+            # Handle token limit errors by retrying with reduced max_tokens
+            if "context length" in str(e).lower():
+                logger.warning(f"[{issue_id}] Token limit error, retrying with reduced output...")
+
+                # Extract actual input tokens from error and calculate safe output
+                import re
+                match = re.search(r"(\d+)\s+input tokens", str(e))
+                if match:
+                    input_tokens = int(match.group(1))
+                    safe_output = max(2000, 65536 - input_tokens - 1000)  # 1000 token buffer
+                    logger.info(f"[{issue_id}] Input: {input_tokens} tokens, adjusted output: {safe_output}")
+                else:
+                    safe_output = 2000  # Fallback if we can't parse the error
+
+                try:
+                    reduced_llm = llm.__class__(**{**llm.dict(), "max_tokens": safe_output})
+                    result = robust_structured_output(
+                        reduced_llm, EvaluationResult, eval_prompt, prompt_chain, 1,
+                        {"run_name": LANGFUSE_EVALUATION_TRACE_NAME}
+                    )
+                except Exception as retry_error:
+                    logger.error(f"[{issue_id}] Retry failed: {retry_error}")
+                    return {**state, "is_complete": True, "stop_reason": "evaluation_error",
+                            "evaluation_feedback": f"Evaluation failed: {retry_error}", "proposed_verdict": "NEEDS_REVIEW"}
+            else:
+                logger.error(f"[{issue_id}] Evaluation error: {e}", exc_info=True)
+                return {**state, "is_complete": True, "stop_reason": "evaluation_error",
+                        "evaluation_feedback": f"Evaluation failed: {e}", "proposed_verdict": "NEEDS_REVIEW"}
 
         # Handle disagreement without missing evidence:
         # When evaluator returns NEEDS_MORE_RESEARCH with empty required_information,
