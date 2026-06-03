@@ -122,6 +122,9 @@ spec:
     - name: gcs-sa-json-ws
       description: "Optional secret mount for GCS service account"
       optional: true
+    - name: konflux-registry-creds-ws
+      description: "Optional secret mount for Konflux Trusted Artifacts registry credentials"
+      optional: true
 
   volumes:
     - name: shared-data
@@ -157,6 +160,8 @@ spec:
       env:
         - name: IMAGE_DIGEST
           value: "$(params.IMAGE_DIGEST)"
+        - name: KONFLUX_REGISTRY_CREDS_PATH
+          value: "$(workspaces.konflux-registry-creds-ws.path)/credentials"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -180,6 +185,8 @@ spec:
           value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: GOOGLE_SA_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+        - name: TEKTON_RESULTS_DIR
+          value: "$(results.report-file-path.path)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data

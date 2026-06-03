@@ -97,6 +97,8 @@ spec:
     - name: google-sa-json-ws
     - name: gcs-sa-json-ws
       optional: true
+    - name: konflux-registry-creds-ws
+      optional: true
   tasks:
     - name: execute-ai-analysis
       timeout: "5h0m0s"
@@ -157,3 +159,5 @@ spec:
           workspace: google-sa-json-ws
         - name: gcs-sa-json-ws
           workspace: gcs-sa-json-ws
+        - name: konflux-registry-creds-ws
+          workspace: konflux-registry-creds-ws

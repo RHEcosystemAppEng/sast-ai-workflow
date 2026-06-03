@@ -17,6 +17,32 @@ if ! command -v oras &> /dev/null; then
   exit 1
 fi
 
+# Extract registry host from IMAGE_DIGEST
+REGISTRY_HOST=$(echo "$IMAGE_DIGEST" | cut -d'/' -f1)
+
+# Authenticate to Konflux registry if credentials are provided
+if [[ -f "$KONFLUX_REGISTRY_CREDS_PATH" ]]; then
+  echo "Authenticating to Konflux registry: $REGISTRY_HOST"
+
+  # Read token from secret file
+  KONFLUX_TOKEN=$(cat "$KONFLUX_REGISTRY_CREDS_PATH")
+
+  if [[ -z "$KONFLUX_TOKEN" ]]; then
+    echo "ERROR: Konflux registry token is empty in $KONFLUX_REGISTRY_CREDS_PATH" >&2
+    exit 1
+  fi
+
+  # Login to registry using token (using stdin to avoid exposing token in logs)
+  echo "$KONFLUX_TOKEN" | oras login "$REGISTRY_HOST" \
+    --username openshift-user \
+    --password-stdin
+
+  echo "Successfully authenticated to $REGISTRY_HOST"
+else
+  echo "WARNING: No Konflux registry credentials provided at $KONFLUX_REGISTRY_CREDS_PATH"
+  echo "Attempting unauthenticated pull (may fail for private registries)"
+fi
+
 # Download artifacts from Trusted Artifacts
 # Note: SARIF is embedded directly in the image, not as an OCI referrer
 echo "Downloading artifacts from Trusted Artifacts..."
