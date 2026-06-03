@@ -175,6 +175,8 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: FALSE_POSITIVES_URL
           value: "$(params.FALSE_POSITIVES_URL)"
+        - name: IMAGE_DIGEST
+          value: "$(params.IMAGE_DIGEST)"
       command: ["/scripts/validate_input_urls.sh"]
 
     # STEP 2: Validate Report File
