@@ -60,10 +60,8 @@ fi
 mv "$SARIF_FILE" /shared-data/input-report.sarif
 echo "SARIF downloaded to: /shared-data/input-report.sarif"
 
-# TODO: Download source artifacts from Trusted Artifacts if needed
-# Source code may be embedded in the image or available via separate artifact.
-# For now, REPO_REMOTE_URL will handle source download in prepare-source step.
-# If source is embedded in the same image, it will be downloaded alongside SARIF
-# in the oras pull step above.
+# Note: Source code is NOT downloaded from Trusted Artifacts.
+# Konflux provides git URL + revision via REPO_REMOTE_URL and GIT_REVISION parameters.
+# Source checkout happens in prepare-source step using git clone.
 
 echo "=== Trusted Artifacts download complete ==="
