@@ -96,6 +96,42 @@ def unique_list_add(left: Optional[List], right: Optional[List]) -> List:
     return result
 
 
+def _normalize_tool_arg(value: object) -> object:
+    """Normalize tool argument values for stable duplicate detection."""
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
+def tool_call_signature(tool_name: str, args: dict) -> str:
+    """Canonical tool+args key used for duplicate detection (no success prefix)."""
+    args_str = ", ".join(
+        f"{k}='{_normalize_tool_arg(v)}'" for k, v in sorted(args.items()) if v is not None
+    )
+    return f"{tool_name}({args_str})"
+
+
+def _signature_from_history_entry(entry: str) -> Optional[str]:
+    """Extract ``tool_call_signature`` form from a history line, if parseable."""
+    stripped = entry.strip()
+    if not stripped:
+        return None
+    body = stripped[1:].strip() if stripped[0] in "✓✗" else stripped
+    if " → " in body:
+        body = body.split(" → ", 1)[0].strip()
+    return body or None
+
+
+def _known_tool_signatures(tool_call_history: List[str]) -> set[str]:
+    """Signatures of all prior gather tool calls in this research phase."""
+    signatures: set[str] = set()
+    for entry in tool_call_history:
+        sig = _signature_from_history_entry(entry)
+        if sig:
+            signatures.add(sig)
+    return signatures
+
+
 def _format_tool_call(tool_name: str, args: dict, success: bool, reason: str = "") -> str:
     """
     Format tool call for history tracking.
@@ -110,11 +146,9 @@ def _format_tool_call(tool_name: str, args: dict, success: bool, reason: str = "
         Formatted string like "✓ fetch_code(file_path='src/main.c')" or
         "✗ search_codebase(pattern='malloc') → No matches"
     """
-    # Format args as key='value' pairs, excluding None values
-    args_str = ", ".join(f"{k}='{v}'" for k, v in args.items() if v is not None)
     prefix = "✓" if success else "✗"
     suffix = f" → {reason}" if reason and not success else ""
-    return f"{prefix} {tool_name}({args_str}){suffix}"
+    return f"{prefix} {tool_call_signature(tool_name, args)}{suffix}"
 
 
 def _truncate_tool_message(msg: ToolMessage) -> Optional[AnyMessage]:
@@ -322,6 +356,29 @@ async def code_gathering_middleware(request: ToolCallRequest, handler):
     tool_name = request.tool_call.get("name", "unknown")
     tool_call_id = request.tool_call["id"]
     tool_args = request.tool_call.get("args", {})
+
+    if tool_name in CODE_GATHERING_TOOLS:
+        history = request.state.get("tool_call_history") or []
+        sig = tool_call_signature(tool_name, tool_args)
+        if sig in _known_tool_signatures(history):
+            history_entry = _format_tool_call(
+                tool_name, tool_args, success=False, reason="Duplicate"
+            )
+            return Command(
+                update={
+                    "tool_call_history": [history_entry],
+                    "messages": [
+                        ToolMessage(
+                            content=(
+                                "Duplicate tool call blocked: identical parameters were "
+                                "already used this research phase. Use different parameters "
+                                "or set ResearchTurnResponse completed=true."
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                }
+            )
 
     # Execute the tool
     try:

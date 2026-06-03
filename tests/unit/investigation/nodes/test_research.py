@@ -13,6 +13,9 @@ from sast_agent_workflow.nodes.sub_agents.investigation.nodes.research import (
     _handle_research_error,
     _handle_research_recursion_limit,
     _handle_research_success,
+    _known_tool_signatures,
+    _signature_from_history_entry,
+    tool_call_signature,
 )
 
 # ---------------------------------------------------------------------------
@@ -77,6 +80,38 @@ def _mock_agent_with_preserved_state(fetched=None, history=None, messages=None):
     }
     agent.get_state.return_value = preserved
     return agent
+
+
+# ---------------------------------------------------------------------------
+# tool_call_signature / duplicate detection
+# ---------------------------------------------------------------------------
+
+
+class TestToolCallSignature:
+    """Tests for canonical tool signatures and history parsing."""
+
+    def test__signature_sorts_args_for_stable_key(self):
+        a = tool_call_signature("fetch_code", {"function_name": "main", "file_path": "a.go"})
+        b = tool_call_signature("fetch_code", {"file_path": "a.go", "function_name": "main"})
+        assert a == b
+
+    def test__signature_strips_string_whitespace(self):
+        a = tool_call_signature("search_codebase", {"pattern": "malloc"})
+        b = tool_call_signature("search_codebase", {"pattern": " malloc "})
+        assert a == b
+
+    def test__parses_success_and_failure_history_entries(self):
+        history = [
+            "✓ fetch_code(file_path='a.go', function_name='main')",
+            "✗ search_codebase(pattern='foo') → No matches",
+        ]
+        sigs = _known_tool_signatures(history)
+        assert "fetch_code(file_path='a.go', function_name='main')" in sigs
+        assert "search_codebase(pattern='foo')" in sigs
+
+    def test__signature_from_history_entry_strips_prefix_and_reason(self):
+        entry = "✗ file_search(pattern='go.mod') → Duplicate"
+        assert _signature_from_history_entry(entry) == "file_search(pattern='go.mod')"
 
 
 # ---------------------------------------------------------------------------
