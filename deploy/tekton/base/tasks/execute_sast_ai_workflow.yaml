@@ -108,6 +108,10 @@ spec:
       type: string
       description: "OCI image digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). SARIF attached as OCI referrer."
       default: ""
+    - name: GIT_REVISION
+      type: string
+      description: "Git commit SHA for source checkout (used with Konflux scans)"
+      default: ""
     - name: MAX_CONCURRENT_INVESTIGATIONS
       type: string
       description: "Number of issues to process concurrently (1 = sequential, 5 = default parallel)"
@@ -204,6 +208,8 @@ spec:
           value: "/shared-data"
         - name: SRC_URL
           value: "$(params.REPO_REMOTE_URL)"
+        - name: GIT_REVISION
+          value: "$(params.GIT_REVISION)"
         - name: WORKDIR
           value: "/shared-data"
         - name: TEKTON_RESULTS_DIR

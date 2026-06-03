@@ -6,6 +6,22 @@ echo "=== STEP 3: PREPARE SOURCE ==="
 rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
 mkdir -p "${WORKDIR}/source"
 
+# For Konflux scans with GIT_REVISION, clone and checkout specific revision
+if [[ -n "$GIT_REVISION" ]]; then
+  echo "Konflux scan detected - cloning source at revision: $GIT_REVISION"
+  REPO_NAME=$(basename "$SRC_URL" .git)
+  git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME" >/dev/null 2>&1
+  cd "${WORKDIR}/source/$REPO_NAME"
+  git checkout "$GIT_REVISION" >/dev/null 2>&1
+  REPO_LOCAL_PATH="${WORKDIR}/source/$REPO_NAME"
+
+  # Save repo path for next steps
+  echo -n "$REPO_LOCAL_PATH" > "${TEKTON_RESULTS_DIR}"
+  echo "REPO_LOCAL_PATH=$REPO_LOCAL_PATH" > /shared-data/env.txt
+  echo "Source checked out at revision: $GIT_REVISION"
+  exit 0
+fi
+
 if echo "$SRC_URL" | grep -iq '\.rpm$'; then
   echo "Processing SRPM package..."
 
