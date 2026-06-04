@@ -214,6 +214,8 @@ spec:
           value: "/shared-data"
         - name: TEKTON_RESULTS_DIR
           value: "$(results.repo-local-path.path)"
+        - name: GITLAB_TOKEN_PATH
+          value: "$(workspaces.gitlab-token-ws.path)/gitlab_token"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -336,7 +338,7 @@ spec:
         - name: OUTPUT_FILE_PATH
           value: "/shared-data/output/sast_ai_output.xlsx"
         - name: LIBCLANG_PATH
-          value: "/usr/lib64/libclang.so.20.1"
+          value: "/usr/lib64/libclang.so.21.1"
         - name: DVC_GIT_COMMIT_HASH
           value: "$(params.GIT_COMMIT_HASH)"
         - name: DVC_REPO_BRANCH
