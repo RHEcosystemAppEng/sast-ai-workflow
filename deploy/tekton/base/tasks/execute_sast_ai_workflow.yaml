@@ -104,9 +104,9 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
-    - name: IMAGE_DIGEST
+    - name: CONTAINER_IMAGE_DIGEST
       type: string
-      description: "OCI image digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). SARIF attached as OCI referrer."
+      description: "OCI container image digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). SARIF attached as OCI referrer."
       default: ""
     - name: GIT_REVISION
       type: string
@@ -162,8 +162,8 @@ spec:
     - name: download-from-trusted-artifacts
       image: $(params.BASE_IMAGE)
       env:
-        - name: IMAGE_DIGEST
-          value: "$(params.IMAGE_DIGEST)"
+        - name: CONTAINER_IMAGE_DIGEST
+          value: "$(params.CONTAINER_IMAGE_DIGEST)"
         - name: KONFLUX_REGISTRY_CREDS_PATH
           value: "$(workspaces.konflux-registry-creds-ws.path)/credentials"
       volumeMounts:
@@ -179,8 +179,8 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: FALSE_POSITIVES_URL
           value: "$(params.FALSE_POSITIVES_URL)"
-        - name: IMAGE_DIGEST
-          value: "$(params.IMAGE_DIGEST)"
+        - name: CONTAINER_IMAGE_DIGEST
+          value: "$(params.CONTAINER_IMAGE_DIGEST)"
       command: ["/scripts/validate_input_urls.sh"]
 
     # STEP 2: Validate Report File

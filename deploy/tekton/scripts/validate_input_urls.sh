@@ -2,9 +2,9 @@
 set -e
 echo "=== STEP 1: VALIDATE INPUT URLS ==="
 
-# Skip URL validation for Konflux scans - uses IMAGE_DIGEST instead
-if [[ -n "$IMAGE_DIGEST" ]]; then
-  echo "Konflux scan detected (IMAGE_DIGEST provided) - skipping URL validation"
+# Skip URL validation for Konflux scans - uses CONTAINER_IMAGE_DIGEST instead
+if [[ -n "$CONTAINER_IMAGE_DIGEST" ]]; then
+  echo "Konflux scan detected (CONTAINER_IMAGE_DIGEST provided) - skipping URL validation"
   exit 0
 fi
 
