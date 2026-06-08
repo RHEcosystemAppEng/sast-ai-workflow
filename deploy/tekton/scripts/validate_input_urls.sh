@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -e
-echo "=== STEP 1: VALIDATE INPUT URLS ==="
+echo "=== STEP 0: VALIDATE INPUT URLS ==="
 
-# Skip URL validation for Konflux scans - uses CONTAINER_IMAGE_DIGEST instead
-if [[ -n "$CONTAINER_IMAGE_DIGEST" ]]; then
-  echo "Konflux scan detected (CONTAINER_IMAGE_DIGEST provided) - skipping URL validation"
+# Skip URL validation for Konflux scans - uses SARIF_TA_DIGEST instead
+if [[ -n "$SARIF_TA_DIGEST" ]]; then
+  echo "Konflux scan detected (SARIF_TA_DIGEST provided) - skipping URL validation"
   exit 0
 fi
 

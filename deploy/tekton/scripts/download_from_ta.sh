@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== STEP 0: DOWNLOAD FROM TRUSTED ARTIFACTS ==="
+echo "=== DOWNLOAD FROM TRUSTED ARTIFACTS ==="
 
-# Skip if CONTAINER_IMAGE_DIGEST is empty (not a Konflux scan)
-if [[ -z "$CONTAINER_IMAGE_DIGEST" ]]; then
-  echo "CONTAINER_IMAGE_DIGEST not provided - skipping Trusted Artifacts download"
+# Skip if SARIF_TA_DIGEST is empty (not a Konflux scan)
+if [[ -z "$SARIF_TA_DIGEST" ]]; then
+  echo "SARIF_TA_DIGEST not provided - skipping Trusted Artifacts download"
   exit 0
 fi
 
-echo "Image digest: $CONTAINER_IMAGE_DIGEST"
+echo "Image digest: $SARIF_TA_DIGEST"
 
 # Check if ORAS is available
 if ! command -v oras &> /dev/null; then
@@ -17,8 +17,8 @@ if ! command -v oras &> /dev/null; then
   exit 1
 fi
 
-# Extract registry host from CONTAINER_IMAGE_DIGEST
-REGISTRY_HOST=$(echo "$CONTAINER_IMAGE_DIGEST" | cut -d'/' -f1)
+# Extract registry host from SARIF_TA_DIGEST
+REGISTRY_HOST=$(echo "$SARIF_TA_DIGEST" | cut -d'/' -f1)
 
 # Authenticate to Konflux registry if credentials are provided
 if [[ -f "$KONFLUX_REGISTRY_CREDS_PATH" ]]; then
@@ -47,7 +47,7 @@ fi
 # Note: SARIF is embedded directly in the image, not as an OCI referrer
 echo "Downloading artifacts from Trusted Artifacts..."
 mkdir -p /shared-data/oras-downloads
-oras pull "$CONTAINER_IMAGE_DIGEST" --output /shared-data/oras-downloads/
+oras pull "$SARIF_TA_DIGEST" --output /shared-data/oras-downloads/
 
 # Find and move SARIF file to expected location
 SARIF_FILE=$(find /shared-data/oras-downloads -name "*.sarif" -o -name "*.json" | head -1)

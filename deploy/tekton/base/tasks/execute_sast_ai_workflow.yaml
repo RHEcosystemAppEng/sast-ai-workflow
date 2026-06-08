@@ -104,9 +104,9 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
-    - name: CONTAINER_IMAGE_DIGEST
+    - name: SARIF_TA_DIGEST
       type: string
-      description: "OCI container image digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). SARIF attached as OCI referrer."
+      description: "SARIF Trusted Artifacts digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). Used to download SARIF from Trusted Artifacts."
       default: ""
     - name: GIT_REVISION
       type: string
@@ -158,20 +158,7 @@ spec:
       description: "DVC pipeline stage identifier"
 
   steps:
-    # STEP 0: Download from Trusted Artifacts (Konflux scans only)
-    - name: download-from-trusted-artifacts
-      image: $(params.BASE_IMAGE)
-      env:
-        - name: CONTAINER_IMAGE_DIGEST
-          value: "$(params.CONTAINER_IMAGE_DIGEST)"
-        - name: KONFLUX_REGISTRY_CREDS_PATH
-          value: "$(workspaces.konflux-registry-creds-ws.path)/credentials"
-      volumeMounts:
-        - name: shared-data
-          mountPath: /shared-data
-      command: ["/scripts/download_from_ta.sh"]
-
-    # STEP 1: Validate Input URLs
+    # STEP 0: Validate Input URLs
     - name: validate-input-urls
       image: $(params.BASE_IMAGE)
       env:
@@ -179,9 +166,28 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: FALSE_POSITIVES_URL
           value: "$(params.FALSE_POSITIVES_URL)"
-        - name: CONTAINER_IMAGE_DIGEST
-          value: "$(params.CONTAINER_IMAGE_DIGEST)"
+        - name: SARIF_TA_DIGEST
+          value: "$(params.SARIF_TA_DIGEST)"
       command: ["/scripts/validate_input_urls.sh"]
+
+    # STEP 1: Prepare Input Report (Download from TA or Transform to SARIF)
+    - name: prepare-input-report
+      image: $(params.BASE_IMAGE)
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      env:
+        - name: SARIF_TA_DIGEST
+          value: "$(params.SARIF_TA_DIGEST)"
+        - name: KONFLUX_REGISTRY_CREDS_PATH
+          value: "$(workspaces.konflux-registry-creds-ws.path)/credentials"
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: TEKTON_RESULTS_DIR
+          value: "$(results.report-file-path.path)"
+        - name: GOOGLE_SA_JSON_PATH
+          value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+      command: ["/scripts/prepare_input_report.sh"]
 
     # STEP 2: Validate Report File
     - name: validate-report-file
@@ -221,20 +227,7 @@ spec:
           mountPath: /shared-data
       command: ["/scripts/prepare_source.sh"]
 
-    # STEP 4: Transform SAST Report to SARIF Format
-    - name: transform-report
-      image: $(params.BASE_IMAGE)
-      volumeMounts:
-        - name: shared-data
-          mountPath: /shared-data
-      env:
-        - name: INPUT_REPORT_FILE_PATH
-          value: "$(params.INPUT_REPORT_FILE_PATH)"
-        - name: TEKTON_RESULTS_DIR
-          value: "$(results.report-file-path.path)"
-      command: ["/scripts/transform_report.sh"]
-
-    # STEP 5: Fetch False Positives
+    # STEP 4: Fetch False Positives
     - name: fetch-false-positives
       image: $(params.BASE_IMAGE)
       env:
@@ -249,7 +242,7 @@ spec:
           mountPath: /shared-data
       command: ["/scripts/fetch_false_positives.sh"]
 
-    # STEP 6: Execute SAST AI Analysis
+    # STEP 5: Execute SAST AI Analysis
     - name: run-analysis
       image: $(params.CONTAINER_IMAGE)
       env:
@@ -407,7 +400,7 @@ spec:
           exit 1
         fi
 
-    # STEP 7: Upload to Google Drive
+    # STEP 6: Upload to Google Drive
     - name: upload-to-gdrive
       image: $(params.BASE_IMAGE)
       env:
@@ -434,7 +427,7 @@ spec:
           mountPath: /scripts/gdrive
       command: ["/scripts/upload_to_gdrive.sh"]
 
-    # STEP 8: Upload SARIF to GCS Bucket
+    # STEP 7: Upload SARIF to GCS Bucket
     - name: upload-sarif-to-gcs
       image: $(params.BASE_IMAGE)
       env:
@@ -455,7 +448,7 @@ spec:
           mountPath: /scripts/gcs
       command: ["/scripts/upload_sarif_to_gcs.sh"]
 
-    # STEP 9: Cleanup (Always runs)
+    # STEP 8: Cleanup (Always runs)
     - name: cleanup
       image: $(params.BASE_IMAGE)
       volumeMounts:
