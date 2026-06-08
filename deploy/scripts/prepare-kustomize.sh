@@ -191,6 +191,23 @@ EOF
     fi
 fi
 
+# Konflux Trusted Artifacts registry token (optional)
+if [[ -n "${KONFLUX_TOKEN}" ]]; then
+    cat > "${OVERLAY_DIR}/secrets-konflux.env" <<EOF
+# Konflux Trusted Artifacts Registry Token
+credentials=${KONFLUX_TOKEN}
+EOF
+    echo "   ✓ secrets-konflux.env created (Konflux registry token included)"
+else
+    # Create empty Konflux secret file so Kustomize doesn't fail
+    cat > "${OVERLAY_DIR}/secrets-konflux.env" <<EOF
+# Konflux Trusted Artifacts Registry Token (not configured)
+# Only needed for Konflux scans that download SARIF from Trusted Artifacts
+credentials=
+EOF
+    echo "   ⚠️  Konflux registry token not configured (optional - only needed for Konflux scans)"
+fi
+
 # =============================================================================
 # Step 4: Copy service account files
 # =============================================================================

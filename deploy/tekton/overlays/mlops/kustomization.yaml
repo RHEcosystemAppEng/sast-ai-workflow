@@ -51,6 +51,13 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
+  # Konflux Trusted Artifacts registry token
+  - name: konflux-registry-token
+    envs:
+      - secrets-konflux.env
+    options:
+      disableNameSuffixHash: true
+
 patches:
   # Task patches
   - target:

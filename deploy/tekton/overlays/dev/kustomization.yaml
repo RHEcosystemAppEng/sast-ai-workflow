@@ -50,3 +50,10 @@ secretGenerator:
     type: kubernetes.io/dockerconfigjson
     options:
       disableNameSuffixHash: true
+
+  # Konflux Trusted Artifacts registry token
+  - name: konflux-registry-token
+    envs:
+      - secrets-konflux.env
+    options:
+      disableNameSuffixHash: true
