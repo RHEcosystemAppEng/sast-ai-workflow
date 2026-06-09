@@ -75,6 +75,14 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
+    - name: SARIF_URI
+      type: string
+      description: "Full OCI artifact URI for Konflux SARIF (e.g., registry.com/namespace/repo@sha256:hash). Used to download SARIF from Trusted Artifacts."
+      default: ""
+    - name: GIT_REVISION
+      type: string
+      description: "Git commit SHA for source checkout (used with Konflux scans)"
+      default: ""
     - name: CONTAINER_IMAGE
       type: string
       description: "Container image to use for SAST AI analysis"
@@ -92,6 +100,8 @@ spec:
       optional: true
     - name: google-sa-json-ws
     - name: gcs-sa-json-ws
+      optional: true
+    - name: konflux-registry-creds-ws
       optional: true
   tasks:
     - name: execute-ai-analysis
@@ -138,6 +148,10 @@ spec:
           value: "$(params.GCS_SA_FILE_NAME)"
         - name: OSH_TASK_ID
           value: "$(params.OSH_TASK_ID)"
+        - name: SARIF_URI
+          value: "$(params.SARIF_URI)"
+        - name: GIT_REVISION
+          value: "$(params.GIT_REVISION)"
         - name: CONTAINER_IMAGE
           value: "$(params.CONTAINER_IMAGE)"
         - name: BASE_IMAGE
@@ -151,3 +165,5 @@ spec:
           workspace: google-sa-json-ws
         - name: gcs-sa-json-ws
           workspace: gcs-sa-json-ws
+        - name: konflux-registry-creds-ws
+          workspace: konflux-registry-creds-ws

@@ -51,10 +51,16 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
+  # Konflux Trusted Artifacts registry token
+  - name: konflux-registry-token
+    envs:
+      - secrets-konflux.env
+    options:
+      disableNameSuffixHash: true
+
 patches:
   # Task patches - using JSON Patch to override specific parameter defaults
   - target:
       kind: Task
       name: execute-ai-analysis
     path: task-patch.yaml
-

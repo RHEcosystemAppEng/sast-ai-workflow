@@ -94,6 +94,10 @@ S3_OUTPUT_BUCKET_NAME=mlops-output
 # Optional: DVC Configuration (for MLOps environment)
 DVC_REPO_URL=https://github.com/your-org/sast-ai-dvc
 DVC_DATA_VERSION=v2.0
+
+# Optional: Konflux Trusted Artifacts (for Konflux scans)
+# JWT token for authenticating to Konflux registry to download SARIF files
+# KONFLUX_TOKEN=XXXXX
 ```
 
 #### 3.2. Prepare Prerequisites
@@ -138,6 +142,7 @@ All SAST AI Workflow resources use the `sast-ai-` prefix for easy identification
 - `sast-ai-gcs-service-account` - GCS service account JSON for uploading SARIF reports to GCS bucket (optional)
 - `sast-ai-s3-output-credentials` - S3/Minio output access credentials for MLOps environment (optional)
 - `sast-ai-quay-registry-config` - Container registry pull credentials
+- `konflux-registry-token` - Konflux Trusted Artifacts registry token for downloading SARIF files (optional, for Konflux scans)
 
 **ConfigMaps:**
 - `sast-ai-upload-to-drive` - Google Drive upload scripts

@@ -104,6 +104,14 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
+    - name: SARIF_URI
+      type: string
+      description: "Full OCI artifact URI for Konflux SARIF (e.g., registry.com/namespace/repo@sha256:hash). Used to download SARIF from Trusted Artifacts."
+      default: ""
+    - name: GIT_REVISION
+      type: string
+      description: "Git commit SHA for source checkout (used with Konflux scans)"
+      default: ""
     - name: MAX_CONCURRENT_INVESTIGATIONS
       type: string
       description: "Number of issues to process concurrently (1 = sequential, 5 = default parallel)"
@@ -117,6 +125,9 @@ spec:
       description: "Secret mount for Google Drive service account"
     - name: gcs-sa-json-ws
       description: "Optional secret mount for GCS service account"
+      optional: true
+    - name: konflux-registry-creds-ws
+      description: "Optional secret mount for Konflux Trusted Artifacts registry credentials"
       optional: true
 
   volumes:
@@ -147,7 +158,7 @@ spec:
       description: "DVC pipeline stage identifier"
 
   steps:
-    # STEP 1: Validate Input URLs
+    # STEP 0: Validate Input URLs
     - name: validate-input-urls
       image: $(params.BASE_IMAGE)
       env:
@@ -155,7 +166,28 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: FALSE_POSITIVES_URL
           value: "$(params.FALSE_POSITIVES_URL)"
+        - name: SARIF_URI
+          value: "$(params.SARIF_URI)"
       command: ["/scripts/validate_input_urls.sh"]
+
+    # STEP 1: Prepare Input Report (Download from TA or Transform to SARIF)
+    - name: prepare-input-report
+      image: $(params.BASE_IMAGE)
+      volumeMounts:
+        - name: shared-data
+          mountPath: /shared-data
+      env:
+        - name: SARIF_URI
+          value: "$(params.SARIF_URI)"
+        - name: KONFLUX_REGISTRY_CREDS_PATH
+          value: "$(workspaces.konflux-registry-creds-ws.path)/credentials"
+        - name: INPUT_REPORT_FILE_PATH
+          value: "$(params.INPUT_REPORT_FILE_PATH)"
+        - name: TEKTON_RESULTS_DIR
+          value: "$(results.report-file-path.path)"
+        - name: GOOGLE_SA_JSON_PATH
+          value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+      command: ["/scripts/prepare_input_report.sh"]
 
     # STEP 2: Validate Report File
     - name: validate-report-file
@@ -165,6 +197,8 @@ spec:
           value: "$(params.INPUT_REPORT_FILE_PATH)"
         - name: GOOGLE_SA_JSON_PATH
           value: "$(workspaces.google-sa-json-ws.path)/service_account.json"
+        - name: TEKTON_RESULTS_DIR
+          value: "$(results.report-file-path.path)"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
@@ -180,29 +214,20 @@ spec:
           value: "/shared-data"
         - name: SRC_URL
           value: "$(params.REPO_REMOTE_URL)"
+        - name: GIT_REVISION
+          value: "$(params.GIT_REVISION)"
         - name: WORKDIR
           value: "/shared-data"
         - name: TEKTON_RESULTS_DIR
           value: "$(results.repo-local-path.path)"
+        - name: GITLAB_TOKEN_PATH
+          value: "$(workspaces.gitlab-token-ws.path)/gitlab_token"
       volumeMounts:
         - name: shared-data
           mountPath: /shared-data
       command: ["/scripts/prepare_source.sh"]
 
-    # STEP 4: Transform SAST Report to SARIF Format
-    - name: transform-report
-      image: $(params.BASE_IMAGE)
-      volumeMounts:
-        - name: shared-data
-          mountPath: /shared-data
-      env:
-        - name: INPUT_REPORT_FILE_PATH
-          value: "$(params.INPUT_REPORT_FILE_PATH)"
-        - name: TEKTON_RESULTS_DIR
-          value: "$(results.report-file-path.path)"
-      command: ["/scripts/transform_report.sh"]
-
-    # STEP 5: Fetch False Positives
+    # STEP 4: Fetch False Positives
     - name: fetch-false-positives
       image: $(params.BASE_IMAGE)
       env:
@@ -217,7 +242,7 @@ spec:
           mountPath: /shared-data
       command: ["/scripts/fetch_false_positives.sh"]
 
-    # STEP 6: Execute SAST AI Analysis
+    # STEP 5: Execute SAST AI Analysis
     - name: run-analysis
       image: $(params.CONTAINER_IMAGE)
       env:
@@ -306,7 +331,7 @@ spec:
         - name: OUTPUT_FILE_PATH
           value: "/shared-data/output/sast_ai_output.xlsx"
         - name: LIBCLANG_PATH
-          value: "/usr/lib64/libclang.so.20.1"
+          value: "/usr/lib64/libclang.so.21.1"
         - name: DVC_GIT_COMMIT_HASH
           value: "$(params.GIT_COMMIT_HASH)"
         - name: DVC_REPO_BRANCH
@@ -375,7 +400,7 @@ spec:
           exit 1
         fi
 
-    # STEP 7: Upload to Google Drive
+    # STEP 6: Upload to Google Drive
     - name: upload-to-gdrive
       image: $(params.BASE_IMAGE)
       env:
@@ -402,7 +427,7 @@ spec:
           mountPath: /scripts/gdrive
       command: ["/scripts/upload_to_gdrive.sh"]
 
-    # STEP 8: Upload SARIF to GCS Bucket
+    # STEP 7: Upload SARIF to GCS Bucket
     - name: upload-sarif-to-gcs
       image: $(params.BASE_IMAGE)
       env:
@@ -423,7 +448,7 @@ spec:
           mountPath: /scripts/gcs
       command: ["/scripts/upload_sarif_to_gcs.sh"]
 
-    # STEP 9: Cleanup (Always runs)
+    # STEP 8: Cleanup (Always runs)
     - name: cleanup
       image: $(params.BASE_IMAGE)
       volumeMounts:

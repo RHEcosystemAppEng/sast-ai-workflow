@@ -6,6 +6,43 @@ echo "=== STEP 3: PREPARE SOURCE ==="
 rm -rf "${WORKDIR:?}/source" 2>/dev/null || true
 mkdir -p "${WORKDIR}/source"
 
+# For Konflux scans with GIT_REVISION, clone and checkout specific revision
+if [[ -n "$GIT_REVISION" ]]; then
+  echo "Konflux scan detected - cloning source at revision: $GIT_REVISION"
+  REPO_NAME=$(basename "$SRC_URL" .git)
+
+  # Check if this is a GitLab repo that needs authentication
+  echo "DEBUG: Checking GitLab auth - URL: $SRC_URL, Token path: ${GITLAB_TOKEN_PATH:-NOT_SET}"
+  if echo "$SRC_URL" | grep -q "gitlab.cee.redhat.com"; then
+    echo "DEBUG: GitLab URL detected"
+    if [[ -n "$GITLAB_TOKEN_PATH" ]] && [[ -f "$GITLAB_TOKEN_PATH" ]]; then
+      echo "GitLab repository detected - using token for authentication"
+      GITLAB_TOKEN=$(cat "$GITLAB_TOKEN_PATH")
+
+      # Convert HTTPS URL to authenticated format: https://oauth2:TOKEN@gitlab.cee.redhat.com/...
+      AUTHENTICATED_URL=$(echo "$SRC_URL" | sed "s|https://|https://oauth2:${GITLAB_TOKEN}@|")
+      # Disable SSL verification for internal GitLab (self-signed cert)
+      GIT_SSL_NO_VERIFY=true git clone "$AUTHENTICATED_URL" "${WORKDIR}/source/$REPO_NAME"
+    else
+      echo "DEBUG: GitLab token file not found at: ${GITLAB_TOKEN_PATH:-NOT_SET}"
+      git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME"
+    fi
+  else
+    echo "DEBUG: Not a GitLab repo, cloning without auth"
+    git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME" >/dev/null 2>&1
+  fi
+
+  cd "${WORKDIR}/source/$REPO_NAME"
+  git checkout "$GIT_REVISION" >/dev/null 2>&1
+  REPO_LOCAL_PATH="${WORKDIR}/source/$REPO_NAME"
+
+  # Save repo path for next steps
+  echo -n "$REPO_LOCAL_PATH" > "${TEKTON_RESULTS_DIR}"
+  echo "REPO_LOCAL_PATH=$REPO_LOCAL_PATH" > /shared-data/env.txt
+  echo "Source checked out at revision: $GIT_REVISION"
+  exit 0
+fi
+
 if echo "$SRC_URL" | grep -iq '\.rpm$'; then
   echo "Processing SRPM package..."
 
@@ -43,7 +80,28 @@ else
   echo "Processing Git repository..."
 
   REPO_NAME=$(basename "$SRC_URL" .git)
-  git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME" >/dev/null 2>&1
+
+  # Check if this is a GitLab repo that needs authentication
+  echo "DEBUG: Checking GitLab auth - URL: $SRC_URL, Token path: ${GITLAB_TOKEN_PATH:-NOT_SET}"
+  if echo "$SRC_URL" | grep -q "gitlab.cee.redhat.com"; then
+    echo "DEBUG: GitLab URL detected"
+    if [[ -n "$GITLAB_TOKEN_PATH" ]] && [[ -f "$GITLAB_TOKEN_PATH" ]]; then
+      echo "GitLab repository detected - using token for authentication"
+      GITLAB_TOKEN=$(cat "$GITLAB_TOKEN_PATH")
+
+      # Convert HTTPS URL to authenticated format: https://oauth2:TOKEN@gitlab.cee.redhat.com/...
+      AUTHENTICATED_URL=$(echo "$SRC_URL" | sed "s|https://|https://oauth2:${GITLAB_TOKEN}@|")
+      # Disable SSL verification for internal GitLab (self-signed cert)
+      GIT_SSL_NO_VERIFY=true git clone "$AUTHENTICATED_URL" "${WORKDIR}/source/$REPO_NAME"
+    else
+      echo "DEBUG: GitLab token file not found at: ${GITLAB_TOKEN_PATH:-NOT_SET}"
+      git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME"
+    fi
+  else
+    echo "DEBUG: Not a GitLab repo, cloning without auth"
+    git clone "$SRC_URL" "${WORKDIR}/source/$REPO_NAME" >/dev/null 2>&1
+  fi
+
   REPO_LOCAL_PATH="${WORKDIR}/source/$REPO_NAME"
 fi
 

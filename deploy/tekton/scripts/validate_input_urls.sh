@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -e
-echo "=== STEP 1: VALIDATE INPUT URLS ==="
+echo "=== STEP 0: VALIDATE INPUT URLS ==="
+
+# Skip URL validation for Konflux scans - uses SARIF_URI instead
+if [[ -n "$SARIF_URI" ]]; then
+  echo "Konflux scan detected (SARIF_URI provided) - skipping URL validation"
+  exit 0
+fi
 
 # Validate source URL
 echo "Validating source URL..."

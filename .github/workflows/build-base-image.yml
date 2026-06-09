@@ -6,12 +6,16 @@ on:
       - main
     paths:
       - 'Containerfile.base.dockerfile'
+      - 'deploy/tekton/scripts/*.sh'
+      - 'deploy/tekton/scripts/*.py'
       - '.github/workflows/build-base-image.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'Containerfile.base.dockerfile'
+      - 'deploy/tekton/scripts/*.sh'
+      - 'deploy/tekton/scripts/*.py'
       - '.github/workflows/build-base-image.yml'
   schedule:
     - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM UTC

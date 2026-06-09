@@ -18,6 +18,10 @@ USER 0
 # - jq: For JSON processing (Step 7)
 # - file: For file type detection (Step 4: transform-report)
 # - csdiff: For SARIF conversion (Step 4: transform-report)
+# - tar: For extracting ORAS binary
+#
+# Binary tools:
+# - ORAS CLI v1.3.0: For downloading artifacts from Trusted Artifacts (Step 0: Konflux integration)
 #
 # Python packages:
 # - google-api-python-client, google-auth*: For Google Sheets/Drive (Steps 2, 7)
@@ -33,6 +37,7 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.n
         curl-7.76.1-40.el9 \
         jq-1.6-19.el9_8.2 \
         file-5.39-17.el9 \
+        tar-1.34-11.el9 \
         csdiff-3.5.7-1.el9 && \
     dnf clean all && \
     pip install --no-cache-dir --upgrade pip && \
@@ -47,6 +52,17 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.n
         dvc==3.64.0 \
         dvc-s3==3.2.2 && \
     mkdir -p /scripts
+
+# ============================================================================
+# Install ORAS CLI for Konflux Trusted Artifacts integration
+# ============================================================================
+
+ARG ORAS_VERSION=1.3.0
+RUN curl -LO "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" && \
+    tar -xzf "oras_${ORAS_VERSION}_linux_amd64.tar.gz" -C /usr/local/bin oras && \
+    rm -f "oras_${ORAS_VERSION}_linux_amd64.tar.gz" && \
+    chmod +x /usr/local/bin/oras && \
+    oras version
 
 # ============================================================================
 # Copy pipeline scripts
