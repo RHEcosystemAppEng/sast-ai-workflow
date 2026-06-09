@@ -3,13 +3,13 @@ set -e
 
 echo "=== DOWNLOAD FROM TRUSTED ARTIFACTS ==="
 
-# Skip if SARIF_TA_DIGEST is empty (not a Konflux scan)
-if [[ -z "$SARIF_TA_DIGEST" ]]; then
-  echo "SARIF_TA_DIGEST not provided - skipping Trusted Artifacts download"
+# Skip if SARIF_URI is empty (not a Konflux scan)
+if [[ -z "$SARIF_URI" ]]; then
+  echo "SARIF_URI not provided - skipping Trusted Artifacts download"
   exit 0
 fi
 
-echo "Image digest: $SARIF_TA_DIGEST"
+echo "Image digest: $SARIF_URI"
 
 # Check if ORAS is available
 if ! command -v oras &> /dev/null; then
@@ -17,8 +17,8 @@ if ! command -v oras &> /dev/null; then
   exit 1
 fi
 
-# Extract registry host from SARIF_TA_DIGEST
-REGISTRY_HOST=$(echo "$SARIF_TA_DIGEST" | cut -d'/' -f1)
+# Extract registry host from SARIF_URI
+REGISTRY_HOST=$(echo "$SARIF_URI" | cut -d'/' -f1)
 
 # Authenticate to Konflux registry if credentials are provided
 if [[ -f "$KONFLUX_REGISTRY_CREDS_PATH" ]]; then
@@ -47,7 +47,7 @@ fi
 # Note: SARIF is embedded directly in the image, not as an OCI referrer
 echo "Downloading artifacts from Trusted Artifacts..."
 mkdir -p /shared-data/oras-downloads
-oras pull "$SARIF_TA_DIGEST" --output /shared-data/oras-downloads/
+oras pull "$SARIF_URI" --output /shared-data/oras-downloads/
 
 # Find and move SARIF file to expected location
 SARIF_FILE=$(find /shared-data/oras-downloads -name "*.sarif" -o -name "*.json" | head -1)

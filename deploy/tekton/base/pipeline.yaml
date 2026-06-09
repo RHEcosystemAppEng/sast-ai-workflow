@@ -75,9 +75,9 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
-    - name: SARIF_TA_DIGEST
+    - name: SARIF_URI
       type: string
-      description: "SARIF Trusted Artifacts digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). Used to download SARIF from Trusted Artifacts."
+      description: "Full OCI artifact URI for Konflux SARIF (e.g., registry.com/namespace/repo@sha256:hash). Used to download SARIF from Trusted Artifacts."
       default: ""
     - name: GIT_REVISION
       type: string
@@ -148,8 +148,8 @@ spec:
           value: "$(params.GCS_SA_FILE_NAME)"
         - name: OSH_TASK_ID
           value: "$(params.OSH_TASK_ID)"
-        - name: SARIF_TA_DIGEST
-          value: "$(params.SARIF_TA_DIGEST)"
+        - name: SARIF_URI
+          value: "$(params.SARIF_URI)"
         - name: GIT_REVISION
           value: "$(params.GIT_REVISION)"
         - name: CONTAINER_IMAGE

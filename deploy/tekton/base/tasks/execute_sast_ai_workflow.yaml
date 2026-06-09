@@ -104,9 +104,9 @@ spec:
       type: string
       description: "Optional OSH task identifier for organizing SARIF uploads"
       default: ""
-    - name: SARIF_TA_DIGEST
+    - name: SARIF_URI
       type: string
-      description: "SARIF Trusted Artifacts digest for Konflux scans (e.g., quay.io/namespace/app@sha256:...). Used to download SARIF from Trusted Artifacts."
+      description: "Full OCI artifact URI for Konflux SARIF (e.g., registry.com/namespace/repo@sha256:hash). Used to download SARIF from Trusted Artifacts."
       default: ""
     - name: GIT_REVISION
       type: string
@@ -166,8 +166,8 @@ spec:
           value: "$(params.REPO_REMOTE_URL)"
         - name: FALSE_POSITIVES_URL
           value: "$(params.FALSE_POSITIVES_URL)"
-        - name: SARIF_TA_DIGEST
-          value: "$(params.SARIF_TA_DIGEST)"
+        - name: SARIF_URI
+          value: "$(params.SARIF_URI)"
       command: ["/scripts/validate_input_urls.sh"]
 
     # STEP 1: Prepare Input Report (Download from TA or Transform to SARIF)
@@ -177,8 +177,8 @@ spec:
         - name: shared-data
           mountPath: /shared-data
       env:
-        - name: SARIF_TA_DIGEST
-          value: "$(params.SARIF_TA_DIGEST)"
+        - name: SARIF_URI
+          value: "$(params.SARIF_URI)"
         - name: KONFLUX_REGISTRY_CREDS_PATH
           value: "$(workspaces.konflux-registry-creds-ws.path)/credentials"
         - name: INPUT_REPORT_FILE_PATH
