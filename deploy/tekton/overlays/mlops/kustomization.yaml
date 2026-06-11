@@ -58,6 +58,14 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
+configMapGenerator:
+  # Google Drive folder ID (optional - used to upload generated file to given gdrive folder)
+  - name: sast-ai-gdrive-config
+    envs:
+      - configmap-gdrive.env
+    options:
+      disableNameSuffixHash: true
+
 patches:
   # Task patches
   - target:
