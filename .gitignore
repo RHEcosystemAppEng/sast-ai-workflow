@@ -176,6 +176,7 @@ deploy/tekton/eventlistener/benchmark-config.yaml
 
 # Generated secrets and service accounts (created by prepare-kustomize.sh)
 deploy/tekton/overlays/*/secrets-*.env
+deploy/tekton/overlays/*/configmap-*.env
 deploy/tekton/overlays/*/service-accounts/
 gcs_service_account.json
 service_account.json

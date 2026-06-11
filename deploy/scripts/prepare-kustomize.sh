@@ -191,6 +191,19 @@ EOF
     fi
 fi
 
+# Google Drive folder ID ConfigMap (optional)
+if [[ -n "${GDRIVE_FOLDER_ID}" ]]; then
+    cat > "${OVERLAY_DIR}/configmap-gdrive.env" <<EOF
+folder-id=${GDRIVE_FOLDER_ID}
+EOF
+    echo "   ✓ configmap-gdrive.env created (Google Drive folder ID configured)"
+else
+    cat > "${OVERLAY_DIR}/configmap-gdrive.env" <<EOF
+folder-id=
+EOF
+    echo "   ⚠️  GDRIVE_FOLDER_ID not configured (optional - can be passed at runtime via make run)"
+fi
+
 # Konflux Trusted Artifacts registry token (optional)
 if [[ -n "${KONFLUX_TOKEN}" ]]; then
     cat > "${OVERLAY_DIR}/secrets-konflux.env" <<EOF
