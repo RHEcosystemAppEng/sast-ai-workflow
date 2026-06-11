@@ -28,6 +28,34 @@ WARNING_MESSAGE = "\033[91mWARNING: An error occurred during model output parsin
     Model type is {model_type}. Retrying now. \033[0m"
 
 
+_TOKEN_BUFFER = 256
+_MIN_OUTPUT_TOKENS = 2000
+
+
+def _calculate_max_tokens(
+    input_text, context_window: int, prompt_chain: Optional[RunnableSerializable] = None
+) -> int:
+    """Calculate max output tokens based on estimated input size and model context window."""
+    if prompt_chain is not None:
+        try:
+            rendered = prompt_chain.invoke(input_text)
+            full_text = rendered.to_string() if hasattr(rendered, "to_string") else str(rendered)
+            estimated_input_tokens = len(full_text) // 4
+        except Exception:
+            estimated_input_tokens = len(str(input_text)) // 4
+    else:
+        estimated_input_tokens = len(str(input_text)) // 4
+
+    max_output = context_window - estimated_input_tokens - _TOKEN_BUFFER
+    max_output = max(_MIN_OUTPUT_TOKENS, max_output)
+
+    logger.info(
+        "Dynamic max_tokens: context_window=%d, estimated_input=%d, max_output=%d",
+        context_window, estimated_input_tokens, max_output,
+    )
+    return max_output
+
+
 def robust_structured_output(
     llm: ChatNVIDIA | ChatOpenAI,
     schema: Type[BaseModel],
@@ -35,17 +63,24 @@ def robust_structured_output(
     prompt_chain: RunnableSerializable,
     max_retries: int = 1,
     config: Optional[Dict[str, Any]] = None,
+    context_window: Optional[int] = None,
 ) -> BaseModel:
     """
     Determines the type of LLM and delegates to the appropriate handler.
 
     Args:
         config: Optional LangChain config dict. Supports 'run_name' for Langfuse tracing.
+        context_window: Model's total context window size in tokens.
+            When provided, max_tokens is dynamically set to leave room for the input prompt.
     """
+    max_tokens = None
+    if context_window is not None:
+        max_tokens = _calculate_max_tokens(input, context_window, prompt_chain)
+
     if isinstance(llm, ChatOpenAI):
-        return _handle_chat_openai(llm, schema, input, prompt_chain, max_retries, config)
+        return _handle_chat_openai(llm, schema, input, prompt_chain, max_retries, config, max_tokens)
     elif isinstance(llm, ChatNVIDIA):
-        return _handle_chat_nvidia(llm, schema, input, prompt_chain, max_retries, config)
+        return _handle_chat_nvidia(llm, schema, input, prompt_chain, max_retries, config, max_tokens)
     else:
         raise ValueError(f"Unsupported LLM type: {type(llm)}")
 
@@ -57,12 +92,16 @@ def _handle_chat_openai(
     prompt_chain: RunnableSerializable,
     max_retries: int,
     config: Optional[Dict[str, Any]] = None,
+    max_tokens: Optional[int] = None,
 ) -> BaseModel:
     """
     Handles structured output for ChatOpenAI.
     Uses json_schema with strict=True mode, which either returns a valid
     parsed object or raises an exception. No fallback logic needed.
     """
+    if max_tokens is not None:
+        llm = llm.model_copy(update={"max_tokens": max_tokens})
+
     start_time = time.time()
     try:
         structured_llm = llm.with_structured_output(schema, method="json_schema", strict=True)
@@ -89,6 +128,7 @@ def _handle_chat_nvidia(
     prompt_chain: RunnableSerializable,
     max_retries: int,
     config: Optional[Dict[str, Any]] = None,
+    max_tokens: Optional[int] = None,
 ) -> BaseModel:
     """
     Handles structured output for ChatNVIDIA with retry logic and JSON fallback.
@@ -104,6 +144,9 @@ def _handle_chat_nvidia(
        - Extract JSON from response (handles markdown code blocks)
        - Manually parse and construct Pydantic object
     """
+    if max_tokens is not None:
+        llm = llm.model_copy(update={"max_tokens": max_tokens})
+
     last_exception = None
 
     for attempt in range(max_retries):

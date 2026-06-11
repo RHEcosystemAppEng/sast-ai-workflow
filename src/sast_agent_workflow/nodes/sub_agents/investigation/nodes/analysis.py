@@ -54,6 +54,7 @@ def create_analysis_node(llm: BaseChatModel, config: Config):
                 prompt_chain=prompt_chain,
                 max_retries=max_retries,
                 config={"run_name": LANGFUSE_ANALYSIS_TRACE_NAME},
+                context_window=getattr(config, "LLM_CONTEXT_WINDOW", None),
             )
 
             logger.info(

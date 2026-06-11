@@ -91,6 +91,7 @@ class IssueAnalysisService:
                 input=issue.trace,
                 prompt_chain=pattern_matching_prompt_chain,
                 max_retries=self.max_retry_limit,
+                context_window=getattr(self.config, "LLM_CONTEXT_WINDOW", None),
             )
         except Exception as e:
             logger.error(
@@ -287,6 +288,7 @@ class IssueAnalysisService:
                 input=user_input,
                 prompt_chain=analysis_prompt_chain,
                 max_retries=self.max_retry_limit,
+                context_window=getattr(self.config, "LLM_CONTEXT_WINDOW", None),
             )
         except Exception as e:
             logger.error(
@@ -340,6 +342,7 @@ class IssueAnalysisService:
                 input=response,
                 prompt_chain=justification_summary_prompt_chain,
                 max_retries=self.max_retry_limit,
+                context_window=getattr(self.config, "LLM_CONTEXT_WINDOW", None),
             )
         except Exception as e:
             logger.error(
@@ -382,6 +385,7 @@ class IssueAnalysisService:
                 input={},
                 prompt_chain=recommendation_prompt_chain,
                 max_retries=self.max_retry_limit,
+                context_window=getattr(self.config, "LLM_CONTEXT_WINDOW", None),
             )
             logger.debug(f"recommendations_response: {recommendations_response=}")
 
@@ -419,6 +423,7 @@ class IssueAnalysisService:
                 input=response,
                 prompt_chain=evaluation_prompt_chain,
                 max_retries=self.max_retry_limit,
+                context_window=getattr(self.config, "LLM_CONTEXT_WINDOW", None),
             )
             logger.debug(f"{critique_response=}")
 
