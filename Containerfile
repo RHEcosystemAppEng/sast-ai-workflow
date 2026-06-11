@@ -8,8 +8,14 @@ RUN yum install -y clang llvm-devel && yum clean all
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+COPY requirements.txt requirements.lock .
+# Install from the fully pinned lock file without dependency resolution.
+# for example:
+# The base image contains s3fs==2026.4.0, whose metadata requires fsspec==2026.4.0,
+# but the application intentionally pins fsspec==2025.10.0 because datasets==4.5.0
+# requires fsspec<=2025.10.0. Runtime was validated with this combination.
+# Using --no-deps avoids pip's dependency conflict check for this known mismatch.
+RUN pip install --upgrade pip && pip install --no-deps -r requirements.lock
 
 COPY config ./config/
 COPY src ./src/
