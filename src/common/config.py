@@ -51,6 +51,7 @@ class Config:
     LLM_URL: str
     LLM_MODEL_NAME: str
     LLM_API_TYPE: str
+    LLM_CONTEXT_WINDOW: int
     EMBEDDINGS_LLM_URL: str
     EMBEDDINGS_LLM_MODEL_NAME: str | None
     EMBEDDINGS_LLM_API_KEY: str | None

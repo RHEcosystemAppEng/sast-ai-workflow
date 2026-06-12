@@ -39,6 +39,7 @@ MAX_REJECTION_STREAK: 3
 MAX_NO_PROGRESS_STREAK: 2
 RESEARCH_RECURSION_LIMIT: 30
 STRUCTURED_OUTPUT_MAX_RETRIES: 3
+LLM_CONTEXT_WINDOW: 32768
 
 # Parallel Processing Configuration
 # Processes multiple issues concurrently to reduce analysis time
