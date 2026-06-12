@@ -28,30 +28,54 @@ WARNING_MESSAGE = "\033[91mWARNING: An error occurred during model output parsin
     Model type is {model_type}. Retrying now. \033[0m"
 
 
-_TOKEN_BUFFER = 256
+_SAFETY_MARGIN = 256
 _MIN_OUTPUT_TOKENS = 2000
 
 
 def _calculate_max_tokens(
-    input_text, context_window: int, prompt_chain: Optional[RunnableSerializable] = None
+    input_text,
+    context_window: int,
+    prompt_chain: Optional[RunnableSerializable] = None,
+    schema: Optional[Type[BaseModel]] = None,
 ) -> int:
     """Calculate max output tokens based on estimated input size and model context window."""
     if prompt_chain is not None:
         try:
             rendered = prompt_chain.invoke(input_text)
             full_text = rendered.to_string() if hasattr(rendered, "to_string") else str(rendered)
-            estimated_input_tokens = len(full_text) // 4
+            estimated_input_tokens = len(full_text) // 3
         except Exception:
-            estimated_input_tokens = len(str(input_text)) // 4
+            estimated_input_tokens = len(str(input_text)) // 3
     else:
-        estimated_input_tokens = len(str(input_text)) // 4
+        estimated_input_tokens = len(str(input_text)) // 3
 
-    max_output = context_window - estimated_input_tokens - _TOKEN_BUFFER
-    max_output = max(_MIN_OUTPUT_TOKENS, max_output)
+    schema_overhead = 0
+    if schema is not None:
+        try:
+            schema_json = json.dumps(schema.model_json_schema())
+            schema_overhead = len(schema_json) // 3
+        except Exception:
+            schema_overhead = 200
+
+    total_input = estimated_input_tokens + schema_overhead + _SAFETY_MARGIN
+    max_output = context_window - total_input
+
+    if max_output < 1:
+        raise ValueError(
+            f"Prompt too large for context window: "
+            f"estimated_input={estimated_input_tokens}, schema_overhead={schema_overhead}, "
+            f"context_window={context_window}"
+        )
+
+    if max_output < _MIN_OUTPUT_TOKENS:
+        logger.warning(
+            "Available output tokens below desired minimum: %d < %d",
+            max_output, _MIN_OUTPUT_TOKENS,
+        )
 
     logger.info(
-        "Dynamic max_tokens: context_window=%d, estimated_input=%d, max_output=%d",
-        context_window, estimated_input_tokens, max_output,
+        "Dynamic max_tokens: context_window=%d, estimated_input=%d, schema_overhead=%d, max_output=%d",
+        context_window, estimated_input_tokens, schema_overhead, max_output,
     )
     return max_output
 
@@ -75,7 +99,7 @@ def robust_structured_output(
     """
     max_tokens = None
     if context_window is not None:
-        max_tokens = _calculate_max_tokens(input, context_window, prompt_chain)
+        max_tokens = _calculate_max_tokens(input, context_window, prompt_chain, schema)
 
     if isinstance(llm, ChatOpenAI):
         return _handle_chat_openai(llm, schema, input, prompt_chain, max_retries, config, max_tokens)
