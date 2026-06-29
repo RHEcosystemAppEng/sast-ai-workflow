@@ -4,11 +4,12 @@
 # hadolint ignore=DL3007
 FROM quay.io/ecosystem-appeng/sast-ai-base-image:latest
 USER 0
-RUN yum install -y clang llvm-devel && yum clean all
+RUN yum install -y clang llvm-devel && yum clean all && \
+    ln -sf /usr/lib64/libclang.so.21.1 /usr/lib64/libclang.so
 
 WORKDIR /app
 
-COPY requirements.txt requirements.lock .
+COPY requirements.txt requirements.lock ./
 # Install from the fully pinned lock file without dependency resolution.
 # for example:
 # The base image contains s3fs==2026.4.0, whose metadata requires fsspec==2026.4.0,
@@ -26,7 +27,7 @@ COPY pyproject.toml .
 # Set version for setuptools-scm since .git folder is not available in container
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=1.0.0
 
-RUN pip install -e .
+RUN pip install --no-deps -e .
 
 RUN chown -R 1001:1001 /app && \
     chmod +x /app/deploy/tekton/scripts/*.sh && \

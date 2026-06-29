@@ -447,11 +447,11 @@ wheels = [
 
 [[package]]
 name = "clang"
-version = "19.1.7"
+version = "21.1.7"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/65/f3/5906d54f4a6e52b76a184cbc22a1b76cd4787908fa2fab43a177b1437930/clang-19.1.7.tar.gz", hash = "sha256:bf8b109db34b72853f8a7c9baa89c9782a657e6c29763fce5bd773043385bcef", size = 3104, upload-time = "2025-02-17T21:55:40.088Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/9b/956a03195656847c4e3620dab9c36c9e53aecf685a6c3f0bc1ce025d7ec3/clang-21.1.7.tar.gz", hash = "sha256:01d5602b3fff77fef6d691a193d7aead4766b0f11d789d596200f3334a88f4b8", size = 8600, upload-time = "2025-12-18T22:04:51.886Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d9/5e/f11955a953db4476fa98ca3e28ac9fdef063a44d1cf749b6f8766bb2398c/clang-19.1.7-py3-none-any.whl", hash = "sha256:a5d0931222e0c96a9933d942065d970859820482ee16854b7dfa1e7e2033fab3", size = 31475, upload-time = "2025-02-17T21:55:38.244Z" },
+    { url = "https://files.pythonhosted.org/packages/50/a4/608c542925949b300a295baa422b568f835044c5e3ad20820676b840228a/clang-21.1.7-py3-none-any.whl", hash = "sha256:23ee8f7b62af648009aee5139516b2a2a9320680dbce6e42a53e48bd5e8983ea", size = 40240, upload-time = "2025-12-18T22:04:50.636Z" },
 ]
 
 [[package]]
@@ -4264,7 +4264,7 @@ requires-dist = [
     { name = "certifi", specifier = "==2026.1.4" },
     { name = "cffi", specifier = "==2.0.0" },
     { name = "charset-normalizer", specifier = "==3.4.4" },
-    { name = "clang", specifier = "==19.1.7" },
+    { name = "clang", specifier = "==21.1.7" },
     { name = "click", specifier = "==8.3.1" },
     { name = "cloudpickle", specifier = "==3.1.2" },
     { name = "colorama", specifier = "==0.4.6" },
