@@ -1,0 +1,200 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Security
+    tekton.dev/tags: source-code, debugging, listing
+    tekton.dev/displayName: "SAST-AI"
+  name: sast-ai-integration
+spec:
+  description: >-
+    Downloads source code from trusted artifacts, lists directory contents, and displays SAST results from pipeline.
+    Runs after SAST scans to show both source code and security findings in one place.
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with the application source code
+      type: string
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with the prefetched dependencies
+      type: string
+      default: ""
+    - name: IMAGE_URL
+      description: The container image URL to check for attached SARIF files
+      type: string
+    - name: IMAGE_DIGEST
+      description: The container image digest to check for attached SARIF files
+      type: string
+    - name: GIT_URL
+      description: The public git repository URL
+      type: string
+    - name: GIT_REVISION
+      description: The git commit SHA or tag
+      type: string
+    - name: SAST_RESULT
+      description: The SAST scan result status from previous pipeline task
+      type: string
+      default: ""
+  results:
+    - name: SOURCE_LISTING
+      description: The listing of files in the source directory
+  volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: app-config
+      configMap:
+        name: source-list-config
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f7138b497698ab9d7ee11101dcfe431a13c9bd74bf0e22c844f1b8c31fae16ad
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /var/workdir
+          name: workdir
+    - name: list-source-code
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
+      volumeMounts:
+        - mountPath: /var/workdir
+          name: workdir
+        - mountPath: /etc/config
+          name: app-config
+      workingDir: /var/workdir
+      env:
+        - name: SOURCE_ARTIFACT
+          value: $(params.SOURCE_ARTIFACT)
+        - name: IMAGE_URL
+          value: $(params.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
+        - name: GIT_URL
+          value: $(params.GIT_URL)
+        - name: GIT_REVISION
+          value: $(params.GIT_REVISION)
+        - name: SAST_RESULT
+          value: $(params.SAST_RESULT)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        
+        # Print ConfigMap contents at the beginning
+        echo "ConfigMap Contents:"
+        echo "=================="
+        if [ -d "/etc/config" ]; then
+          for config_file in /etc/config/*; do
+            if [ -f "$config_file" ]; then
+              echo "--- $(basename "$config_file") ---"
+              cat "$config_file"
+              echo ""
+            fi
+          done
+        else
+          echo "No config directory found at /etc/config"
+        fi
+        echo ""
+        
+        echo "========================================"
+        echo "To clone this exact revision locally:"
+        echo "  git clone ${GIT_URL} && cd \$(basename ${GIT_URL} .git) && git checkout ${GIT_REVISION}"
+        echo "========================================"
+
+        cd /var/workdir/source
+        
+        echo "Source artifact: ${SOURCE_ARTIFACT}"
+        echo "Source code listing:"
+        echo "===================="
+        ls -la
+        echo ""
+        
+        # Display SAST task status from pipeline result
+        if [ -n "${SAST_RESULT}" ] && [ "${SAST_RESULT}" != "" ]; then
+          
+          RESULT_STATUS=$(echo "${SAST_RESULT}" | grep -o '"result"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"result"[[:space:]]*:[[:space:]]*"//;s/"$//' || true)
+          if [ -n "$RESULT_STATUS" ]; then
+            echo "Pipeline Status: ${RESULT_STATUS}"
+          fi
+          NOTE=$(echo "${SAST_RESULT}" | grep -o '"note"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"note"[[:space:]]*:[[:space:]]*"//;s/"$//' || true)
+          if [ -z "$NOTE" ]; then
+            NOTE=$(echo "${SAST_RESULT}" | grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"message"[[:space:]]*:[[:space:]]*"//;s/"$//' || true)
+          fi
+          if [ -n "$NOTE" ]; then
+            echo "Pipeline Message: ${NOTE}"
+          fi
+          echo ""
+        fi
+        
+        # Download and display actual SARIF findings from OCI artifacts
+        if [ -n "${IMAGE_URL}" ] && [ -n "${IMAGE_DIGEST}" ]; then
+          select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SARIF_DOWNLOADED=false
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SARIF_DOWNLOADED" = false ]; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Attempt $RETRY_COUNT/$MAX_RETRIES: Discovering SARIF artifacts for ${IMAGE_URL}@${IMAGE_DIGEST}"
+
+            DELAY=$((RETRY_COUNT * 3))
+            echo "Waiting ${DELAY}s before attempt..."
+            sleep $DELAY
+
+            DISCOVER_RAW=$(oras discover --format json "${IMAGE_URL}@${IMAGE_DIGEST}" --registry-config "${HOME}/auth.json" 2>&1) || true
+
+            SARIF_DIGESTS=$(echo "${DISCOVER_RAW}" | awk '
+              /"digest"/ { gsub(/[",]/, ""); for(i=1;i<=NF;i++) if($i ~ /^sha256:/) digest=$i }
+              /"artifactType".*application\/sarif\+json/ { if(digest) print digest; digest="" }
+            ')
+
+            if [ -z "$SARIF_DIGESTS" ]; then
+              echo "No SARIF artifacts found"
+              continue
+            fi
+
+            for digest in $SARIF_DIGESTS; do
+              if ! echo "$digest" | grep -q '^sha256:'; then
+                continue
+              fi
+              SARIF_DIR=$(mktemp -d)
+              if oras pull "${IMAGE_URL%:*}@${digest}" --registry-config "${HOME}/auth.json" --output "${SARIF_DIR}" 2>&1; then
+                for sarif_file in "${SARIF_DIR}"/*.sarif; do
+                  if [ -f "$sarif_file" ]; then
+                    SARIF_DOWNLOADED=true
+                    if echo "$(basename "$sarif_file")" | grep -q "snyk"; then
+                      echo "Snyk SARIF pull URI: ${IMAGE_URL%:*}@${digest}"
+                    fi
+                  fi
+                done
+              else
+                echo "Failed to download SARIF artifact: $digest"
+              fi
+            done
+          done
+
+          if [ "$SARIF_DOWNLOADED" = false ]; then
+            echo "No SARIF artifacts found after $MAX_RETRIES attempts"
+          fi
+        else
+          echo "No IMAGE_URL/IMAGE_DIGEST provided - skipping SARIF download"
+        fi
+        
+        echo "Triggering SAST AI Orchestrator scan..."
+        curl --insecure --silent --show-error \
+          --request POST \
+          --header 'Content-Type: application/json' \
+          --header 'Cookie: 41fa13e64f4d3198a676d9fb7f22bb81=52a3f963e41854fa5fe24451455e7b6a' \
+          --data '{
+            "inputSourceUrl": "https://docs.google.com/spreadsheets/d/1NPGmERBsSTdHjQK2vEocQ-PvQlRGGLMds02E_RGF8vY",
+            "packageNvr": "systemd-257-9.el10",
+            "useKnownFalsePositiveFile": true,
+            "forceRescan": true
+          }' \
+          'https://sast-ai-orchestrator-dev-sast-ai-dev.apps.appeng-lab01.accl-001.lab.rdu2.dc.redhat.com/api/v1/jobs/simple' \
+          || echo "WARNING: Failed to trigger SAST AI Orchestrator"
+
+        ls -1 | wc -l > /tekton/results/SOURCE_LISTING
+
