@@ -4,7 +4,7 @@ Tekton Task definition for running SAST-AI as a step in a [Konflux](https://konf
 
 ## `sast-ai-integration.yaml`
 
-This Task runs after SAST scans in a Konflux pipeline. It:
+This Task should be added as a custom tekton task in Konflux CI. Then should configue the push/merge CI triggers to run. The purpose of this custom tekton task is to trigger SAST-AI from a Konflux CI pipeline. It does the following actions:
 
 1. Downloads application source code from Trusted Artifacts.
 2. Discovers and pulls SARIF findings attached to the built container image via ORAS.
