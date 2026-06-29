@@ -46,9 +46,10 @@ def create_evaluation_node(llm: BaseChatModel, config: Config):
                 prompt_chain=prompt_chain,
                 max_retries=max_retries,
                 config={"run_name": LANGFUSE_EVALUATION_TRACE_NAME},
+                context_window=getattr(config, "LLM_CONTEXT_WINDOW", None),
             )
         except Exception as e:
-            logger.error(f"[{issue_id}] Evaluation error after retries: {e}", exc_info=True)
+            logger.error(f"[{issue_id}] Evaluation error: {e}", exc_info=True)
             return {
                 **state,
                 "is_complete": True,
