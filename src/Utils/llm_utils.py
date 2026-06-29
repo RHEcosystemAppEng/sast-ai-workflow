@@ -28,7 +28,10 @@ WARNING_MESSAGE = "\033[91mWARNING: An error occurred during model output parsin
     Model type is {model_type}. Retrying now. \033[0m"
 
 
+# Covers tokenizer estimation variance (chars//3 vs actual tokens). Does not need to scale with context window size.
 _SAFETY_MARGIN = 256
+# Warning threshold only, not a hard floor. If the prompt is large, max_output may go below this value —
+# the code will use whatever tokens are actually available rather than forcing 2000 and overflowing the context window.
 _MIN_OUTPUT_TOKENS = 2000
 
 
